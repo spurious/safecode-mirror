@@ -11,6 +11,17 @@ Pass *createConvertUnsafeAllocas();
 
 using namespace ABC;
 using namespace CSS;
+
+ struct MallocPass : public FunctionPass
+ {
+   private:
+inline bool changeType (Instruction * Inst);
+   
+   public:
+virtual bool runOnFunction (Function &F);
+ };
+
+ 
 namespace CUA {
 struct ConvertUnsafeAllocas : public Pass {
     public :
