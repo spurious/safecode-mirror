@@ -3,7 +3,9 @@
 
 #include "llvm/Pass.h"
 #include "ConvertUnsafeAllocas.h"
-#include "/home/vadve/dhurjati/llvm/projects/poolalloc/include/poolalloc/PoolAllocate.h"
+#include "SafeDynMemAlloc.h"
+#include "/home/vadve/kowshik/llvm/projects/poolalloc/include/poolalloc/PoolAllocate.h"
+
 namespace llvm {
 
 Pass *creatInsertPoolChecks();
@@ -14,14 +16,17 @@ struct InsertPoolChecks : public Pass {
     const char *getPassName() const { return "Inserting pool checks for array bounds "; }
     virtual bool run(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<CompleteBUDataStructures>();
+      AU.addRequired<TDDataStructures>();
       AU.addRequired<ConvertUnsafeAllocas>();
       AU.addRequired<PoolAllocate>();
-      AU.addRequired<BUDataStructures>();
-      AU.addRequired<TDDataStructures>();
+      AU.addRequired<EmbeCFreeRemoval>();
     };
     private :
       CUA::ConvertUnsafeAllocas * cuaPass;
       PoolAllocate * paPass;
+  EmbeCFreeRemoval *efPass;
+  CompleteBUDataStructures *budsPass;
   Function *PoolCheck;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
