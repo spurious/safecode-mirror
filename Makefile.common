@@ -1,13 +1,8 @@
 # should be llvm source 
-LLVM_SRC_DIR = /home/vadve/$(USER)/llvm
+LLVM_SRC_ROOT = /home/vadve/$(USER)/llvm
 
 #llvm lib
-LLVM_LIB_DIR = /localhome/$(USER)/llvm/
+LLVM_OBJ_ROOT = /localhome/$(USER)/llvm/
 
-#proj compile
-PROJ_COMPILE := 1
-
-PROJLEVEL := $(LEVEL) 
-LEVEL = $(LLVM_SRC_DIR)
-include $(LEVEL)/Makefile.common
+include $(LLVM_SRC_ROOT)/Makefile.common
 
