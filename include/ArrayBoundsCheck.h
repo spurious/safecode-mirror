@@ -6,7 +6,7 @@
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
 #include "AffineExpressions.h"
-
+#include "llvm/Analysis/DataStructure.h"
 namespace llvm {
 
 Pass *createArrayBoundsCheckPass();
@@ -19,11 +19,14 @@ struct ArrayBoundsCheck : public Pass {
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool run(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
-//  Function *PoolCheck;
-
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<CompleteBUDataStructures>();
+      AU.setPreservesAll();
+    }
   private :
-    typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
-    typedef std::map<Function*, int> FuncIntMap;
+  CompleteBUDataStructures *budsPass;
+  typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
+  typedef std::map<Function*, int> FuncIntMap;
     
     //This is required for getting the names/unique identifiers for variables.
     SlotCalculator *Table;
@@ -82,6 +85,7 @@ struct ArrayBoundsCheck : public Pass {
     void generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem);
     void generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp);
     void printarraytype(string var,const ArrayType  *T);
+    void printSymbolicStandardArguments(const Module *M, ostream & out);
     void printStandardArguments(const Module *M, ostream & out);
     void Omega(Instruction *maI, ABCExprTree *root );
 

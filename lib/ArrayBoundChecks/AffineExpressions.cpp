@@ -78,6 +78,16 @@ LinearExpr::print(ostream &out) {
 }
 
 void
+LinearExpr::printOmegaSymbols(ostream &out) {
+  if (exprTy != Unknown) {
+    VarListIt vlj = vList->begin();
+    for (; vlj != vList->end(); ++vlj) 
+      out << "symbolic  " << (*vsMap)[*vlj] << ";\n";
+  } 
+}
+
+
+void
 LinearExpr::addLinearExpr(LinearExpr *E) {
   if (E->getExprType() == Unknown) {
     exprTy = Unknown;
@@ -147,11 +157,15 @@ Constraint::print(ostream &out) {
   le->print(out);
 }
 
+void
+Constraint::printOmegaSymbols(ostream &out) {
+  if (!leConstant_) out << "symbolic " << var << ";\n";
+  le->printOmegaSymbols(out);
+}
 
 void
 ABCExprTree::print(ostream &out) {
   if (constraint != 0) {
-    //    out << "printing the constraint \n";
     constraint->print(out);
   }
   else {
@@ -167,5 +181,17 @@ ABCExprTree::print(ostream &out) {
     if (logOp == "||")
       out << "))";
   }
+}
+
+void
+ABCExprTree::printOmegaSymbols(ostream &out) {
+  if (constraint != 0) {
+    constraint->printOmegaSymbols(out);
+  }
+  else {
+    left->printOmegaSymbols(out);
+    right->printOmegaSymbols(out);
+  }
+
 }
 

@@ -74,20 +74,24 @@ enum ExpressionType {
   LinearExpr * mulLinearExpr(LinearExpr *);
   void mulByConstant(int);
   void print(ostream &out);
+  void printOmegaSymbols(ostream &out);
 };
 
 class Constraint {
   string var;
   LinearExpr *le;
   string rel; // can be < ,  >, <=, >= for now
+  bool leConstant_; //is the left value constant 
 public :
-  Constraint(string v, LinearExpr *l, string r) {
+  Constraint(string v, LinearExpr *l, string r, bool leConstant = false ) {
     assert(l != 0 && "the rhs for this constraint is null");
     var = v;
     le = l;
     rel = r;
+    leConstant_ = leConstant;
   }
   void print(ostream &out);
+  void printOmegaSymbols(ostream &out);
 };
 
 
@@ -107,11 +111,14 @@ class ABCExprTree {
   };
   ABCExprTree(ABCExprTree *l, ABCExprTree *r, string op) {
     constraint = 0;
+    assert( l && " l is null \n");
+    assert( r && " r is null \n");
     left = l;
     right = r;
     logOp = op;
   }
   void print(ostream &out);
+  void printOmegaSymbols(ostream &out);
 };
 
 typedef std::map<const Value *, ABCExprTree *> InstConstraintMapType;
