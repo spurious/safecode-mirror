@@ -1,12 +1,15 @@
 #include "llvm/Pass.h"
 #include "llvm/BasicBlock.h"
 #include "llvm/iMemory.h"
+#include "llvm/iOther.h"
 #include "llvm/Type.h"
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/Function.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
+#include "llvm/Module.h"
+#include "Support/VectorExtras.h"
 
 #include <iostream>
 
@@ -79,6 +82,10 @@ bool
 MallocPass::runOnFunction (Function &F)
 {
   bool modified = false;
+  TargetData &TD = getAnalysis<TargetData>();
+  Module *theM = F.getParent();  
+  Function *memsetF = theM->getOrInsertFunction("memset", Type::VoidTy, 
+		PointerType::get(Type::SByteTy), Type::IntTy , Type::UIntTy, 0);
   for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I)
   {
     for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
@@ -91,7 +98,7 @@ MallocPass::runOnFunction (Function &F)
       if (changeType (IAddrBegin))
       {
         AllocationInst * AllocInst = cast<AllocationInst>(IAddrBegin);
-
+	/*
         //
         // Get the type of object allocated.
         //
@@ -110,6 +117,17 @@ MallocPass::runOnFunction (Function &F)
         //
         AllocInst->getParent()->getInstList().erase(AllocInst);
         modified = true;
+	*/
+
+	CastInst *CastI = 
+	  new CastInst(AllocInst, 
+		       PointerType::get(Type::SByteTy), "casted", AllocInst->getNext());
+	std::vector<Value *> args(1, CastI);
+	args.push_back(ConstantSInt::get(Type::IntTy,204));
+	args.push_back(ConstantUInt::get(Type::UIntTy,
+			 TD.getTypeSize(AllocInst->getType())));
+	CallInst *CI = 
+	  new CallInst(memsetF, args, "", CastI->getNext());
       }
     }
   }

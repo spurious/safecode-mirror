@@ -33,7 +33,7 @@ bool checkStackSafety::markReachableAllocasInt(DSNode *DSN) {
     returnValue =  true;
     AllocaNodes.push_back(DSN);
     }
-  for (unsigned i = 0, e = DSN->getSize(); i < e; i += DS::PointerSize)
+   for (unsigned i = 0, e = DSN->getSize(); i < e; i += DS::PointerSize)
     if (DSNode *DSNchild = DSN->getLink(i).getNode()) {
       if (reachableAllocaNodes.find(DSNchild) != reachableAllocaNodes.end()) {
 	continue;

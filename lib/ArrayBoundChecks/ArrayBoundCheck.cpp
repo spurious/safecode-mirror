@@ -634,7 +634,7 @@ using namespace ABC;
   void ArrayBoundsCheck::checkSafety(Function &F) {
     //    out << "fn name " << F.getName() << "\n"; 
     provenSafe[&F] =  1;
-    if (F.hasExternalLinkage()) {
+    if (F.isExternal()) {
       //Crazy that this should appear here !!1
       if (KnownFuncDB.find(F.getName()) == KnownFuncDB.end()) {
 	std::cerr << "unknown function \n" << F.getName() << "\n";

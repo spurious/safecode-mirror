@@ -10,15 +10,15 @@ using namespace CUA;
 RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::run(Module &M) {
-    cssPass = &getAnalysis<checkStackSafety>();
-    abcPass = &getAnalysis<ArrayBoundsCheck>();
-    budsPass = &getAnalysis<BUDataStructures>();
-    tddsPass = &getAnalysis<TDDataStructures>();
-    unsafeAllocaNodes.clear();
-    getUnsafeAllocsFromABC();
-    TransformAllocasToMallocs(unsafeAllocaNodes);
-    TransformAllocasToMallocs(cssPass->AllocaNodes);
-    return true;
+  budsPass = &getAnalysis<CompleteBUDataStructures>();
+  cssPass = &getAnalysis<checkStackSafety>();
+  abcPass = &getAnalysis<ArrayBoundsCheck>();
+  tddsPass = &getAnalysis<TDDataStructures>();
+  unsafeAllocaNodes.clear();
+  getUnsafeAllocsFromABC();
+  TransformAllocasToMallocs(unsafeAllocaNodes);
+  TransformAllocasToMallocs(cssPass->AllocaNodes);
+  return true;
 }
 
 bool ConvertUnsafeAllocas::markReachableAllocas(DSNode *DSN) {
