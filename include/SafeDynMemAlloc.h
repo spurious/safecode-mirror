@@ -65,8 +65,8 @@ namespace llvm {
       // TODO: Check!
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
-      AU.addRequired<PoolAllocate>();
       AU.addRequired<CallGraph>();
+      AU.addRequired<PoolAllocate>();
       AU.setPreservesAll();
     }
 

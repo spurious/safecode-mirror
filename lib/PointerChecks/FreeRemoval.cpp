@@ -362,7 +362,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
       if (!DSN) 
 	continue;
       if (DSN->isUnknownNode()) {
-	// Report an error if we see loads or stores on SMI->first
+	// Report an error if we see loads or stores on the pointer
 	Value *NewPtr = SMI->first;
 	if (isClonedFunc)
 	  NewPtr = PAFI->ValueMap[SMI->first];
@@ -418,8 +418,10 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 	    CollapsedPoolPtrs[F].end()) {
 	  // find uses of the coresponding new pointer
 	  Value *NewPtr = SMI->first;
-	  if (isClonedFunc)
+	  Value *NewerPtr = NewPtr;
+	  if (isClonedFunc) {
 	    NewPtr = PAFI->ValueMap[SMI->first];
+	  }
 	  if (!NewPtr)
 	    continue;
 	  for (Value::use_iterator UI = NewPtr->use_begin(), 
@@ -459,9 +461,11 @@ bool EmbeCFreeRemoval::run(Module &M) {
   // NB: This has to be in sync with the types in PoolAllocate.cpp
   const Type *VoidPtrTy = PointerType::get(Type::SByteTy);
 
-  const Type *PoolDescType = ArrayType::get(VoidPtrTy, 5);
-  //    StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 
-  //					     Type::UIntTy, Type::UIntTy, 0));
+  const Type *PoolDescType = 
+    //    StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 
+    //					     Type::UIntTy, Type::UIntTy, 0));
+    ArrayType::get(VoidPtrTy, 3);
+
   const PointerType *PoolDescPtr = PointerType::get(PoolDescType);
   FunctionType *PoolMakeUnfreeableTy = 
     FunctionType::get(Type::VoidTy,
@@ -721,11 +725,12 @@ bool EmbeCFreeRemoval::run(Module &M) {
 	      CollapsedPoolPtrs[F].insert(*PDI);
 	      
 	      for (unsigned i = 0 ; i < PDINode->getNumLinks(); ++i)
-		if (!PDINode->getLink(i).getNode()->isNodeCompletelyFolded()) {
-		  std::cerr << "EmbeC : In function " << F->getName() 
-			    << ":Collapsed node pointing to non-collapsed node\n";
-		  break;
-		}
+		if (PDINode->getLink(i).getNode())
+		  if (!PDINode->getLink(i).getNode()->isNodeCompletelyFolded()) {
+		    std::cerr << "EmbeC : In function " << F->getName() 
+			      << ":Collapsed node pointing to non-collapsed node\n";
+		    break;
+		  }
 
 	      // Propagate this information to all the callees only if this
 	      // is not a global pool
