@@ -54,7 +54,7 @@ void ABCPreProcess::print(ostream &out) {
 }
 
 bool ABCPreProcess::runOnFunction(Function &F) {
-  BasicBlock *bb  = getAnalysis<UnifyFunctionExitNodes>().getExitNode();
+  BasicBlock *bb  = getAnalysis<UnifyFunctionExitNodes>().getReturnBlock();
   enMap[&F] = bb;
   LoopInfo &LI1 =  getAnalysis<LoopInfo>();
   LoopInfo *LI = & LI1;

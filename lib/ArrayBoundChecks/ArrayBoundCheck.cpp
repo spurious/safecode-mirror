@@ -2,6 +2,7 @@
 //
 // requires piNodeinsertion pass before
 // Now we use the control dependence 
+// FIXME : handle some aliases. 
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Pass.h"

@@ -44,7 +44,7 @@ LinearExpr::LinearExpr(const Value *Val, SlotCalculator &Tab) {
     if (Val->hasName()) {
       tempstr = makeNameProper(Val->getName());
     } else {
-      int Slot = Tab.getValSlot(Val); // slot number 
+      int Slot = Tab.getSlot(Val); // slot number 
       if (Slot >= 0) {
 	tempstr = "l_" + itostr(Slot) + "_" + utostr(Val->getType()->getUniqueID()); 
       } else {
