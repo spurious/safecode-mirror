@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
+#include <fcntl.h>
 
 #define OMEGA_TMP_FILE "omega.ip"
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
@@ -89,14 +90,13 @@ using namespace ABC;
       includeOut << "symbolic   Unknown;\n";
       includeOut << "symbolic   argc;\n";
       includeOut << "symbolic   argv;\n";
-      if (!(F->isExternal())) {
-	includeOut << "symbolic " << getValueName(F) <<"; \n";
-	for (Function::ArgumentListType::iterator aI = F->getArgumentList().begin(),
-	       aE = F->getArgumentList().end(); aI != aE; ++aI) {
-	  includeOut << "symbolic   ";
-	  includeOut << getValueName((aI));
-	  includeOut << ";\n";
-	}
+      //      if (!(F->isExternal()))
+      includeOut << "symbolic " << getValueName(F) <<"; \n";
+      for (Function::ArgumentListType::iterator aI = F->getArgumentList().begin(),
+	     aE = F->getArgumentList().end(); aI != aE; ++aI) {
+	includeOut << "symbolic   ";
+	includeOut << getValueName((aI));
+	includeOut << ";\n";
       }
       for (Module::giterator gI = M.gbegin(), gE = M.gend(); gI != gE; ++gI) {
 	includeOut << "symbolic   ";
@@ -106,7 +106,7 @@ using namespace ABC;
 	  printarraytype(getValueName(gI), AT);
 	}
       }
-
+      
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I)
 	if ((*I)->getType() != Type::VoidTy) {
 	  includeOut << "symbolic   ";
@@ -555,15 +555,15 @@ using namespace ABC;
       ABCExprTree *rootCallInst;
       //Its not there in cache, so we compute it
       DoneList.clear();
-      //      DSGraph &G = budsPass->getDSGraph(F);
-      //      const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
-      //      for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
-      //CSE = callSites.end(); CSI != CSE; ++CSI) {
-      for (Value::use_iterator I = F.use_begin(), E = F.use_end(); I != E; ++I) {
-	User *U = *I;
+      DSGraph &G = budsPass->getDSGraph(F);
+      const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
+      for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
+	     CSE = callSites.end(); CSI != CSE; ++CSI) {
+      //      for (Value::use_iterator I = F.use_begin(), E = F.use_end(); I != E; ++I) {
+      //	User *U = *I;
 	rootCallInst = 0;
-	if (CallInst *CI = dyn_cast<CallInst>(U))  {
-	  //CSI->getCallSite().getInstruction()))
+	//	if (CallInst *CI = dyn_cast<CallInst>(U))  {
+	if (CallInst *CI = dyn_cast<CallInst>(CSI->getCallSite().getInstruction())) {
 	  //we need to AND the constraints on the arguments
 	  Function::aiterator formalArgCurrent = F.abegin(), formalArgEnd = F.aend();
 	  for (unsigned i = 1; formalArgCurrent != formalArgEnd; ++formalArgCurrent, ++i) {
@@ -585,7 +585,7 @@ using namespace ABC;
 	  }
 	  if (!root) {
 	    root = rootCallInst;
-	  } else {
+	  } else if (rootCallInst) {
 	    root = new ABCExprTree(root, rootCallInst, "||");
 	  }
 	}
@@ -606,6 +606,23 @@ using namespace ABC;
 	  ++formalArgCurrent;
 	  string argvname = getValueName(formalArgCurrent);//->getName();
 	  out << " && " << argcname << " = " << argvname ;
+	  break;
+	}
+      }
+    }
+  }
+
+  void ArrayBoundsCheck::printSymbolicStandardArguments(const Module *M, ostream & out) {
+    for (Module::const_iterator fI = M->begin(), fE = M->end(); fI != fE; ++fI) {
+      if (fI->getName() == "main") {
+	Function::const_aiterator formalArgCurrent = fI->abegin(), formalArgEnd = fI->aend();
+	if (formalArgCurrent != formalArgEnd) {
+	  //relyingon front end's ability to get two arguments
+	  string argcname = getValueName(formalArgCurrent);//->getName();
+	  ++formalArgCurrent;
+	  string argvname = getValueName(formalArgCurrent);//->getName();
+	  out << "symbolic " << argcname << ";\n";
+	  out << "symbolic " << argvname  << ";\n";
 	  break;
 	}
       }
@@ -674,13 +691,19 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
     //this is the parent
     close(childR);
     close(childW);
+    fcntl(parentW, F_SETFL, O_NONBLOCK);
     boost::fdostream out(parentW);
-    out << "<<" << OMEGA_TMP_INCLUDE_FILE << ">>\n";
+    const Module *M = (maI)->getParent()->getParent()->getParent();
+    if (root != 0) {
+      root->printOmegaSymbols(out);
+      //      root->printOmegaSymbols(std::cerr);
+    }
+    printSymbolicStandardArguments(M, out);
+    //    out << "<<" << OMEGA_TMP_INCLUDE_FILE << ">>\n";
     out << " P" <<countA << " := {[i] : \n";
     if (root != 0)root->print(out);
-    const Module *M = (maI)->getParent()->getParent()->getParent();
     printStandardArguments(M, out);
-    out << " && (argv = argc) ";
+    //    out << " && (argv = argc) ";
     out << "};\n Hull P"<<countA++ << ";\n" ;
     close(parentW);
     int perl2parent[2];
@@ -700,13 +723,15 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
       int result;
       close(perl2parent[1]);
       boost::fdistream inp(perl2parent[0]);
+      std::cerr << "waiting for output " << countA << "\n";
       inp >> result;
+      close(perl2parent[0]);
       //      read(perl2parent[0],&result,4);
       if (result == 1) {
 	std::cerr << "proved safe \n";
 	//Omega proved SAFE 
       } else {
-	std::cerr << "cannot prove safe \n";
+	std::cerr << "cannot prove safe " << countA;
 	UnsafeGetElemPtrs.push_back(maI);
       }
     }
@@ -729,7 +754,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
   }
 }
   bool ArrayBoundsCheck::run(Module &M) {
-    budsPass = &getAnalysis<TDDataStructures>();
+    budsPass = &getAnalysis<CompleteBUDataStructures>();
     Table = new SlotCalculator(&M, true);
 
     initialize(M);
@@ -798,7 +823,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
 	      LinearExpr *le = new LinearExpr(*mI,*Table);
 	      Constraint* c1 = new Constraint(varName,le,"<="); // length < index
 	      ABCExprTree* abctemp1 = new ABCExprTree(c1);
-	      Constraint* c2 = new Constraint("0",le,">"); // 0 > index
+	      Constraint* c2 = new Constraint("0",le,">",true); // 0 > index
 	      ABCExprTree* abctemp2 = new ABCExprTree(c2);
 	      root = new ABCExprTree(abctemp1, abctemp2, "||");
 	    }
@@ -809,7 +834,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
 		varName = varName+"_i" ;
 		Constraint* c1 = new Constraint(varName,le,"<="); // length < index
 		ABCExprTree* abctemp1 = new ABCExprTree(c1);
-		Constraint* c2 = new Constraint("0",le,">"); // 0 > index
+		Constraint* c2 = new Constraint("0",le,">",true); // 0 > index
 		ABCExprTree* abctemp2 = new ABCExprTree(c2);
 		ABCExprTree*abctempor = new ABCExprTree(abctemp1,abctemp2,"||"); // abctemp1 || abctemp2
 		root = new ABCExprTree(root, abctempor, "||");
@@ -931,7 +956,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
     case Value::FunctionVal:
       assert(1 && "Unexpected expression type to classify!");
       //      out << "Bizarre thing to expr classify: " << Expr << "\n";
-      return 0;
+      return new LinearExpr(Expr, *Table);
     case Value::GlobalVariableVal:        // Global Variable & Method argument:
     case Value::ArgumentVal:        // nothing known, return variable itself
       return new LinearExpr(Expr, *Table);
@@ -1008,8 +1033,8 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
 	string number2 = "0";
 	string var = getValueName(I);
 	LinearExpr *l1 = new LinearExpr(I,*Table);
-	Constraint *c1 = new Constraint(number,l1,">=");
-	Constraint *c2 = new Constraint(number2,l1,"<=");
+	Constraint *c1 = new Constraint(number,l1,">=",true);
+	Constraint *c2 = new Constraint(number2,l1,"<=",true);
 	*rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 	*rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
 	Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(0),rootp),"=");
