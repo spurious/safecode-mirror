@@ -4,22 +4,23 @@
 // Now we use the control dependence 
 // FIXME : handle some aliases. 
 //===----------------------------------------------------------------------===//
-
+#include <unistd.h>
+#include "utils/fdstream.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
-#include "llvm/Function.h"
 #include "llvm/BasicBlock.h"
-#include "AffineExpressions.h"
+#include "ArrayBoundsCheck.h"
 #include "llvm/Support/InstIterator.h"
-#include "llvm/Instruction.h"
+#include "Support/StringExtras.h"
 #include "llvm/Constants.h"
 #include "llvm/Analysis/InductionVariable.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "omega.h"
+#include "Support/VectorExtras.h"
 #include <fstream>
+#include <iostream>
 #include <stdio.h>
-
 
 #define OMEGA_TMP_FILE "omega.ip"
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
@@ -27,89 +28,23 @@
 #define REGION_MALLOC "RMalloc"
 #define REGION_FREE "RFree"
 
-namespace ABC{
-  static std::ofstream out(OMEGA_TMP_FILE);
-  static std::ofstream includeOut(OMEGA_TMP_INCLUDE_FILE);
-  
-  //these are filled from preprocess pass, since they require fn passes
-  extern IndVarMap indMap; 
+using namespace llvm;
+using namespace ABC;
+
+ std::ofstream includeOut(OMEGA_TMP_INCLUDE_FILE);
+ //these are filled from preprocess pass, since they require fn passes
+ extern IndVarMap indMap; 
   extern ExitNodeMap enMap;
   extern PostDominanceFrontier* pdf;
   extern DominatorSet* ds;
   extern PostDominatorSet* pds;
-  
-  static  unsigned count = 0;
+ 
+  static  unsigned countA = 0;
   //Interprocedural ArrayBoundsCheck pass
-  struct ArrayBoundsCheck : public Pass {
-  public :
-    const char *getPassName() const { return "Array Bounds Check"; }
-    virtual bool run(Module &M);
-  private :
-    FILE *omegaInput;
-    typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
-    typedef std::map<Function*, int> FuncIntMap;
-    
-    //This is required for getting the names/unique identifiers for variables.
-    SlotCalculator *Table;
+  RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
-    //for storing local information about a function
-    InfoMap fMap; 
 
-    //Known Func Database
-    std::set<string> KnownFuncDB;
-    
-    //for storing info about the functions which are already proven safe
-    FuncIntMap provenSafe;
-
-    //for storing what control dependent blocks are already dealt with for the current
-    //array access
-    std::set<BasicBlock *> DoneList;
-
-    //Initializes the KnownFuncDB
-    void initialize();
-    
-    void outputDeclsForOmega(Module &M);
-
-    //Interface for collecting constraints for different array access
-    // in a function
-    void collectSafetyConstraints(Function &F);
-
-    //This function collects from the branch which controls the current block
-    //the Successor tells the path 
-    void addBranchConstraints(BranchInst *BI, BasicBlock *Successor, ABCExprTree **rootp);
-    //This method adds constraints for known trusted functions
-    void addConstraintsForKnownFunctions(CallInst *CI, ABCExprTree **rootp);
-
-    
-    //Interface for getting constraints for a particular value
-    void getConstraintsInternal( Value *v, ABCExprTree **rootp);
-    void getConstraints( Value *v, ABCExprTree **rootp);
-
-    //adds all the conditions on which the currentblock is control dependent on.
-    void addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp); 
-    
-    //Gives the return value constraints interms of its arguments 
-    void getReturnValueConstraints( const CallInst *CI,ABCExprTree **rootp);
-
-    //Checks if the function is safe (produces output for omega consumption)
-    void checkSafety(Function &F, ostream &out);
-
-    //Get the constraints on the arguments
-    //This goes and looks at all call sites and ors the corresponding
-    //constraints
-    ABCExprTree* getArgumentConstraints(Function &F);
-
-    //for simplifying the constraints 
-    LinearExpr* SimplifyExpression( Value *Expr, ABCExprTree **rootp);
-
-    string getValueName( Value *V);
-    void generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem);
-    void generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp);
-    void printarraytype(string var,const ArrayType  *T);
-    void printStandardArguments(const Module *M, ostream & out);
-  };
-
-  void ArrayBoundsCheck::initialize() {
+  void ArrayBoundsCheck::initialize(Module &M) {
     KnownFuncDB.insert("puts");
     KnownFuncDB.insert("memcpy"); //need to add the extra checks 
     //    KnownFuncDB.insert("fscanf");
@@ -127,8 +62,21 @@ namespace ABC{
     KnownFuncDB.insert("fputc");
     KnownFuncDB.insert("qsort"); //need to add the extra checks
 
-    omegaInput = fopen(OMEGA_TMP_FILE,"r");
-    stdin = omegaInput;
+  // Get poolCheck function...
+    /*
+   const Type * voidPtrType = PointerType::get(Type::SByteTy);
+   std::vector<const Type*> PDArgs(1, voidPtrType);
+    FunctionType *PoolCheckTy =
+      FunctionType::get(Type::VoidTy, PDArgs, false);
+    PoolCheck = M.getOrInsertFunction("poolchecktmp", PoolCheckTy);
+
+	Instruction *Casted = maI;
+	if (Casted->getType() != PointerType::get(Type::SByteTy)) {
+	  Casted = new CastInst(maI,PointerType::get(Type::SByteTy),
+				(maI)->getName()+".casted",(maI)->getNext());
+	}
+	CallInst * CI = new CallInst(PoolCheck, Casted,"",Casted->getNext());
+    */
   }
   
   void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
@@ -182,7 +130,7 @@ namespace ABC{
 
 
 
-  string ArrayBoundsCheck::getValueName( Value *V) {
+  string ArrayBoundsCheck::getValueName(const Value *V) {
     return getValueNames(V, Table);
   }
 
@@ -353,10 +301,6 @@ namespace ABC{
     
       Function* func = I->getParent()->getParent();
       BasicBlock * currentBlock = I->getParent();
-
-      //      out << "fn & bb " << func->getName() << I->getParent()->getName() << "\n";
-      //      out << "  getting constraints for the Instruction " << *I;
-      
 
       //Here we need to add the post dominator stuff if necessary
       addControlDependentConditions(currentBlock, rootp);
@@ -647,9 +591,9 @@ namespace ABC{
 	Function::const_aiterator formalArgCurrent = fI->abegin(), formalArgEnd = fI->aend();
 	if (formalArgCurrent != formalArgEnd) {
 	  //relyingon front end's ability to get two arguments
-	  string argcname = formalArgCurrent->getName();
+	  string argcname = getValueName(formalArgCurrent);//->getName();
 	  ++formalArgCurrent;
-	  string argvname = formalArgCurrent->getName();
+	  string argvname = getValueName(formalArgCurrent);//->getName();
 	  out << " && " << argcname << " = " << argvname ;
 	  break;
 	}
@@ -659,7 +603,7 @@ namespace ABC{
 
   
   //FIXME doesn't handle any kind of recursion 
-  void ArrayBoundsCheck::checkSafety(Function &F, ostream &out) {
+  void ArrayBoundsCheck::checkSafety(Function &F) {
     //    out << "fn name " << F.getName() << "\n"; 
     provenSafe[&F] =  1;
     //first check if all its parents are safe, i.e. all calling functions are safe
@@ -669,7 +613,7 @@ namespace ABC{
 	Function *parentfunc  = CI->getParent()->getParent();
 	//      out << " Inside Check Safety Uses paren func "  << getValueName(parentfunc) << " func " <<  getValueName(&F) << endl;
 	if (!(provenSafe.count(parentfunc))) { //may be wa have to change it to indicate the end 
-	  checkSafety(*parentfunc, out);
+	  checkSafety(*parentfunc);
 	}
       }
     }
@@ -686,29 +630,89 @@ namespace ABC{
 	  root = new ABCExprTree(root,argConstraints,"&&");
 	}
 	//omega stuff should go in here.
-	out << "<<" << OMEGA_TMP_INCLUDE_FILE << ">>" << endl;
-	out << " P" <<count << " := {[i] : \n";
-	if (root != 0)root->print(out);
-	const Module *M = (*maI)->getParent()->getParent()->getParent();
-
-	printStandardArguments(M, out);
-	
-	out << " && (argv = argc) ";
-	out << "};\n P"<<count++ << ";" << endl;
-	//gist something to prove safety
-	//       out << " Inside Check Safety getting retval constr  " << getValueName(&F) << endl;
-	if (main1(1, NULL) == OMEGA_SAFE_VALUE) {
-	  cout << " proved safe\n";
-	}
+	Omega(*maI,root);
       }
     }
   }
 
+#define parentR p2cdes[0]  
+#define childW p2cdes[1]  
+#define childR c2pdes[0]  
+#define parentW c2pdes[1]
+  
+void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
+  int p2cdes[2];
+  int c2pdes[2];
+  pid_t pid;
+  pipe(p2cdes);
+  pipe(c2pdes);
+
+  
+  if ((pid = fork())) {
+    //this is the parent
+    close(childR);
+    close(childW);
+    boost::fdostream out(parentW);
+    out << "<<" << OMEGA_TMP_INCLUDE_FILE << ">>\n";
+    out << " P" <<countA << " := {[i] : \n";
+    if (root != 0)root->print(out);
+    const Module *M = (maI)->getParent()->getParent()->getParent();
+    printStandardArguments(M, out);
+    out << " && (argv = argc) ";
+    out << "};\n P"<<countA++ << ";\n" ;
+    close(parentW);
+    int perl2parent[2];
+    pipe(perl2parent);
+    if (!fork()){
+      //child
+      close(perl2parent[0]);
+      close(fileno(stdout));
+      dup(perl2parent[1]);
+      close(fileno(stdin));
+      dup(parentR);
+       if (execve("/home/vadve/dhurjati/bin/omega.pl",NULL,NULL) == -1) {
+	perror("execve error \n");
+	exit(-1);
+      }
+    } else {
+      int result;
+      close(perl2parent[1]);
+      boost::fdistream inp(perl2parent[0]);
+      inp >> result;
+      //      read(perl2parent[0],&result,4);
+      if (result == 1) {
+	std::cerr << "proved safe \n";
+	//Omega proved SAFE 
+      } else {
+	std::cerr << "cannot prove safe \n";
+	UnsafeGetElemPtrs.push_back(maI);
+      }
+    }
+  } else if (pid < 0) {
+    perror("fork error \n");
+    exit(-1);
+  } else {
+    //pid == 0
+    // this is child
+    close(parentW);
+    close(parentR);
+    close(fileno(stdin));
+    dup(childR);
+    close(fileno(stdout));
+    dup(childW);
+    if (execve("/home/vadve/dhurjati/bin/oc",NULL,NULL) == -1) {
+      perror("execve error \n");
+      exit(-1);
+    }
+  }
+}
   bool ArrayBoundsCheck::run(Module &M) {
     Table = new SlotCalculator(&M, true);
-    initialize();
+
+    initialize(M);
     /* printing preliminaries */
     outputDeclsForOmega(M);
+    includeOut.close();
     //  out << "outputting decls for Omega done" <<endl;
 
 
@@ -731,14 +735,13 @@ namespace ABC{
 	  //	root->print(out);
 	}
       }
-      out << "\n";
     }
 
     //  out << " Now checking the constraints  \n ";
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-      if (!(provenSafe.count(I) != 0)) checkSafety(*I, out);
+      if (!(provenSafe.count(I) != 0)) checkSafety(*I);
     }
-    out << " NumAccessses" <<count << " := {[i] : i = " <<count<< " };\n";
+    //    out << " NumAccessses" <<count << " := {[i] : i = " <<count<< " };\n";
     //  out << "done \n" ;
     return false;
   }
@@ -903,10 +906,8 @@ namespace ABC{
     case Value::InstructionVal: break;    // Instruction... hmmm... investigate.
     case Value::TypeVal:   case Value::BasicBlockVal:
     case Value::FunctionVal:
-      out << "test\n ";
       assert(1 && "Unexpected expression type to classify!");
       //      out << "Bizarre thing to expr classify: " << Expr << "\n";
-      out << "testing \n ";
       return 0;
     case Value::GlobalVariableVal:        // Global Variable & Method argument:
     case Value::ArgumentVal:        // nothing known, return variable itself
@@ -918,8 +919,7 @@ namespace ABC{
 	  const std::vector<Use> &Values = CA->getValues();
 	  ConstantInt *CPI = cast<ConstantInt>(Values[1]);
 	  return new LinearExpr(CPI, *Table);
-	} else {
-	  ConstantInt *CPI = cast<ConstantInt>(Expr);
+	} else if (ConstantInt *CPI = dyn_cast<ConstantInt>(Expr)) {
 	  return new LinearExpr(CPI, *Table);
 	}
       }
@@ -1037,8 +1037,6 @@ namespace ABC{
     // Otherwise, I don't know anything about this value!
     return 0;
   }
-  RegisterOpt<ArrayBoundsCheck> X("abc",
-                              "Array Bounds Checking pass");
-}
+
 
 Pass *createArrayBoundsCheckPass() { return new ABC::ArrayBoundsCheck(); }

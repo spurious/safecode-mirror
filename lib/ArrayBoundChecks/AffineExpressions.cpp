@@ -22,7 +22,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/InductionVariable.h"
 
-
+using namespace llvm;
 
 LinearExpr::LinearExpr(const Value *Val, SlotCalculator &Tab) {
   if (Val) {

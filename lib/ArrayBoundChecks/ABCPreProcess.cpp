@@ -7,14 +7,12 @@
 #include "llvm/Module.h"
 #include "llvm/Function.h"
 #include "llvm/BasicBlock.h"
-#include "AffineExpressions.h"
+#include "ABCPreProcess.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Instruction.h"
 #include "llvm/Constants.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-
-namespace ABC {
+using namespace llvm;
+using namespace ABC;
 
   IndVarMap indMap;
   ExitNodeMap enMap;
@@ -22,26 +20,6 @@ namespace ABC {
   DominatorSet *ds;
   PostDominatorSet *pds;
   
-  //This pass is written because the induction var pass doesnt run properly 
-  //after the phi nodes are inserted.
-  struct ABCPreProcess : public FunctionPass {
-  private:
-    void print(ostream &out);
-
-  public :
-    const char *getPassName() const { return "Collect Induction Variables"; }
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<UnifyFunctionExitNodes>();
-      AU.addRequired<LoopInfo>();
-      AU.addRequired<DominatorSet>();
-      AU.addRequired<PostDominatorSet>();
-      AU.addRequired<PostDominanceFrontier>();
-    }
-    virtual bool runOnFunction(Function &F);
-  };
-
-
-
 
 void ABCPreProcess::print(ostream &out) {
   out << " Printing phi nodes which are induction variables ... \n";
@@ -73,9 +51,8 @@ bool ABCPreProcess::runOnFunction(Function &F) {
   return false;
 }
 
-  RegisterOpt<ABCPreProcess> Y("abcpre",
+RegisterOpt<ABCPreProcess> Y("abcpre",
                               "Array Bounds Checking preprocess pass");
 
-}
 
-Pass *createABCPreProcessPass() { return new ABC::ABCPreProcess(); }
+Pass *createABCPreProcessPass() { return new ABCPreProcess(); }
