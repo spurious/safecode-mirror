@@ -18,6 +18,7 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "omega.h"
 #include "Support/VectorExtras.h"
+#include "llvm//Analysis/DSGraph.h"
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -61,7 +62,10 @@ using namespace ABC;
     KnownFuncDB.insert("feof");
     KnownFuncDB.insert("fputc");
     KnownFuncDB.insert("qsort"); //need to add the extra checks
-
+    KnownFuncDB.insert("atoi");
+    KnownFuncDB.insert("exit");
+    KnownFuncDB.insert("perror");
+    KnownFuncDB.insert("fprintf");
   // Get poolCheck function...
     /*
    const Type * voidPtrType = PointerType::get(Type::SByteTy);
@@ -551,25 +555,32 @@ using namespace ABC;
       ABCExprTree *rootCallInst;
       //Its not there in cache, so we compute it
       DoneList.clear();
+      //      DSGraph &G = budsPass->getDSGraph(F);
+      //      const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
+      //      for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
+      //CSE = callSites.end(); CSI != CSE; ++CSI) {
       for (Value::use_iterator I = F.use_begin(), E = F.use_end(); I != E; ++I) {
 	User *U = *I;
 	rootCallInst = 0;
-	if (CallInst *CI = dyn_cast<CallInst>(U)) {
+	if (CallInst *CI = dyn_cast<CallInst>(U))  {
+	  //CSI->getCallSite().getInstruction()))
 	  //we need to AND the constraints on the arguments
 	  Function::aiterator formalArgCurrent = F.abegin(), formalArgEnd = F.aend();
 	  for (unsigned i = 1; formalArgCurrent != formalArgEnd; ++formalArgCurrent, ++i) {
-	    string varName = getValueName(formalArgCurrent);
-	    Value *OperandVal = CI->getOperand(i);
-	    LinearExpr *le = new LinearExpr(OperandVal,*Table);
-	    Constraint* c1 = new Constraint(varName,le,"=");
-	    ABCExprTree *temp = new ABCExprTree(c1);
-	    if (!isa<Constant>(OperandVal)) {
-	      getConstraints(OperandVal,&temp);
-	    }
-	    if (!rootCallInst)  {
-	      rootCallInst = temp;
-	    } else {
-	      rootCallInst = new ABCExprTree(rootCallInst, temp, "&&");
+	    if (i < CI->getNumOperands()) {
+	      string varName = getValueName(formalArgCurrent);
+	      Value *OperandVal = CI->getOperand(i);
+	      LinearExpr *le = new LinearExpr(OperandVal,*Table);
+	      Constraint* c1 = new Constraint(varName,le,"=");
+	      ABCExprTree *temp = new ABCExprTree(c1);
+	      if (!isa<Constant>(OperandVal)) {
+		getConstraints(OperandVal,&temp);
+	      }
+	      if (!rootCallInst)  {
+		rootCallInst = temp;
+	      } else {
+		rootCallInst = new ABCExprTree(rootCallInst, temp, "&&");
+	      }
 	    }
 	  }
 	  if (!root) {
@@ -606,15 +617,26 @@ using namespace ABC;
   void ArrayBoundsCheck::checkSafety(Function &F) {
     //    out << "fn name " << F.getName() << "\n"; 
     provenSafe[&F] =  1;
+    if (F.hasExternalLinkage()) {
+      //Crazy that this should appear here !!1
+      if (KnownFuncDB.find(F.getName()) == KnownFuncDB.end()) {
+	std::cerr << "unknown function \n" << F.getName() << "\n";
+      }
+      return;
+    }
     //first check if all its parents are safe, i.e. all calling functions are safe
-    for (Value::use_iterator I = F.use_begin(), E = F.use_end(); I != E; ++I) {
-      User *U = *I;
-      if (CallInst *CI = dyn_cast<CallInst>(U)) {
-	Function *parentfunc  = CI->getParent()->getParent();
+    DSGraph &G = budsPass->getDSGraph(F);
+    const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
+
+    //    for (Value::use_iterator I = F.use_begin(), E = F.use_end(); I != E; ++I) {
+    //      User *U = *I;
+    for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
+	   CSE = callSites.end(); CSI != CSE; ++CSI) {
+      Function *parentfunc  = &(CSI->getCaller());
+      //	  ->getParent()->getParent();
 	//      out << " Inside Check Safety Uses paren func "  << getValueName(parentfunc) << " func " <<  getValueName(&F) << endl;
-	if (!(provenSafe.count(parentfunc))) { //may be wa have to change it to indicate the end 
-	  checkSafety(*parentfunc);
-	}
+      if (!(provenSafe.count(parentfunc))) { //may be wa have to change it to indicate the end 
+	checkSafety(*parentfunc);
       }
     }
     // we know that all its parents are safe.
@@ -659,7 +681,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
     const Module *M = (maI)->getParent()->getParent()->getParent();
     printStandardArguments(M, out);
     out << " && (argv = argc) ";
-    out << "};\n P"<<countA++ << ";\n" ;
+    out << "};\n Hull P"<<countA++ << ";\n" ;
     close(parentW);
     int perl2parent[2];
     pipe(perl2parent);
@@ -707,6 +729,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
   }
 }
   bool ArrayBoundsCheck::run(Module &M) {
+    budsPass = &getAnalysis<TDDataStructures>();
     Table = new SlotCalculator(&M, true);
 
     initialize(M);
