@@ -13,6 +13,7 @@
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Target/TargetData.h"
 #include "Support/CommandLine.h"
 #include "Support/Signals.h"
 #include <fstream>
@@ -62,12 +63,15 @@ int main(int argc, char **argv) {
     
   //
   PassManager Passes;
+  Passes.add(new TargetData("embec", M.get()));
   
   //Add passes
   Passes.add(createCZeroUninitPtrPass());
+  /*
   Passes.add(createABCPreProcessPass());
   Passes.add(createArrayBoundsCheckPass());
   Passes.add(createStackSafetyPass());
+  */
   Passes.add(createEmbeCFreeRemovalPass());
  
   // Now that we have all of the passes ready, run them.
