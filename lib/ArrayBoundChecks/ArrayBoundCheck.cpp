@@ -16,17 +16,22 @@
 #include "llvm/Analysis/InductionVariable.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include "omega.h"
 #include <fstream>
+#include <stdio.h>
 
+
+#define OMEGA_TMP_FILE "omega.ip"
+#define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
 #define REGION_INIT "RInit"
 #define REGION_MALLOC "RMalloc"
 #define REGION_FREE "RFree"
 
 namespace ABC{
-  static std::ofstream out("omega.ip");
-
+  static std::ofstream out(OMEGA_TMP_FILE);
+  static std::ofstream includeOut(OMEGA_TMP_INCLUDE_FILE);
+  
   //these are filled from preprocess pass, since they require fn passes
-  //FIXME replace these by annotations later.
   extern IndVarMap indMap; 
   extern ExitNodeMap enMap;
   extern PostDominanceFrontier* pdf;
@@ -40,6 +45,7 @@ namespace ABC{
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool run(Module &M);
   private :
+    FILE *omegaInput;
     typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
     typedef std::map<Function*, int> FuncIntMap;
     
@@ -119,28 +125,31 @@ namespace ABC{
     KnownFuncDB.insert("fread");
     KnownFuncDB.insert("feof");
     KnownFuncDB.insert("fputc");
-    KnownFuncDB.insert("qsort"); //need to add the extra checks 
+    KnownFuncDB.insert("qsort"); //need to add the extra checks
+
+    omegaInput = fopen(OMEGA_TMP_FILE,"r");
+    stdin = omegaInput;
   }
   
   void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
       Function *F = FI;
-      out << "symbolic   Unknown;\n";
-      out << "symbolic   argc;\n";
-      out << "symbolic   argv;\n";
+      includeOut << "symbolic   Unknown;\n";
+      includeOut << "symbolic   argc;\n";
+      includeOut << "symbolic   argv;\n";
       if (!(F->isExternal())) {
-	out << "symbolic " << getValueName(F) <<"; \n";
+	includeOut << "symbolic " << getValueName(F) <<"; \n";
 	for (Function::ArgumentListType::iterator aI = F->getArgumentList().begin(),
 	       aE = F->getArgumentList().end(); aI != aE; ++aI) {
-	  out << "symbolic   ";
-	  out << getValueName((aI));
-	  out << ";\n";
+	  includeOut << "symbolic   ";
+	  includeOut << getValueName((aI));
+	  includeOut << ";\n";
 	}
       }
       for (Module::giterator gI = M.gbegin(), gE = M.gend(); gI != gE; ++gI) {
-	out << "symbolic   ";
-	out << getValueName((gI));	
-	out << ";\n";
+	includeOut << "symbolic   ";
+	includeOut << getValueName((gI));	
+	includeOut << ";\n";
 	if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
 	  printarraytype(getValueName(gI), AT);
 	}
@@ -148,9 +157,9 @@ namespace ABC{
 
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I)
 	if ((*I)->getType() != Type::VoidTy) {
-	  out << "symbolic   ";
-	  out << getValueName(*I);	
-	  out << ";\n";
+	  includeOut << "symbolic   ";
+	  includeOut << getValueName(*I);	
+	  includeOut << ";\n";
 	  if (AllocationInst *AI = dyn_cast<AllocationInst>(*I)) {
 	    //FIXME this should be really alloca (for local variables)
 	    //This can not be malloc, if array bounds check is run just after
@@ -179,7 +188,7 @@ namespace ABC{
 
   void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
     string var1 = var + "_i";
-    out << "symbolic   " << var1 << ";\n";
+    includeOut << "symbolic   " << var1 << ";\n";
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
       printarraytype(var1,AT);
     }
@@ -286,7 +295,7 @@ namespace ABC{
       getConstraints(CI->getOperand(2), rootp);
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
-      const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
       const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, *Table),">=");
@@ -462,7 +471,7 @@ namespace ABC{
 	if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
-	  const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
 	  const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, *Table),"=");
@@ -551,7 +560,7 @@ namespace ABC{
       //It could be an array
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-	const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
 	const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, *Table),"=");
@@ -677,6 +686,7 @@ namespace ABC{
 	  root = new ABCExprTree(root,argConstraints,"&&");
 	}
 	//omega stuff should go in here.
+	out << "<<" << OMEGA_TMP_INCLUDE_FILE << ">>" << endl;
 	out << " P" <<count << " := {[i] : \n";
 	if (root != 0)root->print(out);
 	const Module *M = (*maI)->getParent()->getParent()->getParent();
@@ -684,9 +694,12 @@ namespace ABC{
 	printStandardArguments(M, out);
 	
 	out << " && (argv = argc) ";
-	out << "};\n P"<<count++ << ";\n";
+	out << "};\n P"<<count++ << ";" << endl;
 	//gist something to prove safety
 	//       out << " Inside Check Safety getting retval constr  " << getValueName(&F) << endl;
+	if (main1(1, NULL) == OMEGA_SAFE_VALUE) {
+	  cout << " proved safe\n";
+	}
       }
     }
   }
