@@ -1,6 +1,6 @@
 LEVEL = ..
 
-PARALLEL_DIRS = ArrayBoundChecks PointerChecks
+PARALLEL_DIRS = ArrayBoundChecks ConvertUnsafeAllocas InsertPoolChecks StackSafety
 
 include $(LEVEL)/Makefile.common
 
