@@ -21,6 +21,8 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Transforms/PoolAllocate.h"
 #include "Support/VectorExtras.h"
+#include "llvm/Analysis/DataStructure.h"
+#include "llvm/Analysis/DSGraph.h"
 #include <set>
 #include <map>
 #include <string>
@@ -39,7 +41,6 @@ namespace {
     
     static const std::string PoolI;
     static const std::string PoolA;
-    static const std::string PoolArr;
     static const std::string PoolF;
     static const std::string PoolD;
     
@@ -53,11 +54,15 @@ namespace {
       AU.setPreservesAll();
       AU.addRequired<PoolAllocate>();
       AU.addRequired<CallGraph>();
+      AU.addRequired<TDDataStructures>();
     }
     
   private:
     
     Module *CurModule;
+
+    TDDataStructures *TDDS;
+    PoolAllocate *PoolInfo;
     
     bool moduleChanged;
     bool hasError;
@@ -73,8 +78,7 @@ namespace {
   };
   
   const std::string EmbeCFreeRemoval::PoolI = "poolinit";
-  const std::string EmbeCFreeRemoval::PoolA = "poolalloc";
-  const std::string EmbeCFreeRemoval::PoolArr = "poolallocarray";
+  const std::string EmbeCFreeRemoval::PoolA = "poolallocate";
   const std::string EmbeCFreeRemoval::PoolF = "poolfree";
   const std::string EmbeCFreeRemoval::PoolD = "pooldestroy";
   
@@ -96,6 +100,10 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
       // or pool_destroy
       if (CallInst *CI = dyn_cast<CallInst>(*UI)) {
 	if (Function *calledF = dyn_cast<Function>(CI->getOperand(0))) {
+	  if (calledF == F) {
+	    // Hack for recursion (not mutual)
+	    continue;
+	  }
 	  if (!calledF->isExternal()) {
 	    // the pool pointer is passed to the called function
 	    
@@ -109,8 +117,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    int opi = 0;
 	    for (Function::aiterator I = calledF->abegin(), 
 		   E = calledF->aend();
-		 I != E && opi <= operandNo; ++I, ++opi)
-	      if (opi == operandNo) 
+		 I != E && opi < operandNo; ++I, ++opi)
+	      if (opi == operandNo - 1) 
 		formalParam = I;
 	    
 	    // if the called function has undestroyed frees in pool formalParam
@@ -145,17 +153,15 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 		StructType::get(make_vector<const Type*>(VoidPtrTy, 
 							 Type::UIntTy, 0));
 	      const PointerType *PoolDescPtr = PointerType::get(PoolDescType);
-	      std::vector<const Type*> PMUArgs(1, PoolDescPtr);
 	      FunctionType *PoolMakeUnfreeableTy = 
-		FunctionType::get(Type::VoidTy, PMUArgs, false);
+		FunctionType::get(Type::VoidTy,
+				  make_vector<const Type*>(PoolDescPtr, 0),
+				  false);
 	      PoolMakeUnfreeable = CurModule->getOrInsertFunction("poolmakeunfreeable", PoolMakeUnfreeableTy);
-	      new CallInst(PoolMakeUnfreeable, make_vector(V), "", 
+	      new CallInst(PoolMakeUnfreeable, make_vector(V, 0), "", 
 			   CI->getNext());
-	      std::cerr << "here\n";
-	      assert(0);
 	      moduleChanged = true;
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolA ||
-		       calledF->getName() == EmbeCFreeRemoval::PoolArr) {
+	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolA) {
 	      FuncPoolAllocs[V].insert(cast<Instruction>(*UI));
 	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolF) {
 	      FuncPoolFrees[V].insert(cast<Instruction>(*UI));
@@ -167,9 +173,58 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    }
 	  } 
 	} else {
-	  // indirect function call
-	  hasError = true;
-	  std::cerr << "EmbeC: " << F->getName() << ": Unrecognized pool variable use \n";
+	  DSGraph &TDG = TDDS->getDSGraph(*F);
+	  DSNode *DSN = TDG.getNodeForValue(CI->getOperand(0)).getNode();
+	  std::vector<GlobalValue*> Callees = DSN->getGlobals();
+	  if (Callees.size() > 0) { 
+	    // indirect function call
+
+	    // Find the formal parameter corresponding to the parameter V
+	    int operandNo;
+	    for (unsigned int i = 1; i < CI->getNumOperands(); i++)
+	      if (CI->getOperand(i) == V)
+		operandNo = i;
+
+	    for (std::vector<GlobalValue*>::iterator CalleesI = 
+		   ++Callees.begin(), CalleesE = Callees.end(); 
+		 CalleesI != CalleesE; ++CalleesI) {
+	      Function *calledF = dyn_cast<Function>(*CalleesI);
+
+	      if (PoolInfo->getFuncInfo(*calledF)->PoolArgFirst == 
+		  PoolInfo->getFuncInfo(*calledF)->PoolArgLast ||
+		  operandNo-1 < PoolInfo->getFuncInfo(*calledF)->PoolArgFirst ||
+		  operandNo-1 >= PoolInfo->getFuncInfo(*calledF)->PoolArgLast)
+		continue;
+
+	      Value *formalParam;
+	      int opi = 0;
+	      for (Function::aiterator I = calledF->abegin(), 
+		     E = calledF->aend();
+		   I != E && opi < operandNo; ++I, ++opi)
+		if (opi == operandNo-1) 
+		  formalParam = I;
+	      
+	      // if the called function has undestroyed frees in pool formalParam
+	      if (FuncFreedPools[calledF].find(formalParam) != 
+		  FuncFreedPools[calledF].end() && 
+		  FuncDestroyedPools[calledF].find(formalParam) == 
+		  FuncDestroyedPools[calledF].end()) {
+		FuncPoolFrees[V].insert(cast<Instruction>(*UI));
+	      }
+	      // if the called function has undestroyed allocs in formalParam
+	      if (FuncAllocedPools[calledF].find(formalParam) != 
+		  FuncAllocedPools[calledF].end()) {
+		FuncPoolAllocs[V].insert(cast<Instruction>(*UI));
+	      }
+	      
+	      // if the called function has a destroy in formalParam
+	      if (FuncDestroyedPools[calledF].find(formalParam) != 
+		  FuncDestroyedPools[calledF].end()) {
+		FuncPoolDestroys[V].insert(cast<Instruction>(*UI));
+	      }
+	      
+	    }
+	  }
 	}
       } else {
 	hasError = true;
@@ -183,7 +238,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 static bool followsBlock(BasicBlock *BB1, BasicBlock *BB2, Function *F,
 			 set<BasicBlock *> visitedBlocks) {
   if (succ_begin(BB2) != succ_end(BB2)) {
-    for (BasicBlock::succ_iterator BBSI = succ_begin(BB2), BBSE = 
+    for (succ_iterator BBSI = succ_begin(BB2), BBSE = 
 	   succ_end(BB2); BBSI != BBSE; ++BBSI) {
       if (visitedBlocks.find(*BBSI) == visitedBlocks.end())
 	if (*BBSI == BB1)
@@ -227,9 +282,10 @@ bool EmbeCFreeRemoval::run(Module &M) {
 
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
+  PoolInfo = &getAnalysis<PoolAllocate>();
   CallGraph &CG = getAnalysis<CallGraph>();
-  PoolAllocate &PoolInfo = getAnalysis<PoolAllocate>();
 
+  TDDS = &getAnalysis<TDDataStructures>();
 
   for (po_iterator<CallGraph*> CGI = po_begin(&CG), 
 	 CGE = po_end(&CG); CGI != CGE; ++CGI) {
@@ -257,12 +313,12 @@ bool EmbeCFreeRemoval::run(Module &M) {
       
       
       PA::FuncInfo* PAFI = 0;
-
+      
       // Calculating the FuncInfo for F
       for (Module::iterator ModI = CurModule->begin(), ModE = CurModule->end(); 
 	   ModI != ModE;
 	   ++ModI) {
-	PA::FuncInfo* PFI = PoolInfo.getFuncInfo(*ModI);
+	PA::FuncInfo* PFI = PoolInfo->getFuncInfo(*ModI);
 	if (PFI) {
 	  if (&*ModI == F || (PFI->Clone && PFI->Clone == F)) {
 	    PAFI = PFI;
@@ -295,13 +351,14 @@ bool EmbeCFreeRemoval::run(Module &M) {
       // the following: go down to the bottom of the function looking for 
       // allocs till you see destroy. If you don't see destroy on some path, 
       // update escape list.
-      // Update escape list with allocs without destroys too for arguments
-      // As well as arguments that are destroyed.
+      // Update escape list with allocs without destroys for arguments
+      // as well as arguments that are destroyed.
       // TODO: Modify implementation so you are not checking that there is no
       // alloc to other pools follows a free in the function, but to see that 
       // there is a destroy on pool between a free and an alloc to another pool
       // Current Assumption: destroys are at the end of a function.
       if (!FuncPoolFrees.empty()) {
+	std::cerr << "In Function " << F->getName() << "\n";
 	for (map<Value *, set<Instruction *> >::iterator ValueI = 
 	       FuncPoolFrees.begin(), ValueE = FuncPoolFrees.end();
 	     ValueI != ValueE; ++ValueI) {
@@ -312,6 +369,7 @@ bool EmbeCFreeRemoval::run(Module &M) {
 		 FreeInstI != FreeInstE; ++FreeInstI) {
 	      // For each free instruction or call to a function which escapes
 	      // a free in pool (*ValueI).first
+	      bool case3found = false, case2found = false;
 	      for (set<Value *>::iterator PoolPtrsI = FuncPoolPtrs.begin(), 
 		     PoolPtrsE = FuncPoolPtrs.end(); PoolPtrsI != PoolPtrsE; 
 		   ++PoolPtrsI) {
@@ -326,18 +384,37 @@ bool EmbeCFreeRemoval::run(Module &M) {
 			   (*AllocSet).second.begin(), 
 			   AllocInstE = (*AllocSet).second.end();
 			 AllocInstI != AllocInstE; ++AllocInstI)
-		      if (followsInst(*AllocInstI, *FreeInstI, F)) {
-			hasError = true;
-			std::cerr << "EmbeC: Free instruction could not be "
-				  << "removed. Allocs from other pools "
-				  << "following free instruction\n";
-		      }
+		      if (followsInst(*AllocInstI, *FreeInstI, F) &&
+			  *AllocInstI != *FreeInstI)
+			case3found = true;
+		} else {
+		  map<Value *, set<Instruction *> >::iterator AllocSet= 
+		    FuncPoolAllocs.find(*PoolPtrsI);
+		  if (AllocSet != FuncPoolAllocs.end())
+		    for (set<Instruction *>::iterator AllocInstI = 
+			   (*AllocSet).second.begin(), 
+			   AllocInstE = (*AllocSet).second.end();
+			 AllocInstI != AllocInstE; ++AllocInstI)
+		      if (followsInst(*AllocInstI, *FreeInstI, F) &&
+			  *AllocInstI != *FreeInstI)
+			case2found = true;
 		}
 	      }
+	      if (case3found && case2found)
+		std::cerr << (*ValueI).first->getName() 
+			  << ": Case 2 and 3 detected\n";
+	      else if (case3found)
+		std::cerr << (*ValueI).first->getName() 
+			  << ": Case 3 detected\n";
+	      else if (case2found)
+		std::cerr << (*ValueI).first->getName() 
+			  << ": Case 2 detected\n";
+	      else
+		std::cerr << (*ValueI).first->getName() 
+			  << ": Case 1 detected\n";
 	    }
 	  }
 	}
-	
       }
 
       // Assumption: if we have pool_destroy on a pool in a function, then it
