@@ -16,7 +16,7 @@
 #include "llvm/iOther.h"
 #include "llvm/BasicBlock.h"
 #include "llvm/Analysis/Dominators.h"
-#include "llvm/SlotCalculator.h"
+#include "llvm/Analysis/SlotCalculator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CFG.h"
 #include <algorithm>
@@ -24,6 +24,7 @@ using std::string;
 using std::map;
 using std::vector;
 using std::set;
+
 
 namespace llvm {
 
@@ -260,6 +261,7 @@ public:
   // the particular function.
   string& getWarnings ();
 };
+
 }
 #endif
 
