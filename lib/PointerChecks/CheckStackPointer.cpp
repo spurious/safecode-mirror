@@ -14,34 +14,46 @@
 #include "llvm/Analysis/DSGraph.h"
 #include "llvm/Analysis/DSNode.h"
 #include "llvm/Support/InstIterator.h"
+#include <vector>
 
 namespace {
   struct checkStackSafety : public Pass {
+    
   public :
+    std::vector<DSNode *> AllocaNodes;
     const char *getPassName() const { return "Stack Safety Check";}
     virtual bool run(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TDDataStructures>();
     }
   private :
-    bool checkIfReachesAlloca(DSNode *DSN);
+    std::vector<DSNode *> reachableAllocaNodes; 
+    bool markReachableAllocas(DSNode *DSN);
+    bool markReachableAllocasInt(DSNode *DSN);
   };
   RegisterOpt<checkStackSafety> css("css1",
                               "check stack safety");
 }  
 
 
-bool checkStackSafety::checkIfReachesAlloca(DSNode *DSN) {
-  if (DSN->NodeType & DSNode::AllocaNode) {
-    return true;
-  }
+bool checkStackSafety::markReachableAllocas(DSNode *DSN) {
+  reachableAllocaNodes.clear();
+  return   markReachableAllocasInt(DSN);
+}
+
+bool checkStackSafety::markReachableAllocasInt(DSNode *DSN) {
+  bool returnValue = false;
+  if (DSN->isAllocaNode()) {
+    returnValue =  true;
+    AllocaNodes.push_back(DSN);
+    }
   for (unsigned i = 0, e = DSN->getSize(); i < e; i += DS::PointerSize)
     if (DSNode *DSNchild = DSN->getLink(i).getNode()) {
-      if (checkIfReachesAlloca(DSNchild)) {
-	return true;
+      if (markReachableAllocasInt(DSNchild)) {
+	returnValue = true;
       }
     }
-  return false;
+  return returnValue;
 }
 
 bool checkStackSafety::run(Module &M) {
@@ -61,7 +73,7 @@ bool checkStackSafety::run(Module &M) {
 	for(inst_iterator ii = inst_begin(F), ie = inst_end(&F); ii != ie; ++ii) {
 	  if (ReturnInst *RI = dyn_cast<ReturnInst>(*ii)) {
 	    DSNode *DSN = TDG.getNodeForValue(RI).getNode();
-	    if (checkIfReachesAlloca(DSN)) {
+	    if (markReachableAllocas(DSN)) {
 	      std::cerr << "Instruction : \n" << RI << "points to a stack location\n";
 	      std::cerr << "In Function " << F.getName() << "\n";
 	      return false;
@@ -73,10 +85,10 @@ bool checkStackSafety::run(Module &M) {
       for (; AI != AE; ++AI) {
 	if (isa<PointerType>(AI->getType())) {
 	  DSNode *DSN = TDG.getNodeForValue(AI).getNode();
-	  if (checkIfReachesAlloca(DSN)) {
+	  if (markReachableAllocas(DSN)) {
 	    std::cerr << "Instruction : \n" << AI << "points to a stack location\n";
 	    std::cerr << "In Function " << F.getName() << "\n";
-	    return false;
+	    
 	  }
 	}
       }
