@@ -215,7 +215,7 @@ static string getValueNames( Value *V, SlotCalculator *Table) {
     return makeNameProper(V->getName());
   }
   else {
-    int Slot = Table->getValSlot(V);
+    int Slot = Table->getSlot(V);
     //    assert(Slot >= 0 && "Invalid value!");
     if (Slot >= 0) {
       return "l_" + itostr(Slot) + "_" + utostr(V->getType()->getUniqueID());
