@@ -8,6 +8,8 @@
 #ifndef LLVM_CZERO_H
 #define LLVM_CZERO_H
 
+using namespace llvm;
+
 #include "llvm/Pass.h"
 
 

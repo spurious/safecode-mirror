@@ -9,7 +9,7 @@
 #define LLVM_EMBEC_H
 
 #include "llvm/Pass.h"
-
+using namespace llvm;
 Pass* createEmbeCFreeRemovalPass();
 
 #endif
