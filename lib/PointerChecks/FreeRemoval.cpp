@@ -19,7 +19,7 @@
 #include "llvm/iOther.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Transforms/PoolAllocate.h"
+#include "/home/vadve/dhurjati/llvm/projects/poolalloc/include/poolalloc/PoolAllocate.h"
 #include "Support/VectorExtras.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
@@ -29,7 +29,7 @@
 using std::set;
 using std::map;
 
-
+using namespace llvm;
 namespace {
 
   struct EmbeCFreeRemoval : public Pass {

@@ -25,6 +25,7 @@ using std::map;
 using std::vector;
 using std::set;
 
+namespace llvm {
 
 // A dummy node is used when the value pointed to is unknown as yet.
 struct PointsToTarget {
@@ -259,6 +260,6 @@ public:
   // the particular function.
   string& getWarnings ();
 };
-
+}
 #endif
 

@@ -1,7 +1,7 @@
 LEVEL = ../../
+
 LIBRARYNAME = pointerchecks
-
-BUILD_ARCHIVE = 1
-
+SHARED_LIBRARY=1
+DONT_BUILD_RELINKED=1
 include $(LEVEL)/Makefile.common
 

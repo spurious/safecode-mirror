@@ -15,7 +15,7 @@
 #include "Support/DepthFirstIterator.h"
 #include "llvm/Function.h"
 #include "llvm/Support/CFG.h"
-
+using namespace llvm;
 
 
 //===----------------------------------------------------------------------===//
