@@ -975,16 +975,16 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	} else if (funcName == "sprintf") {
 	  std::cerr << " DID NOT HANDLE sprintf\n";
 	  std::cerr << "Program may not be SAFE\n";
-	  exit(-1);
+	  //	  abort();
 	} else if (funcName == "fscanf") {
 	  std::cerr << " DID NOT HANDLE fscanf\n";
 	  std::cerr << "Program may not be SAFE\n";
-	  exit(-1);
+	  abort();
 	} else if (funcName == "fread") {
 	  /*
 	   */
 	    std::cerr << "Handle this later fread \n";
-	    exit(-1);
+	    abort();
 	} else if (funcName == "memset") {
 	  LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
 	  string varName = getValueName(CI->getOperand(1));
