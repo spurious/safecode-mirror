@@ -14,18 +14,13 @@
 #include <list>
 #include <string>
 #include "llvm/Instruction.h"
-#include "llvm/iMemory.h"
+#include "llvm/Instructions.h"
 #include "llvm/InstrTypes.h"
-#include "llvm/iTerminators.h"
-#include "llvm/iOther.h"
-#include "llvm/iPHINode.h"
-#include "llvm/iOperators.h"
 #include "llvm/Constants.h"
 #include "llvm/Analysis/PostDominators.h"
-#include "Support/StringExtras.h"
-#include "llvm/SlotCalculator.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/Mangler.h"
 #include "llvm/DerivedTypes.h"
-#include "llvm/Analysis/InductionVariable.h"
 
 using namespace std;
 namespace llvm {
@@ -33,7 +28,7 @@ namespace llvm {
 
 namespace cfg { class LoopInfo; }
 
-typedef std::map<const PHINode *,InductionVariable*> IndVarMap;
+typedef std::map<const PHINode *, Value *> IndVarMap;
 typedef std::map<const Function *,BasicBlock *> ExitNodeMap;
 typedef std::map<const Function *, PostDominanceFrontier *> PostDominanceFrontierMap;
 
@@ -43,9 +38,12 @@ typedef std::list<const Value*> VarList;
 typedef std::list<const Value*>::const_iterator VarListIt;
 typedef std::list<const CallInst*> CallInstList;
 typedef std::list<const CallInst*>::const_iterator CallInstListIt;
-typedef std::list<Instruction*> MemAccessInstListType;
-typedef std::list<Instruction*>::const_iterator  MemAccessInstListIt;
+typedef std::map<Instruction*, bool> MemAccessInstListType;
+typedef std::map<Instruction*, bool>::const_iterator  MemAccessInstListIt;
 
+  
+
+  
 // LinearExpr - Represent an expression of the form CONST*VAR1+CONST*VAR2+ ..... 
 // or simpler.  
 
@@ -68,7 +66,7 @@ enum ExpressionType {
   inline CoefficientMap* getCMap() { return cMap; };
   inline ValStringMap* getVSMap() { return vsMap; };
 
-  LinearExpr(const Value *Val,SlotCalculator &Tab);        // Create a linear expression
+  LinearExpr(const Value *Val,Mangler *Mang);        // Create a linear expression
   void negate();
   void addLinearExpr(LinearExpr *);
   LinearExpr * mulLinearExpr(LinearExpr *);
@@ -101,7 +99,7 @@ class ABCExprTree {
   Constraint *constraint;
   ABCExprTree *right;
   ABCExprTree *left;
-  string logOp; // can be && or || or 
+  string logOp; // can be && or || or
  public:
   ABCExprTree(Constraint *c) {
     constraint = c;
@@ -111,12 +109,14 @@ class ABCExprTree {
   };
   ABCExprTree(ABCExprTree *l, ABCExprTree *r, string op) {
     constraint = 0;
+    //    r->dump();
     assert( l && " l is null \n");
     assert( r && " r is null \n");
     left = l;
     right = r;
     logOp = op;
   }
+  void dump();
   void print(ostream &out);
   void printOmegaSymbols(ostream &out);
 };
@@ -139,24 +139,13 @@ class FuncLocalInfo {
   //various call sites, so that can be computed only once for
   //different array accesses. 
   ABCExprTree *argConstraints;
-
-  bool dependsOnArg;
 public :
   FuncLocalInfo() {
-    dependsOnArg = false;
     argConstraints = 0;
   }
 
-  inline void setdependsOnArg() {
-    dependsOnArg  = true;
-  }
-
-  inline bool isDependentOnArg() {
-    return dependsOnArg;
-  }
-
-  inline void addMemAccessInst(Instruction *MAI) {
-    maiList.push_back(MAI);
+  inline void addMemAccessInst(Instruction *MAI, bool reqArg) {
+    maiList[MAI] = reqArg;
   }
 
   inline void addLocalConstraint(const Value *v, ABCExprTree *aet) {
@@ -178,13 +167,13 @@ public :
   inline MemAccessInstListType getMemAccessInstList() {
     return maiList;
   }
-
   inline void addArgumentConstraints(ABCExprTree *aet) {
     argConstraints = aet;
   }
   inline ABCExprTree * getArgumentConstraints() {
     return argConstraints;
   }
+
 };
 
 // We dont want identifier names with ., space, -  in them. 
@@ -207,8 +196,8 @@ static string makeNameProper(string x) {
   return tmp;
  };
 
-
-static string getValueNames(const Value *V, SlotCalculator *Table) {
+  /*
+static string getValueNames(const Value *V, Mangler *Mang) {
   if (const Constant *CPI = dyn_cast<Constant>(V)) {
     if (const ConstantSInt *CPI = dyn_cast<ConstantSInt>(V)) {
       return itostr(CPI->getValue());
@@ -220,14 +209,10 @@ static string getValueNames(const Value *V, SlotCalculator *Table) {
     return makeNameProper(V->getName());
   }
   else {
-    int Slot = Table->getSlot(V);
-    //    assert(Slot >= 0 && "Invalid value!");
-    if (Slot >= 0) {
-      return "l_" + itostr(Slot) + "_" + utostr(V->getType()->getUniqueID());
-    } else return "Unknown";
+    return Mang->getValueName(V);
   }
 };
-
+  */
 }
 
 #endif

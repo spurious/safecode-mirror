@@ -1,5 +1,5 @@
 LEVEL = ..
-PARALLEL_DIRS = Parse EmbeC
+PARALLEL_DIRS = 
 
 include $(LEVEL)/Makefile.common
 

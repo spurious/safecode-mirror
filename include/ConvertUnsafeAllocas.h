@@ -7,7 +7,7 @@
 namespace llvm {
 
 
-Pass *createConvertUnsafeAllocas();
+ModulePass *createConvertUnsafeAllocas();
 
 using namespace ABC;
 using namespace CSS;
@@ -17,22 +17,29 @@ using namespace CSS;
    private:
 inline bool changeType (Instruction * Inst);
    
+   inline bool TypeContainsPointer(const Type *Ty);
+   
    public:
-virtual bool runOnFunction (Function &F);
+   virtual bool runOnFunction (Function &F);
+   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+     AU.addRequired<TargetData>();
+//     AU.setPreservesAll();
+   }
  };
-
+ 
  
 namespace CUA {
-struct ConvertUnsafeAllocas : public Pass {
+struct ConvertUnsafeAllocas : public ModulePass {
     public :
     const char *getPassName() const { return "Array Bounds Check"; }
-    virtual bool run(Module &M);
+    virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<checkStackSafety>();
-      AU.addRequired<BUDataStructures>();
+      AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
-      AU.setPreservesAll();
+      // Does not preserve the BU or TD graphs
+      //      AU.setPreservesAll();
     }
 
   DSNode * getDSNode(const Value *I, Function *F);
@@ -42,6 +49,10 @@ struct ConvertUnsafeAllocas : public Pass {
     assert(abcPass != 0 && "First run the array bounds pass correctly");
     return abcPass->UnsafeGetElemPtrs;
   }  
+
+  // The set of Malloc Instructions that are a result of conversion from
+  // alloca's due to static array bounds detection failure
+  std::set<const MallocInst *>  ArrayMallocs;
 
     private :
       TDDataStructures * tddsPass;
@@ -53,8 +64,11 @@ struct ConvertUnsafeAllocas : public Pass {
     std::set<DSNode *> reachableAllocaNodes; 
     bool markReachableAllocas(DSNode *DSN);
     bool markReachableAllocasInt(DSNode *DSN);
-    void TransformAllocasToMallocs(std::vector<DSNode *> & unsafeAllocaNodes);
+    void TransformAllocasToMallocs(std::vector<DSNode *> & unsafeAllocaNodes, 
+				   bool isArray);
     void getUnsafeAllocsFromABC();
+    void TransformCollapsedAllocas(Module &M);
+
 };
 }
 } 

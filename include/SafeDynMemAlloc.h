@@ -9,19 +9,17 @@
 #define LLVM_EMBEC_H
 
 #include "llvm/Pass.h"
-#include "/home/vadve/kowshik/llvm/projects/poolalloc/include/poolalloc/PoolAllocate.h"
+#include "/home/vadve/dhurjati/llvm/projects/llvm-poolalloc/lib/PoolAllocate/PoolAllocate.h"
 #include "llvm/Transforms/IPO.h"
-#include "Support/PostOrderIterator.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/DerivedTypes.h"
-#include "llvm/iOther.h"
-#include "llvm/iMemory.h"
 #include "llvm/Constants.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "Support/VectorExtras.h"
-#include "llvm/Analysis/DataStructure.h"
-#include "llvm/Analysis/DSGraph.h"
-#include "Support/Debug.h"
+#include "llvm/ADT/VectorExtras.h"
+#include "llvm/Analysis/DataStructure/DataStructure.h"
+#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "llvm/Support/Debug.h"
 #include <set>
 #include <map>
 #include <string>
@@ -29,22 +27,24 @@ using std::set;
 using std::map;
 
 using namespace llvm;
+using namespace PA;
 Pass* createEmbeCFreeRemovalPass();
 
 
 namespace llvm {
 
-  struct EmbeCFreeRemoval : public Pass {
+  struct EmbeCFreeRemoval : public ModulePass {
     
     // The function representing 'poolmakeunfreeable'
     Function *PoolMakeUnfreeable;
 
     Function *PoolCheck;
 
-    bool run(Module &M);
-    
+    bool runOnModule(Module &M);
+    std::vector<Value *> Visited;
     static const std::string PoolI;
     static const std::string PoolA;
+    static const std::string PoolAA;
     static const std::string PoolF;
     static const std::string PoolD;
     static const std::string PoolMUF;
@@ -53,20 +53,25 @@ namespace llvm {
     void checkPoolSSAVarUses(Function *F, Value *V, 
 			     map<Value *, set<Instruction *> > &FuncAllocs, 
 			     map<Value *, set<Instruction *> > &FuncFrees, 
-			     map<Value *, set<Instruction *> > &FuncDestroy,
-			     const CompleteBUDataStructures::ActualCalleesTy &AC);
+			     map<Value *, set<Instruction *> > &FuncDestroy);
 
-    void propagateCollapsedInfo(Function *F, Value *V, 
-				const CompleteBUDataStructures::ActualCalleesTy &AC);
+    void propagateCollapsedInfo(Function *F, Value *V);
+    
+    DSNode *guessDSNode(Value *v, DSGraph &G, PA::FuncInfo *PAFI);
+    void guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG);
+    
+      
+    void insertNonCollapsedChecks(Function *Forig, Function *F, DSNode *DSN);
 
     void addRuntimeChecks(Function *F, Function *Forig);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // TODO: Check!
+      AU.addRequired<EquivClassGraphs>();
+      AU.addRequired<PoolAllocate>();
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
       AU.addRequired<CallGraph>();
-      AU.addRequired<PoolAllocate>();
       AU.setPreservesAll();
     }
 
@@ -80,7 +85,7 @@ namespace llvm {
     Module *CurModule;
 
     TDDataStructures *TDDS;
-    CompleteBUDataStructures *BUDS;
+    EquivClassGraphs *BUDS;
     PoolAllocate *PoolInfo;
     
     bool moduleChanged;
@@ -101,6 +106,7 @@ namespace llvm {
   const std::string EmbeCFreeRemoval::PoolD = "pooldestroy";
   const std::string EmbeCFreeRemoval::PoolMUF = "poolmakeunfreeable";
   const std::string EmbeCFreeRemoval::PoolCh = "poolcheck";
+  const std::string EmbeCFreeRemoval::PoolAA = "poolregister";
 }
 
 #endif

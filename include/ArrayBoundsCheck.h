@@ -6,30 +6,34 @@
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
 #include "AffineExpressions.h"
-#include "llvm/Analysis/DataStructure.h"
+#include "BottomUpCallGraph.h"
+
 namespace llvm {
 
-Pass *createArrayBoundsCheckPass();
+ModulePass *createArrayBoundsCheckPass();
 
 
 namespace ABC {
 
-struct ArrayBoundsCheck : public Pass {
+struct ArrayBoundsCheck : public ModulePass {
   public :
     const char *getPassName() const { return "Array Bounds Check"; }
-    virtual bool run(Module &M);
+    virtual bool runOnModule(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<TargetData>();
       AU.addRequired<CompleteBUDataStructures>();
+      AU.addRequired<BottomUpCallGraph>();
       AU.setPreservesAll();
     }
   private :
-  CompleteBUDataStructures *budsPass;
+  CompleteBUDataStructures *cbudsPass;
+  BottomUpCallGraph *buCG;
   typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
   typedef std::map<Function*, int> FuncIntMap;
     
     //This is required for getting the names/unique identifiers for variables.
-    SlotCalculator *Table;
+    Mangler *Mang;
 
     //for storing local information about a function
     InfoMap fMap; 
@@ -56,9 +60,9 @@ struct ArrayBoundsCheck : public Pass {
     //This function collects from the branch which controls the current block
     //the Successor tells the path 
     void addBranchConstraints(BranchInst *BI, BasicBlock *Successor, ABCExprTree **rootp);
-    //This method adds constraints for known trusted functions
-    void addConstraintsForKnownFunctions(CallInst *CI, ABCExprTree **rootp);
 
+  //This method adds constraints for known trusted functions
+  ABCExprTree* addConstraintsForKnownFunctions(Function *kf, CallInst *CI);
     
     //Interface for getting constraints for a particular value
     void getConstraintsInternal( Value *v, ABCExprTree **rootp);
@@ -68,9 +72,11 @@ struct ArrayBoundsCheck : public Pass {
     void addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp); 
     
     //Gives the return value constraints interms of its arguments 
-    void getReturnValueConstraints( const CallInst *CI,ABCExprTree **rootp);
+  ABCExprTree* getReturnValueConstraints(Function *f);
+  void getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp);
+  void addFormalToActual(Function *f, CallInst *CI, ABCExprTree **rootp);
 
-    //Checks if the function is safe (produces output for omega consumption)
+  //Checks if the function is safe (produces output for omega consumption)
     void checkSafety(Function &F);
 
     //Get the constraints on the arguments
