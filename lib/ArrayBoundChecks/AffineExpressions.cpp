@@ -6,25 +6,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "AffineExpressions.h"
-#include "llvm/SlotCalculator.h"
 #include "llvm/DerivedTypes.h"
-#include "Support/StringExtras.h"
-#include "llvm/ConstantHandling.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Function.h"
 #include "llvm/BasicBlock.h"
 #include "llvm/InstrTypes.h"
-#include "llvm/iTerminators.h"
-#include "llvm/iMemory.h"
-#include "llvm/iOther.h"
-#include "llvm/iPHINode.h"
 #include "llvm/BasicBlock.h"
 #include <iostream>
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/InductionVariable.h"
 
 using namespace llvm;
 
-LinearExpr::LinearExpr(const Value *Val, SlotCalculator &Tab) {
+LinearExpr::LinearExpr(const Value *Val, Mangler *Mang) {
   if (Val) {
     vList = new VarList();
     cMap = new CoefficientMap();
@@ -41,9 +33,9 @@ LinearExpr::LinearExpr(const Value *Val, SlotCalculator &Tab) {
     offSet = 0;
     vList->push_back(Val);
     string tempstr;
-    if (Val->hasName()) {
-      tempstr = makeNameProper(Val->getName());
-    } else {
+    tempstr = makeNameProper(Mang->getValueName(Val));
+    /*
+  } else {
       int Slot = Tab.getSlot(Val); // slot number 
       if (Slot >= 0) {
 	tempstr = "l_" + itostr(Slot) + "_" + utostr(Val->getType()->getUniqueID()); 
@@ -53,6 +45,7 @@ LinearExpr::LinearExpr(const Value *Val, SlotCalculator &Tab) {
 	return;
       }
     }
+    */
     (*vsMap)[Val] = tempstr;
     (*cMap)[Val] = 1;
   }
@@ -161,6 +154,11 @@ void
 Constraint::printOmegaSymbols(ostream &out) {
   if (!leConstant_) out << "symbolic " << var << ";\n";
   le->printOmegaSymbols(out);
+}
+
+void
+ABCExprTree::dump() {
+  print(std::cout);
 }
 
 void
