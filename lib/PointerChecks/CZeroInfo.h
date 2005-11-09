@@ -11,12 +11,9 @@
 
 #include "llvm/Type.h"
 #include "llvm/Value.h"
-#include "llvm/iMemory.h"
-#include "llvm/iPHINode.h"
-#include "llvm/iOther.h"
+#include "llvm/Instructions.h"
 #include "llvm/BasicBlock.h"
 #include "llvm/Analysis/Dominators.h"
-#include "llvm/Analysis/SlotCalculator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CFG.h"
 #include <algorithm>
@@ -63,7 +60,7 @@ public:
       const AllocaInst *AIV = dyn_cast<AllocaInst>(V);
       Array = AIV->isArrayAllocation();
       if (!AIV->isArrayAllocation()) {
-	if (AIV->getAllocatedType()->getPrimitiveID() == Type::StructTyID)
+	if (AIV->getAllocatedType()->getTypeID() == Type::StructTyID)
 	  Struct = true;
       }
     }
@@ -71,7 +68,7 @@ public:
       const MallocInst *MIV = dyn_cast<MallocInst>(V);
       Array = MIV->isArrayAllocation();
       if (!MIV->isArrayAllocation()) {
-	if (MIV->getAllocatedType()->getPrimitiveID() == Type::StructTyID)
+	if (MIV->getAllocatedType()->getTypeID() == Type::StructTyID)
 	  Struct = true;
       }
       Heap = true;

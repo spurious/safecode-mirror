@@ -10,11 +10,11 @@
 #include "llvm/Module.h"
 #include "llvm/Argument.h"
 #include "llvm/Constants.h"
-#include "llvm/iTerminators.h"
 #include "llvm/DerivedTypes.h"
-#include "Support/DepthFirstIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Function.h"
 #include "llvm/Support/CFG.h"
+#include <iostream>
 using namespace llvm;
 
 
@@ -53,9 +53,9 @@ void CZeroInfo::depthFirstGatherer() {
   // We treat them as pointers to global targets.
   const FunctionType *FT = cast<FunctionType>(TheFunction.getFunctionType());
 
-  for (Function::const_aiterator I = TheFunction.abegin(), 
-	 E = TheFunction.aend(); I != E; ++I) {
-    if (I->getType()->getPrimitiveID() == Type::PointerTyID) 
+  for (Function::const_arg_iterator I = TheFunction.arg_begin(), 
+	 E = TheFunction.arg_end(); I != E; ++I) {
+    if (I->getType()->getTypeID() == Type::PointerTyID) 
       PointerAliasGraph.addEdge(I, PointsToTarget::GlobalTarget);
   }
 
@@ -72,7 +72,7 @@ void CZeroInfo::depthFirstGatherer() {
       // NOTE!!! Removed the if (I) clause here
       // 
       if (I.hasName() && 
-	  I.getType()->getPrimitiveID() == Type::PointerTyID) {
+	  I.getType()->getTypeID() == Type::PointerTyID) {
 	// Each of these cases needs to modify the alias graph appropriately
 	if (isa<AllocaInst>(I)) {
 	  PointerAliasGraph.addEdge(&I, &I);
@@ -247,15 +247,15 @@ enum WarningType CZeroInfo::checkInstruction(const BasicBlock *BB,
       // Check that every operand is 0 except for struct accesses.
       const Type *elemType = I->getType();
       for(unsigned int i = 1; i < I->getNumOperands(); i++) {
-	if (elemType->getPrimitiveID() == Type::PointerTyID) {
+	if (elemType->getTypeID() == Type::PointerTyID) {
 	  if (I->getOperand(i) != ConstantUInt::get(Type::UIntTy, 0))
 	    return IllegalMemoryLoc;
 	  elemType = cast<const PointerType>(elemType)->getElementType();
 	}
-	else if (elemType->getPrimitiveID() == Type::ArrayTyID) {
+	else if (elemType->getTypeID() == Type::ArrayTyID) {
 	  elemType = cast<const ArrayType>(elemType)->getElementType();
 	}
-	else if (elemType->getPrimitiveID() == Type::StructTyID) {
+	else if (elemType->getTypeID() == Type::StructTyID) {
 	  elemType = cast<const StructType>(elemType)->getTypeAtIndex(I->getOperand(i));
 	}
       }
@@ -289,12 +289,12 @@ bool CZeroInfo::findSpuriousInsts() {
       
       if (isa<CastInst>(I)) {
 	// Disallow cast instructions involving pointers
-	if (I->getType()->getPrimitiveID() == Type::PointerTyID) {
+	if (I->getType()->getTypeID() == Type::PointerTyID) {
 	  WarningsList += I->getName() + ": Casts to pointers disallowed" +
 	    "in CZero\n";
 	  WarningFlag = true;
 	}
-	else if (I->getOperand(0)->getType()->getPrimitiveID() 
+	else if (I->getOperand(0)->getType()->getTypeID() 
 		 == Type::PointerTyID) {
 	  WarningsList += I->getName() + ":Casts from a pointer disallowed " +
 	    "in CZero\n";
@@ -309,17 +309,17 @@ bool CZeroInfo::findSpuriousInsts() {
 	if (!PointerAliasGraph.getPointsToInfo(I->getOperand(1)).isArray()) {
 	  const Type *elemType = I->getOperand(1)->getType();
 	  for(unsigned int i = 2; i < I->getNumOperands(); i++) {
-	    if (elemType->getPrimitiveID() == Type::PointerTyID) {
+	    if (elemType->getTypeID() == Type::PointerTyID) {
 	      if (I->getOperand(i) != ConstantUInt::get(Type::UIntTy, 0)) {
 		WarningsList += "Stores to pointer variables should not have pointer arithmetic\n";
 		WarningFlag = true;
 	      }
 	      elemType = cast<const PointerType>(elemType)->getElementType();
 	    }
-	    else if (elemType->getPrimitiveID() == Type::ArrayTyID) {
+	    else if (elemType->getTypeID() == Type::ArrayTyID) {
 	      elemType = cast<const ArrayType>(elemType)->getElementType();
 	    }
-	    else if (elemType->getPrimitiveID() == Type::StructTyID) {
+	    else if (elemType->getTypeID() == Type::StructTyID) {
 	      elemType = cast<const StructType>(elemType)->getTypeAtIndex(I->getOperand(i));
 	    }
 	  }
@@ -327,7 +327,7 @@ bool CZeroInfo::findSpuriousInsts() {
 
 	// If a pointer is stored to another pointer, then we check that
 	// the pointer being stored has been stored to. (boy thats twisted!)
-	if (I->getOperand(0)->getType()->getPrimitiveID() ==
+	if (I->getOperand(0)->getType()->getTypeID() ==
 	    Type::PointerTyID) {
 	  if (!isa<GlobalValue>(I->getOperand(0)) && 
 	      !(PointerAliasGraph.getPointsToInfo
@@ -381,7 +381,7 @@ bool CZeroInfo::findSpuriousInsts() {
       else if (isa<CallInst>(I)) {
 	if (I->getNumOperands() > 1)
 	  for (unsigned int i = 1; i < I->getNumOperands(); i++) {
-	    if (I->getOperand(i)->getType()->getPrimitiveID() ==
+	    if (I->getOperand(i)->getType()->getTypeID() ==
 		Type::PointerTyID) {
 	      if (!isa<GlobalValue>(I->getOperand(i)) && 
 		  !(PointerAliasGraph.getPointsToInfo
@@ -407,7 +407,7 @@ bool CZeroInfo::findSpuriousInsts() {
       }
       else if (isa<ReturnInst>(I)) {
 	if (I->getNumOperands() > 0)
-	  if (I->getOperand(0)->getType()->getPrimitiveID() ==
+	  if (I->getOperand(0)->getType()->getTypeID() ==
 	      Type::PointerTyID) {
 	    if (!isa<GlobalValue>(I->getOperand(0)) && 
 		!(PointerAliasGraph.getPointsToInfo

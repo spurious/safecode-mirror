@@ -14,6 +14,7 @@
 #define DEBUG_TYPE "FreeRemoval"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Instructions.h"
 #include "SafeDynMemAlloc.h"
 using namespace llvm;
 
@@ -26,8 +27,7 @@ namespace {
 void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V, 
 			 map<Value *, set<Instruction *> > &FuncPoolAllocs,
 			 map<Value *, set<Instruction *> > &FuncPoolFrees, 
-			 map<Value *, set<Instruction *> > &FuncPoolDestroys,
-			 const CompleteBUDataStructures::ActualCalleesTy &AC) {
+        	   map<Value *, set<Instruction *> > &FuncPoolDestroys) {
   if (V->use_begin() != V->use_end()) {
     for (Value::use_iterator UI = V->use_begin(), UE = V->use_end();
 	 UI != UE; ++UI) {
@@ -52,8 +52,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    
 	    Value *formalParam;
 	    int opi = 0;
-	    for (Function::aiterator I = calledF->abegin(), 
-		   E = calledF->aend();
+	    for (Function::arg_iterator I = calledF->arg_begin(), 
+		   E = calledF->arg_end();
 		 I != E && opi < operandNo; ++I, ++opi)
 	      if (opi == operandNo - 1) 
 		formalParam = I;
@@ -79,8 +79,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    
 	    Value *formalParam;
 	    int opi = 0;
-	    for (Function::aiterator I = calledF->abegin(), 
-		   E = calledF->aend();
+	    for (Function::arg_iterator I = calledF->arg_begin(), 
+		   E = calledF->arg_end();
 		 I != E && opi < operandNo; ++I, ++opi)
 	      if (opi == operandNo - 1) 
 		formalParam = I;
@@ -108,8 +108,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    if (calledF->getName() == EmbeCFreeRemoval::PoolI) {
 	      // Insert call to poolmakeunfreeable after every poolinit since 
 	      // we do not free memory to the system for safety in all cases.
-	      new CallInst(PoolMakeUnfreeable, make_vector(V, 0), "", 
-			   CI->getNext());
+	      //new CallInst(PoolMakeUnfreeable, make_vector(V, 0), "", 
+	      //	      	   CI->getNext()); //taken care of in runtime library
 	      moduleChanged = true;
 	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolA) {
 	      FuncPoolAllocs[V].insert(cast<Instruction>(*UI));
@@ -121,26 +121,28 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	      // Ignore
 	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolCh) {
 	      // Ignore
+	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolAA) {
+	        FuncPoolAllocs[V].insert(cast<Instruction>(CI->getNext()));
 	    } else {
 	      hasError = true;
 	      std::cerr << "EmbeC: " << F->getName() << ": Unrecognized pool variable use \n";
+	      abort();
 	    }
 	  } 
 	} else {
-	  // indirect function call
-	  std::pair<CompleteBUDataStructures::ActualCalleesTy::const_iterator, CompleteBUDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
 
 	  // Find the formal parameter corresponding to the parameter V
 	  int operandNo;
 	  for (unsigned int i = 1; i < CI->getNumOperands(); i++)
 	    if (CI->getOperand(i) == V)
 	      operandNo = i;
+	  CompleteBUDataStructures::callee_iterator CalleesI =
+	    BUDS->callee_begin(CI), CalleesE = BUDS->callee_end(CI);
 
-	  for (CompleteBUDataStructures::ActualCalleesTy::const_iterator CalleesI = Callees.first; 
-	       CalleesI != Callees.second; ++CalleesI) {
+	  for (; CalleesI != CalleesE; ++CalleesI) {
 	    Function *calledF = CalleesI->second;
 	    
-	    PA::FuncInfo *PAFI = PoolInfo->getFunctionInfo(calledF);
+	    PA::FuncInfo *PAFI = PoolInfo->getFuncInfoOrClone(*calledF);
 	    
 	    /*
 	      if (PAFI->PoolArgFirst == PAFI->PoolArgLast ||
@@ -151,8 +153,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 
 	    Value *formalParam;
 	    int opi = 0;
-	    for (Function::aiterator I = calledF->abegin(), 
-		   E = calledF->aend();
+	    for (Function::arg_iterator I = calledF->arg_begin(), 
+		   E = calledF->arg_end();
 		 I != E && opi < operandNo; ++I, ++opi)
 	      if (opi == operandNo-1) 
 		formalParam = I;
@@ -188,8 +190,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 
 // Propagate that the pool V is a collapsed pool to each of the callees of F
 // that have V as argument
-void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V, 
-					      const CompleteBUDataStructures::ActualCalleesTy &AC) {
+void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V) {
   for (Value::use_iterator UI = V->use_begin(), 
 	 UE = V->use_end(); UI != UE; ++UI) {
     if (CallInst *CI = dyn_cast<CallInst>(*UI)) {
@@ -207,8 +208,8 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	  
 	  Value *formalParam;
 	  int opi = 0;
-	  for (Function::aiterator I = calledF->abegin(), 
-		 E = calledF->aend();
+	  for (Function::arg_iterator I = calledF->arg_begin(), 
+		 E = calledF->arg_end();
 	       I != E && opi < operandNo; ++I, ++opi)
 	    if (opi == operandNo - 1) 
 	      formalParam = I; 
@@ -218,6 +219,7 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	  else {
 	    std::cerr << "EmbeC: " << F->getName() 
 		    << ": Recursion not supported\n";
+	    abort();
 	    continue;
 	  }
 	}
@@ -234,8 +236,8 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	  
 	  Value *formalParam;
 	  int opi = 0;
-	  for (Function::aiterator I = calledF->abegin(), 
-		 E = calledF->aend();
+	  for (Function::arg_iterator I = calledF->arg_begin(), 
+		 E = calledF->arg_end();
 	       I != E && opi < operandNo; ++I, ++opi)
 	    if (opi == operandNo - 1) 
 	      formalParam = I;
@@ -244,7 +246,8 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	} 
       } else {
 	  // indirect function call
-	std::pair<CompleteBUDataStructures::ActualCalleesTy::const_iterator, CompleteBUDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
+	
+	//	std::pair<CompleteBUDataStructures::ActualCalleesTy::const_iterator, CompleteBUDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
 	
 	// Find the formal parameter corresponding to the parameter V
 	int operandNo;
@@ -252,11 +255,13 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	  if (CI->getOperand(i) == V)
 	    operandNo = i;
 	
-	for (CompleteBUDataStructures::ActualCalleesTy::const_iterator CalleesI = Callees.first; 
-	     CalleesI != Callees.second; ++CalleesI) {
+	CompleteBUDataStructures::callee_iterator CalleesI =
+	  BUDS->callee_begin(CI),  CalleesE = BUDS->callee_end(CI);
+	
+	for (; CalleesI != CalleesE; ++CalleesI) {
 	  Function *calledF = CalleesI->second;
 	  
-	  PA::FuncInfo *PAFI = PoolInfo->getFunctionInfo(calledF);
+	  PA::FuncInfo *PAFI = PoolInfo->getFuncInfoOrClone(*calledF);
 	  
 	  /*
 	    if (PAFI->PoolArgFirst == PAFI->PoolArgLast ||
@@ -267,8 +272,8 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V,
 	  
 	  Value *formalParam;
 	  int opi = 0;
-	  for (Function::aiterator I = calledF->abegin(), 
-		 E = calledF->aend();
+	  for (Function::arg_iterator I = calledF->arg_begin(), 
+		 E = calledF->arg_end();
 	       I != E && opi < operandNo; ++I, ++opi)
 	    if (opi == operandNo-1) 
 	      formalParam = I;
@@ -340,11 +345,144 @@ static void printSets(set<Value *> &FuncPoolPtrs,
   }
 }
 
+  DSNode *EmbeCFreeRemoval::guessDSNode(Value *v, DSGraph &G, PA::FuncInfo *PAFI) {
+    if (std::find(Visited.begin(), Visited.end(), v) != Visited.end())
+      return 0;
+    Visited.push_back(v);
+    if (isa<PointerType>(v->getType())) {
+      DSNode *r = G.getNodeForValue(v).getNode();
+      if (r && PAFI->PoolDescriptors.count(r))
+	return r;
+    }
+    DSNode *retDSNode = 0;
+    if (BinaryOperator *Bop = dyn_cast<BinaryOperator>(v)) {
+      retDSNode = guessDSNode(Bop->getOperand(0), G, PAFI);
+      if (!retDSNode) retDSNode = guessDSNode(Bop->getOperand(0), G, PAFI);
+    } else if (CastInst *CI = dyn_cast<CastInst>(v)) {
+	retDSNode = guessDSNode(CI->getOperand(0), G, PAFI);
+    } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(v)) {
+      retDSNode = guessDSNode(GEP->getPointerOperand(), G, PAFI);
+    } else if (LoadInst *LI = dyn_cast<LoadInst>(v)) {
+      //hope its collapsed node ...
+      retDSNode = guessDSNode(LI->getOperand(0), G, PAFI);
+    } else if (PHINode* PN =dyn_cast<PHINode>(v)) {
+      for (unsigned idx = 0; idx < PN->getNumIncomingValues(); ++idx) {
+	if (!retDSNode) {
+	  retDSNode = guessDSNode(PN->getIncomingValue(idx), G, PAFI);
+	} else {
+	  break;
+	}
+      }
+    } else if (CallInst* CI =dyn_cast<CallInst>(v)) {
+      for (unsigned idx = 1; idx < CI->getNumOperands(); ++idx) {
+	if (!retDSNode) {
+	  retDSNode = guessDSNode(CI->getOperand(idx), G, PAFI);
+	} else {
+	  break;
+	}
+      }
+    }
+    return retDSNode;
+  }
+
+  void EmbeCFreeRemoval::guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG) {
+    Visited.clear();
+    Value *v = 0;
+    //follow up v through the ssa def0use chains
+    DSNode *DSN = guessDSNode(oldI, oldG, PAFI);
+    //    assert(DSN && "can not guess the pool ptr");
+    //    assert(PAFI->PoolDescriptors.count(DSN) && "no pool descriptor found \n");
+    CastInst *CastI = 
+      new CastInst(pOpI, 
+		   PointerType::get(Type::SByteTy), "casted", I);
+    if (DSN) {
+
+    new CallInst(PoolCheck, 
+		 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
+		 "", I);
+    } else {
+      
+      Value *PH = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
+      new CallInst(PoolCheck, 
+		 make_vector(PH, CastI, 0),
+		 "", I);
+      
+    }
+    DEBUG(std::cerr << "inserted a pool check for unknown node \n");
+
+  }
+  
+  void EmbeCFreeRemoval::insertNonCollapsedChecks(Function *Forig, Function *F, DSNode *DSN) {
+    assert(!DSN->isNodeCompletelyFolded() && "its collapsed! \n");
+    if (DSN->isUnknownNode()) return; //we'll handle it separately
+    //Assuming alignment is the beginning of a node, owise its runtime failure
+    bool isClonedFunc;
+    PA::FuncInfo* PAFI = PoolInfo->getFuncInfoOrClone(*F);
+    if (PoolInfo->getFuncInfo(*F))
+      isClonedFunc = false;
+    else
+      isClonedFunc = true;
+    
+    DSGraph& oldG = BUDS->getDSGraph(*Forig);
+    
+    // For each scalar pointer in the original function
+    for (DSGraph::ScalarMapTy::iterator SMI = oldG.getScalarMap().begin(), 
+	   SME = oldG.getScalarMap().end(); SMI != SME; ++SMI) {
+      DSNodeHandle &GH = SMI->second;
+      if (DSN == GH.getNode()) { //We need to insert checks to all the uses of this ptr
+	if (GH.getOffset()) {
+	  if (DSN->isArray()) return; //we are any way checking all arrays
+	  assert(!GH.getOffset()  && " we dont handle middle of structs yet \n");
+	}
+	Value *NewPtr = SMI->first;
+	if (isClonedFunc) {
+	  NewPtr = PAFI->ValueMap[SMI->first];
+	}
+	if (!NewPtr)
+	  continue;
+	for (Value::use_iterator UI = NewPtr->use_begin(), 
+	       UE = NewPtr->use_end(); UI != UE; ++UI) {
+	  // If the use is the 2nd operand of store, insert a runtime check
+	  if (StoreInst *StI = dyn_cast<StoreInst>(*UI)) {
+	    if (StI->getOperand(1) == NewPtr) {
+	      moduleChanged = true;
+	      CastInst *CastI = 
+		new CastInst(StI->getOperand(1), 
+			     PointerType::get(Type::SByteTy), "casted", StI);
+	      new CallInst(PoolCheck, 
+			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
+			   "", StI);
+	      std::cerr << " inserted poolcheck for noncollapsed pool\n";
+	    }
+	  } else if (CallInst *CallI = dyn_cast<CallInst>(*UI)) {
+	    // If this is a function pointer read from a collapsed node,
+	    // reject the code
+	    if (CallI->getOperand(0) == NewPtr) {
+	      std::cerr << 
+		"EmbeC: Error - Function pointer read from collapsed node\n";
+	      abort();
+	    }
+	  } else if (LoadInst *LdI = dyn_cast<LoadInst>(*UI)) {
+	    if (LdI->getOperand(0) == NewPtr) {
+	      moduleChanged = true;
+	      CastInst *CastI = 
+		new CastInst(LdI->getOperand(0), 
+			     PointerType::get(Type::SByteTy), "casted", LdI);
+	      new CallInst(PoolCheck, 
+			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
+			   "", LdI);
+	      std::cerr << " inserted poolcheck for noncollpased pool\n";
+	    }
+	  }
+	}
+      }
+    }
+  }
 // Insert runtime checks. Called on the functions in the existing program
 void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 
   bool isClonedFunc;
-  PA::FuncInfo* PAFI = PoolInfo->getFunctionInfo(F);
+  PA::FuncInfo* PAFI = PoolInfo->getFuncInfoOrClone(*F);
 
   if (PoolInfo->getFuncInfo(*F))
     isClonedFunc = false;
@@ -364,54 +502,42 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
       if (DSN->isUnknownNode()) {
 	// Report an error if we see loads or stores on the pointer
 	Value *NewPtr = SMI->first;
-	if (isClonedFunc)
-	  NewPtr = PAFI->ValueMap[SMI->first];
+	if (isClonedFunc) {
+	  if (PAFI->ValueMap.count(SMI->first))
+	    NewPtr = PAFI->ValueMap[SMI->first];
+	  else continue;
+	}
 	if (!NewPtr)
 	  continue;
 	for (Value::use_iterator UI = NewPtr->use_begin(), 
 	       UE = NewPtr->use_end(); UI != UE; ++UI) {
 	  if (StoreInst *StI = dyn_cast<StoreInst>(*UI)) {
 	    if (StI->getOperand(1) == NewPtr) {
+	      guessPoolPtrAndInsertCheck(PAFI, SMI->first, StI, NewPtr, oldG);
 	      std::cerr << 
 		"EmbeC: In function " << F->getName() << ": Presence of an unknown node can invalidate pool allocation\n";
 	      break;
 	    }
 	  } else if (LoadInst *LI = dyn_cast<LoadInst>(*UI)) {
+	    //We'll try to guess a pool descriptor and insert a check
+	    //if it fails then ok too bad ;)
+	    //Add guess the pool handle
+	    guessPoolPtrAndInsertCheck(PAFI, SMI->first, LI, NewPtr, oldG);
 	    std::cerr << 
 	      "EmbeC: In function " << F->getName() << ": Presence of an unknown node can invalidate pool allocation\n";
 	    break;
+	  } else if (CallInst *CallI = dyn_cast<CallInst>(*UI)) {
+	      // If this is a function pointer read from a collapsed node,
+	      // reject the code
+	      if (CallI->getOperand(0) == NewPtr) {
+		std::cerr << 
+		  "EmbeC: Error - Function pointer read from Unknown node\n";
+		abort();
+	  
+	      }
 	  }
 	}
-	/*
-        Value *NewPtr = SMI->first;
-	if (isClonedFunc)
-	  NewPtr = PAFI->ValueMap[SMI->first];
-	if (!NewPtr)
-	  continue;
-	for (Value::use_iterator UI = NewPtr->use_begin(), 
-	       UE = NewPtr->use_end(); UI != UE; ++UI) {
-	  if (StoreInst *StI = dyn_cast<StoreInst>(*UI)) {
-	    if (StI->getOperand(1) == NewPtr) {
-	      moduleChanged = true;
-	      CastInst *CastI = 
-		new CastInst(StI->getOperand(1), 
-			     PointerType::get(Type::SByteTy), "casted", StI);
-	      new CallInst(PoolCheck, 
-			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
-			   "", StI);
-	    }
-	  } else if (LoadInst *LI = dyn_cast<LoadInst>(*UI)) {
-	    moduleChanged = true;
-	    CastInst *CastI = 
-	      new CastInst(LI->getOperand(0), 
-			   PointerType::get(Type::SByteTy), "casted", StI);
-	    new CallInst(PoolCheck, 
-			 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
-			 "", LI);
-	  }
-	}
-	*/
-      } 
+      }
       if (PAFI->PoolDescriptors.count(DSN)) {
 	// If the node pointed to, corresponds to a collapsed pool 
 	if (CollapsedPoolPtrs[F].find(PAFI->PoolDescriptors[DSN]) !=
@@ -420,7 +546,16 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 	  Value *NewPtr = SMI->first;
 	  Value *NewerPtr = NewPtr;
 	  if (isClonedFunc) {
-	    NewPtr = PAFI->ValueMap[SMI->first];
+	    if (PAFI->ValueMap.count(SMI->first)) {
+	      NewPtr = PAFI->ValueMap[SMI->first];
+	      if (!PAFI->NewToOldValueMap.count(NewPtr)) {
+		std::cerr << "WARNING : checks for NewPtr are not inserted\n";
+		continue;
+	      }
+	    } else {
+	      std::cerr << "WARNING : checks for NewPtr are not inserted\n";
+	      continue;
+	    }
 	  }
 	  if (!NewPtr)
 	    continue;
@@ -429,13 +564,18 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 	    // If the use is the 2nd operand of store, insert a runtime check
 	    if (StoreInst *StI = dyn_cast<StoreInst>(*UI)) {
 	      if (StI->getOperand(1) == NewPtr) {
-		moduleChanged = true;
-		CastInst *CastI = 
-		  new CastInst(StI->getOperand(1), 
-			       PointerType::get(Type::SByteTy), "casted", StI);
-		new CallInst(PoolCheck, 
-			     make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
-			     "", StI);
+		if (!isa<GlobalVariable>(StI->getOperand(1))) { 
+		  moduleChanged = true;
+		  CastInst *CastI = 
+		    new CastInst(StI->getOperand(1), 
+				 PointerType::get(Type::SByteTy), "casted", StI);
+		  new CallInst(PoolCheck, 
+			       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
+			       "", StI);
+		  DEBUG(std::cerr << " inserted poolcheck for collpased pool\n";);
+		} else {
+		  std::cerr << "WARNING DID not insert a check for collapsed global store";
+		}
 	      }
 	    } else if (CallInst *CallI = dyn_cast<CallInst>(*UI)) {
 	      // If this is a function pointer read from a collapsed node,
@@ -443,6 +583,22 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 	      if (CallI->getOperand(0) == NewPtr) {
 		std::cerr << 
 		  "EmbeC: Error - Function pointer read from collapsed node\n";
+		abort();
+	      }
+	    } else if (LoadInst *LdI = dyn_cast<LoadInst>(*UI)) {
+	      if (LdI->getOperand(0) == NewPtr) {
+		if (!isa<GlobalVariable>(LdI->getOperand(0))) { 
+		  moduleChanged = true;
+		  CastInst *CastI = 
+		    new CastInst(LdI->getOperand(0), 
+				 PointerType::get(Type::SByteTy), "casted", LdI);
+		  new CallInst(PoolCheck, 
+		       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
+			       "", LdI);
+		  std::cerr << " inserted poolcheck for collpased pool\n";
+		} else {
+		  std::cerr << "WARNING DID not insert a check for collapsed global load";
+		}
 	      }
 	    }
 	  }
@@ -452,7 +608,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
   }
 }
 
-bool EmbeCFreeRemoval::run(Module &M) {
+bool EmbeCFreeRemoval::runOnModule(Module &M) {
   CurModule = &M;
   moduleChanged = false;
   hasError = false;
@@ -464,7 +620,7 @@ bool EmbeCFreeRemoval::run(Module &M) {
   const Type *PoolDescType = 
     //    StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 
     //					     Type::UIntTy, Type::UIntTy, 0));
-    ArrayType::get(VoidPtrTy, 3);
+    ArrayType::get(VoidPtrTy, 50);
 
   const PointerType *PoolDescPtr = PointerType::get(PoolDescType);
   FunctionType *PoolMakeUnfreeableTy = 
@@ -495,10 +651,11 @@ bool EmbeCFreeRemoval::run(Module &M) {
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
   PoolInfo = &getAnalysis<PoolAllocate>();
+  BUDS = &(PoolInfo->getECGraphs());
   CallGraph &CG = getAnalysis<CallGraph>();
-
-  BUDS = &getAnalysis<CompleteBUDataStructures>();
-  TDDS = &getAnalysis<TDDataStructures>();
+  //  BUDS = &getAnalysis<CompleteBUDataStructures>();
+  //  BUDS = PoolInfo->getDataStructures();
+  //  TDDS = &getAnalysis<TDDataStructures>();
   // For each function, all its pool SSA variables including its arguments
   map<Function *, set<Value *> > FuncPoolPtrs;
 
@@ -523,7 +680,7 @@ bool EmbeCFreeRemoval::run(Module &M) {
       // For each pool pointer def check its uses and ensure that there are 
       // no uses other than the pool_alloc, pool_free or pool_destroy calls
       
-      PA::FuncInfo* PAFI = PoolInfo->getFunctionInfo(F);
+      PA::FuncInfo* PAFI = PoolInfo->getFuncInfoOrClone(*F);
       
       // If the function has no pool pointers (args or SSA), ignore the 
       // function.
@@ -533,16 +690,12 @@ bool EmbeCFreeRemoval::run(Module &M) {
       if (PAFI->Clone && PAFI->Clone != F)
 	continue;
 
-      const CompleteBUDataStructures::ActualCalleesTy &AC = 
-	BUDS->getActualCallees();
-      
-
       if (!PAFI->PoolDescriptors.empty()) {
-	for (std::map<DSNode*, Value*>::iterator PoolDI = 
+	for (std::map<const DSNode*, Value*>::iterator PoolDI = 
 	       PAFI->PoolDescriptors.begin(), PoolDE = 
 	       PAFI->PoolDescriptors.end(); PoolDI != PoolDE; ++PoolDI) {
 	  checkPoolSSAVarUses(F, PoolDI->second, FuncPoolAllocs, 
-	  		      FuncPoolFrees, FuncPoolDestroys, AC);
+	  		      FuncPoolFrees, FuncPoolDestroys);
 	  FuncPoolPtrs[F].insert(PoolDI->second);
 	}
       }
@@ -681,7 +834,7 @@ bool EmbeCFreeRemoval::run(Module &M) {
       // For each pool pointer def check its uses and ensure that there are 
       // no uses other than the pool_alloc, pool_free or pool_destroy calls
       
-      PA::FuncInfo* PAFI = PoolInfo->getFunctionInfo(F);
+      PA::FuncInfo* PAFI = PoolInfo->getFuncInfoOrClone(*F);
 
       if (!PAFI)
 	continue;
@@ -700,20 +853,17 @@ bool EmbeCFreeRemoval::run(Module &M) {
       } else
 	Forig = F;
 
-      const CompleteBUDataStructures::ActualCalleesTy &AC = 
-	BUDS->getActualCallees();
-
       if (FuncPoolPtrs.count(F)) {
 	for (set<Value *>::iterator PDI = FuncPoolPtrs[F].begin(), 
 	       PDE = FuncPoolPtrs[F].end(); PDI != PDE; ++PDI) {
 	  if (isa<Argument>(*PDI)) {
 	    if (CollapsedPoolPtrs[F].find(*PDI) != CollapsedPoolPtrs[F].end())
-	      propagateCollapsedInfo(F, *PDI, AC);
+	      propagateCollapsedInfo(F, *PDI);
 	  } else {
 	    // This pool is poolinit'ed in this function or is a global pool
-	    DSNode *PDINode;
+	    const DSNode *PDINode;
 	    
-	    for (std::map<DSNode*, Value*>::iterator PDMI = 
+	    for (std::map<const DSNode*, Value*>::iterator PDMI = 
 		   PAFI->PoolDescriptors.begin(), 
 		   PDME = PAFI->PoolDescriptors.end(); PDMI != PDME; ++PDMI)
 	      if (PDMI->second == *PDI) {
@@ -727,15 +877,16 @@ bool EmbeCFreeRemoval::run(Module &M) {
 	      for (unsigned i = 0 ; i < PDINode->getNumLinks(); ++i)
 		if (PDINode->getLink(i).getNode())
 		  if (!PDINode->getLink(i).getNode()->isNodeCompletelyFolded()) {
-		    std::cerr << "EmbeC : In function " << F->getName() 
-			      << ":Collapsed node pointing to non-collapsed node\n";
+		    //Collapsed to non-collapsed, so insert a check
+		    insertNonCollapsedChecks(Forig, F, PDINode->getLink(i).getNode());
+		    //		    abort();
 		    break;
 		  }
 
 	      // Propagate this information to all the callees only if this
 	      // is not a global pool
 	      if (!isa<GlobalVariable>(*PDI))
-		propagateCollapsedInfo(F, *PDI, AC);
+		propagateCollapsedInfo(F, *PDI);
 	    }
 	  }
 	  

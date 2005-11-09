@@ -1,7 +1,5 @@
 #include "llvm/Pass.h"
 #include "llvm/BasicBlock.h"
-#include "llvm/iMemory.h"
-#include "llvm/iOther.h"
 #include "llvm/Type.h"
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/Function.h"
@@ -9,7 +7,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
-#include "Support/VectorExtras.h"
+#include "llvm/ADT/VectorExtras.h"
 
 #include <iostream>
 
@@ -21,60 +19,42 @@ namespace
   // Create the command line option for the pass
   //  RegisterOpt<MallocPass> X ("malloc", "Alloca to Malloc Pass");
 
+  inline bool MallocPass::TypeContainsPointer(const Type *Ty) {
+    if (Ty->getTypeID() == Type::PointerTyID)
+      return true;
+    else if (Ty->getTypeID() == Type::StructTyID) {
+      const StructType * structTy = cast<StructType>(Ty);
+      unsigned numE = structTy->getNumElements();
+      for (unsigned index = 0; index < numE; index++) {
+	if (TypeContainsPointer(structTy->getElementType(index)))
+	  return true;
+      }
+    } else if (Ty->getTypeID() == Type::ArrayTyID) {
+      const ArrayType *arrayTy = cast<ArrayType>(Ty);
+      if (TypeContainsPointer(arrayTy->getElementType()))
+	return true;
+    }
+    return false;
+  }
+
   inline bool
   MallocPass::changeType (Instruction * Inst)
   {
     //
     // Check to see if the instruction is an alloca.
     //
-    if (Inst->getOpcode() == Instruction::Alloca)
-      {
-	AllocationInst * AllocInst = cast<AllocationInst>(Inst);
-	
-	//
-	// Get the type of object allocated.
-	//
-	const Type * TypeCreated = AllocInst->getAllocatedType ();
-	
-	//
-	// If the allocated type is a structure, see if it has a pointer.
-	//
-	if (TypeCreated->getPrimitiveID() == Type::StructTyID)
-	  {
-	    const StructType * TheStruct = cast<StructType>(TypeCreated);
-	    unsigned numE = TheStruct->getNumElements();
-
-	    //
-	    // Scan through the elements of the structure.  If we find a pointer.
-	    // then we have to change it.
-	    //
-	    for (unsigned index = 0; index < numE; index++) {
-	      if (TheStruct->getElementType(index)->getPrimitiveID() 
-		  == Type::PointerTyID) {
-		return true;
-	      }
-	    }
-	    return false;
-	  }
-	
-	//
-	// If the type is an array, see if it is an array of pointers.
-	//
-	if (TypeCreated->getPrimitiveID() == Type::ArrayTyID)
-	  {
-	    const ArrayType * TheArrayType = cast<ArrayType>(TypeCreated);
-
-	    //
-	    // Get the type of element that lives in the array.
-	    //
-	    const Type * ElementType = TheArrayType->getElementType();
-	    if (ElementType->getPrimitiveID() == Type::PointerTyID)
-	      {
-		return true;
-	      }
-	  }
-      }
-
+    if (Inst->getOpcode() == Instruction::Alloca) {
+      AllocationInst * AllocInst = cast<AllocationInst>(Inst);
+      
+      //
+      // Get the type of object allocated.
+      //
+      const Type * TypeCreated = AllocInst->getAllocatedType ();
+      
+      if (TypeContainsPointer(TypeCreated))
+	return true;
+      
+    }
     return false;
   }
 
