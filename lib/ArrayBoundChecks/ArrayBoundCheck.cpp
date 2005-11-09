@@ -981,10 +981,19 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	  std::cerr << "Program may not be SAFE\n";
 	  abort();
 	} else if (funcName == "fread") {
-	  /*
-	   */
-	    std::cerr << "Handle this later fread \n";
-	    abort();
+	  //FIXME, assumes reading only a byte 
+	  LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
+	  string varName = getValueName(CI->getOperand(1));
+	  Constraint* c1 = new Constraint(varName,le,">"); // buf.length >= size 
+	  ABCExprTree* root = new ABCExprTree(c1);
+
+	  Constraint* c2 = new Constraint("0",le,">",true); // 0 > size
+	  ABCExprTree* abctemp2 = new ABCExprTree(c2);
+	  root = new ABCExprTree(root,abctemp2,"||"); // abctemp1 || abctemp2	    
+	  getConstraints(CI->getOperand(2), &root);
+	  getConstraints(CI->getOperand(3), &root);
+	  fMap[&F]->addMemAccessInst(CI, reqArgs);
+	  fMap[&F]->addSafetyConstraint(CI, root);
 	} else if (funcName == "memset") {
 	  LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
 	  string varName = getValueName(CI->getOperand(1));
