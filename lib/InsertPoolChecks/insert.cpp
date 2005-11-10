@@ -34,7 +34,7 @@ void InsertPoolChecks::addPoolChecks(Module &M) {
     Function *F = GEP->getParent()->getParent();
     // Now we need to decide if we need to pass in the alignmnet
     //for the poolcheck
-    //    assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
+    assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
     
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     Instruction *Casted = GEP;
@@ -92,13 +92,15 @@ void InsertPoolChecks::addPoolChecks(Module &M) {
 	    }
 	  } else {
 	    //Handle Multi dimensional cases later
-	    //	    abort();
-	    std::cerr << "Handle multi dimensional globals later\n";
+	    std::cerr << "WARNING: Handle multi dimensional globals later\n";
+	    (*iCurrent)->dump();
 	  }
 	}
 	std::cerr << " Global variable ok \n";
       }
-      std::cerr << " WARNING, DID NOT HANDLE   \n";
+      //      These must be real unknowns and they will be handled anyway
+      //      std::cerr << " WARNING, DID NOT HANDLE   \n";
+      //      (*iCurrent)->dump();
       continue ;
     } else {
       if (Casted->getType() != PointerType::get(Type::SByteTy)) {
