@@ -971,7 +971,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	} else if (funcName == "strchr") {
 	  std::cerr << " DID NOT HANDLE strchr\n";
 	  std::cerr << "Program may not be SAFE\n";
-	  exit(-1);
+	  //	  exit(-1);
 	} else if (funcName == "sprintf") {
 	  std::cerr << " DID NOT HANDLE sprintf\n";
 	  std::cerr << "Program may not be SAFE\n";
@@ -990,7 +990,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	  Constraint* c2 = new Constraint("0",le,">",true); // 0 > size
 	  ABCExprTree* abctemp2 = new ABCExprTree(c2);
 	  root = new ABCExprTree(root,abctemp2,"||"); // abctemp1 || abctemp2	    
-	  getConstraints(CI->getOperand(2), &root);
+	  getConstraints(CI->getOperand(1), &root);
 	  getConstraints(CI->getOperand(3), &root);
 	  fMap[&F]->addMemAccessInst(CI, reqArgs);
 	  fMap[&F]->addSafetyConstraint(CI, root);
@@ -1092,7 +1092,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	    if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(2))) {
 	      if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
 		std::cerr << "Format string problem " << CI->getOperand(2);
-		exit(-1);
+		//exit(-1);
 	      }
 	    }
 	  }
@@ -1101,7 +1101,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	    if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(2))) {
 	      if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
 		std::cerr << "Format string problem " << CI->getOperand(2);
-		exit(-1);
+		//		exit(-1);
 	      }
 	    }
 	  }
@@ -1110,7 +1110,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	    if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(1))) {
 	      if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
 		std::cerr << "Format string problem " << CI->getOperand(1);
-		exit(-1);
+		//exit(-1);
 	      }
 	    }
 	  }
@@ -1119,7 +1119,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	    if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(1))) {
 	      if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
 		std::cerr << "Format string problem " << CI->getOperand(1);
-		exit(-1);
+		//exit(-1);
 	      }
 	    }
 	  }
