@@ -5,7 +5,6 @@
 #include "llvm/Analysis/DataStructure/DSSupport.h"
 #include "llvm/Function.h"
 #include "llvm/Module.h"
-#include "Support/hash_set"
 
 #include <set> 
 

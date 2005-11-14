@@ -60,12 +60,12 @@ struct ConvertUnsafeAllocas : public ModulePass {
       ArrayBoundsCheck * abcPass;
       checkStackSafety * cssPass;
   
-    std::vector<DSNode *> unsafeAllocaNodes;
+    std::list<DSNode *> unsafeAllocaNodes;
     std::set<DSNode *> reachableAllocaNodes; 
     bool markReachableAllocas(DSNode *DSN);
     bool markReachableAllocasInt(DSNode *DSN);
-    void TransformAllocasToMallocs(std::vector<DSNode *> & unsafeAllocaNodes, 
-				   bool isArray);
+    void TransformAllocasToMallocs(std::list<DSNode *> & unsafeAllocaNodes);
+    void TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC();
     void TransformCollapsedAllocas(Module &M);
 
