@@ -16,8 +16,8 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   //  tddsPass = &getAnalysis<TDDataStructures>();
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
-  TransformAllocasToMallocs(cssPass->AllocaNodes, false);
-  TransformAllocasToMallocs(unsafeAllocaNodes, true);
+  TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+  TransformAllocasToMallocs(unsafeAllocaNodes);
   TransformCollapsedAllocas(M);
   return true;
 }
@@ -45,50 +45,100 @@ bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
   return returnValue;
 }
 
-void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::vector<DSNode *> & unsafeAllocas, bool isArray) {
-  std::vector<DSNode *>::const_iterator iCurrent = unsafeAllocas.begin(), iEnd = unsafeAllocas.end();
+// Precondition: Enforce that the alloca nodes haven't been already converted
+void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *> 
+						     & unsafeAllocaNodes) {
+  std::list<DSNode *>::const_iterator iCurrent = unsafeAllocaNodes.begin(), 
+    iEnd = unsafeAllocaNodes.end();
   for (; iCurrent != iEnd; ++iCurrent) {
-    //I am just changing the info in the DSNode ...
     DSNode *DSN = *iCurrent;
-    bool storeMalloc = isArray;
-    //	assert((DSN->isAllocaNode()) && "not an alloca, something wrong ");
-    //DSN->maskNodeTypes(~DSNode::AllocaNode);
-    //
-    //Also, set the heap node marker in each of the callers
     
-    
-    //Now change the alloca node to the malloc node	
-    //Get the alloca instruction corresponding to the alloca node
+    // Now change the alloca instruction corresponding to the node	
+    // to malloc 
     DSGraph *DSG = DSN->getParentGraph();
     DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
-    //We only need to keep track of the alloca nodes that are unique
-    //if multiple instructions point to this alloca node
-    //then we dont need this alloca in ArrayMallocs list
+
     MallocInst *MI = 0;
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
-	 SMI != SME; ++SMI) {
+	 SMI != SME; ) {
+      bool stackAllocate = true;
+      // If this is already a heap node, then you cannot allocate this on the
+      // stack
+      if (DSN->isHeapNode()) {
+	stackAllocate = false;
+      }
+
       if (SMI->second.getNode() == DSN) {
-	Value *VI = SMI->first;
 	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
-	      //create a new malloc instruction
+	  //create a new malloc instruction
+	  if (AI->getParent() != 0) { 
+	    MI = new MallocInst(AI->getType()->getElementType(),
+				AI->getArraySize(), AI->getName(), AI);
+	    DSN->setHeapNodeMarker();
+	    AI->replaceAllUsesWith(MI);
+	    SM.erase(SMI++);
+	    AI->getParent()->getInstList().erase(AI);
+	    if (stackAllocate) {
+	      ArrayMallocs.insert(MI);
+	    }
+	  } else {
+	    ++SMI;
+	  } 
+	} else {
+	  ++SMI;
+	}
+      } else {
+	++SMI;
+      }
+    }
+  }  
+}
+
+void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes) {
+  std::vector<DSNode *>::const_iterator iCurrent = cssAllocaNodes.begin(), iEnd = cssAllocaNodes.end();
+  for (; iCurrent != iEnd; ++iCurrent) {
+    DSNode *DSN = *iCurrent;
+
+    if (DSN->isNodeCompletelyFolded())
+      continue;
+
+    // If this is already listed in the unsafeAllocaNode vector, remove it
+    // since we are processing it here
+    std::list<DSNode *>::iterator NodeI = find(unsafeAllocaNodes.begin(),
+					       unsafeAllocaNodes.end(),
+					       DSN);
+    if (NodeI != unsafeAllocaNodes.end())
+    {
+      unsafeAllocaNodes.erase(NodeI);
+    }
+    
+    //Now change the alloca instructions corresponding to this node to mallocs
+    DSGraph *DSG = DSN->getParentGraph();
+    DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
+    MallocInst *MI = 0;
+    for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
+	 SMI != SME; ) {
+      if (SMI->second.getNode() == DSN) {
+	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
+	  //create a new malloc instruction
 	  if (AI->getParent() != 0) { //This check for both stack and array
-	    if (MI) storeMalloc = false;
 	    MI = new MallocInst(AI->getType()->getElementType(),AI->getArraySize(),
 				AI->getName(), AI);
 	    DSN->setHeapNodeMarker();
 	    AI->replaceAllUsesWith(MI);
+	    SM.erase(SMI++);
 	    AI->getParent()->getInstList().erase(AI);
-	  } else if (isa<MallocInst>(SMI->first)) {
-	    storeMalloc = false;
+	  } else {
+	    ++SMI;
 	  }
+	}else {
+	  ++SMI;
 	}
+      }else {
+	++SMI;
       }
     }
-    if (storeMalloc && MI) {
-      ArrayMallocs.insert(MI);
-    }
   }
-  
 }
 
 DSNode * ConvertUnsafeAllocas::getDSNode(const Value *V, Function *F) {
@@ -114,35 +164,42 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
       DSGraph &G = budsPass->getDSGraph(*MI);
       DSGraph::ScalarMapTy &SM = G.getScalarMap();
       for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
-	   SMI != SME; ++SMI) {
+	   SMI != SME; ) {
 	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
 	  if (SMI->second.getNode()->isNodeCompletelyFolded()) {
-	    MallocInst *MI = new MallocInst(AI->getType()->getElementType(),AI->getArraySize(),
-					    AI->getName(), AI);
+	    MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
+					    AI->getArraySize(), AI->getName(), 
+					    AI);
 	    AI->replaceAllUsesWith(MI);
+	    SMI->second.getNode()->setHeapNodeMarker();
+	    SM.erase(SMI++);
 	    AI->getParent()->getInstList().erase(AI);	  
+	  } else {
+	    ++SMI;
 	  }
+	} else {
+	  ++SMI;
 	}
       }
     }
   }
 }
 
-  void ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
-    std::vector<Instruction *> & UnsafeGetElemPtrs = abcPass->UnsafeGetElemPtrs;
-    std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
-    for (; iCurrent != iEnd; ++iCurrent) {
-	if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(*iCurrent)) {
-	  Value *pointerOperand = GEP->getPointerOperand();
-	  DSGraph &TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
-	  DSNode *DSN = TDG.getNodeForValue(pointerOperand).getNode();
-	  //FIXME DO we really need this ?	    markReachableAllocas(DSN);
-	  if (DSN && DSN->isAllocaNode()) {
-	    unsafeAllocaNodes.push_back(DSN);
-	  }
-	} else {
-	  //call instruction add the corresponding 	  *iCurrent->dump();
-	  //FIXME 	  abort();
-	}
+void ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
+  std::vector<Instruction *> & UnsafeGetElemPtrs = abcPass->UnsafeGetElemPtrs;
+  std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
+  for (; iCurrent != iEnd; ++iCurrent) {
+    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(*iCurrent)) {
+      Value *pointerOperand = GEP->getPointerOperand();
+      DSGraph &TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
+      DSNode *DSN = TDG.getNodeForValue(pointerOperand).getNode();
+      //FIXME DO we really need this ?	    markReachableAllocas(DSN);
+      if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
+	unsafeAllocaNodes.push_back(DSN);
+      }
+    } else {
+      //call instruction add the corresponding 	  *iCurrent->dump();
+      //FIXME 	  abort();
     }
+  }
 }
