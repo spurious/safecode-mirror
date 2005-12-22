@@ -67,11 +67,18 @@ dnl * Set the location of various third-party software packages
 dnl **************************************************************************
 
 dnl Specify the location of the llvm-poolalloc project
-AC_ARG_WITH(poolalloc,
-  AS_HELP_STRING([--with-poolalloc],
+AC_ARG_WITH(poolalloc-srcdir,
+  AS_HELP_STRING([--with-poolalloc-srcdir],
     [Specify location of Pool Allocation source code]),
-    AC_SUBST(poolallocdir,"$withval"),
-    AC_SUBST(poolallocdir,"$llvm_src/projects/llvm-poolalloc"
+    AC_SUBST(poolallocsrcdir,"$withval"),
+    AC_SUBST(poolallocsrcdir,"$llvm_src/projects/llvm-poolalloc"
+    ))
+
+AC_ARG_WITH(poolalloc-objdir,
+  AS_HELP_STRING([--with-poolalloc-objdir],
+    [Specify location of Pool Allocation object code]),
+    AC_SUBST(poolallocobjdir,"$withval"),
+    AC_SUBST(poolallocobjdir,"$llvm_obj/projects/llvm-poolalloc"
     ))
 
 dnl **************************************************************************

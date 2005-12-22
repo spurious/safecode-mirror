@@ -274,7 +274,7 @@ PACKAGE_STRING='[SAFECode] [1.00]'
 PACKAGE_BUGREPORT='dhurjati@cs.uiuc.edu'
 
 ac_unique_file=""Makefile.common.in""
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ OMEGA poolallocdir LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ OMEGA poolallocsrcdir poolallocobjdir LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -789,7 +789,8 @@ Optional Packages:
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-llvmsrc          Location of LLVM Source Code
   --with-llvmobj          Location of LLVM Object Code
-  --with-poolalloc        Specify location of Pool Allocation source code
+  --with-poolalloc-srcdir Specify location of Pool Allocation source code
+  --with-poolalloc-objdir Specify location of Pool Allocation object code
 
 Report bugs to <dhurjati@cs.uiuc.edu>.
 _ACEOF
@@ -1377,13 +1378,25 @@ fi
 
 
 
-# Check whether --with-poolalloc or --without-poolalloc was given.
-if test "${with_poolalloc+set}" = set; then
-  withval="$with_poolalloc"
-  poolallocdir="$withval"
+# Check whether --with-poolalloc-srcdir or --without-poolalloc-srcdir was given.
+if test "${with_poolalloc_srcdir+set}" = set; then
+  withval="$with_poolalloc_srcdir"
+  poolallocsrcdir="$withval"
 
 else
-  poolallocdir="$llvm_src/projects/llvm-poolalloc"
+  poolallocsrcdir="$llvm_src/projects/llvm-poolalloc"
+
+
+fi;
+
+
+# Check whether --with-poolalloc-objdir or --without-poolalloc-objdir was given.
+if test "${with_poolalloc_objdir+set}" = set; then
+  withval="$with_poolalloc_objdir"
+  poolallocobjdir="$withval"
+
+else
+  poolallocobjdir="$llvm_obj/projects/llvm-poolalloc"
 
 
 fi;
@@ -2045,7 +2058,8 @@ s,@LIBS@,$LIBS,;t t
 s,@LLVM_SRC@,$LLVM_SRC,;t t
 s,@LLVM_OBJ@,$LLVM_OBJ,;t t
 s,@OMEGA@,$OMEGA,;t t
-s,@poolallocdir@,$poolallocdir,;t t
+s,@poolallocsrcdir@,$poolallocsrcdir,;t t
+s,@poolallocobjdir@,$poolallocobjdir,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
