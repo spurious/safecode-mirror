@@ -1383,7 +1383,7 @@ if test "${with_poolalloc+set}" = set; then
   poolallocdir="$withval"
 
 else
-  poolallocdir="/home/vadve/criswell/llvm/projects/llvm-poolalloc"
+  poolallocdir="$llvm_src/projects/llvm-poolalloc"
 
 
 fi;

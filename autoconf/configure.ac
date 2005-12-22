@@ -71,7 +71,7 @@ AC_ARG_WITH(poolalloc,
   AS_HELP_STRING([--with-poolalloc],
     [Specify location of Pool Allocation source code]),
     AC_SUBST(poolallocdir,"$withval"),
-    AC_SUBST(poolallocdir,"/home/vadve/criswell/llvm/projects/llvm-poolalloc"
+    AC_SUBST(poolallocdir,"$llvm_src/projects/llvm-poolalloc"
     ))
 
 dnl **************************************************************************
