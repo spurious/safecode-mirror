@@ -353,8 +353,8 @@ int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
     unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
       if (Delta % ElementSize != 0) {
-	printf("Freeing pointer into the middle of an element!");
-	abort();
+        printf("Freeing pointer into the middle of an element!");
+        abort();
       }
       
       return Index;
@@ -681,9 +681,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           PS->addToList((PoolSlab**)&Pool->Ptr2);
         }
         
-	retAddress = PS->getElementAddress(Element, NodeSize);
-	//	printf(" returning the address %x",retAddress);
-	return retAddress;
+        retAddress = PS->getElementAddress(Element, NodeSize);
+        //printf(" returning the address %x",retAddress);
+        return retAddress;
       }
     }
   }
@@ -872,45 +872,45 @@ void poolcheckoptim(PoolTy *Pool, void *Node) {
     if (theSlabs.find((void*)PS) == theSlabs.end()) {
       // Check the LargeArrays
       if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	
-	if (Idx == -1) {
-	  printf("poolcheck1: node being checked not found in pool with right"
-		 " alignment\n");
-	  PCheckPassed = 0;
-	  abort();
-	  exit(-1);
-	} else {
-	  //exit(-1);
-	}
+        PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
+        int Idx = -1;
+        while (PSlab) {
+          assert(PSlab && "poolcheck: node being free'd not found in "
+           "allocation pool specified!\n");
+          Idx = PSlab->containsElement(Node, Pool->NodeSize);
+          if (Idx != -1) {
+            Pool->prevPage[Pool->lastUsed] = PS;
+            Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+            break;
+          }
+          PSlab = PSlab->Next;
+        }
+
+        if (Idx == -1) {
+          printf ("poolcheck1: node being checked not found in pool with right"
+                  " alignment\n");
+          PCheckPassed = 0;
+          abort();
+          exit(-1);
+        } else {
+          //exit(-1);
+        }
       } else {
-	printf("poolcheck2: node being checked not found in pool with right"
-	       " alignment\n");
-	abort();
-	exit(-1);
+        printf ("poolcheck2: node being checked not found in pool with right"
+                " alignment\n");
+        abort();
+        exit(-1);
       }
     } else {
       unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
       if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	abort();
+        printf("poolcheck: node being checked points to meta-data \n");
+        abort();
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if (offset != 0) {
-	printf("poolcheck3: node being checked does not have right alignment\n");
-	abort();
+        printf ("poolcheck3: node being checked does not have right alignment\n");
+        abort();
       }
       Pool->prevPage[Pool->lastUsed] = PS;
       Pool->lastUsed = (Pool->lastUsed + 1) % 4;
@@ -919,9 +919,9 @@ void poolcheckoptim(PoolTy *Pool, void *Node) {
     bool found = false;
     for (unsigned i = 0; i < AddrArrSize && !found; ++i) {
       if ((unsigned)Pool->SlabAddressArray[i] == (unsigned) PS) {
-	found = true;
-	Pool->prevPage[Pool->lastUsed] = PS;
-	Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+        found = true;
+        Pool->prevPage[Pool->lastUsed] = PS;
+        Pool->lastUsed = (Pool->lastUsed + 1) % 4;
       }
     } 
 
@@ -929,39 +929,39 @@ void poolcheckoptim(PoolTy *Pool, void *Node) {
       // Check that Node does not point to PoolSlab meta-data
       unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
       if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	exit(-1);
+        printf("poolcheck: node being checked points to meta-data \n");
+        exit(-1);
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if (offset != 0) {
-	printf("poolcheck4: node being checked does not have right alignment\n");
-	abort();
-      }	
+        printf("poolcheck4: node being checked does not have right alignment\n");
+        abort();
+      }
     } else {
       // Check the LargeArrays
       if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	if (Idx == -1) {
-	  printf("poolcheck6: node being checked not found in pool with right"
-		 " alignment\n");
-	  abort();
-	}	  
+        PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
+        int Idx = -1;
+        while (PSlab) {
+          assert(PSlab && "poolcheck: node being free'd not found in "
+                          "allocation pool specified!\n");
+          Idx = PSlab->containsElement(Node, Pool->NodeSize);
+          if (Idx != -1) {
+            Pool->prevPage[Pool->lastUsed] = PS;
+            Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+            break;
+          }
+          PSlab = PSlab->Next;
+        }
+        if (Idx == -1) {
+          printf ("poolcheck6: node being checked not found in pool with right"
+                  " alignment\n");
+          abort();
+        }
       } else {
-	printf("poolcheck5: node being checked not found in pool with right"
-	       " alignment %x %x\n",Pool,Node);
-	abort();
+        printf ("poolcheck5: node being checked not found in pool with right"
+                " alignment %x %x\n",Pool,Node);
+        abort();
       }
     }
   }
@@ -989,8 +989,8 @@ void poolcheck(PoolTy *Pool, void *Node) {
 
 // Check that Node falls within the pool and within start and (including)
 // end offset
-void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
-		    unsigned EndOffset) {
+void poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset, 
+                     unsigned EndOffset) {
   PoolSlab *PS;
   if (StartOffset >= Pool->NodeSize || EndOffset >= Pool->NodeSize) {
     printf("Error: Offset specified exceeded node size");
@@ -1002,7 +1002,7 @@ void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset,
      unsigned diffPtr = (unsigned)Node - (unsigned)Pool->allocaptr;
      unsigned offset = diffPtr % Pool->NodeSize;
      if ((diffPtr  < Pool->AllocadPool ) && (offset >= StartOffset) &&
-	 (offset <= EndOffset))
+         (offset <= EndOffset))
        return;
     }
     assert(0 && "poolcheckalign failure FAILING \n");
@@ -1016,46 +1016,46 @@ void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset,
     if (theSlabs.find((void*)PS) == theSlabs.end()) {
       // Check the LargeArrays
       if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	
-	if (Idx == -1) {
-	  printf("poolcheck1: node being checked not found in pool with right"
-		 " alignment\n");
-	  abort();
-	  exit(-1);
-	} else {
-	  //exit(-1);
-	}
+        PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
+        int Idx = -1;
+        while (PSlab) {
+          assert(PSlab && "poolcheck: node being free'd not found in "
+                          "allocation pool specified!\n");
+          Idx = PSlab->containsElement(Node, Pool->NodeSize);
+          if (Idx != -1) {
+            Pool->prevPage[Pool->lastUsed] = PS;
+            Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+            break;
+          }
+          PSlab = PSlab->Next;
+        }
+
+        if (Idx == -1) {
+          printf("poolcheck1: node being checked not found in pool with right"
+           " alignment\n");
+          abort();
+          exit(-1);
+        } else {
+          //exit(-1);
+        }
       } else {
-	printf("poolcheck2: node being checked not found in pool with right"
-	       " alignment\n");
-	abort();
-	exit(-1);
+        printf("poolcheck2: node being checked not found in pool with right"
+               " alignment\n");
+        abort();
+        exit(-1);
       }
     } else {
       unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
       if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	abort();
-	exit(-1);
+        printf("poolcheck: node being checked points to meta-data \n");
+        abort();
+        exit(-1);
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if ((offset < StartOffset) || (offset > EndOffset)) {
-	printf("poolcheck3: node being checked does not have right alignment\n");
-	abort();
-	exit(-1);
+        printf("poolcheck3: node being checked does not have right alignment\n");
+        abort();
+        exit(-1);
       }
       Pool->prevPage[Pool->lastUsed] = PS;
       Pool->lastUsed = (Pool->lastUsed + 1) % 4;
@@ -1064,9 +1064,9 @@ void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset,
     bool found = false;
     for (unsigned i = 0; i < AddrArrSize && !found; ++i) {
       if ((unsigned)Pool->SlabAddressArray[i] == (unsigned) PS) {
-	found = true;
-	Pool->prevPage[Pool->lastUsed] = PS;
-	Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+        found = true;
+        Pool->prevPage[Pool->lastUsed] = PS;
+        Pool->lastUsed = (Pool->lastUsed + 1) % 4;
       }
     } 
 
@@ -1074,45 +1074,44 @@ void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset,
       // Check that Node does not point to PoolSlab meta-data
       unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
       if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	exit(-1);
+        printf("poolcheck: node being checked points to meta-data \n");
+        exit(-1);
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if ((offset < StartOffset) || (offset > EndOffset)) {
-	printf("poolcheck4: node being checked does not have right alignment\n");
-	abort();
-	exit(-1);
-      }	
+        printf("poolcheck4: node being checked does not have right alignment\n");
+        abort();
+        exit(-1);
+      }
     } else {
       // Check the LargeArrays
       if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	if (Idx == -1) {
-	  printf("poolcheck6: node being checked not found in pool with right"
-		 " alignment\n");
-	  abort();
-	  exit(-1);
-	}	  
+        PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
+        int Idx = -1;
+        while (PSlab) {
+          assert(PSlab && "poolcheck: node being free'd not found in "
+           "allocation pool specified!\n");
+          Idx = PSlab->containsElement(Node, Pool->NodeSize);
+          if (Idx != -1) {
+            Pool->prevPage[Pool->lastUsed] = PS;
+            Pool->lastUsed = (Pool->lastUsed + 1) % 4;
+            break;
+          }
+          PSlab = PSlab->Next;
+        }
+        if (Idx == -1) {
+          printf("poolcheck6: node being checked not found in pool with right"
+           " alignment\n");
+          abort();
+          exit(-1);
+        }
       } else {
-	printf("poolcheck5: node being checked not found in pool with right"
-	       " alignment %x %x\n",Pool,Node);
-	abort();
+        printf("poolcheck5: node being checked not found in pool with right"
+               " alignment %x %x\n",Pool,Node);
+        abort();
       }
     }
   }
-
 }
 
 
