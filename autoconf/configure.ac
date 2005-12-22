@@ -35,6 +35,13 @@ dnl **************************************************************************
 dnl * Check for programs.
 dnl **************************************************************************
 
+AC_PATH_PROG(OMEGA, [omega], [echo omega])
+if test "$OMEGA" != "echo omega" ; then
+  AC_DEFINE([HAVE_OMEGA],[1],[Define if the Omega program is available])
+  AC_DEFINE_UNQUOTED([LLVM_PATH_OMEGA],"$OMEGA",
+   [Define to path of Omega program if found or 'echo omega' otherwise])
+fi
+
 dnl **************************************************************************
 dnl * Check for libraries.
 dnl **************************************************************************
@@ -58,6 +65,14 @@ dnl **************************************************************************
 dnl **************************************************************************
 dnl * Set the location of various third-party software packages
 dnl **************************************************************************
+
+dnl Specify the location of the llvm-poolalloc project
+AC_ARG_WITH(poolalloc,
+  AS_HELP_STRING([--with-poolalloc],
+    [Specify location of Pool Allocation source code]),
+    AC_SUBST(poolallocdir,"$withval"),
+    AC_SUBST(poolallocdir,"/home/vadve/criswell/llvm/projects/llvm-poolalloc"
+    ))
 
 dnl **************************************************************************
 dnl * Create the output files
