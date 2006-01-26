@@ -10,6 +10,7 @@
 // Result: If we look at pool pointer defs and look for their uses... we check 
 // that their only uses are calls to pool_allocs, pool_frees and pool_destroys.
 //===----------------------------------------------------------------------===//
+#if 0
 
 #define DEBUG_TYPE "FreeRemoval"
 #include "llvm/Module.h"
@@ -401,8 +402,11 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 		 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 		 "", I);
     } else {
-      
-      Value *PH = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
+      const Type *PoolDescType = 
+	ArrayType::get(VoidPtrTy, 50);
+
+      const PointerType *PoolDescPtr = PointerType::get(PoolDescType);      
+      Value *PH = Constant::getNullValue(PoolDescPtr);
       new CallInst(PoolCheck, 
 		 make_vector(PH, CastI, 0),
 		 "", I);
@@ -650,8 +654,10 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
+#ifndef LLVA_KERNEL
   PoolInfo = &getAnalysis<PoolAllocate>();
   BUDS = &(PoolInfo->getECGraphs());
+#endif  
   CallGraph &CG = getAnalysis<CallGraph>();
   //  BUDS = &getAnalysis<CompleteBUDataStructures>();
   //  BUDS = PoolInfo->getDataStructures();
@@ -903,3 +909,5 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 }
 }
 Pass *createEmbeCFreeRemovalPass() { return new EmbeCFreeRemoval(); }
+#endif
+
