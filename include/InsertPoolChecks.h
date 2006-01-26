@@ -3,8 +3,13 @@
 
 #include "llvm/Pass.h"
 #include "ConvertUnsafeAllocas.h"
+
+#define LLVA_KERNEL
+
+#ifndef LLVA_KERNEL
 #include "SafeDynMemAlloc.h"
 #include "/home/vadve/dhurjati/llvm/projects/poolalloc.safecode/lib/PoolAllocate/PoolAllocate.h"
+#endif
 
 namespace llvm {
 
@@ -18,23 +23,36 @@ struct InsertPoolChecks : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ConvertUnsafeAllocas>();
 //      AU.addRequired<CompleteBUDataStructures>();
-//      AU.addRequired<TDDataStructures>();
+      AU.addRequired<TDDataStructures>();
+#ifndef LLVA_KERNEL      
       AU.addRequired<EquivClassGraphs>();
       AU.addRequired<PoolAllocate>();
       AU.addRequired<EmbeCFreeRemoval>();
+#endif
     };
     private :
       CUA::ConvertUnsafeAllocas * cuaPass;
+#ifndef  LLVA_KERNEL
       PoolAllocate * paPass;
-  EmbeCFreeRemoval *efPass;
   EquivClassGraphs *equivPass;
+  EmbeCFreeRemoval *efPass;
+#else
+  TDDataStructures * TDPass;
+#endif  
   Function *PoolCheck;
   Function *ExactCheck;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
-  Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI);
+  void addGetElementPtrChecks(Module &M);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
+#ifndef LLVA_KERNEL  
+  Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI);
+#else
+  void addLSChecks(Value *V, Instruction *I, Function *F);
+  void addLoadStoreChecks(Module &M);
+  Value * getPoolHandle(const Value *V, Function *F);
+#endif  
 
 };
 }

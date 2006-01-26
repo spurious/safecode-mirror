@@ -8,6 +8,7 @@
 #ifndef LLVM_EMBEC_H
 #define LLVM_EMBEC_H
 
+
 #include "llvm/Pass.h"
 #include "/home/vadve/dhurjati/llvm/projects/llvm-poolalloc/lib/PoolAllocate/PoolAllocate.h"
 #include "llvm/Transforms/IPO.h"
@@ -27,7 +28,9 @@ using std::set;
 using std::map;
 
 using namespace llvm;
+#ifndef LLVA_KERNEL
 using namespace PA;
+#endif
 Pass* createEmbeCFreeRemovalPass();
 
 
@@ -56,19 +59,18 @@ namespace llvm {
 			     map<Value *, set<Instruction *> > &FuncDestroy);
 
     void propagateCollapsedInfo(Function *F, Value *V);
-    
     DSNode *guessDSNode(Value *v, DSGraph &G, PA::FuncInfo *PAFI);
     void guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG);
-    
       
     void insertNonCollapsedChecks(Function *Forig, Function *F, DSNode *DSN);
 
     void addRuntimeChecks(Function *F, Function *Forig);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // TODO: Check!
+#ifndef LLVA_KERNEL
       AU.addRequired<EquivClassGraphs>();
       AU.addRequired<PoolAllocate>();
+#endif      
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
       AU.addRequired<CallGraph>();
@@ -86,8 +88,9 @@ namespace llvm {
 
     TDDataStructures *TDDS;
     EquivClassGraphs *BUDS;
+#ifndef LLVA_KERNEL    
     PoolAllocate *PoolInfo;
-    
+#endif    
     bool moduleChanged;
     bool hasError;
     
