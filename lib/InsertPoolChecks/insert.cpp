@@ -16,7 +16,7 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
 #else
-  TDPass = &getAnalysis<TDDataStructures>();
+  TDPass = &getAnalysis<LocalDataStructures>();
 #endif
 
   //add the new poolcheck prototype 
@@ -230,18 +230,20 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       //      These must be real unknowns and they will be handled anyway
       //      std::cerr << " WARNING, DID NOT HANDLE   \n";
       //      (*iCurrent)->dump();
-      continue ;
-    } else {
+      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+    }
+    if (1)  {
       if (Casted->getType() != PointerType::get(Type::SByteTy)) {
 	Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
 			      (Casted)->getName()+".casted",(Casted)->getNext());
       }
-      Instruction *CastedPH = new CastInst(PH, PointerType::get(Type::SByteTy),PH->getName()+".casted",(Casted)->getNext());
-      std::vector<Value *> args(1, CastedPH);
-      args.push_back(Casted);
+      
+    Instruction *CastedPH = new CastInst(PH, PointerType::get(Type::SByteTy),"",(Casted)->getNext());
+            std::vector<Value *> args(1, CastedPH);
+            args.push_back(Casted);
       //Insert it
       CallInst * newCI = new CallInst(PoolCheck,args, "",CastedPH->getNext());
-      std::cerr << "inserted instrcution \n";
+      std::cerr << "inserted instruction \n";
     }
 #endif    
   }
