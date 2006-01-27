@@ -7,6 +7,7 @@
 #include "llvm/Instruction.h"
 using namespace llvm;
 using namespace CUA;
+#define LLVA_KERNEL
 RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
@@ -14,6 +15,11 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   cssPass = &getAnalysis<checkStackSafety>();
   abcPass = &getAnalysis<ArrayBoundsCheck>();
   //  tddsPass = &getAnalysis<TDDataStructures>();
+  TD = &getAnalysis<TargetData>();
+  std::vector<const Type *> Arg(1, Type::UIntTy);
+  Arg.push_back(Type::IntTy);
+  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::SByteTy), Arg, false);
+  kmalloc = M.getFunction("kmalloc", kmallocTy);
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
   TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
@@ -58,7 +64,11 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
     DSGraph *DSG = DSN->getParentGraph();
     DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
 
+#ifndef LLVA_KERNEL    
     MallocInst *MI = 0;
+#else
+    CastInst *MI = 0;
+#endif
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
 	 SMI != SME; ) {
       bool stackAllocate = true;
@@ -72,15 +82,32 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
 	  //create a new malloc instruction
 	  if (AI->getParent() != 0) { 
+#ifndef LLVA_KERNEL	  
 	    MI = new MallocInst(AI->getType()->getElementType(),
 				AI->getArraySize(), AI->getName(), AI);
+#else
+	    Value *AllocSize =
+	      ConstantUInt::get(Type::UIntTy, TD->getTypeSize(AI->getAllocatedType()));
+	    
+    if (AI->isArrayAllocation())
+      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+					 AI->getOperand(0), "sizetmp", AI);	    
+	    std::vector<Value *> args(1, AllocSize);
+	    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	    ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+	    args.push_back(signedzero);
+	    CallInst *CI = new CallInst(kmalloc, args, "", AI);
+	    MI = new CastInst(CI, AI->getType(), "",AI);
+#endif	    
 	    DSN->setHeapNodeMarker();
 	    AI->replaceAllUsesWith(MI);
 	    SM.erase(SMI++);
 	    AI->getParent()->getInstList().erase(AI);
+#ifndef LLVA_KERNEL	    
 	    if (stackAllocate) {
 	      ArrayMallocs.insert(MI);
 	    }
+#endif	      
 	  } else {
 	    ++SMI;
 	  } 
@@ -115,15 +142,34 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
     //Now change the alloca instructions corresponding to this node to mallocs
     DSGraph *DSG = DSN->getParentGraph();
     DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
+#ifndef LLVA_KERNEL    
     MallocInst *MI = 0;
+#else
+    CastInst *MI = 0;
+#endif
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
 	 SMI != SME; ) {
       if (SMI->second.getNode() == DSN) {
 	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
 	  //create a new malloc instruction
 	  if (AI->getParent() != 0) { //This check for both stack and array
+#ifndef LLVA_KERNEL 	    
 	    MI = new MallocInst(AI->getType()->getElementType(),AI->getArraySize(),
 				AI->getName(), AI);
+#else
+	    Value *AllocSize =
+	      ConstantUInt::get(Type::UIntTy, TD->getTypeSize(AI->getAllocatedType()));
+	    
+	    if (AI->isArrayAllocation())
+	      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+					 AI->getOperand(0), "sizetmp", AI);	    
+	    std::vector<Value *> args(1, AllocSize);
+	    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	    ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+	    args.push_back(signedzero);
+	    CallInst *CI = new CallInst(kmalloc, args, "", AI);
+	    MI = new CastInst(CI, AI->getType(), "",AI);
+#endif	    
 	    DSN->setHeapNodeMarker();
 	    AI->replaceAllUsesWith(MI);
 	    SM.erase(SMI++);
