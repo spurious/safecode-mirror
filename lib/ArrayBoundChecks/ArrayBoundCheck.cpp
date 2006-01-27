@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 
+#define NO_STATIC_CHECK
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
 
 using namespace llvm;
@@ -880,11 +881,12 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
     if (!(F.hasName()) || (KnownFuncDB.find(F.getName()) == KnownFuncDB.end()))
       collectSafetyConstraints(F);
     }
-  
+#ifndef NO_STATIC_CHECK  
   //  out << " Now checking the constraints  \n ";
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (!(provenSafe.count(I) != 0)) checkSafety(*I);
   }
+#endif  
   return false;
 }
 
@@ -904,6 +906,10 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
     }
     if (isa<GetElementPtrInst>(iLocal)) {
       GetElementPtrInst *MAI = cast<GetElementPtrInst>(iLocal);
+#ifdef NO_STATIC_CHECK
+      	UnsafeGetElemPtrs.push_back(MAI);
+	continue;
+#endif      
       if (const PointerType *PT = dyn_cast<PointerType>(MAI->getPointerOperand()->getType())) {
 	if (!isa<StructType>(PT->getElementType())) {
 	  User::op_iterator mI = MAI->op_begin(), mE = MAI->op_end();
