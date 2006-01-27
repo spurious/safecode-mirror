@@ -4,6 +4,7 @@
 #include "llvm/Pass.h"
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
+#include "llvm/Target/TargetData.h"
 namespace llvm {
 
 
@@ -11,7 +12,7 @@ ModulePass *createConvertUnsafeAllocas();
 
 using namespace ABC;
 using namespace CSS;
-
+#define LLVA_KERNEL
  struct MallocPass : public FunctionPass
  {
    private:
@@ -38,6 +39,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<checkStackSafety>();
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
+      AU.addRequired<TargetData>();
       // Does not preserve the BU or TD graphs
       //      AU.setPreservesAll();
     }
@@ -59,7 +61,11 @@ struct ConvertUnsafeAllocas : public ModulePass {
       BUDataStructures * budsPass;
       ArrayBoundsCheck * abcPass;
       checkStackSafety * cssPass;
+  TargetData *TD;
   
+#ifdef LLVA_KERNEL
+Function *kmalloc;
+#endif
     std::list<DSNode *> unsafeAllocaNodes;
     std::set<DSNode *> reachableAllocaNodes; 
     bool markReachableAllocas(DSNode *DSN);
