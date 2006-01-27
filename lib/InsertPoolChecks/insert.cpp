@@ -236,10 +236,11 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 	Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
 			      (Casted)->getName()+".casted",(Casted)->getNext());
       }
-      std::vector<Value *> args(1, PH);
+      Instruction *CastedPH = new CastInst(PH, PointerType::get(Type::SByteTy),PH->getName()+".casted",(Casted)->getNext());
+      std::vector<Value *> args(1, CastedPH);
       args.push_back(Casted);
       //Insert it
-      CallInst * newCI = new CallInst(PoolCheck,args, "",Casted->getNext());
+      CallInst * newCI = new CallInst(PoolCheck,args, "",CastedPH->getNext());
       std::cerr << "inserted instrcution \n";
     }
 #endif    
