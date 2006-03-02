@@ -5,9 +5,12 @@
 
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/Instruction.h"
+
+#include <iostream>
+
 using namespace llvm;
 using namespace CUA;
-#define LLVA_KERNEL
+#define LLVA_KERNEL 1
 RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
@@ -213,9 +216,24 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 	   SMI != SME; ) {
 	if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
 	  if (SMI->second.getNode()->isNodeCompletelyFolded()) {
+#ifndef LLVA_KERNEL
 	    MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
 					    AI->getArraySize(), AI->getName(), 
 					    AI);
+#else
+	    Value *AllocSize =
+	      ConstantUInt::get(Type::UIntTy, TD->getTypeSize(AI->getAllocatedType()));
+      if (AI->isArrayAllocation())
+        AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+             AI->getOperand(0), "sizetmp", AI);	    
+
+      std::vector<Value *> args(1, AllocSize);
+      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+      ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+      args.push_back(signedzero);
+      CallInst *CI = new CallInst(kmalloc, args, "", AI);
+      CastInst * MI = new CastInst(CI, AI->getType(), "",AI);
+#endif
 	    AI->replaceAllUsesWith(MI);
 	    SMI->second.getNode()->setHeapNodeMarker();
 	    SM.erase(SMI++);
