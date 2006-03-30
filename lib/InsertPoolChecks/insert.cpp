@@ -16,7 +16,7 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
 #else
-  TDPass = &getAnalysis<LocalDataStructures>();
+  TDPass = &getAnalysis<TDDataStructures>();
 #endif
 
   //add the new poolcheck prototype 
