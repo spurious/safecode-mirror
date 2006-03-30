@@ -7,7 +7,11 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CallSite.h"
+
+#include <iostream>
+
 using namespace llvm;
+
 //This is needed because some call sites get merged away during DSA if they have
 //the same inputs for instance.
 //But for array bounds checking we need to get constraints from all the call sites
