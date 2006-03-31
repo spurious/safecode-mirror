@@ -14,15 +14,33 @@ using namespace CUA;
 RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
+  //
+  // Retrieve all pre-requisite analysis results from other passes.
+  //
   budsPass = &getAnalysis<CompleteBUDataStructures>();
   cssPass = &getAnalysis<checkStackSafety>();
   abcPass = &getAnalysis<ArrayBoundsCheck>();
-  //  tddsPass = &getAnalysis<TDDataStructures>();
+#if 0
+  tddsPass = &getAnalysis<TDDataStructures>();
+#endif
   TD = &getAnalysis<TargetData>();
+
+#ifdef LLVA_KERNEL
+  //
+  // Get a reference to the kmalloc() function (the Linux kernel's general
+  // memory allocator function).
+  //
   std::vector<const Type *> Arg(1, Type::UIntTy);
   Arg.push_back(Type::IntTy);
   FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::SByteTy), Arg, false);
   kmalloc = M.getFunction("kmalloc", kmallocTy);
+
+  //
+  // If we fail to get the kmalloc function, generate an error.
+  //
+  assert ((kmalloc != 0) && "No kmalloc function found!\n");
+#endif
+
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
   TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
