@@ -33,7 +33,7 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   std::vector<const Type *> Arg(1, Type::UIntTy);
   Arg.push_back(Type::IntTy);
   FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::SByteTy), Arg, false);
-  kmalloc = M.getFunction("kmalloc", kmallocTy);
+  kmalloc = M.getOrInsertFunction("kmalloc", kmallocTy);
 
   //
   // If we fail to get the kmalloc function, generate an error.
