@@ -165,7 +165,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 	    (*iCurrent)->dump();
 	  }
 	}
+#ifdef DEBUG
 	std::cerr << " Global variable ok \n";
+#endif
       }
       //      These must be real unknowns and they will be handled anyway
       //      std::cerr << " WARNING, DID NOT HANDLE   \n";
@@ -180,7 +182,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       args.push_back(Casted);
       //Insert it
       CallInst * newCI = new CallInst(PoolCheck,args, "",Casted->getNext());
+#ifdef DEBUG
       std::cerr << "inserted instrcution \n";
+#endif
     }
     }
 #else
@@ -237,7 +241,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
               (*iCurrent)->dump();
             }
           }
+#ifdef DEBUG
           std::cerr << " Global variable ok \n";
+#endif
         }
 
         //      These must be real unknowns and they will be handled anyway
@@ -258,7 +264,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         args.push_back(Casted);
         //Insert it
         CallInst * newCI = new CallInst(PoolCheck,args, "",CastedPH->getNext());
+#ifdef DEBUG
         std::cerr << "inserted instruction \n";
+#endif
       }
 #endif    
   }
@@ -325,7 +333,9 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo
       Value *v = I->second;
       if (CollapsedPoolPtrs[F].find(I->second) !=
 	  CollapsedPoolPtrs[F].end()) {
+#ifdef DEBUG
 	std::cerr << "Collapsed pools \n";
+#endif
 	return Constant::getNullValue(PoolDescPtrTy);
       } else {
 	return v;
