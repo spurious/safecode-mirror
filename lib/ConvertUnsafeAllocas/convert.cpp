@@ -4,6 +4,7 @@
 // Needs abcpre abc and checkstack safety 
 
 #include "ConvertUnsafeAllocas.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Instruction.h"
 
 #include <iostream>
@@ -11,6 +12,11 @@
 using namespace llvm;
 using namespace CUA;
 #define LLVA_KERNEL 1
+//
+// Statistics
+//
+static Statistic<> ConvAllocas ("convalloca", "Number of converted allocas");
+
 RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
@@ -128,6 +134,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             AI->replaceAllUsesWith(MI);
             SM.erase(SMI++);
             AI->getParent()->getInstList().erase(AI);
+            ++ConvAllocas;
 #ifndef LLVA_KERNEL	    
             if (stackAllocate) {
               ArrayMallocs.insert(MI);
@@ -201,6 +208,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
             AI->replaceAllUsesWith(MI);
             SM.erase(SMI++);
             AI->getParent()->getInstList().erase(AI);
+            ++ConvAllocas;
           } else {
             ++SMI;
           }
@@ -264,6 +272,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
             SMI->second.getNode()->setHeapNodeMarker();
             SM.erase(SMI++);
             AI->getParent()->getInstList().erase(AI);	  
+            ++ConvAllocas;
           } else {
             ++SMI;
           }
