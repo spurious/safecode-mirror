@@ -49,6 +49,9 @@ void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
     // Get the pool handle associated with this pointer.  If there is no pool
     // handle, use a NULL pointer value and let the runtime deal with it.
     Value *PH = getPoolHandle(V, F);
+#ifdef DEBUG
+std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
+#endif
     if (!PH) {
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
     }
@@ -57,10 +60,10 @@ void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
     // into sbyte pointers.
     CastInst *CastVI = 
       new CastInst(V, 
-		   PointerType::get(Type::SByteTy), "node.casted", I);
+		   PointerType::get(Type::SByteTy), "node.lscasted", I);
     CastInst *CastPHI = 
       new CastInst(PH, 
-		   PointerType::get(Type::SByteTy), "poolhandle.casted", I);
+		   PointerType::get(Type::SByteTy), "poolhandle.lscasted", I);
 
     // Create the call to poolcheck
     std::vector<Value *> args(1,CastPHI);
@@ -131,7 +134,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 	  if (GEPNew->getNumOperands() == 2) {
 	    Value *secOp = GEPNew->getOperand(1);
 	    if (secOp->getType() != Type::UIntTy) {
-	      secOp = new CastInst(secOp, Type::UIntTy, secOp->getName()+".casted",
+	      secOp = new CastInst(secOp, Type::UIntTy, secOp->getName()+".ec.casted",
 				   Casted);
 	    }
 
@@ -147,7 +150,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 	      assert((COP->getRawValue() == 0) && "non zero array index\n");
 	      Value * secOp = GEPNew->getOperand(2);
 	      if (secOp->getType() != Type::UIntTy) {
-		secOp = new CastInst(secOp, Type::UIntTy, secOp->getName()+".casted",
+		secOp = new CastInst(secOp, Type::UIntTy, secOp->getName()+".ec2.casted",
 				   Casted);
 	      }
 	      std::vector<Value *> args(1,secOp);
@@ -176,7 +179,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     } else {
       if (Casted->getType() != PointerType::get(Type::SByteTy)) {
 	Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
-			      (Casted)->getName()+".casted",(Casted)->getNext());
+			      (Casted)->getName()+".pc.casted",(Casted)->getNext());
       }
       std::vector<Value *> args(1, PH);
       args.push_back(Casted);
@@ -192,6 +195,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       GetElementPtrInst *GEPNew = GEP;
       Instruction *Casted = GEP;
       if (PH && isa<ConstantPointerNull>(PH)) continue;
+#ifdef DEBUG
+{
+  DSGraph & TDG = TDPass->getDSGraph(*F);
+  DSNode * Node = TDG.getNodeForValue(GEP).getNode();
+std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node " << Node << std::endl;
+}
+#endif
       if (!PH) {
         Value *PointerOperand = GEPNew->getPointerOperand();
         if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
@@ -208,7 +218,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
               Value *secOp = GEPNew->getOperand(1);
               if (secOp->getType() != Type::UIntTy) {
                 secOp = new CastInst(secOp, Type::UIntTy,
-                                     secOp->getName()+".casted", Casted);
+                                     secOp->getName()+".ec3.casted", Casted);
               }
 
               std::vector<Value *> args(1,secOp);
@@ -224,7 +234,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
                 Value * secOp = GEPNew->getOperand(2);
                 if (secOp->getType() != Type::UIntTy) {
                   secOp = new CastInst(secOp, Type::UIntTy,
-                                       secOp->getName()+".casted", Casted);
+                                       secOp->getName()+".ec4.casted", Casted);
                 }
                 std::vector<Value *> args(1,secOp);
                 const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
@@ -254,12 +264,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       if (1)  {
         if (Casted->getType() != PointerType::get(Type::SByteTy)) {
           Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
-          (Casted)->getName()+".casted",(Casted)->getNext());
+          (Casted)->getName()+".pc2.casted",(Casted)->getNext());
         }
 
         Instruction *CastedPH = new CastInst(PH,
                                              PointerType::get(Type::SByteTy),
-                                             "",(Casted)->getNext());
+                                             "ph",(Casted)->getNext());
         std::vector<Value *> args(1, CastedPH);
         args.push_back(Casted);
         //Insert it
