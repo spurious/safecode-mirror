@@ -144,41 +144,43 @@ RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
       includeOut << "symbolic   argc;\n";
       includeOut << "symbolic   argv;\n";
       includeOut << "symbolic " << getValueName(F) <<"; \n";
-      for (Function::ArgumentListType::iterator aI = F->getArgumentList().begin(),
-	     aE = F->getArgumentList().end(); aI != aE; ++aI) {
-	includeOut << "symbolic   ";
-	includeOut << getValueName((aI));
-	includeOut << ";\n";
+
+      for (Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
+           aE = F->getArgumentList().end(); aI != aE; ++aI) {
+        includeOut << "symbolic   ";
+        includeOut << getValueName((aI));
+        includeOut << ";\n";
       }
-      for (Module::global_iterator gI = M.global_begin(), gE = M.global_end(); gI != gE; ++gI) {
-	includeOut << "symbolic   ";
-	includeOut << getValueName((gI));	
-	includeOut << ";\n";
-	if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
-	  printarraytype(getValueName(gI), AT);
-	}
+
+      for (Module::global_iterator gI = M.global_begin(), gE = M.global_end();
+           gI != gE; ++gI) {
+        includeOut << "symbolic   ";
+        includeOut << getValueName((gI));
+        includeOut << ";\n";
+        if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
+          printarraytype(getValueName(gI), AT);
+        }
       }
-      
+
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-	if ((&*I)->getType() != Type::VoidTy) {
-	  includeOut << "symbolic   ";
-	  includeOut << getValueName(&*I);	
-	  includeOut << ";\n";
-	  if (AllocationInst *AI = dyn_cast<AllocationInst>(&*I)) {
-	    //We have to see the dimension of the array that this alloca is
-	    //pointing to
-	    //If the allocation is done by constant, then its a constant array
-	    // else its a normal alloca which we already have taken care of  
-	    if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
-	      printarraytype(getValueName(&*I), AT);
-	    }
-	  }
-	}
+        if ((&*I)->getType() != Type::VoidTy) {
+          includeOut << "symbolic   ";
+          includeOut << getValueName(&*I);
+          includeOut << ";\n";
+
+          if (AllocationInst *AI = dyn_cast<AllocationInst>(&*I)) {
+            // We have to see the dimension of the array that this alloca is
+            // pointing to
+            // If the allocation is done by constant, then its a constant array
+            // else its a normal alloca which we already have taken care of  
+            if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
+              printarraytype(getValueName(&*I), AT);
+            }
+          }
+        }
       }
     }
   }
-
-
 
   string ArrayBoundsCheck::getValueName(const Value *V) {
     return Mang->getValueName(V);
@@ -214,8 +216,11 @@ void ArrayBoundsCheck::addFormalToActual(Function *Fn, CallInst *CI, ABCExprTree
   Constraint *c1 = new Constraint(getValueName(Fn),le1,"=");
   *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
   
-  Function::arg_iterator formalArgCurrent = Fn->arg_begin(), formalArgEnd = Fn->arg_end();
-  for (unsigned i = 1; formalArgCurrent != formalArgEnd; ++formalArgCurrent, ++i) {
+  Function::arg_iterator formalArgCurrent = Fn->arg_begin(),
+                         formalArgEnd     = Fn->arg_end();
+  for (unsigned i = 1;
+       formalArgCurrent != formalArgEnd;
+       ++formalArgCurrent, ++i) {
     string varName = getValueName(formalArgCurrent);
     Value *OperandVal = CI->getOperand(i);
     LinearExpr *le = new LinearExpr(OperandVal,Mang);
@@ -225,8 +230,8 @@ void ArrayBoundsCheck::addFormalToActual(Function *Fn, CallInst *CI, ABCExprTree
   }
 }
 
-//This is an auxillary function used by getConstraints
-//gets the constraints on the return value interms of its arguments
+// This is an auxillary function used by getConstraints
+// gets the constraints on the return value interms of its arguments
 // and ands it with the existing rootp!
 void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp) {
   if (Function *pf = dyn_cast<Function>(CI->getOperand(0))) {
@@ -235,8 +240,8 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       addFormalToActual(pf, CI, rootp);
     } else {
       if (buCG->isInSCC(pf)) {
-	std::cerr << "Ignoring return values on function in recursion\n";
-	return; 
+        std::cerr << "Ignoring return values on function in recursion\n";
+        return; 
       }
       *rootp = new ABCExprTree(*rootp,getReturnValueConstraints(pf), "&&");
       addFormalToActual(pf, CI, rootp);
@@ -254,34 +259,36 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     //Actually thats fine, we ignore the return value constraints ;)
     for(; I != E; ++I) {
       CallSite CS = CallSite::get(I->first);
-      if ((I->second->isExternal())
-	   || (KnownFuncDB.find(I->second->getName()) != KnownFuncDB.end()) ) {
-	ABCExprTree * temp = addConstraintsForKnownFunctions(I->second, CI);
-	addFormalToActual(I->second, CI, &temp);
-	if (temproot) {
-	  temproot = new ABCExprTree(temproot, temp, "||"); //we need to or them 
-	} else {
-	  temproot = temp;
-	}
+      if ((I->second->isExternal()) ||
+          (KnownFuncDB.find(I->second->getName()) != KnownFuncDB.end()) ) {
+        ABCExprTree * temp = addConstraintsForKnownFunctions(I->second, CI);
+        addFormalToActual(I->second, CI, &temp);
+        if (temproot) {
+          // We need to or them 
+          temproot = new ABCExprTree(temproot, temp, "||");
+        } else {
+          temproot = temp;
+        }
       } else {
-	if (buCG->isInSCC(I->second)) {
-	  std::cerr << "Ignoring return values on function in recursion\n";
-	  return;
-	}
-	ABCExprTree * temp = getReturnValueConstraints(I->second);
-	addFormalToActual(I->second, CI, &temp);
-	if (temproot) {
-	  temproot = new ABCExprTree(temproot, temp, "||");
-	} else {
-	  temproot = temp;
-	}
+        if (buCG->isInSCC(I->second)) {
+          std::cerr << "Ignoring return values on function in recursion\n";
+          return;
+        }
+        ABCExprTree * temp = getReturnValueConstraints(I->second);
+        addFormalToActual(I->second, CI, &temp);
+        if (temproot) {
+          temproot = new ABCExprTree(temproot, temp, "||");
+        } else {
+          temproot = temp;
+        }
       }
     }
     if (temproot) {
       *rootp = new ABCExprTree(*rootp, temproot, "&&");
-      //Now get the constraints on the actual arguemnts for the original call site 
+      // Now get the constraints on the actual arguemnts for the original
+      // call site 
       for (unsigned i =1; i < CI->getNumOperands(); ++i) {
-	getConstraints(CI->getOperand(i),rootp);
+        getConstraints(CI->getOperand(i),rootp);
       }
     }
   }
@@ -292,66 +299,70 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     if (it != pdfmt.end()) {
       const PostDominanceFrontier::DomSetType &S = it->second;
       if (S.size() > 0) {
-	PostDominanceFrontier::DomSetType::iterator pCurrent = S.begin(), pEnd = S.end();
-	//check if it is control dependent on only one node.
-	//If it is control dependent on only one node.
-	//If it not, then there must be only one that dominates this node and
-	//the rest should be dominated by this node.
-	//or this must dominate every other node (incase of do while)
-	bool dominated = false; 
-	bool rdominated = true; //to check if this dominates every other node
-	for (; pCurrent != pEnd; ++pCurrent) {
-	  BasicBlock *debugBlock = *pCurrent;
-	  if (*pCurrent == currentBlock) {
-	    rdominated = rdominated & true;
-	    continue;
-	  }
-	  if (!dominated) {
-	    if (dominates(*pCurrent, currentBlock)) {
-	      dominated = true;
-	      rdominated = false;
-	      continue;
-	    }
-	  }
-	  if (dominates(currentBlock, *pCurrent)) {
-	    rdominated = rdominated & true;
-	    continue;
-	  } else {
-	    //	    out << "In function " << currentBlock->getParent()->getName();
-	    //	    out << "for basic block " << currentBlock->getName();
-	    //	    out << "Something wrong .. non affine or unstructured control flow ??\n";
-	    dominated = false;
-	    break;
-	  }
-	}
-	if ((dominated) || (rdominated)) {
-	  //Now we are sure that the control dominance is proper
-	  //i.e. it doesn't have unstructured control flow 
-	  
-	  PostDominanceFrontier::DomSetType::iterator pdCurrent = S.begin(), pdEnd = S.end();
-	  for (; pdCurrent != pdEnd; ++pdCurrent) {
-	    BasicBlock *CBB = *pdCurrent;
-	    if (DoneList.find(CBB) == DoneList.end()) {
-	      TerminatorInst *TI = CBB->getTerminator();
-	      if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
-		for (unsigned index = 0; index < BI->getNumSuccessors(); ++index) {
-		  BasicBlock * succBlock = BI->getSuccessor(index);
-		  if (postDominates(currentBlock, succBlock)) {
-		    DoneList.insert(CBB);
-		    addControlDependentConditions(CBB,rootp);
-		    addBranchConstraints(BI, BI->getSuccessor(index), rootp);
-		    break;
-		  }
-		}
-	      }
-	    }
-	  }
-	}
+        PostDominanceFrontier::DomSetType::iterator pCurrent = S.begin(),
+                                                    pEnd     = S.end();
+        //check if it is control dependent on only one node.
+        //If it is control dependent on only one node.
+        //If it not, then there must be only one that dominates this node and
+        //the rest should be dominated by this node.
+        //or this must dominate every other node (incase of do while)
+        bool dominated = false; 
+        bool rdominated = true; //to check if this dominates every other node
+        for (; pCurrent != pEnd; ++pCurrent) {
+          BasicBlock *debugBlock = *pCurrent;
+          if (*pCurrent == currentBlock) {
+            rdominated = rdominated & true;
+            continue;
+          }
+          if (!dominated) {
+            if (dominates(*pCurrent, currentBlock)) {
+              dominated = true;
+              rdominated = false;
+              continue;
+            }
+          }
+          if (dominates(currentBlock, *pCurrent)) {
+            rdominated = rdominated & true;
+            continue;
+          } else {
+#if 0
+            out << "In function " << currentBlock->getParent()->getName();
+            out << "for basic block " << currentBlock->getName();
+            out << "Something wrong .. non affine or unstructured control flow ??\n";
+#endif
+            dominated = false;
+            break;
+          }
+        }
+        if ((dominated) || (rdominated)) {
+          // Now we are sure that the control dominance is proper
+          // i.e. it doesn't have unstructured control flow 
+          
+          PostDominanceFrontier::DomSetType::iterator pdCurrent = S.begin(),
+                                                      pdEnd     = S.end();
+          for (; pdCurrent != pdEnd; ++pdCurrent) {
+            BasicBlock *CBB = *pdCurrent;
+            if (DoneList.find(CBB) == DoneList.end()) {
+              TerminatorInst *TI = CBB->getTerminator();
+              if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
+                for (unsigned index = 0; index < BI->getNumSuccessors(); ++index) {
+                  BasicBlock * succBlock = BI->getSuccessor(index);
+                  if (postDominates(currentBlock, succBlock)) {
+                    DoneList.insert(CBB);
+                    addControlDependentConditions(CBB,rootp);
+                    addBranchConstraints(BI, BI->getSuccessor(index), rootp);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
 
-  //adds constraints for known functions 
+  // adds constraints for known functions 
   ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
     const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
@@ -435,9 +446,9 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       addControlDependentConditions(currentBlock, rootp);
 
       if (!isa<ReturnInst>(I)) {
-	var = getValueName(I);
+        var = getValueName(I);
       } else {
-	var = getValueName(func);
+        var = getValueName(func);
       }
       if  (fMap.count(func)) {
 	if (fMap[func]->inLocalConstraints(I)) { //checking the cache
