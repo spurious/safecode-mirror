@@ -4,9 +4,19 @@
 #include "llvm/Support/InstIterator.h"
 #include <iostream>
 #include "llvm/ADT/VectorExtras.h"
+#include "llvm/ADT/Statistic.h"
 
 using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
+
+// Pass Statistics
+static Statistic<> NullChecks("safecode",
+                              "Poolchecks with NULL pool descriptor");
+static Statistic<> FullChecks("safecode",
+                              "Poolchecks with non-NULL pool descriptor");
+static Statistic<> MissChecks("safecode",
+                              "Poolchecks omitted due to bad pool descriptor");
+static Statistic<> PoolChecks("safecode", "Poolchecks Added");
 
 bool InsertPoolChecks::runOnModule(Module &M) {
   cuaPass = &getAnalysis<ConvertUnsafeAllocas>();
@@ -15,26 +25,120 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   paPass = &getAnalysis<PoolAllocate>();
   equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
+  TD  = &getAnalysis<TargetData>();
 #else
   TDPass = &getAnalysis<TDDataStructures>();
 #endif
 
   //add the new poolcheck prototype 
   addPoolCheckProto(M);
+#ifndef LLVA_KERNEL  
+  //register global arrays and collapsed nodes with global pools
+  registerGlobalArraysWithGlobalPools(M);
+#endif  
   //Replace old poolcheck with the new one 
   addPoolChecks(M);
+
+ //
+  // Update the statistics.
+  //
+  PoolChecks = NullChecks + FullChecks;
+  
   return true;
 }
 
+#ifndef LLVA_KERNEL
+void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
+  Function *MainFunc = M.getMainFunction();
+  if (MainFunc == 0 || MainFunc->isExternal()) {
+    std::cerr << "Cannot do array bounds check for this program"
+	      << "no 'main' function yet!\n";
+    abort();
+  }
+  //First register, argc and argv
+  Function::arg_iterator AI = MainFunc->arg_begin(), AE = MainFunc->arg_end();
+  if (AI != AE) {
+    //There is argc and argv
+    Value *Argc = AI;
+    AI++;
+    Value *Argv = AI;
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*MainFunc);
+    Value *PH= getPoolHandle(Argv, MainFunc, *FI);
+    Function *PoolRegister = paPass->PoolRegister;
+    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
+    Instruction *I = InsertPt;
+    if (PH) {
+      Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+      Instruction *GVCasted = new CastInst(Argv,
+					   VoidPtrType, Argv->getName()+"casted",InsertPt);
+      const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+      Value *AllocSize = new CastInst(Argc,
+				      csiType, Argc->getName()+"casted",InsertPt);
+      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+					 ConstantUInt::get(csiType, 4), "sizetmp", InsertPt);
+      CallInst *CI = new CallInst(PoolRegister,
+				  make_vector(PH, AllocSize, GVCasted, 0),
+				  "", InsertPt); 
+      
+    } else {
+      std::cerr << "argv's pool descriptor is not present. \n";
+      //	abort();
+    }
+    
+  }
+  //Now iterate over globals and register all the arrays
+    Module::global_iterator GI = M.global_begin(), GE = M.global_end();
+    for ( ; GI != GE; ++GI) {
+      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
+	Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+	Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+	Type *PoolDescPtrTy = PointerType::get(PoolDescType);
+	if (GV->getType() != PoolDescPtrTy) {
+	  DSGraph &G = equivPass->getGlobalsGraph();
+	  DSNode *DSN  = G.getNodeForValue(GV).getNode();
+	  if ((isa<ArrayType>(GV->getType()->getElementType())) || DSN->isNodeCompletelyFolded()) {
+	    Value * AllocSize;
+	    const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+	      //std::cerr << "found global \n";
+	      AllocSize = ConstantUInt::get(csiType,
+ 					    (AT->getNumElements() * TD->getTypeSize(AT->getElementType())));
+	    } else {
+	      AllocSize = ConstantUInt::get(csiType, TD->getTypeSize(GV->getType()));
+	    }
+	    Function *PoolRegister = paPass->PoolRegister;
+	    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+	    //skip the calls to poolinit
+	    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
+	    
+            Instruction *ipt = InsertPt;
+	    std::map<const DSNode *, Value *>::iterator I = paPass->GlobalNodes.find(DSN);
+	    if (I != paPass->GlobalNodes.end()) {
+	      Value *PH = I->second;
+	      Instruction *GVCasted = new CastInst(GV,
+						   VoidPtrType, GV->getName()+"casted",InsertPt);
+	      CallInst *CI = new CallInst(PoolRegister,
+					  make_vector(PH, AllocSize, GVCasted, 0),
+					  "", InsertPt); 
+	    } else {
+	      std::cerr << "pool descriptor not present \n ";
+	      abort();
+	    }
+	  }
+	}
+      }
+    }
+  }
+#endif
+
 void InsertPoolChecks::addPoolChecks(Module &M) {
   addGetElementPtrChecks(M);
-#ifdef LLVA_KERNEL
   addLoadStoreChecks(M);
-#endif  
 }
 
-#ifdef LLVA_KERNEL
 
+#ifdef LLVA_KERNEL
 //
 // Method: addLSChecks()
 //
@@ -54,8 +158,44 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
 #endif
     if (!PH) {
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
-    }
-
+      ++NullChecks;
+    } else {
+#if 1
+      //
+      // Only add the pool check if the pool is a global value or it
+      // belongs to the same basic block.
+      //
+      if (isa<GlobalValue>(PH)) {
+        ++FullChecks;
+      } else if (isa<Instruction>(PH)) {
+        Instruction * IPH = (Instruction *)(PH);
+        if (IPH->getParent() == I->getParent()) {
+          //
+          // If the instructions belong to the same basic block, ensure that
+          // the pool dominates the load/store.
+          //
+          Instruction * IP = IPH;
+          for (IP=IPH; (IP->isTerminator()) || (IP == I); IP=IP->getNext()) {
+            ;
+          }
+          if (IP == I)
+            ++FullChecks;
+          else {
+            ++MissChecks;
+            return;
+          }
+        } else {
+          ++MissChecks;
+          return;
+        }
+      } else {
+        ++MissChecks;
+        return;
+      }
+#else
+          ++FullChecks;
+#endif
+    }      
     // Create instructions to cast the checked pointer and the checked pool
     // into sbyte pointers.
     CastInst *CastVI = 
@@ -87,9 +227,130 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
     }
   }
 }
+#else
+
+void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F) {
+
+  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+  Value *PH = getPoolHandle(V, F, *FI );
+  DSNode* Node = getDSNode(V, F);
+  if (!PH) {
+    return;
+  } else {
+    if (PH && isa<ConstantPointerNull>(PH)) {
+      //we have a collapsed/Unknown pool
+      Value *PH = getPoolHandle(V, F, *FI, true); 
+
+      if (CallInst *CI = dyn_cast<CallInst>(I)) {
+	// GEt the globals list corresponding to the node
+	return;
+	std::vector<Function *> FuncList;
+	Node->addFullFunctionList(FuncList);
+	std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
+	unsigned num = FuncList.size();
+	if (flI != flE) {
+	  const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	  Value *NumArg = ConstantUInt::get(csiType, num);	
+					 
+	  CastInst *CastVI = 
+	    new CastInst(Vnew, 
+			 PointerType::get(Type::SByteTy), "casted", I);
+	
+	  std::vector<Value *> args(1, NumArg);
+	  args.push_back(CastVI);
+	  for (; flI != flE ; ++flI) {
+	    Function *func = *flI;
+	    CastInst *CastfuncI = 
+	      new CastInst(func, 
+			   PointerType::get(Type::SByteTy), "casted", I);
+	    args.push_back(CastfuncI);
+	  }
+	  new CallInst(FunctionCheck, args,"", I);
+	}
+      } else {
+
+
+	CastInst *CastVI = 
+	  new CastInst(Vnew, 
+		       PointerType::get(Type::SByteTy), "casted", I);
+	CastInst *CastPHI = 
+	  new CastInst(PH, 
+		       PointerType::get(Type::SByteTy), "casted", I);
+	std::vector<Value *> args(1,CastPHI);
+	args.push_back(CastVI);
+	
+	new CallInst(PoolCheck,args,"", I);
+      }
+    }
+  }
+}
+
+
+void InsertPoolChecks::addLoadStoreChecks(Module &M){
+  Module::iterator mI = M.begin(), mE = M.end();
+  for ( ; mI != mE; ++mI) {
+    Function *F = mI;
+    //here we check that we only do this on original functions
+    //and not the cloned functions, the cloned functions may not have the
+    //DSG
+    bool isClonedFunc = false;
+    if (paPass->getFuncInfo(*F))
+      isClonedFunc = false;
+    else
+      isClonedFunc = true;
+    Function *Forig = F;
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    if (isClonedFunc) {
+      Forig = paPass->getOrigFunctionFromClone(F);
+    }
+    //we got the original function
+
+    for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
+	//we need to get the LI from the original function
+	Value *P = LI->getPointerOperand();
+	if (isClonedFunc) {
+	  assert(FI->NewToOldValueMap.count(LI) && " not in the value map \n");
+	  const LoadInst *temp = dyn_cast<LoadInst>(FI->NewToOldValueMap[LI]);
+	  assert(temp && " Instruction  not there in the NewToOldValue map");
+	  const Value *Ptr = temp->getPointerOperand();
+	  addLSChecks(P, Ptr, LI, Forig);
+	} else {
+	  addLSChecks(P, P, LI, Forig);
+	}
+      } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
+	Value *P = SI->getPointerOperand();
+	if (isClonedFunc) {
+	  assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
+	  const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
+	  assert(temp && " Instruction  not there in the NewToOldValue map");
+	  const Value *Ptr = temp->getPointerOperand();
+	  addLSChecks(P, Ptr, SI, Forig);
+	} else {
+	  addLSChecks(P, P, SI, Forig);
+	}
+      } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
+	Value *FunctionOp = CI->getOperand(0);
+	if (!isa<Function>(FunctionOp)) {
+	  if (isClonedFunc) {
+	    assert(FI->NewToOldValueMap.count(CI) && " not in the value map \n");
+	    const CallInst *temp = dyn_cast<CallInst>(FI->NewToOldValueMap[CI]);
+	    assert(temp && " Instruction  not there in the NewToOldValue map");
+	    const Value* FunctionOp1 = temp->getOperand(0);
+	    addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
+	  } else {
+	    addLSChecks(FunctionOp, FunctionOp, CI, Forig);
+	  }
+	}
+      } 
+    }
+  }
+}
+
 #endif
 
 void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
+#if 0  
   std::vector<Instruction *> & UnsafeGetElemPtrs = cuaPass->getUnsafeGetElementPtrsFromABC();
   std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
   for (; iCurrent != iEnd; ++iCurrent) {
@@ -107,7 +368,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     GetElementPtrInst *GEP = cast<GetElementPtrInst>(*iCurrent);
     Function *F = GEP->getParent()->getParent();
     // Now we need to decide if we need to pass in the alignmnet
-    // for the poolcheck
+    //for the poolcheck
+	  //if (getDSNodeOffset(GEP->getPointerOperand(), F))
+	  //{
+	  //continue;
+    //&& " we don't handle middle of structs yet\n");
+    //}
 #if 0
     assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
 #endif
@@ -287,20 +553,19 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     }
 #endif    
   }
+#endif   
 }
 
 void InsertPoolChecks::addPoolCheckProto(Module &M) {
   const Type * VoidPtrType = PointerType::get(Type::SByteTy);
+  /*
   const Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
   //	StructType::get(make_vector<const Type*>(VoidPtrType, VoidPtrType,
   //                                               Type::UIntTy, Type::UIntTy, 0));
   const Type * PoolDescTypePtr = PointerType::get(PoolDescType);
-      
-#ifndef LLVA_KERNEL
-  std::vector<const Type *> Arg(1, PoolDescTypePtr);
-#else
+  */  
+
   std::vector<const Type *> Arg(1, VoidPtrType);
-#endif  
   Arg.push_back(VoidPtrType);
   FunctionType *PoolCheckTy =
     FunctionType::get(Type::VoidTy,Arg, false);
@@ -310,6 +575,12 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   FArg2.push_back(Type::IntTy);
   FunctionType *ExactCheckTy = FunctionType::get(Type::VoidTy, FArg2, false);
   ExactCheck = M.getOrInsertFunction("exactcheck", ExactCheckTy);
+
+  std::vector<const Type *> FArg3(1, Type::UIntTy);
+  FArg3.push_back(VoidPtrType);
+  FArg3.push_back(VoidPtrType);
+  FunctionType *FunctionCheckTy = FunctionType::get(Type::VoidTy, FArg3, true);
+  FunctionCheck = M.getOrInsertFunction("funccheck", FunctionCheckTy);
   
 }
 
@@ -332,12 +603,22 @@ unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
   return TDG.getNodeForValue((Value *)V).getOffset();
 }
 #ifndef LLVA_KERNEL
-Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI) {
+Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed) {
   const DSNode *Node = getDSNode(V,F);
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
+  Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+  Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+  Type *PoolDescPtrTy = PointerType::get(PoolDescType);
+  if (!Node) {
+    return 0; //0 means there is no isse with the value, otherwise there will be a callnode
+  }
   if (Node->isUnknownNode()) {
-    return 0;
+    //FIXME this should be in a top down pass or propagated like collapsed pools below 
+    if (!collapsed) {
+      assert(!getDSNodeOffset(V, F) && " we don't handle middle of structs yet\n");
+      return Constant::getNullValue(PoolDescPtrTy);
+    }
   }
   std::map<const DSNode*, Value*>::iterator I = FI.PoolDescriptors.find(Node);
   map <Function *, set<Value *> > &
@@ -346,7 +627,8 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo
   if (I != FI.PoolDescriptors.end()) {
     // Check that the node pointed to by V in the TD DS graph is not
     // collapsed
-    if (CollapsedPoolPtrs.count(F)) {
+    
+    if (!collapsed && CollapsedPoolPtrs.count(F)) {
       Value *v = I->second;
       if (CollapsedPoolPtrs[F].find(I->second) !=
 	  CollapsedPoolPtrs[F].end()) {
