@@ -5,6 +5,7 @@
 #include <iostream>
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
@@ -350,15 +351,10 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 #endif
 
 void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
-#if 0  
   std::vector<Instruction *> & UnsafeGetElemPtrs = cuaPass->getUnsafeGetElementPtrsFromABC();
   std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
   for (; iCurrent != iEnd; ++iCurrent) {
     // We have the GetElementPtr
-#if 0
-    assert(isa<GetElementPtrInst>(*iCurrent) && " we don't yet handle runtime checks for trusted fns");
-#endif
-
     if (!isa<GetElementPtrInst>(*iCurrent)) {
       // Then this must be some trusted call we cant prove safety
       //      std::cerr << "WARNING : DID NOT HANDLE trusted call  \n";
@@ -369,14 +365,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     Function *F = GEP->getParent()->getParent();
     // Now we need to decide if we need to pass in the alignmnet
     //for the poolcheck
-	  //if (getDSNodeOffset(GEP->getPointerOperand(), F))
-	  //{
-	  //continue;
-    //&& " we don't handle middle of structs yet\n");
-    //}
-#if 0
-    assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
-#endif
+    //     if (getDSNodeOffset(GEP->getPointerOperand(), F)) {
+    //       std::cerr << " we don't handle middle of structs yet\n";
+    //assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
+    //       ++MissChecks;
+    //       continue;
+    //     }
     
 #ifndef LLVA_KERNEL    
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
@@ -436,13 +430,11 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
               }
             } else {
               // Handle Multi dimensional cases later
-              std::cerr << "WARNING: Handle multi dimensional globals later\n";
+              DEBUG(std::cerr << "WARNING: Handle multi dimensional globals later\n");
               (*iCurrent)->dump();
             }
           }
-#ifdef DEBUG
-          std::cerr << " Global variable ok \n";
-#endif
+          DEBUG(std::cerr << " Global variable ok \n");
         }
 
         //      These must be real unknowns and they will be handled anyway
@@ -459,9 +451,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         args.push_back(Casted);
         // Insert it
         CallInst * newCI = new CallInst(PoolCheck,args, "",Casted->getNext());
-  #ifdef DEBUG
-        std::cerr << "inserted instrcution \n";
-  #endif
+        DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
 #else
@@ -469,12 +459,18 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     GetElementPtrInst *GEPNew = GEP;
     Instruction *Casted = GEP;
     if (PH && isa<ConstantPointerNull>(PH)) continue;
-#ifdef DEBUG
     DSGraph & TDG = TDPass->getDSGraph(*F);
     DSNode * Node = TDG.getNodeForValue(GEP).getNode();
-    std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node "
-              << Node << std::endl;
-#endif
+    //Don't add any checks for stack nodes
+    if (Node->isAllocaNode() || Node->isGlobalNode()) {
+      //Don't bother for now 
+      ++MissChecks;
+      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
+      continue;
+    }
+    DEBUG(std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node ");
+    DEBUG(std::cerr << Node << std::endl);
+
     if (!PH) {
       Value *PointerOperand = GEPNew->getPointerOperand();
       if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
@@ -524,9 +520,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             (*iCurrent)->dump();
           }
         }
-#ifdef DEBUG
-        std::cerr << " Global variable ok \n";
-#endif
+        DEBUG(std::cerr << " Global variable ok \n");
       }
 
       //      These must be real unknowns and they will be handled anyway
@@ -547,13 +541,10 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       args.push_back(Casted);
       //Insert it
       CallInst * newCI = new CallInst(PoolCheck,args, "",CastedPH->getNext());
-#ifdef DEBUG
-      std::cerr << "inserted instruction \n";
-#endif
+      //      DEBUG(std::cerr << "inserted instruction \n");
     }
 #endif    
   }
-#endif   
 }
 
 void InsertPoolChecks::addPoolCheckProto(Module &M) {
