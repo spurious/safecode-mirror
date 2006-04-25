@@ -455,13 +455,25 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       }
     }
 #else
+    //
+    // Get the pool handle associated with the pointer operand.
+    //
     Value *PH = getPoolHandle(GEP->getPointerOperand(), F);
     GetElementPtrInst *GEPNew = GEP;
     Instruction *Casted = GEP;
+
+    //
+    // If the pool handle is a NULL pointer, don't bother inserting the
+    // check.
+    //
     if (PH && isa<ConstantPointerNull>(PH)) continue;
+
     DSGraph & TDG = TDPass->getDSGraph(*F);
     DSNode * Node = TDG.getNodeForValue(GEP).getNode();
-    //Don't add any checks for stack nodes
+
+    //
+    // Don't add any checks for stack nodes
+    //
     if (Node->isAllocaNode() || Node->isGlobalNode()) {
       //Don't bother for now 
       ++MissChecks;
@@ -527,6 +539,46 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       //      std::cerr << " WARNING, DID NOT HANDLE   \n";
       //      (*iCurrent)->dump();
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+    } else {
+      //
+      // Determine whether the pool handle dominates the pool check.
+      // If not, then don't insert it.
+      //
+#if 1
+      //
+      // Only add the pool check if the pool is a global value or it
+      // belongs to the same basic block.
+      //
+      if (isa<GlobalValue>(PH)) {
+        ++FullChecks;
+      } else if (isa<Instruction>(PH)) {
+        Instruction * IPH = (Instruction *)(PH);
+        if (IPH->getParent() == Casted->getParent()) {
+          //
+          // If the instructions belong to the same basic block, ensure that
+          // the pool dominates the load/store.
+          //
+          Instruction * IP = IPH;
+          for (IP=IPH; (IP->isTerminator()) || (IP == Casted); IP=IP->getNext()) {
+            ;
+          }
+          if (IP == Casted)
+            ++FullChecks;
+          else {
+            ++MissChecks;
+            return;
+          }
+        } else {
+          ++MissChecks;
+          return;
+        }
+      } else {
+        ++MissChecks;
+        return;
+      }
+#else
+          ++FullChecks;
+#endif
     }
     if (1)  {
       if (Casted->getType() != PointerType::get(Type::SByteTy)) {
