@@ -566,15 +566,15 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             ++FullChecks;
           else {
             ++MissChecks;
-            return;
+            continue;
           }
         } else {
           ++MissChecks;
-          return;
+          continue;
         }
       } else {
         ++MissChecks;
-        return;
+        continue;
       }
 #else
           ++FullChecks;
