@@ -140,23 +140,23 @@ RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
   void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
       Function *F = FI;
-      includeOut << "symbolic   Unknown;\n";
-      includeOut << "symbolic   argc;\n";
-      includeOut << "symbolic   argv;\n";
-      includeOut << "symbolic " << getValueName(F) <<"; \n";
+      includeOut << "symbolic   Unknown;\n"
+                 << "symbolic   argc;\n"
+                 << "symbolic   argv;\n"
+                 << "symbolic " << getValueName(F) <<"; \n";
 
       for (Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
            aE = F->getArgumentList().end(); aI != aE; ++aI) {
-        includeOut << "symbolic   ";
-        includeOut << getValueName((aI));
-        includeOut << ";\n";
+        includeOut << "symbolic   "
+                   << getValueName((aI))
+                   << ";\n";
       }
 
       for (Module::global_iterator gI = M.global_begin(), gE = M.global_end();
            gI != gE; ++gI) {
-        includeOut << "symbolic   ";
-        includeOut << getValueName((gI));
-        includeOut << ";\n";
+        includeOut << "symbolic   "
+                   << getValueName((gI))
+                   << ";\n";
         if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
           printarraytype(getValueName(gI), AT);
         }
@@ -164,9 +164,9 @@ RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
         if ((&*I)->getType() != Type::VoidTy) {
-          includeOut << "symbolic   ";
-          includeOut << getValueName(&*I);
-          includeOut << ";\n";
+          includeOut << "symbolic   "
+                     << getValueName(&*I)
+                     << ";\n";
 
           if (AllocationInst *AI = dyn_cast<AllocationInst>(&*I)) {
             // We have to see the dimension of the array that this alloca is
