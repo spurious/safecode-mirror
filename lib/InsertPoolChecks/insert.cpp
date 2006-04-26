@@ -40,7 +40,7 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   //Replace old poolcheck with the new one 
   addPoolChecks(M);
 
- //
+  //
   // Update the statistics.
   //
   PoolChecks = NullChecks + FullChecks;
@@ -466,7 +466,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     // If the pool handle is a NULL pointer, don't bother inserting the
     // check.
     //
-    if (PH && isa<ConstantPointerNull>(PH)) continue;
+#if 0
+    if (PH && isa<ConstantPointerNull>(PH)) {
+      ++NullChecks;
+      continue;
+    }
+#endif
 
     DSGraph & TDG = TDPass->getDSGraph(*F);
     DSNode * Node = TDG.getNodeForValue(GEP).getNode();
