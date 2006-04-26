@@ -11,13 +11,15 @@ using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
 // Pass Statistics
-static Statistic<> NullChecks("safecode",
-                              "Poolchecks with NULL pool descriptor");
-static Statistic<> FullChecks("safecode",
-                              "Poolchecks with non-NULL pool descriptor");
-static Statistic<> MissChecks("safecode",
-                              "Poolchecks omitted due to bad pool descriptor");
-static Statistic<> PoolChecks("safecode", "Poolchecks Added");
+static Statistic<> NullChecks ("safecode",
+                               "Poolchecks with NULL pool descriptor");
+static Statistic<> FullChecks ("safecode",
+                               "Poolchecks with non-NULL pool descriptor");
+static Statistic<> MissChecks ("safecode",
+                               "Poolchecks omitted due to bad pool descriptor");
+static Statistic<> PoolChecks ("safecode", "Poolchecks Added");
+static Statistic<> BoundChecks("safecode",
+                               "Bounds checks inserted");
 
 bool InsertPoolChecks::runOnModule(Module &M) {
   cuaPass = &getAnalysis<ConvertUnsafeAllocas>();
@@ -511,6 +513,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
             args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
             CallInst *newCI = new CallInst(ExactCheck,args,"", Casted);
+            ++BoundChecks;
             //	    DEBUG(std::cerr << "Inserted exact check call Instruction \n");
             continue;
           } else if (GEPNew->getNumOperands() == 3) {
@@ -526,6 +529,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
               const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
               args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
               CallInst *newCI = new CallInst(ExactCheck,args,"", Casted->getNext());
+              ++BoundChecks;
               continue;
             } else {
               //Handle non constant index two dimensional arrays later
