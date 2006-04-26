@@ -1,6 +1,7 @@
 #include "InsertPoolChecks.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
 #include <iostream>
 #include "llvm/ADT/VectorExtras.h"
@@ -9,6 +10,11 @@
 
 using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
+
+cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
+                                cl::desc("Disable Load/Store Checks"));
+cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
+                                cl::desc("Disable GetElementPtr(GEP) Checks"));
 
 // Pass Statistics
 static Statistic<> NullChecks ("safecode",
@@ -136,8 +142,8 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 #endif
 
 void InsertPoolChecks::addPoolChecks(Module &M) {
-  addGetElementPtrChecks(M);
-  addLoadStoreChecks(M);
+  if (!DisableGEPChecks) addGetElementPtrChecks(M);
+  if (!DisableLSChecks)  addLoadStoreChecks(M);
 }
 
 
