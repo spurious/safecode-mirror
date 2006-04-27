@@ -12,8 +12,10 @@ using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
 cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
+                                cl::init(false),
                                 cl::desc("Disable Load/Store Checks"));
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
+                                cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
 
 // Pass Statistics
