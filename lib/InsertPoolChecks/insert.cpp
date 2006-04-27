@@ -493,15 +493,6 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     DSGraph & TDG = TDPass->getDSGraph(*F);
     DSNode * Node = TDG.getNodeForValue(GEP).getNode();
 
-    //
-    // Don't add any checks for stack nodes
-    //
-    if (Node->isAllocaNode() || Node->isGlobalNode()) {
-      //Don't bother for now 
-      ++MissChecks;
-      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
-      continue;
-    }
     DEBUG(std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node ");
     DEBUG(std::cerr << Node << std::endl);
 
@@ -562,7 +553,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       //      These must be real unknowns and they will be handled anyway
       //      std::cerr << " WARNING, DID NOT HANDLE   \n";
       //      (*iCurrent)->dump();
+#if 0
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+#endif
     } else {
       //
       // Determine whether the pool handle dominates the pool check.
@@ -604,7 +597,21 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           ++FullChecks;
 #endif
     }
-    if (1)  {
+
+    //
+    // We cannot insert an exactcheck().  Insert a pool check.
+    //
+    // FIXME:
+    //  Currently, we cannot register stack or global memory with pools.  If
+    //  the node is from alloc() or is a global, do not insert a poolcheck.
+    // 
+    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
+      ++NullChecks;
+      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
+    }
+
+    if (1) {
       if (Casted->getType() != PointerType::get(Type::SByteTy)) {
         Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
         (Casted)->getName()+".pc2.casted",(Casted)->getNext());
