@@ -917,16 +917,17 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
     }
     if (isa<GetElementPtrInst>(iLocal)) {
       GetElementPtrInst *MAI = cast<GetElementPtrInst>(iLocal);
-#ifdef NO_STATIC_CHECK
-      	UnsafeGetElemPtrs.push_back(MAI);
-	continue;
-#endif      
+
       if (const PointerType *PT = dyn_cast<PointerType>(MAI->getPointerOperand()->getType())) {
 	if (!isa<StructType>(PT->getElementType())) {
 	  User::op_iterator mI = MAI->op_begin(), mE = MAI->op_end();
 	  if (mI == mE) {
 	    continue;
 	  }
+#ifdef NO_STATIC_CHECK
+      	UnsafeGetElemPtrs.push_back(MAI);
+	continue;
+#endif      
 	  mI++;
 	  ABCExprTree *root;
 	  string varName = getValueName(MAI->getPointerOperand());
@@ -996,7 +997,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	} else if (funcName == "fscanf") {
 	  std::cerr << " DID NOT HANDLE fscanf\n";
 	  std::cerr << "Program may not be SAFE\n";
-	  abort();
+	  //	  abort();
 	} else if (funcName == "fread") {
 	  //FIXME, assumes reading only a byte 
 	  LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
@@ -1142,7 +1143,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	  }
 	} else if (FCI->isExternal()) {
 	  if (KnownFuncDB.find(funcName) == KnownFuncDB.end()) {
-	    std::cerr << "Don't know what constraints to add " << funcName << "\n";
+            //	    std::cerr << "Don't know what constraints to add " << funcName << "\n";
 	    //	    std::cerr << "Exiting \n";
 	    //	    exit(-1);
 	  }

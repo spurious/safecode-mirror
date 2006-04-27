@@ -16,6 +16,7 @@ namespace ABC {
  struct ABCPreProcess : public FunctionPass {
   private:
   PostDominanceFrontier * pdf;
+  DominanceFrontier * df;
   DominatorSet *ds;
   PostDominatorSet *pds;
   void print(ostream &out);
@@ -27,6 +28,7 @@ namespace ABC {
       AU.addRequired<LoopInfo>();
       AU.addRequired<DominatorSet>();
       AU.addRequired<PostDominatorSet>();
+      AU.addRequired<DominanceFrontier>();
       AU.addRequired<PostDominanceFrontier>();
     }
     virtual bool runOnFunction(Function &F);

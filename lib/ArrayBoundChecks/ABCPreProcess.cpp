@@ -19,6 +19,7 @@ IndVarMap indMap;
 DominatorSet::DomSetMapType dsmt;
 PostDominatorSet::DomSetMapType pdsmt;
 PostDominanceFrontier::DomSetMapType pdfmt;
+DominanceFrontier::DomSetMapType dfmt;
 
 void ABCPreProcess::print(ostream &out) {
   out << " Printing phi nodes which are induction variables ... \n";
@@ -44,6 +45,7 @@ void ABCPreProcess::indVariables(Loop *L) {
 bool ABCPreProcess::runOnFunction(Function &F) {
   LoopInfo &LI =  getAnalysis<LoopInfo>();
   pdf = &getAnalysis<PostDominanceFrontier>();
+  df = &getAnalysis<DominanceFrontier>();
   //copy it to a global for later use by a module pass
   PostDominanceFrontier::iterator pdfmI = pdf->begin(), pdfmE = pdf->end();
   for (; pdfmI != pdfmE; ++pdfmI) {
@@ -53,6 +55,18 @@ bool ABCPreProcess::runOnFunction(Function &F) {
       //Could this be optimized with stl version of set copy?
       BasicBlock *bb = pdfmI->first;
       pdfmt[pdfmI->first].insert(*dstI);
+    }
+  }
+
+  //copy it to global for later use by a module pass
+  DominanceFrontier::iterator dfmI = df->begin(), dfmE = df->end();
+  for (; dfmI != dfmE; ++dfmI) {
+    DominanceFrontier::DomSetType &dst = dfmI->second;
+    DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
+    for (; dstI != dstE; ++ dstI) {
+      //Could this be optimized with stl version of set copy?
+      BasicBlock *bb = dfmI->first;
+      dfmt[dfmI->first].insert(*dstI);
     }
   }
   

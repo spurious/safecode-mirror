@@ -10,14 +10,15 @@
 // Result: If we look at pool pointer defs and look for their uses... we check 
 // that their only uses are calls to pool_allocs, pool_frees and pool_destroys.
 //===----------------------------------------------------------------------===//
-#if 0
-
 #define DEBUG_TYPE "FreeRemoval"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
 #include "SafeDynMemAlloc.h"
+#include <iostream>
 using namespace llvm;
+#ifndef LLVA_KERNEL
+
 
 namespace {
   RegisterOpt<EmbeCFreeRemoval> Y("EmbeC", "EmbeC pass that removes all frees and issues warnings if behaviour has changed");
@@ -127,7 +128,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    } else {
 	      hasError = true;
 	      std::cerr << "EmbeC: " << F->getName() << ": Unrecognized pool variable use \n";
-	      abort();
+	      //	      abort();
 	    }
 	  } 
 	} else {
@@ -402,6 +403,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 		 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 		 "", I);
     } else {
+      Type *VoidPtrTy = PointerType::get(Type::SByteTy); 
       const Type *PoolDescType = 
 	ArrayType::get(VoidPtrTy, 50);
 
@@ -482,9 +484,12 @@ static void printSets(set<Value *> &FuncPoolPtrs,
       }
     }
   }
+
 // Insert runtime checks. Called on the functions in the existing program
 void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
-
+  //The  following code is phased out, a newer version is insert.cpp 
+  
+#if 0
   bool isClonedFunc;
   PA::FuncInfo* PAFI = PoolInfo->getFuncInfoOrClone(*F);
 
@@ -493,10 +498,8 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
   else
     isClonedFunc = true;
   
-  DSGraph& oldG = BUDS->getDSGraph(*Forig);
-  
-  // For each scalar pointer in the original function
   if (!PAFI->PoolDescriptors.empty()) {
+  // For each scalar pointer in the original function
     for (DSGraph::ScalarMapTy::iterator SMI = oldG.getScalarMap().begin(), 
 	   SME = oldG.getScalarMap().end(); SMI != SME; ++SMI) {
       DSNodeHandle &GH = SMI->second;
@@ -548,16 +551,17 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 	    CollapsedPoolPtrs[F].end()) {
 	  // find uses of the coresponding new pointer
 	  Value *NewPtr = SMI->first;
-	  Value *NewerPtr = NewPtr;
 	  if (isClonedFunc) {
 	    if (PAFI->ValueMap.count(SMI->first)) {
 	      NewPtr = PAFI->ValueMap[SMI->first];
 	      if (!PAFI->NewToOldValueMap.count(NewPtr)) {
 		std::cerr << "WARNING : checks for NewPtr are not inserted\n";
+		abort();
 		continue;
 	      }
 	    } else {
 	      std::cerr << "WARNING : checks for NewPtr are not inserted\n";
+	      abort();
 	      continue;
 	    }
 	  }
@@ -610,6 +614,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
       }
     }
   }
+#endif  
 }
 
 bool EmbeCFreeRemoval::runOnModule(Module &M) {
@@ -634,7 +639,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 
   FunctionType *PoolCheckTy = 
     FunctionType::get(Type::VoidTy,
-		      make_vector<const Type*>(PoolDescPtr, VoidPtrTy, 0),
+		      make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 0),
 		      false);
   
   PoolMakeUnfreeable = CurModule->getOrInsertFunction("poolmakeunfreeable", 

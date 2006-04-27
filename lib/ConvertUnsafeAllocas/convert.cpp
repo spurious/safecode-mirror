@@ -6,11 +6,23 @@
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instruction.h"
+#include "llvm/Support/CFG.h"
 
 #include <iostream>
 
 using namespace llvm;
 using namespace CUA;
+using namespace ABC;
+
+extern DominatorSet::DomSetMapType dsmt;
+extern DominanceFrontier::DomSetMapType dfmt;
+
+static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
+  DominatorSet::DomSetMapType::const_iterator dsmtI = dsmt.find(bb1);
+  assert((dsmtI != dsmt.end()) && " basic block not found in dominator set");
+  return (dsmtI->second.count(bb2) != 0);
+}
+
 #define LLVA_KERNEL 1
 //
 // Statistics
@@ -30,7 +42,6 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   tddsPass = &getAnalysis<TDDataStructures>();
 #endif
   TD = &getAnalysis<TargetData>();
-
 #ifdef LLVA_KERNEL
   //
   // Get a reference to the kmalloc() function (the Linux kernel's general
@@ -50,8 +61,8 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
   TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
-  TransformAllocasToMallocs(unsafeAllocaNodes);
-  TransformCollapsedAllocas(M);
+  //  TransformAllocasToMallocs(unsafeAllocaNodes);
+  //  TransformCollapsedAllocas(M);
   return true;
 }
 
@@ -76,6 +87,50 @@ bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
       }
     }
   return returnValue;
+}
+
+void ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
+  //need to insert a corresponding free
+  // The dominator magic again
+  BasicBlock *currentBlock = MI->getParent();
+  DominanceFrontier::const_iterator it = dfmt.find(currentBlock);
+  if (it != dfmt.end()) {
+    const DominanceFrontier::DomSetType &S = it->second;
+      if (S.size() > 0) {
+	DominanceFrontier::DomSetType::iterator pCurrent = S.begin(), pEnd = S.end();
+	for (; pCurrent != pEnd; ++pCurrent) {
+	  BasicBlock *frontierBlock = *pCurrent;
+	  //One of its predecessors is dominated by
+	  // currentBlock
+	  //need to insert a free in that predecessor
+	  for (pred_iterator SI = pred_begin(frontierBlock), SE = pred_end(frontierBlock);
+	       SI != SE; ++SI) {
+	    BasicBlock *predecessorBlock = *SI;
+	    if (dominates(predecessorBlock, currentBlock)) {
+	      //get the terminator
+	      Instruction *InsertPt = predecessorBlock->getTerminator();
+	      new FreeInst(MI, InsertPt);
+	    } 
+	  }
+	}
+      }
+  } else {
+    //There is no dominance frontier, need to insert on all returns;
+    Function *F = MI->getParent()->getParent();
+    std::vector<Instruction*> FreePoints;
+    for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
+      if (isa<ReturnInst>(BB->getTerminator()) ||
+	  isa<UnwindInst>(BB->getTerminator()))
+	FreePoints.push_back(BB->getTerminator());
+    //we have the Free points
+    //now we get
+    //	    Construct the free instructions at each of the points.
+    std::vector<Instruction*>::iterator fpI = FreePoints.begin(), fpE = FreePoints.end();
+    for (; fpI != fpE ; ++ fpI) {
+      Instruction *InsertPt = *fpI;
+      new FreeInst(MI, InsertPt);
+    }
+  }
 }
 
 // Precondition: Enforce that the alloca nodes haven't been already converted
@@ -130,11 +185,12 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
-            DSN->setHeapNodeMarker();
-            AI->replaceAllUsesWith(MI);
-            SM.erase(SMI++);
-            AI->getParent()->getInstList().erase(AI);
+	    DSN->setHeapNodeMarker();
+	    AI->replaceAllUsesWith(MI);
+	    SM.erase(SMI++);
+	    AI->getParent()->getInstList().erase(AI);
             ++ConvAllocas;
+	    //	    InsertFreesAtEnd(MI);
 #ifndef LLVA_KERNEL	    
             if (stackAllocate) {
               ArrayMallocs.insert(MI);
@@ -188,6 +244,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 #ifndef LLVA_KERNEL 	    
             MI = new MallocInst(AI->getType()->getElementType(),
                                 AI->getArraySize(), AI->getName(), AI);
+	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
             ConstantUInt::get(Type::UIntTy,
@@ -204,19 +261,19 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
-            DSN->setHeapNodeMarker();
-            AI->replaceAllUsesWith(MI);
-            SM.erase(SMI++);
-            AI->getParent()->getInstList().erase(AI);
+	    DSN->setHeapNodeMarker();
+	    AI->replaceAllUsesWith(MI);
+	    SM.erase(SMI++);
+	    AI->getParent()->getInstList().erase(AI);
             ++ConvAllocas;
-          } else {
-            ++SMI;
-          }
-        } else {
-          ++SMI;
-        }
-      } else {
-        ++SMI;
+	  } else {
+	    ++SMI;
+	  }
+	}else {
+	  ++SMI;
+	}
+      }else {
+	++SMI;
       }
     }
   }
@@ -240,6 +297,8 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 }
 
 void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
+  //Need to check if the following is incomplete becasue we are only looking at scalars.
+  //It may be complete because every instruction actually is a scalar in LLVM?!
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     if (!MI->isExternal()) {
       DSGraph &G = budsPass->getDSGraph(*MI);
