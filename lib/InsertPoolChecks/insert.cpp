@@ -11,12 +11,19 @@
 using namespace llvm;
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
+// Options for Disabling the Insertion of Various Checks
 cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable Load/Store Checks"));
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
+
+// Options for where to insert various initialization code
+cl::opt<string> InitFunctionName ("initfunc",
+                                  cl::desc("Specify name of initialization "
+                                           "function"),
+                                  cl::value_desc("function name"));
 
 // Pass Statistics
 static Statistic<> NullChecks ("safecode",
