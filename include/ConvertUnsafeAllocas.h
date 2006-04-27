@@ -12,7 +12,6 @@ ModulePass *createConvertUnsafeAllocas();
 
 using namespace ABC;
 using namespace CSS;
-#define LLVA_KERNEL
  struct MallocPass : public FunctionPass
  {
    private:
@@ -24,7 +23,9 @@ inline bool changeType (Instruction * Inst);
    virtual bool runOnFunction (Function &F);
    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
      AU.addRequired<TargetData>();
-//     AU.setPreservesAll();
+#ifdef LLVA_KERNEL
+     AU.setPreservesAll();
+#endif     
    }
  };
  
@@ -41,7 +42,9 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<TDDataStructures>();
       AU.addRequired<TargetData>();
       // Does not preserve the BU or TD graphs
-      //      AU.setPreservesAll();
+#ifdef LLVA_KERNEL       
+            AU.setPreservesAll();
+#endif            
     }
 
   DSNode * getDSNode(const Value *I, Function *F);
@@ -74,6 +77,7 @@ Function *kmalloc;
     void TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC();
     void TransformCollapsedAllocas(Module &M);
+  void InsertFreesAtEnd(MallocInst *MI);
 
 };
 }
