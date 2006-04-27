@@ -6,7 +6,7 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-PARALLEL_DIRS=SafePoolAllocator BoundsCheckAllocator 
+PARALLEL_DIRS=SafePoolAllocator BoundsCheckAllocator KernelSafePoolAllocator
 
 
 include $(LEVEL)/Makefile.common
