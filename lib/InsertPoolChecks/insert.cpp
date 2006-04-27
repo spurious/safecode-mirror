@@ -178,7 +178,6 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
       ++NullChecks;
     } else {
-#if 1
       //
       // Only add the pool check if the pool is a global value or it
       // belongs to the same basic block.
@@ -210,9 +209,6 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
         ++MissChecks;
         return;
       }
-#else
-          ++FullChecks;
-#endif
     }      
     // Create instructions to cast the checked pointer and the checked pool
     // into sbyte pointers.
@@ -556,15 +552,32 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 #if 0
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
 #endif
+    }
+
+    //
+    // We cannot insert an exactcheck().  Insert a pool check.
+    //
+    // FIXME:
+    //  Currently, we cannot register stack or global memory with pools.  If
+    //  the node is from alloc() or is a global, do not insert a poolcheck.
+    // 
+    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
+      ++NullChecks;
+      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
       //
       // Determine whether the pool handle dominates the pool check.
       // If not, then don't insert it.
       //
-#if 1
+
       //
-      // Only add the pool check if the pool is a global value or it
-      // belongs to the same basic block.
+      // FIXME:
+      //  This domination check is too restrictive; it eliminates pools that do
+      //  dominate but are outside of the current basic block.
+      //
+      // Only add the pool check if the pool is a global value or it belongs
+      // to the same basic block.
       //
       if (isa<GlobalValue>(PH)) {
         ++FullChecks;
@@ -576,7 +589,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // the pool dominates the load/store.
           //
           Instruction * IP = IPH;
-          for (IP=IPH; (IP->isTerminator()) || (IP == Casted); IP=IP->getNext()) {
+          for (IP=IPH; (IP->isTerminator()) || (IP==Casted); IP=IP->getNext()) {
             ;
           }
           if (IP == Casted)
@@ -593,22 +606,6 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         ++MissChecks;
         continue;
       }
-#else
-          ++FullChecks;
-#endif
-    }
-
-    //
-    // We cannot insert an exactcheck().  Insert a pool check.
-    //
-    // FIXME:
-    //  Currently, we cannot register stack or global memory with pools.  If
-    //  the node is from alloc() or is a global, do not insert a poolcheck.
-    // 
-    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
-      ++NullChecks;
-      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
-      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     }
 
     if (1) {
