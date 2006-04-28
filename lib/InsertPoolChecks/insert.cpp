@@ -36,6 +36,10 @@ static Statistic<> PoolChecks ("safecode", "Poolchecks Added");
 static Statistic<> BoundChecks("safecode",
                                "Bounds checks inserted");
 
+static Statistic<> MissedStackChecks  ("safecode", "Missed stack checks");
+static Statistic<> MissedGlobalChecks ("safecode", "Missed global checks");
+static Statistic<> MissedNullChecks   ("safecode", "Missed PD checks");
+
 bool InsertPoolChecks::runOnModule(Module &M) {
   cuaPass = &getAnalysis<ConvertUnsafeAllocas>();
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
@@ -174,9 +178,13 @@ void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
 #ifdef DEBUG
 std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
 #endif
-    if (!PH) {
+    // FIXME: We cannot handle checks to global or stack positions right now.
+    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
       ++NullChecks;
+      if (!PH) ++MissedNullChecks;
+      if (Node->isAllocaNode()) ++MissedStackChecks;
+      if (Node->isGlobalNode()) ++MissedGlobalChecks;
     } else {
       //
       // Only add the pool check if the pool is a global value or it
@@ -563,6 +571,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     // 
     if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
       ++NullChecks;
+      if (!PH) ++MissedNullChecks;
+      if (Node->isAllocaNode()) ++MissedStackChecks;
+      if (Node->isGlobalNode()) ++MissedGlobalChecks;
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
       DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
