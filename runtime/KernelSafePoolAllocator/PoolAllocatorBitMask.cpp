@@ -627,13 +627,13 @@ void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
   splay_insert_ptr(Pool->splay, (unsigned long)(allocaptr), NumBytes);
 }
 
-void *AddPoolDescToMetaPool(MetaPoolTy **MP, PoolTy *P) {
+void AddPoolDescToMetaPool(MetaPoolTy **MP, PoolTy *P) {
   MetaPoolTy  *MetaPool = *MP;
   if (!MetaPool) {
-    MetaPool = *MP = malloc(sizeof(MetaPoolTy));
+    MetaPool = *MP = (MetaPoolTy *) malloc(sizeof(MetaPoolTy));
     MetaPool->PoolTySet = new hash_set<void *>;
   }
-  MetaPool->cachePoolTy = P;
+  MetaPool->cachePool = P;
   MetaPool->PoolTySet->insert(P);
 }
 
@@ -990,9 +990,9 @@ void poolcheck(MetaPoolTy **MP, void *Node) {
   }
   //    iteratively search through the list
   //Check if there are other efficient data structures.
-  hash_set<void *>::const_iterator PTI = MP->PoolTySet.begin(), PTE = MP->PoolTySet.end();
+  hash_set<void *>::iterator PTI = MetaPool->PoolTySet->begin(), PTE = MetaPool->PoolTySet->end();
   for (; PTI != PTE; ++PTI) {
-    PoolTy *Pool = *PTI;
+    PoolTy *Pool = (PoolTy *)*PTI;
     PoolSlab *PS;
     PS = (PoolSlab*)((unsigned long)Node & ~(PageSize-1));
     if (Pool->prevPage[0] == PS) {
@@ -1008,6 +1008,7 @@ void poolcheck(MetaPoolTy **MP, void *Node) {
       return;
     }    
     if (poolcheckoptim(Pool, Node)) {
+      MetaPool->cachePool = Pool;
       return;
     }
   }
@@ -1137,7 +1138,7 @@ void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset,
 	}	  
       } else {
 	printf("poolcheck5: node being checked not found in pool with right"
-	       " alignment %x %x\n",Pool,Node);
+	       " alignment %p %p\n",Pool,Node);
 	abort();
       }
     }

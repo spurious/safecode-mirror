@@ -60,7 +60,7 @@ typedef struct PoolTy {
 
 
 typedef struct MetaPoolTy {
-  PoolTy *cachePoolTy;
+  PoolTy *cachePool;
   hash_set<void *> *PoolTySet;
 } MetaPoolTy;
 
