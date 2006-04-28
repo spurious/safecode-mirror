@@ -60,7 +60,7 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
 
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
-  TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+  //  TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
   //  TransformAllocasToMallocs(unsafeAllocaNodes);
   //  TransformCollapsedAllocas(M);
   return true;
