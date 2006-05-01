@@ -9,6 +9,7 @@
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
+extern Value *getRepresentativeMetaPD(Value *);
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
 // Options for Disabling the Insertion of Various Checks
@@ -737,7 +738,7 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F) {
   //    return 0;
   //  }
   if ((TDG.getPoolDescriptorsMap()).count(Node)) 
-    return TDG.getPoolDescriptorsMap()[Node];
+    return (TDG.getPoolDescriptorsMap()[Node]->getMetaPoolValue());
   return 0;
 }
 #endif
