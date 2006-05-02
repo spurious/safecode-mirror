@@ -378,9 +378,71 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
   for (; iCurrent != iEnd; ++iCurrent) {
     // We have the GetElementPtr
     if (!isa<GetElementPtrInst>(*iCurrent)) {
-      // Then this must be some trusted call we cant prove safety
-      //      std::cerr << "WARNING : DID NOT HANDLE trusted call  \n";
-      //      (*iCurrent)->dump();
+      //Then this must be a function call
+      //FIXME, get strcpy and others from the backup dir and adjust them for LLVA
+      //Right now I just add memset for LLVA
+      //      std::cerr << " function call \n";
+#ifdef LLVA_KERNEL
+      if (CallInst *CI = dyn_cast<CallInst>(*iCurrent)) {
+        Value *Fop = CI->getOperand(0);
+        Function *F = CI->getParent()->getParent();
+        if (Fop->getName() == "llva_memcpy") {
+          Value *PH = getPoolHandle(CI->getOperand(1), F); 
+          Instruction *InsertPt = CI->getNext();
+          if (!PH) {
+            NullChecks++;
+            continue;
+          }
+          CastInst *CastCIUint = 
+            new CastInst(CI, Type::UIntTy, "node.lscasted", InsertPt);
+          CastInst *CastCIOp3 = 
+            new CastInst(CI->getOperand(3), Type::UIntTy, "node.lscasted", InsertPt);
+          Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
+                          CastCIOp3, "memcpyadd",InsertPt);
+          
+          // Create instructions to cast the checked pointer and the checked pool
+          // into sbyte pointers.
+          CastInst *CastCI = 
+            new CastInst(Bop, 
+                         PointerType::get(Type::SByteTy), "node.lscasted", InsertPt);
+          CastInst *CastPHI = 
+            new CastInst(PH, 
+                         PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPt);
+          
+          // Create the call to poolcheck
+          std::vector<Value *> args(1,CastPHI);
+          args.push_back(CastCI);
+          new CallInst(PoolCheck,args,"", InsertPt);
+        } else if (Fop->getName() == "memset") {
+          Value *PH = getPoolHandle(CI->getOperand(1), F); 
+          Instruction *InsertPt = CI->getNext();
+          if (!PH) {
+            NullChecks++;
+            continue;
+          }
+          CastInst *CastCIUint = 
+            new CastInst(CI, Type::UIntTy, "node.lscasted", InsertPt);
+          CastInst *CastCIOp3 = 
+            new CastInst(CI->getOperand(3), Type::UIntTy, "node.lscasted", InsertPt);
+          Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
+                          CastCIOp3, "memsetadd",InsertPt);
+          
+          // Create instructions to cast the checked pointer and the checked pool
+          // into sbyte pointers.
+          CastInst *CastCI = 
+            new CastInst(Bop, 
+                         PointerType::get(Type::SByteTy), "node.lscasted", InsertPt);
+          CastInst *CastPHI = 
+            new CastInst(PH, 
+                         PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPt);
+          
+          // Create the call to poolcheck
+          std::vector<Value *> args(1,CastPHI);
+          args.push_back(CastCI);
+          new CallInst(PoolCheck,args,"", InsertPt);
+        }
+      }
+#endif
       continue;
     }
     GetElementPtrInst *GEP = cast<GetElementPtrInst>(*iCurrent);
