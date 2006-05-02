@@ -973,6 +973,10 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	string funcName = FCI->getName();
 	DEBUG(std::cerr << "Adding constraints for " << funcName << "\n");
 	reqArgs = false;
+#ifdef NO_STATIC_CHECK
+      	UnsafeGetElemPtrs.push_back(CI);
+	continue;
+#endif              
 	if (funcName == "read") {
 	  LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
 	  string varName = getValueName(CI->getOperand(2));
