@@ -390,7 +390,8 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
           Instruction *InsertPt = CI->getNext();
           if (!PH) {
-            NullChecks++;
+            ++NullChecks;
+            ++MissedNullChecks;
             continue;
           }
           CastInst *CastCIUint = 
