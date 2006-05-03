@@ -16,6 +16,9 @@ RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable Load/Store Checks"));
+cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
+                                cl::init(false),
+                                cl::desc("Disable Load/Store Checks"));
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
@@ -36,6 +39,8 @@ static Statistic<> MissChecks ("safecode",
 static Statistic<> PoolChecks ("safecode", "Poolchecks Added");
 static Statistic<> BoundChecks("safecode",
                                "Bounds checks inserted");
+static Statistic<> MissedIncompleteChecks ("safecode",
+                               "Poolchecks missed because of incompleteness");
 
 static Statistic<> MissedStackChecks  ("safecode", "Missed stack checks");
 static Statistic<> MissedGlobalChecks ("safecode", "Missed global checks");
@@ -173,6 +178,12 @@ void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
   DSNode * Node = TDG.getNodeForValue(V).getNode();
   
   if (Node && Node->isNodeCompletelyFolded()) {
+    if (!EnableIncompleteChecks) {
+      if (Node->isIncomplete()) {
+        ++MissedIncompleteChecks;
+        return;
+      }
+    }
     // Get the pool handle associated with this pointer.  If there is no pool
     // handle, use a NULL pointer value and let the runtime deal with it.
     Value *PH = getPoolHandle(V, F);
@@ -625,6 +636,14 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
 #endif
     }
+    //No checks for incomplete nodes 
+    if (!EnableIncompleteChecks) {
+      if (Node->isIncomplete()) {
+        ++MissedNullChecks;
+        continue;
+      }
+    }
+    
 
     //
     // We cannot insert an exactcheck().  Insert a pool check.
