@@ -94,8 +94,8 @@ extern "C" {
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
   void poolregister(PoolTy *Pool, unsigned NumBytes, void *allocaptr);
   void poolfree(PoolTy *Pool, void *Node);
-  void poolcheck(PoolTy *Pool, void *Node);
-  void* poolcheckoptim(PoolTy *Pool, void *Node);
+  void poolcheck(MetaPoolTy **Pool, void *Node);
+  void* poolcheckoptim(MetaPoolTy *Pool, void *Node);
   void poolstats() {
     fprintf(stderr, "pool mem usage %d\n",poolmemusage);
   }
@@ -118,7 +118,7 @@ extern "C" {
 
   void AddPoolDescToMetaPool(void **MetaPool, void *PoolDesc);
 
-  void poolcheckarray(PoolTy *Pool, void *Node, void * Node1);
+  void poolcheckarray(MetaPoolTy *Pool, void *Node, void * Node1);
 
 }
 

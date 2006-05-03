@@ -982,6 +982,49 @@ void* poolcheckoptim(PoolTy *Pool, void *Node) {
   }
 }
 
+
+void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
+  MetaPoolTy *MetaPool = *MP;
+  if (!MetaPool) {
+    printf("Empty meta pool? \n");
+    exit(-1);
+  }
+  //iteratively search through the list
+  //Check if there are other efficient data structures.
+  hash_set<void *>::iterator PTI = MetaPool->PoolTySet->begin(), PTE = MetaPool->PoolTySet->end();
+  PoolTy *srcPool = 0;
+  for (; PTI != PTE; ++PTI) {
+    PoolTy *Pool = (PoolTy *)*PTI;
+    PoolSlab *PS;
+    PS = (PoolSlab*)((unsigned long)NodeSrc & ~(PageSize-1));
+    if (Pool->prevPage[0] == PS) {
+      srcPool = Pool;
+    }
+    if (Pool->prevPage[1] == PS) {
+      srcPool = Pool;
+    }    
+    if (Pool->prevPage[2] == PS) {
+      srcPool = Pool;
+    }    
+    if (Pool->prevPage[3] == PS) {
+      srcPool = Pool;
+    }
+    if (poolcheckoptim(Pool, NodeSrc)) {
+      srcPool = Pool;
+    } else continue;
+    //Now check for reuslt
+    if (poolcheckoptim(srcPool, NodeResult)) {          
+        MetaPool->cachePool = srcPool;
+        return;
+    } else {
+        printf("source and dest belong to different pools\n");
+        exit(-1);
+    }
+  }
+  printf("poolcheck failure \n");
+  exit(-1);
+}
+
 void poolcheck(MetaPoolTy **MP, void *Node) {
   MetaPoolTy *MetaPool = *MP;
   if (!MetaPool) {
