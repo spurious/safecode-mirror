@@ -45,6 +45,7 @@ struct InsertPoolChecks : public ModulePass {
   TDDataStructures * TDPass;
 #endif  
   Function *PoolCheck;
+  Function *PoolCheckArray;
   Function *ExactCheck;
   Function *FunctionCheck;
   void addPoolCheckProto(Module &M);
