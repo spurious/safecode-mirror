@@ -118,6 +118,8 @@ extern "C" {
 
   void AddPoolDescToMetaPool(void **MetaPool, void *PoolDesc);
 
+  void poolcheckarray(PoolTy *Pool, void *Node, void * Node1);
+
 }
 
 #endif
