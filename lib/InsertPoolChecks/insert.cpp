@@ -447,10 +447,10 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
             new CastInst(CI->getOperand(1), 
-                         PointerType::get(Type::SByteTy), "memcpy.1.casted", InsertPt);
+                         PointerType::get(Type::SByteTy), "memset.1.casted", InsertPt);
           CastInst *CastCI = 
             new CastInst(Bop, 
-                         PointerType::get(Type::SByteTy), "node.lscasted", InsertPt);
+                         PointerType::get(Type::SByteTy), "memset.2.casted", InsertPt);
           CastInst *CastPHI = 
             new CastInst(PH, 
                          PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPt);
@@ -635,6 +635,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         DEBUG(std::cerr << " Global variable ok \n");
       }
     }
+    /*
     //No checks for incomplete nodes 
     if (!EnableIncompleteChecks) {
       if (Node->isIncomplete()) {
@@ -642,7 +643,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         continue;
       }
     }
-    
+    */
 
     //
     // We cannot insert an exactcheck().  Insert a pool check.
@@ -700,22 +701,22 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         continue;
       }
     }
-
+    Instruction *InsertPt = Casted->getNext();
     if (Casted->getType() != PointerType::get(Type::SByteTy)) {
       Casted = new CastInst(Casted,PointerType::get(Type::SByteTy),
-                            (Casted)->getName()+".pc2.casted",(Casted)->getNext());
+                            (Casted)->getName()+".pc2.casted",InsertPt);
     }
     Instruction *CastedPointerOperand = new CastInst(PointerOperand,
                                          PointerType::get(Type::SByteTy),
-                                         PointerOperand->getName()+".casted",(Casted)->getNext());
+                                         PointerOperand->getName()+".casted",InsertPt);
     Instruction *CastedPH = new CastInst(PH,
                                          PointerType::get(Type::SByteTy),
-                                         "ph",(Casted)->getNext());
+                                         "ph",InsertPt);
     std::vector<Value *> args(1, CastedPH);
     args.push_back(CastedPointerOperand);
     args.push_back(Casted);
     //Insert it
-    CallInst * newCI = new CallInst(PoolCheckArray,args, "",CastedPH->getNext());
+    CallInst * newCI = new CallInst(PoolCheckArray,args, "",InsertPt);
 #endif    
   }
 }
