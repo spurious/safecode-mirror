@@ -22,6 +22,9 @@ cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
+cl::opt<bool> DisableIntrinsicChecks ("disable-intrinchecks", cl::Hidden,
+                                      cl::init(false),
+                                      cl::desc("Disable Intrinsic Checks"));
 
 // Options for where to insert various initialization code
 cl::opt<string> InitFunctionName ("initfunc",
@@ -394,19 +397,24 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       //Right now I just add memset &llva_memcpy for LLVA
       //      std::cerr << " function call \n";
 #ifdef LLVA_KERNEL
-      if (CallInst *CI = dyn_cast<CallInst>(*iCurrent)) {
+      CallInst *CI = dyn_cast<CallInst>(*iCurrent);
+      if (CI && (!DisableIntrinsicChecks)) {
         Value *Fop = CI->getOperand(0);
         Function *F = CI->getParent()->getParent();
         if (Fop->getName() == "llva_memcpy") {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
-          Instruction *InsertPt = CI->getNext();
+          Instruction *InsertPt = CI;
           if (!PH) {
             ++NullChecks;
             ++MissedNullChecks;
+#if 0
             continue;
+#else
+            PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+#endif
           }
           CastInst *CastCIUint = 
-            new CastInst(CI, Type::UIntTy, "node.lscasted", InsertPt);
+            new CastInst(CI->getOperand(1), Type::UIntTy, "node.lscasted", InsertPt);
           CastInst *CastCIOp3 = 
             new CastInst(CI->getOperand(3), Type::UIntTy, "node.lscasted", InsertPt);
           Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
