@@ -12,16 +12,24 @@ using namespace llvm;
 extern Value *getRepresentativeMetaPD(Value *);
 RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
-// Options for Disabling the Insertion of Various Checks
+// Options for Enabling/Disabling the Insertion of Various Checks
+cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
+                                cl::init(false),
+                                cl::desc("Enable Checks on Incomplete Nodes"));
+
+cl::opt<bool> EnableNullChecks  ("enable-nullchecks", cl::Hidden,
+                                cl::init(false),
+                                cl::desc("Enable Checks on NULL Pools"));
+
+
 cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable Load/Store Checks"));
-cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Disable Load/Store Checks"));
+
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
+
 cl::opt<bool> DisableIntrinsicChecks ("disable-intrinchecks", cl::Hidden,
                                       cl::init(false),
                                       cl::desc("Disable Intrinsic Checks"));
@@ -198,11 +206,15 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
 #endif
     // FIXME: We cannot handle checks to global or stack positions right now.
     if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
-      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
       ++NullChecks;
       if (!PH) ++MissedNullChecks;
       if (Node->isAllocaNode()) ++MissedStackChecks;
       if (Node->isGlobalNode()) ++MissedGlobalChecks;
+
+      // Don't bother to insert the NULL check unless the user asked
+      if (!EnableNullChecks)
+        return;
+      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
     } else {
       //
       // Only add the pool check if the pool is a global value or it
@@ -410,11 +422,11 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           if (!PH) {
             ++NullChecks;
             ++MissedNullChecks;
-#if 0
-            continue;
-#else
+
+            // Don't bother to insert the NULL check unless the user asked
+            if (!EnableNullChecks)
+              continue;
             PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
-#endif
           }
           CastInst *CastCIUint = 
             new CastInst(CI->getOperand(1), Type::UIntTy, "node.lscasted", InsertPt);
@@ -440,12 +452,16 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
           new CallInst(PoolCheckArray,args,"", InsertPt);
+#if 0
         } else if (Fop->getName() == "memset") {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
           Instruction *InsertPt = CI->getNext();
           if (!PH) {
             NullChecks++;
-            continue;
+            // Don't bother to insert the NULL check unless the user asked
+            if (!EnableNullChecks)
+              continue;
+            PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
           }
           CastInst *CastCIUint = 
             new CastInst(CI, Type::UIntTy, "node.lscasted", InsertPt);
@@ -471,6 +487,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
           new CallInst(PoolCheckArray,args,"", InsertPt);
+#endif
         }
       }
 #endif
@@ -658,6 +675,9 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       if (!PH) ++MissedNullChecks;
       if (Node->isAllocaNode()) ++MissedStackChecks;
       if (Node->isGlobalNode()) ++MissedGlobalChecks;
+      // Don't bother to insert the NULL check unless the user asked
+      if (!EnableNullChecks)
+        continue;
       PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
       DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
