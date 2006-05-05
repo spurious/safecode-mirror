@@ -671,11 +671,17 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     //  Currently, we cannot register stack or global memory with pools.  If
     //  the node is from alloc() or is a global, do not insert a poolcheck.
     // 
+#if 0
     if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
+#else
+    if (!PH) {
+#endif
       ++NullChecks;
       if (!PH) ++MissedNullChecks;
+#if 0
       if (Node->isAllocaNode()) ++MissedStackChecks;
       if (Node->isGlobalNode()) ++MissedGlobalChecks;
+#endif
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
         continue;
