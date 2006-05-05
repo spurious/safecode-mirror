@@ -42,8 +42,11 @@ static Statistic<> MissChecks ("safecode",
 static Statistic<> PoolChecks ("safecode", "Poolchecks Added");
 static Statistic<> BoundChecks("safecode",
                                "Bounds checks inserted");
+
 static Statistic<> MissedIncompleteChecks ("safecode",
                                "Poolchecks missed because of incompleteness");
+static Statistic<> MissedMultDimArrayChecks ("safecode",
+                                             "Multi-dimensional array checks");
 
 static Statistic<> MissedStackChecks  ("safecode", "Missed stack checks");
 static Statistic<> MissedGlobalChecks ("safecode", "Missed global checks");
@@ -574,17 +577,6 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     GetElementPtrInst *GEPNew = GEP;
     Instruction *Casted = GEP;
 
-    //
-    // If the pool handle is a NULL pointer, don't bother inserting the
-    // check.
-    //
-#if 0
-    if (PH && isa<ConstantPointerNull>(PH)) {
-      ++NullChecks;
-      continue;
-    }
-#endif
-
     DSGraph & TDG = TDPass->getDSGraph(*F);
     DSNode * Node = TDG.getNodeForValue(GEP).getNode();
 
@@ -639,6 +631,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           //Handle Multi dimensional cases later
           std::cerr << "WARNING: Handle multi dimensional globals later\n";
           (*iCurrent)->dump();
+          ++MissedMultDimArrayChecks;
         }
         DEBUG(std::cerr << " Global variable ok \n");
       }
