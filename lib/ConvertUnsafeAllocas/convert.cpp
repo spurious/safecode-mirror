@@ -23,7 +23,6 @@ static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
   return (dsmtI->second.count(bb2) != 0);
 }
 
-#define LLVA_KERNEL 1
 //
 // Statistics
 //
