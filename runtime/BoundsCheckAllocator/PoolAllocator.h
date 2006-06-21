@@ -36,7 +36,7 @@ struct NormalPoolTraits {
   typedef unsigned long NodeHeaderType;
   enum {
     UseLargeArrayObjects = 1,
-    CanGrowPool = 1,
+    CanGrowPool = 1
   };
 
   // Pointers are just pointers.
@@ -68,7 +68,7 @@ struct CompressedPoolTraits {
 
   enum {
     UseLargeArrayObjects = 0,
-    CanGrowPool = 0,
+    CanGrowPool = 0
   };
 
   // Represent pointers with indexes from the pool base.
