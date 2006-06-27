@@ -178,6 +178,13 @@ struct PoolTy {
 };
 
 extern "C" {
+  void exactcheck(int a, int b) {
+    if ((0 > a) || (a >= b)) {
+      fprintf(stderr, "exact check failed\n");
+      exit(-1);
+    }
+  }
+
   void poolinit(PoolTy<NormalPoolTraits> *Pool,
                 unsigned DeclaredSize, unsigned ObjAlignment);
   void poolmakeunfreeable(PoolTy<NormalPoolTraits> *Pool);
