@@ -62,6 +62,13 @@ dnl **************************************************************************
 dnl * Enable various compile-time options
 dnl **************************************************************************
 
+dnl --enable-llva-kernel: compile SAFECode for use with LLVA kernels
+AC_ARG_ENABLE(kernel,
+  AS_HELP_STRING(--enable-kernel,
+                 [Use SAFECode for use with Linux Kernel (default is NO)]),
+                  AC_DEFINE(LLVA_KERNEL,[[1]]),
+                  )
+
 dnl **************************************************************************
 dnl * Set the location of various third-party software packages
 dnl **************************************************************************
@@ -85,5 +92,5 @@ dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************
 
-dnl This must be last
+AC_CONFIG_HEADERS(include/safecode/Config/config.h)
 AC_OUTPUT
