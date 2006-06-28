@@ -19,9 +19,9 @@ PA_SO    := /mounts/choi/disks/0/localhome/criswell/llvm/projects/arrayboundsche
 
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
-#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
+#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
+PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
 #PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
@@ -46,8 +46,7 @@ OPTZN_PASSES :=
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_SC_STATS) -boundscheck $(OPTZN_PASSES) $< -o $@.tmp.bc -f 2>&1 > $@.out
-	-$(GCCLD) $@.tmp.bc $(PA_RT_O) -o $(basename $@)
+	-$(OPT_SC_STATS) -boundscheck $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
@@ -70,7 +69,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 #
 $(PROGRAMS_TO_TEST:%=Output/%.abc.cbe): \
 Output/%.abc.cbe: Output/%.abc.cbe.c $(PA_RT_O)
-	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) $(PA_RT_O) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe): \
 Output/%.nonsc.cbe: Output/%.nonsc.cbe.c $(PA_RT_O)
