@@ -42,30 +42,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 NORMAL_PROBLEM_SIZE_DIRS := \
    $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(NORMAL_PROBLEM_SIZE_DIRS))
 
-#
-# Problems for Pointer Compression
-#
-PCLARGE_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden/bh \
-   MultiSource/Benchmarks/Olden/bisort \
-   MultiSource/Benchmarks/Olden/em3d \
-   MultiSource/Benchmarks/Olden/power \
-   MultiSource/Benchmarks/llubenchmark \
-   MultiSource/Benchmarks/Ptrdist \
-   MultiSource/Benchmarks/MallocBench/cfrac
-
-PCLARGE_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(PCLARGE_PROBLEM_SIZE_DIRS))
-
-PCNORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden/perimeter \
-   MultiSource/Benchmarks/Olden/treeadd \
-   MultiSource/Benchmarks/Olden/tsp \
-   MultiSource/Benchmarks/Olden/voronoi
-
-PCNORMAL_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(PCNORMAL_PROBLEM_SIZE_DIRS))
-
 ##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
@@ -117,30 +93,6 @@ progabc::
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
-
-# Program tests for Pointer Compression
-progpc::
-	for dir in $(PCLARGE_PROBLEM_SIZE_DIRS); do \
-            (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   LARGE_PROBLEM_SIZE=1 report.html) \
-        done
-	for dir in $(PCNORMAL_PROBLEM_SIZE_DIRS); do \
-	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   report.html) \
-        done
-	@for dir in $(PCLARGE_PROBLEM_SIZE_DIRS); do \
-            (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=ptrcomp \
-                   LARGE_PROBLEM_SIZE=1 report) \
-        done
-	@for dir in $(PCNORMAL_PROBLEM_SIZE_DIRS); do \
-	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=ptrcomp \
-                   report) \
-        done
-	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 progperf::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
