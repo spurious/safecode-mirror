@@ -38,7 +38,7 @@ extern "C" {
  Splay *splay_nil(Splay *tree);
 
  void splay_delete_node(Splay *node);
-};
+}
 
 #define splay_traverse(ptr, list) \
   for (ptr = splay_first(list); ptr != splay_nil(list); ptr = splay_next(ptr))
