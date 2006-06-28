@@ -3,10 +3,12 @@
 // and updates the data structure analaysis accordingly
 // Needs abcpre abc and checkstack safety 
 
+#include "safecode/Config/config.h"
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instruction.h"
 #include "llvm/Support/CFG.h"
+#include "llvm/Analysis/Dominators.h"
 
 #include <iostream>
 
