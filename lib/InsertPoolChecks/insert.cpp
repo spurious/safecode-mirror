@@ -1,3 +1,4 @@
+#include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
