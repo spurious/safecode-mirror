@@ -194,7 +194,7 @@ static string makeNameProper(string x) {
   }
   if (tmp == "in") return "in__1";
   return tmp;
- };
+}
 
   /*
 static string getValueNames(const Value *V, Mangler *Mang) {
