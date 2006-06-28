@@ -9,8 +9,9 @@
 #define LLVM_EMBEC_H
 
 
+#include "safecode/Config/config.h"
 #include "llvm/Pass.h"
-#include "/home/vadve/dhurjati/llvm/projects/llvm-poolalloc/lib/PoolAllocate/PoolAllocate.h"
+#include "PoolAllocate.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/DerivedTypes.h"

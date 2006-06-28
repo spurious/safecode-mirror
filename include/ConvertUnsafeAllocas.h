@@ -5,6 +5,8 @@
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
 #include "llvm/Target/TargetData.h"
+#include "safecode/Config/config.h"
+
 namespace llvm {
 
 

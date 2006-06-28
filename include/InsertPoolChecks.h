@@ -1,14 +1,13 @@
 #ifndef INSERT_BOUNDS_H
 #define INSERT_BOUNDS_H
 
+#include "safecode/Config/config.h"
 #include "llvm/Pass.h"
 #include "ConvertUnsafeAllocas.h"
 
-//#define LLVA_KERNEL
-
 #ifndef LLVA_KERNEL
 #include "SafeDynMemAlloc.h"
-#include "/home/vadve/dhurjati/llvm/projects/poolalloc.safecode/lib/PoolAllocate/PoolAllocate.h"
+#include "PoolAllocate.h"
 #endif
 
 namespace llvm {
