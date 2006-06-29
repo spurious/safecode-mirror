@@ -60,7 +60,7 @@ private:
   //
   // This is a variable sized array, which has 2*NumNodesInSlab bits (rounded up
   // to 4 bytes).
-  unsigned NodeFlagsVector[];
+  unsigned NodeFlagsVector[1];
   
   bool isNodeAllocated(unsigned NodeNum) {
     return NodeFlagsVector[NodeNum/16] & (1 << (NodeNum & 15));
