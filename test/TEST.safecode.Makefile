@@ -20,8 +20,9 @@ PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
-#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
+PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
+#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
+#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 #PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
@@ -34,13 +35,6 @@ OPT_SC := $(LOPT) \
           -load $(PROJECT_DIR)/Debug/lib/libpointerchecks$(SHLIBEXT) \
           -load $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT) \
 
-
-          #-load $(PROJECT_DIR)/../llvm-poolalloc/Debug/lib/poolalloc$(SHLIBEXT) \
-          #-load $(PROJECT_DIR)/Debug/lib/libstackcheck$(SHLIBEXT) \
-          #-load $(PROJECT_DIR)/Debug/lib/libarrayboundcheck$(SHLIBEXT) \
-          #-load $(PROJECT_DIR)/Debug/lib/libconvert$(SHLIBEXT) \
-          #-load $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT) \
-          #-load $(PROJECT_DIR)/Debug/lib/libpointerchecks$(SHLIBEXT) \
 
 # OPT_SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
@@ -57,8 +51,7 @@ OPTZN_PASSES :=
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(GCCLD) $< $(PA_RT_O) -o $@.tmp
-	-$(OPT_SC_STATS) -abcpre -safecode $(OPTZN_PASSES) $@.tmp.bc -o $@ -f 2>&1 > $@.out
+	-$(OPT_SC_STATS) -abcpre -safecode $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
@@ -81,7 +74,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.cbe): \
 Output/%.safecode.cbe: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe): \
 Output/%.nonsc.cbe: Output/%.nonsc.cbe.c $(PA_RT_O)
