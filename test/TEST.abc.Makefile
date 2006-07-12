@@ -7,7 +7,8 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-CFLAGS = -O3 -fno-strict-aliasing -I/home/vadve/criswell/Downloads/SAFECode/include
+CFLAGS = -O3 -fno-strict-aliasing
+ABCFLAGS = -include /home/vadve/criswell/Downloads/SAFECode/lib/poolcheck.c -I/home/vadve/criswell/Downloads/SAFECode/include
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
@@ -72,7 +73,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 #
 $(PROGRAMS_TO_TEST:%=Output/%.abc.cbe): \
 Output/%.abc.cbe: Output/%.abc.cbe.c $(PA_RT_O)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) /home/vadve/criswell/Downloads/SAFECode/lib/poolcheck.c $(PA_RT_O) -o $@
+	-$(CC) $(CFLAGS) $(ABCFLAGS) $< $(LLCLIBS) $(LDFLAGS) $(PA_RT_O) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe): \
 Output/%.nonsc.cbe: Output/%.nonsc.cbe.c $(PA_RT_O)
