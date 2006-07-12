@@ -7,7 +7,7 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-CFLAGS = -O2 -fno-strict-aliasing
+CFLAGS = -O3 -fno-strict-aliasing -I/home/vadve/criswell/Downloads/SAFECode/include
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
@@ -15,21 +15,24 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD   =  $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 
 # Pool allocator pass shared object
-PA_SO    := /mounts/choi/disks/0/localhome/criswell/llvm/projects/arrayboundscheck/Debug/lib/libarrayboundscheck$(SHLIBEXT)
+PA_SO    := /home/vadve/criswell/Downloads/SAFECode/bin/boundschecker
 
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
+#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
+PA_RT_O  := /home/vadve/criswell/Downloads/SAFECode/lib/libpoolalloc_splay_rt.a
 
 # Command to run opt with the pool allocator pass loaded
-OPT_SC := $(LOPT) \
-          -load $(PROJECT_DIR)/../llvm-poolalloc/Debug/lib/poolalloc$(SHLIBEXT) \
-          -load $(PA_SO)
-
+OPT_SC := /home/vadve/criswell/Downloads/SAFECode/bin/boundschecker \
+          -poolalloc-force-simple-pool-init \
+          -poolalloc-force-all-poolfrees \
+          -poolalloc-add-pooldescs-globalstack-arrays \
+          -poolalloc-heuristic=AllNodes \
+          -poolalloc-keep-DSA-results
 
 # OPT_SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
@@ -46,7 +49,7 @@ OPTZN_PASSES :=
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_SC_STATS) -boundscheck $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_SC_STATS) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
@@ -69,7 +72,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 #
 $(PROGRAMS_TO_TEST:%=Output/%.abc.cbe): \
 Output/%.abc.cbe: Output/%.abc.cbe.c $(PA_RT_O)
-	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) $(PA_RT_O) -o $@
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) /home/vadve/criswell/Downloads/SAFECode/lib/poolcheck.c $(PA_RT_O) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe): \
 Output/%.nonsc.cbe: Output/%.nonsc.cbe.c $(PA_RT_O)
