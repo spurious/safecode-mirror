@@ -11,7 +11,7 @@
 
 #include "safecode/Config/config.h"
 #include "llvm/Pass.h"
-#include "PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/DerivedTypes.h"

@@ -7,7 +7,7 @@
 
 #ifndef LLVA_KERNEL
 #include "SafeDynMemAlloc.h"
-#include "PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #endif
 
 namespace llvm {
