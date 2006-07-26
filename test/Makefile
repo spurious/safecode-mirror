@@ -32,8 +32,7 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden/bh
-   #MultiSource/Benchmarks/Olden \
+   MultiSource/Benchmarks/Olden
    #MultiSource/Benchmarks/Ptrdist
    #MultiSource/Applications \
    #MultiSource/Benchmarks
