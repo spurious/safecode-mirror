@@ -28,7 +28,7 @@ include $(LLVM_SRC_ROOT)/Makefile.common
 
 # All of the code should additionally look inside the pool allocation source
 # code for include files
-CFLAGS   += -DSAFECODE -I$(POOLALLOC_SRCDIR)/lib/PoolAllocate -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
-CXXFLAGS += -DSAFECODE -I$(POOLALLOC_SRCDIR)/lib/PoolAllocate -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
-CPPFLAGS += -DSAFECODE -I$(POOLALLOC_SRCDIR)/lib/PoolAllocate -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
+CFLAGS   += -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
+CXXFLAGS += -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
+CPPFLAGS += -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include
 
