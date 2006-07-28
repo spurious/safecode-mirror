@@ -29,11 +29,22 @@ PA_RT_O  := /home/vadve/criswell/Downloads/SAFECode/lib/libpoolalloc_splay_rt.a
 
 # Command to run opt with the pool allocator pass loaded
 OPT_SC := /home/vadve/criswell/Downloads/SAFECode/bin/boundschecker \
+          -poolalloc-disable-alignopt \
+          -poolalloc-usetd-resolve  \
+          -budatastructures-update-from-globals \
           -poolalloc-force-simple-pool-init \
           -poolalloc-force-all-poolfrees \
           -poolalloc-add-pooldescs-globalstack-arrays \
+          -poolalloc-add-pooldescs-collapsed \
           -poolalloc-heuristic=AllNodes \
           -poolalloc-keep-DSA-results
+
+#OPT_SC := /home/vadve/criswell/Downloads/SAFECode/bin/boundschecker \
+          #-poolalloc-force-simple-pool-init \
+          #-poolalloc-force-all-poolfrees \
+          #-poolalloc-add-pooldescs-globalstack-arrays \
+          #-poolalloc-heuristic=AllNodes \
+          #-poolalloc-keep-DSA-results
 
 # OPT_SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
