@@ -19,6 +19,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "llvm/Support/CommandLine.h"
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -29,8 +30,15 @@
 
 using namespace llvm;
 using namespace ABC;
+
+namespace {
+  cl::opt<string> OmegaFilename("omegafile",
+                                cl::desc("Specify omega include filename"),
+                                cl::init(OMEGA_TMP_INCLUDE_FILE),
+                                cl::value_desc("filename"));
+}
 std::ostream &Out = std::cerr;
-std::ofstream includeOut(OMEGA_TMP_INCLUDE_FILE);
+std::ofstream includeOut;
 
 //The following are filled from the preprocess pass, since they require
 //fn passes
@@ -881,6 +889,7 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   
   initialize(M);
   /* printing preliminaries */
+  includeOut.open (OmegaFilename.c_str());
   outputDeclsForOmega(M);
   includeOut.close();
   //  out << "outputting decls for Omega done" <<endl;
