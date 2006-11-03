@@ -176,6 +176,7 @@ public :
 
 };
 
+#if 0
 // We dont want identifier names with ., space, -  in them. 
 // So we replace them with _
 static string makeNameProper(string x) {
@@ -195,6 +196,7 @@ static string makeNameProper(string x) {
   if (tmp == "in") return "in__1";
   return tmp;
 }
+#endif
 
   /*
 static string getValueNames(const Value *V, Mangler *Mang) {
