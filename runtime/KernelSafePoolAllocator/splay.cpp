@@ -245,7 +245,7 @@ Splay *splay_insert(Splay *tree, Jval key, Jval val, Splay *parent, int cmpval)
 
 Splay *splay_insert_ptr(Splay *tree, unsigned long key, Jval val)
 {
-  Splay *parent, *s;
+  Splay *parent;
   int cmpval;
 
   parent = splay_find_nearest_ptr(tree, key, &cmpval);
