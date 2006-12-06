@@ -29,7 +29,6 @@
 extern "C" {
 unsigned PageSize = 0;
 }
-extern unsigned poolmemusage;
 FILE *fd1; 
 void InitializePageManager() {
   if (!PageSize) {
@@ -68,9 +67,6 @@ static void *GetPages(unsigned NumPages) {
     assert(1 && "memalign failed \n");
   }
   DEBUG(printf("memalign returns %x for %d\n", Addr, NumPages);)
-    poolmemusage += NumPages * PageSize;
-  //  memset(Addr, 0xcc, NumPages *PageSize);
-  printf("memory usage statistic : %d\n", poolmemusage);
   //  fprintf(fd1, "memory usage statistic :%d  %d\n", getpid(), poolmemusage);
   //  fflush(fd1);
   return Addr;
