@@ -823,6 +823,7 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
 }
 */
 
+#if 0
 // SearchForContainingSlab - Do a brute force search through the list of
 // allocated slabs for the node in question.
 //
@@ -873,6 +874,7 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
   TheIndex = Idx;
   return PS;
 }
+#endif
 
 void* poolallocatorcheck(PoolTy *Pool, void *Node) {
   PoolSlab *PS = (PoolSlab*)((unsigned)Node & ~(PageSize-1));
