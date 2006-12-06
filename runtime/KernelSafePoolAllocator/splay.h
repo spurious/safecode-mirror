@@ -3,7 +3,7 @@
 // FIXME: This may not be the most efficient version of splay implementation
 // This may be updated with a different splay implementation in near future
 #ifndef _SPLAY_
-#define SPLAY
+#define _SPLAY_
 
 typedef unsigned long Jval ;
 

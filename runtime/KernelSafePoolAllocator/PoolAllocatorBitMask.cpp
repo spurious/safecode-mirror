@@ -18,18 +18,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
+#include "PoolCheck.h"
 #include "PageManager.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#define DEBUG(x) 
+#define DEBUG(x)
+#define POOLCHECK(x) x 
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
 //
 //===----------------------------------------------------------------------===//
-
+unsigned ArrayBoundsCheck = 1;
 
 // PoolSlab Structure - Hold multiple objects of the current node type.
 // Invariants: FirstUnused <= UsedEnd
@@ -37,7 +39,7 @@
 struct PoolSlab {
   PoolSlab **PrevPtr, *Next;
   bool isSingleArray;   // If this slab is used for exactly one array
-
+  PoolSlab * OrigSlab;
 private:
   // FirstUnused - First empty node in slab
   unsigned short FirstUnused;
@@ -59,29 +61,34 @@ private:
   //
   // This is a variable sized array, which has 2*NumNodesInSlab bits (rounded up
   // to 4 bytes).
-  unsigned NodeFlagsVector[1];
-
+  unsigned NodeFlagsVector1;
   bool isNodeAllocated(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     return NodeFlagsVector[NodeNum/16] & (1 << (NodeNum & 15));
   }
 
   void markNodeAllocated(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     NodeFlagsVector[NodeNum/16] |= 1 << (NodeNum & 15);
   }
 
   void markNodeFree(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     NodeFlagsVector[NodeNum/16] &= ~(1 << (NodeNum & 15));
   }
 
   void setStartBit(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     NodeFlagsVector[NodeNum/16] |= 1 << ((NodeNum & 15)+16);
   }
 
   bool isStartOfAllocation(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     return NodeFlagsVector[NodeNum/16] & (1 << ((NodeNum & 15)+16));
   }
   
   void clearStartBit(unsigned NodeNum) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
   }
 
@@ -132,6 +139,10 @@ public:
   // destroy - Release the memory for the current object.
   void destroy();
 
+
+  // Unmap - Release the memory for the current object.
+  void mprotect();
+  
   // isEmpty - This is a quick check to see if this slab is completely empty or
   // not.
   bool isEmpty() const { return UsedEnd == 0; }
@@ -150,10 +161,12 @@ public:
 
   // getElementAddress - Return the address of the specified element.
   void *getElementAddress(unsigned ElementNum, unsigned ElementSize) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     char *Data = (char*)&NodeFlagsVector[((unsigned)NumNodesInSlab+15)/16];
     return &Data[ElementNum*ElementSize];
   }
   const void *getElementAddress(unsigned ElementNum, unsigned ElementSize)const{
+    const unsigned * NodeFlagsVector = &NodeFlagsVector1;
     const char *Data =
       (const char *)&NodeFlagsVector[(unsigned)(NumNodesInSlab+15)/16];
     return &Data[ElementNum*ElementSize];
@@ -182,6 +195,7 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
   PoolSlab *PS = (PoolSlab*)AllocatePage();
 
   PS->NumNodesInSlab = NodesPerSlab;
+  PS->OrigSlab = PS; 
   PS->isSingleArray = 0;  // Not a single array!
   PS->FirstUnused = 0;    // Nothing allocated.
   PS->UsedBegin   = 0;    // Nothing allocated.
@@ -220,9 +234,20 @@ void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   PS->addToList((PoolSlab**)&Pool->LargeArrays);
 
   PS->isSingleArray = 1;
+  PS->OrigSlab = PS;
   PS->NumNodesInSlab = NumPages * PageSize;
   *(unsigned*)&PS->FirstUnused = NumPages;
   return PS->getElementAddress(0, 0);
+}
+void MprotectPage(void *pa, unsigned numPages);
+
+void PoolSlab::mprotect() {
+  if (isSingleArray) {
+      unsigned NumPages = *(unsigned*)&FirstUnused; 
+      MprotectPage((char*)this, NumPages);
+  }
+  else 
+    MprotectPage(this, 1);
 }
 
 void PoolSlab::destroy() {
@@ -445,6 +470,7 @@ void PoolSlab::freeElement(unsigned short ElementIdx) {
 unsigned PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
   // Check the last few nodes in the current word of flags...
   unsigned CurWord = ScanIdx/16;
+  unsigned * NodeFlagsVector = &NodeFlagsVector1;
   unsigned short Flags = NodeFlagsVector[CurWord] & 0xFFFF;
   if (Flags) {
     // Mask off nodes above this one
@@ -461,6 +487,7 @@ unsigned PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
   // Ok, the top word doesn't contain anything, scan the whole flag words now.
   --CurWord;
   while (CurWord != ~0U) {
+    unsigned * NodeFlagsVector = &NodeFlagsVector1;
     Flags = NodeFlagsVector[CurWord] & 0xFFFF;
     if (Flags) {
       // There must be a node allocated in this word!
@@ -525,7 +552,9 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
   }
 
   Pool->NumSlabs = 0;
-  Pool->splay = new_splay();
+  POOLCHECK(poolcheckinit(Pool, NodeSize);)
+  POOLCHECK(Pool->splay = new_splay();)
+  POOLCHECK(Pool->PCS = 0;)
   ///  Pool->Slabs = new hash_set<void*>;
   // Call hash_set constructor explicitly
   //   void *SlabPtr = &Pool->Slabs;
@@ -546,7 +575,7 @@ void pooldestroy(PoolTy *Pool) {
     Pool->Slabs->clear();
     delete Pool->Slabs;
   }
-  free_splay(Pool->splay);
+  POOLCHECK(free_splay(Pool->splay);)
   // Free any partially allocated slabs
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
   while (PS) {
@@ -571,6 +600,7 @@ void pooldestroy(PoolTy *Pool) {
     PS = Next;
   }
 
+  POOLCHECK(poolcheckdestroy(Pool);)
 }
 
 
@@ -598,6 +628,7 @@ static void *poolallocarray(PoolTy* Pool, unsigned Size) {
   }
   
   PoolSlab *New = PoolSlab::create(Pool);
+  POOLCHECK(poolcheckAddSlab(&Pool->PCS, New);)
   if (Pool->NumSlabs > AddrArrSize) {
     DEBUG(printf("new slab inserting %x \n", (void *)New);)
     Pool->Slabs->insert((void *)New);
@@ -619,25 +650,6 @@ static void *poolallocarray(PoolTy* Pool, unsigned Size) {
   return New->getElementAddress(0, 0);
 }
 
-void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
-  if (!Pool) {
-    abort();
-  }
-  DEBUG(printf("registering with %x address %x size %d\n", Pool, allocaptr, NumBytes);)
-  splay_insert_ptr(Pool->splay, (unsigned long)(allocaptr), NumBytes);
-}
-
-void AddPoolDescToMetaPool(MetaPoolTy **MP, PoolTy *P) {
-  MetaPoolTy  *MetaPool = *MP;
-  if (!MetaPool) {
-    MetaPool = *MP = (MetaPoolTy *) malloc(sizeof(MetaPoolTy));
-    MetaPool->PoolTySet = new hash_set<void *>;
-  }
-  MetaPool->cachePool = P;
-  MetaPool->PoolTySet->insert(P);
-}
-
-
 void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   //  return malloc(Size * Pool->NodeSize);
   void *retAddress = NULL;
@@ -654,6 +666,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (NodesToAllocate > 1) {
     retAddress = poolallocarray(Pool, NodesToAllocate);
     DEBUG(printf("poolalloc: Pool %x NodeSize %d retaddress %x numbytes %d\n",Pool, Pool->NodeSize, retAddress, NumBytes);)
+      POOLCHECK(poolcheckregister(Pool->splay, retAddress, NumBytes);)
     return retAddress;
   }
 
@@ -672,6 +685,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
       }
       retAddress = PS->getElementAddress(Element, NodeSize);
       DEBUG(printf("poolalloc: Pool %x NodeSize %d retaddress %x numbytes %d\n",Pool, Pool->NodeSize, retAddress, NumBytes);)
+      POOLCHECK(poolcheckregister(Pool->splay, retAddress, NumBytes);)
       return retAddress;
     }
 
@@ -685,9 +699,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           PS->unlinkFromList();
           PS->addToList((PoolSlab**)&Pool->Ptr2);
         }
-        
 	retAddress = PS->getElementAddress(Element, NodeSize);
 	DEBUG(printf("poolalloc: Pool %x NodeSize %d retaddress %x numbytes %d\n",Pool, Pool->NodeSize, retAddress, NumBytes);)
+        POOLCHECK(poolcheckregister(Pool->splay, retAddress, NumBytes);)
 	return retAddress;
       }
     }
@@ -695,6 +709,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
   // Otherwise we must allocate a new slab and add it to the list
   PoolSlab *New = PoolSlab::create(Pool);
+  POOLCHECK(poolcheckAddSlab(&Pool->PCS, New);)
   
   if (Pool->NumSlabs > AddrArrSize)
     Pool->Slabs->insert((void *)New);
@@ -714,6 +729,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
   retAddress = New->getElementAddress(0, 0);
   DEBUG(printf("poolalloc: Pool %x NodeSize %d retaddress %x numbytes %d\n",Pool, Pool->NodeSize, retAddress, NumBytes);)
+  POOLCHECK(poolcheckregister(Pool->splay, retAddress, NumBytes);)
   return retAddress;
 }
 
@@ -858,7 +874,7 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
   return PS;
 }
 
-void* poolcheckoptim(PoolTy *Pool, void *Node) {
+void* poolallocatorcheck(PoolTy *Pool, void *Node) {
   PoolSlab *PS = (PoolSlab*)((unsigned)Node & ~(PageSize-1));
 
   if (Pool->NumSlabs > AddrArrSize) {
@@ -982,7 +998,7 @@ void* poolcheckoptim(PoolTy *Pool, void *Node) {
   }
 }
 
-
+/*
 void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
   MetaPoolTy *MetaPool = *MP;
   if (!MetaPool) {
@@ -1024,200 +1040,6 @@ void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
   printf("poolcheck failure \n");
   exit(-1);
 }
-
-void poolcheck(MetaPoolTy **MP, void *Node) {
-  MetaPoolTy *MetaPool = *MP;
-  if (!MetaPool) {
-    printf("Empty meta pool? \n");
-    exit(-1);
-  }
-  //    iteratively search through the list
-  //Check if there are other efficient data structures.
-  hash_set<void *>::iterator PTI = MetaPool->PoolTySet->begin(), PTE = MetaPool->PoolTySet->end();
-  for (; PTI != PTE; ++PTI) {
-    PoolTy *Pool = (PoolTy *)*PTI;
-    PoolSlab *PS;
-    PS = (PoolSlab*)((unsigned long)Node & ~(PageSize-1));
-    if (Pool->prevPage[0] == PS) {
-      return;
-    }
-    if (Pool->prevPage[1] == PS) {
-      return;
-    }    
-    if (Pool->prevPage[2] == PS) {
-      return;
-    }    
-    if (Pool->prevPage[3] == PS) {
-      return;
-    }    
-    if (poolcheckoptim(Pool, Node)) {
-      MetaPool->cachePool = Pool;
-      return;
-    }
-  }
-  printf("poolcheck failure \n");
-  exit(-1);
-}
-
-
-
-// Check that Node falls within the pool and within start and (including)
-// end offset
-void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
-		    unsigned EndOffset) {
-  PoolSlab *PS;
-  if (StartOffset >= Pool->NodeSize || EndOffset >= Pool->NodeSize) {
-    printf("Error: Offset specified exceeded node size");
-    exit(-1);
-  }
-  /*
-  if (Pool->AllocadPool > 0) {
-    if (Pool->allocaptr <= Node) {
-     unsigned diffPtr = (unsigned)Node - (unsigned)Pool->allocaptr;
-     unsigned offset = diffPtr % Pool->NodeSize;
-     if ((diffPtr  < Pool->AllocadPool ) && (offset >= StartOffset) &&
-	 (offset <= EndOffset))
-       return;
-    }
-    assert(0 && "poolcheckalign failure FAILING \n");
-    exit(-1);    
-  }
-  */
-  PS = (PoolSlab*)((long)Node & ~(PageSize-1));
-
-  if (Pool->NumSlabs > AddrArrSize) {
-    hash_set<void*> &theSlabs = *Pool->Slabs;
-    if (theSlabs.find((void*)PS) == theSlabs.end()) {
-      // Check the LargeArrays
-      if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	
-	if (Idx == -1) {
-	  printf("poolcheck1: node being checked not found in pool with right"
-		 " alignment\n");
-	  abort();
-	  exit(-1);
-	} else {
-	  //exit(-1);
-	}
-      } else {
-	printf("poolcheck2: node being checked not found in pool with right"
-	       " alignment\n");
-	abort();
-	exit(-1);
-      }
-    } else {
-      unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
-      if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	abort();
-	exit(-1);
-      }
-      unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
-      if ((offset < StartOffset) || (offset > EndOffset)) {
-	printf("poolcheck3: node being checked does not have right alignment\n");
-	abort();
-	exit(-1);
-      }
-      Pool->prevPage[Pool->lastUsed] = PS;
-      Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-    }
-  } else {
-    bool found = false;
-    for (unsigned i = 0; i < AddrArrSize && !found; ++i) {
-      if ((unsigned)Pool->SlabAddressArray[i] == (unsigned) PS) {
-	found = true;
-	Pool->prevPage[Pool->lastUsed] = PS;
-	Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-      }
-    } 
-
-    if (found) {
-      // Check that Node does not point to PoolSlab meta-data
-      unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
-      if (startaddr > (unsigned long) Node) {
-	printf("poolcheck: node being checked points to meta-data \n");
-	exit(-1);
-      }
-      unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
-      if ((offset < StartOffset) || (offset > EndOffset)) {
-	printf("poolcheck4: node being checked does not have right alignment\n");
-	abort();
-	exit(-1);
-      }	
-    } else {
-      // Check the LargeArrays
-      if (Pool->LargeArrays) {
-	PoolSlab *PSlab = (PoolSlab*) Pool->LargeArrays;
-	int Idx = -1;
-	while (PSlab) {
-	  assert(PSlab && "poolcheck: node being free'd not found in "
-		 "allocation pool specified!\n");
-	  Idx = PSlab->containsElement(Node, Pool->NodeSize);
-	  if (Idx != -1) {
-	    Pool->prevPage[Pool->lastUsed] = PS;
-	    Pool->lastUsed = (Pool->lastUsed + 1) % 4;
-	    break;
-	  }
-	  PSlab = PSlab->Next;
-	}
-	if (Idx == -1) {
-	  printf("poolcheck6: node being checked not found in pool with right"
-		 " alignment\n");
-	  abort();
-	  exit(-1);
-	}	  
-      } else {
-	printf("poolcheck5: node being checked not found in pool with right"
-	       " alignment %p %p\n",Pool,Node);
-	abort();
-      }
-    }
-  }
-
-}
-
-
-/*
-void poolcheck(PoolTy *Pool, void *Node) {
-  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  unsigned NodeSize = Pool->NodeSize;
-
-  // Search the partially allocated slab list for the slab that contains this
-  // node.
-  int Idx = -1;
-  if (PS) {               // Pool->Ptr1 could be null if Ptr2 isn't
-    for (; PS; PS = PS->Next) {
-      Idx = PS->containsElement(Node, NodeSize);
-      if (Idx != -1) break;
-    }
-  }
-
-  // If the partially allocated slab list doesn't contain it, maybe the
-  // completely allocated list does.
-  if (PS == 0) {
-    PS = (PoolSlab*)Pool->Ptr2;
-    while (1) {
-      assert(PS && "poolcheck: node being checked not found in pool "
-             " specified!\n");
-      Idx = PS->containsElement(Node, NodeSize);
-      if (Idx != -1) break;
-      PS = PS->Next;
-    }
-  }
-}
 */
 
 void poolfree(PoolTy *Pool, void *Node) {
@@ -1225,7 +1047,7 @@ void poolfree(PoolTy *Pool, void *Node) {
   DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
   PoolSlab *PS;
   int Idx;
-  PS = (PoolSlab *)poolcheckoptim(Pool, Node);
+  PS = (PoolSlab *)poolallocatorcheck(Pool, Node);
   assert(PS && "poolfree the element not in pool ");
   if (PS->isSingleArray) {
     PS->unlinkFromList();
@@ -1262,6 +1084,7 @@ void poolfree(PoolTy *Pool, void *Node) {
   } 
   Idx = PS->containsElement(Node, Pool->NodeSize);
   assert((Idx != -1) && " node not present, it should have aborted ");
+
   // If PS was full, it must have been in list #2.  Unlink it and move it to
   // list #1.
   if (PS->isFull()) {
@@ -1307,3 +1130,29 @@ void poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
 }
+
+
+  void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
+    if (Node == 0) return poolalloc(Pool, NumBytes);
+    if (NumBytes == 0) {
+      poolfree(Pool, Node);
+      return 0;
+    }
+    void *New = poolalloc(Pool, NumBytes);
+    //    unsigned Size =
+    //FIXME the following may not work in all cases  
+    memcpy(New, Node, NumBytes);
+    poolfree(Pool, Node);
+    return New;
+  }
+
+  void poolregister(PoolTy *Pool, void *allocadptr, unsigned NumBytes) {
+    POOLCHECK(poolcheckregister(Pool->splay, allocadptr, NumBytes);)
+  }
+  PoolCheckSlab *poolcheckslab(void *Pool) {
+    return ((PoolTy *)Pool)->PCS;
+  }
+
+  Splay *poolchecksplay(void *Pool) {
+    return ((PoolTy *)Pool)->splay;
+  }
