@@ -72,8 +72,6 @@ extern "C" {
 
   //Extra functions for poolcheck
   void poolregister(PoolTy *Pool, void *allocadptr, unsigned NumBytes);
-  PoolCheckSlab *poolcheckslab(void *Pool);
-  Splay *poolchecksplay(void *Pool);
 }
 
 #endif
