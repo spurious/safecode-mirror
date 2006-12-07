@@ -14,10 +14,8 @@
 
 #ifndef POOLCHECK_RUNTIME_H
 #define POOLCHECK_RUNTIME_H
-#include "Support/hash_set"
-#include "splay.h"
-#include <stdarg.h>
 
+#include "splay.h"
 
 typedef struct PoolCheckSlab {
   void *Slab;

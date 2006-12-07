@@ -14,10 +14,10 @@
 
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
+
+#include "llvm/ADT/hash_set"
 #include "PoolCheck.h"
-#include "Support/hash_set"
 #include "splay.h"
-#include <stdarg.h>
 
 #define AddrArrSize 2
 #define POOLCHECK(x) x

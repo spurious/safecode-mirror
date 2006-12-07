@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdarg.h>
 #define DEBUG(x) 
 
 //===----------------------------------------------------------------------===//
@@ -120,7 +121,6 @@ void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
 
 void poolcheck(MetaPoolTy **MP, void *Node) {
   MetaPoolTy *MetaPool = *MP;
-  void *Pool;
   if (!MetaPool) {
     printf("Empty meta pool? \n");
     exit(-1);
