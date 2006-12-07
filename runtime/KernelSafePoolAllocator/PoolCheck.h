@@ -40,6 +40,10 @@ extern "C" {
   void poolcheckinit(void *Pool, unsigned NodeSize);
   void poolcheckdestroy(void *Pool);
   void poolcheckfree(void *Pool, void *Node);
+
+  // Functions that need to be provided by the pool allocation run-time
+  PoolCheckSlab *poolcheckslab(void *Pool);
+  Splay *poolchecksplay(void *Pool);
 }
 
 #endif
