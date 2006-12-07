@@ -46,6 +46,8 @@ extern "C" {
   // Functions that need to be provided by the pool allocation run-time
   PoolCheckSlab *poolcheckslab(void *Pool);
   Splay *poolchecksplay(void *Pool);
+  void poolcheckfail (const char * msg);
+  void * poolcheckmalloc (unsigned int size);
 #ifdef __cpluscplus
 }
 #endif

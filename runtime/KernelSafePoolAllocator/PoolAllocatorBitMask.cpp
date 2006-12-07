@@ -1158,3 +1158,13 @@ void poolfree(PoolTy *Pool, void *Node) {
   Splay *poolchecksplay(void *Pool) {
     return ((PoolTy *)Pool)->splay;
   }
+
+  void poolcheckfail (const char * msg) {
+    fprintf (stderr, msg);
+    fflush (stderr);
+    exit (-1);
+  }
+
+  void * poolcheckmalloc (unsigned int size) {
+    return malloc (size);
+  }

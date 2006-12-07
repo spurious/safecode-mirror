@@ -18,11 +18,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolCheck.h"
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#ifdef LLVA_KERNEL
 #include <stdarg.h>
+#endif
 #define DEBUG(x) 
 
 //===----------------------------------------------------------------------===//
@@ -47,7 +45,7 @@ void AddPoolDescToMetaPool(MetaPoolTy **MP, void *P) {
   if (MetaPool) {
     MetaPool = MetaPool->next;
   } else {
-    *MP = (MetaPoolTy *) malloc(sizeof(MetaPoolTy));
+    *MP = (MetaPoolTy *) poolcheckmalloc (sizeof(MetaPoolTy));
     (*MP)->Pool = P;
     (*MP)->next = 0;
     return;
@@ -57,7 +55,7 @@ void AddPoolDescToMetaPool(MetaPoolTy **MP, void *P) {
     MetaPoolPrev = MetaPool;
   }
   //MetaPool is null;
-  MetaPoolPrev->next = (MetaPoolTy *) malloc(sizeof(MetaPoolTy));
+  MetaPoolPrev->next = (MetaPoolTy *) poolcheckmalloc (sizeof(MetaPoolTy));
   MetaPoolPrev->next->Pool = P;
   MetaPoolPrev->next->next = 0;
 }
@@ -104,8 +102,7 @@ bool poolcheckarrayoptim(void *Pool, void *NodeSrc, void *NodeResult) {
 void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
   MetaPoolTy *MetaPool = *MP;
   if (!MetaPool) {
-    printf("Empty meta pool? \n");
-    exit(-1);
+    poolcheckfail ("Empty meta pool? \n");
   }
   //iteratively search through the list
   //Check if there are other efficient data structures.
@@ -114,15 +111,13 @@ void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
     if (poolcheckarrayoptim(Pool, NodeSrc, NodeResult)) return ;
     MetaPool = MetaPool->next;
   }
-  printf("poolcheck failure \n");
-  exit(-1);
+  poolcheckfail ("poolcheck failure \n");
 }
 
 void poolcheck(MetaPoolTy **MP, void *Node) {
   MetaPoolTy *MetaPool = *MP;
   if (!MetaPool) {
-    printf("Empty meta pool? \n");
-    exit(-1);
+    poolcheckfail ("Empty meta pool? \n");
   }
   //    iteratively search through the list
   //Check if there are other efficient data structures.
@@ -132,8 +127,7 @@ void poolcheck(MetaPoolTy **MP, void *Node) {
     if (poolcheckoptim(Pool, Node))   return;
     MetaPool = MetaPool->next;
   }
-  printf("poolcheck failure \n");
-  exit(-1);
+  poolcheckfail ("poolcheck failure \n");
 }
 
 
@@ -143,7 +137,7 @@ void poolcheckAddSlab(PoolCheckSlab **PCSPtr, void *Slab) {
   if (PCS) {
     PCS = PCS->nextSlab;
   } else {
-    *PCSPtr = (PoolCheckSlab *) malloc(sizeof(PoolCheckSlab));
+    *PCSPtr = (PoolCheckSlab *) poolcheckmalloc (sizeof(PoolCheckSlab));
     (*PCSPtr)->Slab = Slab;
     (*PCSPtr)->nextSlab = 0;
     return;
@@ -153,7 +147,7 @@ void poolcheckAddSlab(PoolCheckSlab **PCSPtr, void *Slab) {
     PCSPrev = PCS;
   }
   //PCS is null;
-  PCSPrev->nextSlab = (PoolCheckSlab *) malloc(sizeof(PoolCheckSlab));
+  PCSPrev->nextSlab = (PoolCheckSlab *) poolcheckmalloc (sizeof(PoolCheckSlab));
   PCSPrev->nextSlab->Slab = Slab;
   PCSPrev->nextSlab->nextSlab = 0;
 }
@@ -161,11 +155,15 @@ void poolcheckAddSlab(PoolCheckSlab **PCSPtr, void *Slab) {
 
   void exactcheck(int a, int b) {
     if ((0 > a) || (a >= b)) {
-      fprintf(stderr, "exact check failed\n");
-      exit(-1);
+      poolcheckfail ("exact check failed\n");
     }
   }
 
+  //
+  // Disable this for kernel code.  I'm not sure how kernel code handles
+  // va_list type functions.
+  //
+#ifdef LLVA_KERNEL
   void funccheck(unsigned num, void *f, void *g, ...) {
     va_list ap;
     unsigned i = 0;
@@ -180,6 +178,7 @@ void poolcheckAddSlab(PoolCheckSlab **PCSPtr, void *Slab) {
     }
     abort();
   }
+#endif
 
   void poolcheckregister(Splay *splay, void * allocaptr, unsigned NumBytes) {
     splay_insert_ptr(splay, (unsigned long)(allocaptr), NumBytes);
