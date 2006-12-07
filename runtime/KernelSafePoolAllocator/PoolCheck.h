@@ -28,7 +28,9 @@ typedef struct MetaPoolTy {
 } MetaPoolTy;
 
 
+#ifdef __cpluscplus
 extern "C" {
+#endif
   //register that starting from allocaptr numbytes are a part of the pool
   void poolcheck(MetaPoolTy **Pool, void *Node);
   bool poolcheckoptim(void *Pool, void *Node);
@@ -44,6 +46,8 @@ extern "C" {
   // Functions that need to be provided by the pool allocation run-time
   PoolCheckSlab *poolcheckslab(void *Pool);
   Splay *poolchecksplay(void *Pool);
+#ifdef __cpluscplus
 }
+#endif
 
 #endif

@@ -2,6 +2,7 @@
 // http://www.cs.utk.edu/~cs140/spring-2005/notes/Splay/
 // FIXME: This may not be the most efficient version of splay implementation
 // This may be updated with a different splay implementation in near future
+
 #ifndef _SPLAY_
 #define _SPLAY_
 
@@ -23,7 +24,9 @@ typedef struct splay {
   struct splay *parent;
 } Splay;
 
+#ifdef __cpluscplus
 extern "C" {
+#endif
  Splay *new_splay();
  void free_splay(Splay *);
  Splay *splay_insert_ptr(Splay *tree, unsigned long key, Jval val);
@@ -38,7 +41,9 @@ extern "C" {
  Splay *splay_nil(Splay *tree);
 
  void splay_delete_node(Splay *node);
+#ifdef __cpluscplus
 }
+#endif
 
 #define splay_traverse(ptr, list) \
   for (ptr = splay_first(list); ptr != splay_nil(list); ptr = splay_next(ptr))
