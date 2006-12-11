@@ -176,10 +176,9 @@ public :
 
 };
 
-#if 0
 // We dont want identifier names with ., space, -  in them. 
 // So we replace them with _
-static string makeNameProper(string x) {
+static inline string makeNameProper(string x) {
   string tmp;
   int len = 0;
   for (string::iterator sI = x.begin(), sEnd = x.end(); sI != sEnd; sI++) {
@@ -196,7 +195,6 @@ static string makeNameProper(string x) {
   if (tmp == "in") return "in__1";
   return tmp;
 }
-#endif
 
   /*
 static string getValueNames(const Value *V, Mangler *Mang) {

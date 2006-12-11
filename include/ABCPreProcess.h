@@ -19,7 +19,7 @@ namespace ABC {
   DominanceFrontier * df;
   DominatorSet *ds;
   PostDominatorSet *pds;
-  void print(ostream &out);
+  virtual void print(ostream &out, const Module * M) const;
   void indVariables(Loop *L);
 
   public :

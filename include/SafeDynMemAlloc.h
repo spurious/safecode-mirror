@@ -34,6 +34,15 @@ using namespace PA;
 #endif
 Pass* createEmbeCFreeRemovalPass();
 
+namespace {
+  static const std::string PoolI = "poolinit";
+  static const std::string PoolA = "poolalloc";
+  static const std::string PoolF = "poolfree";
+  static const std::string PoolD = "pooldestroy";
+  static const std::string PoolMUF = "poolmakeunfreeable";
+  static const std::string PoolCh = "poolcheck";
+  static const std::string PoolAA = "poolregister";
+}
 
 namespace llvm {
 
@@ -46,14 +55,7 @@ namespace llvm {
 
     bool runOnModule(Module &M);
     std::vector<Value *> Visited;
-    static const std::string PoolI;
-    static const std::string PoolA;
-    static const std::string PoolAA;
-    static const std::string PoolF;
-    static const std::string PoolD;
-    static const std::string PoolMUF;
-    static const std::string PoolCh;
-    
+
     void checkPoolSSAVarUses(Function *F, Value *V, 
 			     map<Value *, set<Instruction *> > &FuncAllocs, 
 			     map<Value *, set<Instruction *> > &FuncFrees, 
@@ -104,13 +106,6 @@ namespace llvm {
     map<Function *, set<Value *> > FuncDestroyedPools;
 
   };  
-  const std::string EmbeCFreeRemoval::PoolI = "poolinit";
-  const std::string EmbeCFreeRemoval::PoolA = "poolalloc";
-  const std::string EmbeCFreeRemoval::PoolF = "poolfree";
-  const std::string EmbeCFreeRemoval::PoolD = "pooldestroy";
-  const std::string EmbeCFreeRemoval::PoolMUF = "poolmakeunfreeable";
-  const std::string EmbeCFreeRemoval::PoolCh = "poolcheck";
-  const std::string EmbeCFreeRemoval::PoolAA = "poolregister";
 }
 
 #endif
