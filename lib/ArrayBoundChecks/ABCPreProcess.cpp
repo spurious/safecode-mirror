@@ -21,7 +21,7 @@ PostDominatorSet::DomSetMapType pdsmt;
 PostDominanceFrontier::DomSetMapType pdfmt;
 DominanceFrontier::DomSetMapType dfmt;
 
-void ABCPreProcess::print(ostream &out) {
+void ABCPreProcess::print(ostream &out, const Module * M) const {
   out << " Printing phi nodes which are induction variables ... \n";
   IndVarMap::iterator ivCurrent = indMap.begin(), ivEnd = indMap.end();
   for (; ivCurrent != ivEnd; ++ivCurrent) {
@@ -53,7 +53,7 @@ bool ABCPreProcess::runOnFunction(Function &F) {
     DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
     for (; dstI != dstE; ++ dstI) {
       //Could this be optimized with stl version of set copy?
-      BasicBlock *bb = pdfmI->first;
+      pdfmI->first;
       pdfmt[pdfmI->first].insert(*dstI);
     }
   }
@@ -65,7 +65,7 @@ bool ABCPreProcess::runOnFunction(Function &F) {
     DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
     for (; dstI != dstE; ++ dstI) {
       //Could this be optimized with stl version of set copy?
-      BasicBlock *bb = dfmI->first;
+      dfmI->first;
       dfmt[dfmI->first].insert(*dstI);
     }
   }
@@ -104,7 +104,7 @@ bool ABCPreProcess::runOnFunction(Function &F) {
   return false;
 }
 
-RegisterOpt<ABCPreProcess> Y("abcpre",
+RegisterPass<ABCPreProcess> Y("abcpre",
                               "Array Bounds Checking preprocess pass");
 
 Pass *createABCPreProcessPass() { return new ABCPreProcess(); }

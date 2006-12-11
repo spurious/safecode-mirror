@@ -72,7 +72,7 @@ static bool reqArgs = false;
 static bool fromMalloc = false;
 
 //Interprocedural ArrayBoundsCheck pass
-RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
+RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
 
  void ArrayBoundsCheck::initialize(Module &M) {
@@ -205,7 +205,7 @@ RegisterOpt<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
   const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-  const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -317,7 +317,6 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
         bool dominated = false; 
         bool rdominated = true; //to check if this dominates every other node
         for (; pCurrent != pEnd; ++pCurrent) {
-          BasicBlock *debugBlock = *pCurrent;
           if (*pCurrent == currentBlock) {
             rdominated = rdominated & true;
             continue;
@@ -373,7 +372,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   // adds constraints for known functions 
   ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-    const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+    const ConstantInt * signedzero = ConstantInt::get(csiType,0);
     string var = "0";
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
     ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -396,7 +395,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
       const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-      const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+      const ConstantInt * signedzero = ConstantInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -444,7 +443,6 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   //for the function that is cal ling this 
   void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
     string var;
-    LinearExpr *et;
     if ( Instruction *I = dyn_cast<Instruction>(v)) {
     
       Function* func = I->getParent()->getParent();
@@ -491,7 +489,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
 	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	  const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+	  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
 	  LinearExpr *l2 = new LinearExpr(signedzero, Mang);
 	  Constraint *c2 = new Constraint(var, l2, ">=");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
@@ -522,7 +520,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
 	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	  const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+	  const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -557,8 +555,8 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	    if (GEP->getNumOperands() == 4) {
 	      if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
 		int elSize = aType->getNumElements();
-		if (const ConstantSInt *CSI = dyn_cast<ConstantSInt>(I->getOperand(3))) {
-		  elSize = elSize - CSI->getValue();
+		if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(3))) {
+		  elSize = elSize - CSI->getSExtValue();
 		  if (elSize == 0) {
 		  //Dirty HACK, this doesnt work for more than 2 arrays in a struct!!
 		    if (const ArrayType *aType2 = dyn_cast<ArrayType>(stype->getContainedType(1))) {
@@ -566,7 +564,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 		    }
 		  }
 		  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		  const ConstantSInt * signedOne = ConstantSInt::get(csiType,elSize);
+		  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
 		}
@@ -594,14 +592,14 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	if (I->getNumOperands() == 3) {
 	  if (const PointerType *PT = dyn_cast<PointerType>(PointerOperand->getType())) {
 	    if (const ArrayType *AT = dyn_cast<ArrayType>(PT->getElementType())) {
-	      if (const ConstantSInt *CSI = dyn_cast<ConstantSInt>(I->getOperand(1))) {
-		if (CSI->getValue() == 0) {
-		  if (const ConstantSInt *CSI2 = dyn_cast<ConstantSInt>(I->getOperand(2))) {
-		    if (CSI2->getValue() == 0) {
+	      if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(1))) {
+		if (CSI->getSExtValue() == 0) {
+		  if (const ConstantInt *CSI2 = dyn_cast<ConstantInt>(I->getOperand(2))) {
+		    if (CSI2->getSExtValue() == 0) {
 		      //Now add the constraint
 
 		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		      const ConstantSInt * signedOne = ConstantSInt::get(csiType,AT->getNumElements());
+		      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
 		      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
 		      
@@ -623,7 +621,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
 	const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+	const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 	*rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -636,12 +634,12 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     string var1 = var + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+      const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
     } else {
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,numElem * T->getNumElements());
+      const ConstantInt * signedOne = ConstantInt::get(csiType,numElem * T->getNumElements());
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
@@ -651,7 +649,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
     string var1 = var + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-    const ConstantSInt * signedOne = ConstantSInt::get(csiType,T->getNumElements());
+    const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
@@ -663,7 +661,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
       string var2 = var1 + "_i";
       const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,Size);
+      const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
       Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
@@ -1258,7 +1256,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
   if (isa<Constant>(Expr)) {
     Constant *CPV = cast<Constant>(Expr);
     if (CPV->getType()->isIntegral()) { // It's an integral constant!
-      if (ConstantArray *CA = dyn_cast<ConstantArray>(CPV)) {
+      if (dyn_cast<ConstantArray>(CPV)) {
 	assert(1 && "Constant Array don't know how to get the values ");
       } else if (ConstantInt *CPI = dyn_cast<ConstantInt>(Expr)) {
 	return new LinearExpr(CPI, Mang);
@@ -1268,7 +1266,6 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
   }
   if (isa<Instruction>(Expr)) {
     Instruction *I = cast<Instruction>(Expr);
-    const Type *Ty = I->getType();
 
     switch (I->getOpcode()) {       // Handle each instruction type seperately
     case Instruction::Add: {
@@ -1424,7 +1421,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		      }
 		      string varName = getValueName(I);
 		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		      const ConstantSInt * signedOne = ConstantSInt::get(csiType,elSize);
+		      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		      LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		      return l1;
 		    }
@@ -1445,7 +1442,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		    }
 		    string varName = getValueName(I);
 		    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		    const ConstantSInt * signedOne = ConstantSInt::get(csiType,elSize);
+		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;
 		  }

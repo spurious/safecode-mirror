@@ -98,4 +98,4 @@ void BottomUpCallGraph::figureOutSCCs(Module &M) {
   }
 }
 
-  RegisterOpt<BottomUpCallGraph> bucg("bucg","Call Graph from CBUDS");
+  RegisterPass<BottomUpCallGraph> bucg("bucg","Call Graph from CBUDS");

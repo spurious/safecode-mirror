@@ -21,12 +21,12 @@ LinearExpr::LinearExpr(const Value *Val, Mangler *Mang) {
     vList = new VarList();
     cMap = new CoefficientMap();
     vsMap = new ValStringMap();
-    if (const ConstantSInt *CPI = dyn_cast<ConstantSInt>(Val)) {
-      offSet = CPI->getValue();
+    if (const ConstantInt *CPI = dyn_cast<ConstantInt>(Val)) {
+      offSet = CPI->getSExtValue();
       exprTy = Linear;
       return;
-    } else if (const ConstantUInt *CPI = dyn_cast<ConstantUInt>(Val)) {
-      offSet = CPI->getValue();
+    } else if (const ConstantInt *CPI = dyn_cast<ConstantInt>(Val)) {
+      offSet = CPI->getSExtValue();
       exprTy = Linear;
       return;
     }

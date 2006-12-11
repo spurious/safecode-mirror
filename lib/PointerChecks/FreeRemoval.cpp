@@ -21,7 +21,7 @@ using namespace llvm;
 
 
 namespace {
-  RegisterOpt<EmbeCFreeRemoval> Y("EmbeC", "EmbeC pass that removes all frees and issues warnings if behaviour has changed");
+  RegisterPass<EmbeCFreeRemoval> Y("EmbeC", "EmbeC pass that removes all frees and issues warnings if behaviour has changed");
   
 
 // Check if SSA pool pointer variable V has uses other than alloc, free and 
@@ -73,7 +73,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    
 	    // Find the formal parameter corresponding to the parameter V
 	    int operandNo;
-	    for (unsigned int i = 1; i < CI->getNumOperands(); i++)
+      unsigned int limit = CI->getNumOperands();
+	    for (unsigned int i = 1; i < limit; i++)
 	      if (CI->getOperand(i) == V) {
 		operandNo = i;
 		break;
@@ -107,23 +108,23 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    }
 	  } else {
 	    // external function
-	    if (calledF->getName() == EmbeCFreeRemoval::PoolI) {
+	    if (calledF->getName() == PoolI) {
 	      // Insert call to poolmakeunfreeable after every poolinit since 
 	      // we do not free memory to the system for safety in all cases.
 	      //new CallInst(PoolMakeUnfreeable, make_vector(V, 0), "", 
 	      //	      	   CI->getNext()); //taken care of in runtime library
 	      moduleChanged = true;
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolA) {
+	    } else if (calledF->getName() == PoolA) {
 	      FuncPoolAllocs[V].insert(cast<Instruction>(*UI));
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolF) {
+	    } else if (calledF->getName() == PoolF) {
 	      FuncPoolFrees[V].insert(cast<Instruction>(*UI));
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolD) {
+	    } else if (calledF->getName() == PoolD) {
 	      FuncPoolDestroys[V].insert(cast<Instruction>(*UI));
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolMUF) {
+	    } else if (calledF->getName() == PoolMUF) {
 	      // Ignore
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolCh) {
+	    } else if (calledF->getName() == PoolCh) {
 	      // Ignore
-	    } else if (calledF->getName() == EmbeCFreeRemoval::PoolAA) {
+	    } else if (calledF->getName() == PoolAA) {
 	        FuncPoolAllocs[V].insert(cast<Instruction>(CI->getNext()));
 	    } else {
 	      hasError = true;
@@ -144,7 +145,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	  for (; CalleesI != CalleesE; ++CalleesI) {
 	    Function *calledF = CalleesI->second;
 	    
-	    PA::FuncInfo *PAFI = PoolInfo->getFuncInfoOrClone(*calledF);
+	    PoolInfo->getFuncInfoOrClone(*calledF);
 	    
 	    /*
 	      if (PAFI->PoolArgFirst == PAFI->PoolArgLast ||
@@ -263,7 +264,7 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V) {
 	for (; CalleesI != CalleesE; ++CalleesI) {
 	  Function *calledF = CalleesI->second;
 	  
-	  PA::FuncInfo *PAFI = PoolInfo->getFuncInfoOrClone(*calledF);
+	  PoolInfo->getFuncInfoOrClone(*calledF);
 	  
 	  /*
 	    if (PAFI->PoolArgFirst == PAFI->PoolArgLast ||
@@ -305,6 +306,7 @@ static bool followsBlock(BasicBlock *BB1, BasicBlock *BB2, Function *F,
   return false;
 }
 
+#if 0
 // Checks if Inst1 follows Inst2 in any path in the function F.
 static bool followsInst(Instruction *Inst1, Instruction *Inst2, Function *F) {
   if (Inst1->getParent() == Inst2->getParent()) {
@@ -317,7 +319,9 @@ static bool followsInst(Instruction *Inst1, Instruction *Inst2, Function *F) {
   return followsBlock(Inst1->getParent(), Inst2->getParent(), F, 
 		      visitedBlocks);
 }
+#endif
 
+#if 0
 static void printSets(set<Value *> &FuncPoolPtrs,
 		      map<Value *, set<Instruction *> > &FuncPoolFrees,
 		      map<Value *, set<Instruction *> > &FuncPoolAllocs) {
@@ -346,6 +350,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
     }
   }
 }
+#endif
 
   DSNode *EmbeCFreeRemoval::guessDSNode(Value *v, DSGraph &G, PA::FuncInfo *PAFI) {
     if (std::find(Visited.begin(), Visited.end(), v) != Visited.end())
@@ -389,7 +394,6 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 
   void EmbeCFreeRemoval::guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG) {
     Visited.clear();
-    Value *v = 0;
     //follow up v through the ssa def0use chains
     DSNode *DSN = guessDSNode(oldI, oldG, PAFI);
     //    assert(DSN && "can not guess the pool ptr");

@@ -46,8 +46,6 @@ static bool postDominates(BasicBlock *bb1, BasicBlock *bb2) {
   return (pdsmtI->second.count(bb2) != 0);
 }
 
-//count the number of problems given to Omega
-static  unsigned countA = 0;
 //This will tell us whether the collection of constraints
 //depends on the incoming args or not
 //Do we need this to be global?
@@ -58,7 +56,7 @@ static bool reqArgs = false;
 static bool fromMalloc = false;
 
 //Interprocedural ConstraintGeneration pass
-RegisterOpt<ConstraintGeneration> cgen1("cgen","Array Bounds Checking pass");
+RegisterPass<ConstraintGeneration> cgen1("cgen","Array Bounds Checking pass");
 
 
  void ConstraintGeneration::initialize(Module &M) {
@@ -138,7 +136,7 @@ string ConstraintGeneration::getValueName(const Value *V) {
 ABCExprTree* ConstraintGeneration::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
   const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-  const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -244,7 +242,6 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	bool dominated = false; 
 	bool rdominated = true; //to check if this dominates every other node
 	for (; pCurrent != pEnd; ++pCurrent) {
-	  BasicBlock *debugBlock = *pCurrent;
 	  if (*pCurrent == currentBlock) {
 	    rdominated = rdominated & true;
 	    continue;
@@ -297,7 +294,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
   //adds constraints for known functions 
   ABCExprTree* ConstraintGeneration::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-    const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+    const ConstantInt * signedzero = ConstantInt::get(csiType,0);
     string var = "0";
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
     ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -320,7 +317,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
       const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-      const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+      const ConstantInt * signedzero = ConstantInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -368,7 +365,6 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
   //for the function that is cal ling this 
   void ConstraintGeneration::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
     string var;
-    LinearExpr *et;
     if ( Instruction *I = dyn_cast<Instruction>(v)) {
     
       Function* func = I->getParent()->getParent();
@@ -415,7 +411,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
 	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	  const ConstantSInt * signedzero = ConstantSInt::get(csiType,0);
+	  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
 	  LinearExpr *l2 = new LinearExpr(signedzero, Mang);
 	  Constraint *c2 = new Constraint(var, l2, ">=");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
@@ -446,7 +442,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
 	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	  const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+	  const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -481,8 +477,8 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	    if (GEP->getNumOperands() == 4) {
 	      if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
 		int elSize = aType->getNumElements();
-		if (const ConstantSInt *CSI = dyn_cast<ConstantSInt>(I->getOperand(3))) {
-		  elSize = elSize - CSI->getValue();
+		if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(3))) {
+		  elSize = elSize - CSI->getSExtValue();
 		  if (elSize == 0) {
 		  //Dirty HACK, this doesnt work for more than 2 arrays in a struct!!
 		    if (const ArrayType *aType2 = dyn_cast<ArrayType>(stype->getContainedType(1))) {
@@ -490,7 +486,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 		    }
 		  }
 		  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		  const ConstantSInt * signedOne = ConstantSInt::get(csiType,elSize);
+		  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
 		}
@@ -518,14 +514,14 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	if (I->getNumOperands() == 3) {
 	  if (const PointerType *PT = dyn_cast<PointerType>(PointerOperand->getType())) {
 	    if (const ArrayType *AT = dyn_cast<ArrayType>(PT->getElementType())) {
-	      if (const ConstantSInt *CSI = dyn_cast<ConstantSInt>(I->getOperand(1))) {
-		if (CSI->getValue() == 0) {
-		  if (const ConstantSInt *CSI2 = dyn_cast<ConstantSInt>(I->getOperand(2))) {
-		    if (CSI2->getValue() == 0) {
+	      if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(1))) {
+		if (CSI->getSExtValue() == 0) {
+		  if (const ConstantInt *CSI2 = dyn_cast<ConstantInt>(I->getOperand(2))) {
+		    if (CSI2->getSExtValue() == 0) {
 		      //Now add the constraint
 
 		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		      const ConstantSInt * signedOne = ConstantSInt::get(csiType,AT->getNumElements());
+		      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
 		      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
 		      
@@ -547,7 +543,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
 	const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-	const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+	const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 	*rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -560,12 +556,12 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
     string var1 = var + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,1);
+      const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
     } else {
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,numElem * T->getNumElements());
+      const ConstantInt * signedOne = ConstantInt::get(csiType,numElem * T->getNumElements());
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
@@ -575,7 +571,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
   void ConstraintGeneration::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
     string var1 = var + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-    const ConstantSInt * signedOne = ConstantSInt::get(csiType,T->getNumElements());
+    const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
@@ -587,7 +583,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
       unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
       string var2 = var1 + "_i";
       const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-      const ConstantSInt * signedOne = ConstantSInt::get(csiType,Size);
+      const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
       Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
@@ -746,7 +742,7 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
   if (isa<Constant>(Expr)) {
     Constant *CPV = cast<Constant>(Expr);
     if (CPV->getType()->isIntegral()) { // It's an integral constant!
-      if (ConstantArray *CA = dyn_cast<ConstantArray>(CPV)) {
+      if (dyn_cast<ConstantArray>(CPV)) {
 	assert(1 && "Constant Array don't know how to get the values ");
       } else if (ConstantInt *CPI = dyn_cast<ConstantInt>(Expr)) {
 	return new LinearExpr(CPI, Mang);
@@ -756,7 +752,6 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
   }
   if (isa<Instruction>(Expr)) {
     Instruction *I = cast<Instruction>(Expr);
-    const Type *Ty = I->getType();
 
     switch (I->getOpcode()) {       // Handle each instruction type seperately
     case Instruction::Add: {
@@ -891,7 +886,7 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
 		    }
 		    string varName = getValueName(I);
 		    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-		    const ConstantSInt * signedOne = ConstantSInt::get(csiType,elSize);
+		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;
 		  }

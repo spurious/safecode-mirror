@@ -30,7 +30,7 @@ static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
 //
 static Statistic<> ConvAllocas ("convalloca", "Number of converted allocas");
 
-RegisterOpt<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
+RegisterPass<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   //
@@ -172,7 +172,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                 AI->getArraySize(), AI->getName(), AI);
 #else
             Value *AllocSize =
-            ConstantUInt::get(Type::UIntTy,
+            ConstantInt::get(Type::UIntTy,
                               TD->getTypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -181,7 +181,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
             const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-            ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+            ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
@@ -248,7 +248,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
-            ConstantUInt::get(Type::UIntTy,
+            ConstantInt::get(Type::UIntTy,
                               TD->getTypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -257,7 +257,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
             const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-            ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+            ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
@@ -314,7 +314,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
                                             AI);
 #else
             Value *AllocSize =
-            ConstantUInt::get(Type::UIntTy,
+            ConstantInt::get(Type::UIntTy,
                               TD->getTypeSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -323,7 +323,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 
             std::vector<Value *> args(1, AllocSize);
             const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-            ConstantSInt * signedzero = ConstantSInt::get(csiType,32);
+            ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             CastInst * MI = new CastInst(CI, AI->getType(), "",AI);

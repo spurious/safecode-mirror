@@ -17,8 +17,8 @@ using namespace llvm;
  
 using namespace CSS;
 
-RegisterOpt<checkStackSafety> css("css1", "check stack safety");
-  
+RegisterPass<checkStackSafety> css("css1", "check stack safety");
+
 
 
 bool checkStackSafety::markReachableAllocas(DSNode *DSN, bool start) {

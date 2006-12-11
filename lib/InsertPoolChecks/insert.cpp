@@ -11,7 +11,7 @@
 
 using namespace llvm;
 extern Value *getRepresentativeMetaPD(Value *);
-RegisterOpt<InsertPoolChecks> ipc("safecode", "insert runtime checks");
+RegisterPass<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
 // Options for Enabling/Disabling the Insertion of Various Checks
 cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
@@ -110,7 +110,6 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Function *PoolRegister = paPass->PoolRegister;
     BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
     while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
-    Instruction *I = InsertPt;
     if (PH) {
       Type *VoidPtrType = PointerType::get(Type::SByteTy); 
       Instruction *GVCasted = new CastInst(Argv,
@@ -119,8 +118,8 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       Value *AllocSize = new CastInst(Argc,
 				      csiType, Argc->getName()+"casted",InsertPt);
       AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
-					 ConstantUInt::get(csiType, 4), "sizetmp", InsertPt);
-      CallInst *CI = new CallInst(PoolRegister,
+					 ConstantInt::get(csiType, 4), "sizetmp", InsertPt);
+      new CallInst(PoolRegister,
 				  make_vector(PH, AllocSize, GVCasted, 0),
 				  "", InsertPt); 
       
@@ -145,23 +144,22 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	    const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
 	    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
 	      //std::cerr << "found global \n";
-	      AllocSize = ConstantUInt::get(csiType,
+	      AllocSize = ConstantInt::get(csiType,
  					    (AT->getNumElements() * TD->getTypeSize(AT->getElementType())));
 	    } else {
-	      AllocSize = ConstantUInt::get(csiType, TD->getTypeSize(GV->getType()));
+	      AllocSize = ConstantInt::get(csiType, TD->getTypeSize(GV->getType()));
 	    }
 	    Function *PoolRegister = paPass->PoolRegister;
 	    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
 	    //skip the calls to poolinit
 	    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
 	    
-            Instruction *ipt = InsertPt;
 	    std::map<const DSNode *, Value *>::iterator I = paPass->GlobalNodes.find(DSN);
 	    if (I != paPass->GlobalNodes.end()) {
 	      Value *PH = I->second;
 	      Instruction *GVCasted = new CastInst(GV,
 						   VoidPtrType, GV->getName()+"casted",InsertPt);
-	      CallInst *CI = new CallInst(PoolRegister,
+	      new CallInst(PoolRegister,
 					  make_vector(PH, AllocSize, GVCasted, 0),
 					  "", InsertPt); 
 	    } else {
@@ -294,7 +292,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
       //we have a collapsed/Unknown pool
       Value *PH = getPoolHandle(V, F, *FI, true); 
 
-      if (CallInst *CI = dyn_cast<CallInst>(I)) {
+      if (dyn_cast<CallInst>(I)) {
 	// GEt the globals list corresponding to the node
 	return;
 	std::vector<Function *> FuncList;
@@ -303,7 +301,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 	unsigned num = FuncList.size();
 	if (flI != flE) {
 	  const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
-	  Value *NumArg = ConstantUInt::get(csiType, num);	
+	  Value *NumArg = ConstantInt::get(csiType, num);	
 					 
 	  CastInst *CastVI = 
 	    new CastInst(Vnew, 
@@ -538,14 +536,14 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 
               const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
               std::vector<Value *> args(1,secOp);
-              args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
-              CallInst *newCI = new CallInst(ExactCheck,args,"", Casted);
+              args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
+              new CallInst(ExactCheck,args,"", Casted);
               DEBUG(std::cerr << "Inserted exact check call Instruction \n");
               continue;
             } else if (GEPNew->getNumOperands() == 3) {
-              if (ConstantSInt *COP = dyn_cast<ConstantSInt>(GEPNew->getOperand(1))) {
+              if (ConstantInt *COP = dyn_cast<ConstantInt>(GEPNew->getOperand(1))) {
                 // FIXME: assuming that the first array index is 0
-                assert((COP->getRawValue() == 0) && "non zero array index\n");
+                assert((COP->getZExtValue() == 0) && "non zero array index\n");
                 Value * secOp = GEPNew->getOperand(2);
                 if (secOp->getType() != Type::UIntTy) {
                   secOp = new CastInst(secOp, Type::UIntTy,
@@ -553,9 +551,8 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
                 }
                 std::vector<Value *> args(1,secOp);
                 const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-                args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
-                CallInst *newCI = new CallInst(ExactCheck, args, "",
-                                               Casted->getNext());
+                args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
+                new CallInst(ExactCheck, args, "", Casted->getNext());
                 continue;
               } else {
                 // Handle non constant index two dimensional arrays later
@@ -583,7 +580,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         std::vector<Value *> args(1, PH);
         args.push_back(Casted);
         // Insert it
-        CallInst * newCI = new CallInst(PoolCheck,args, "",Casted->getNext());
+        new CallInst(PoolCheck,args, "",Casted->getNext());
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -621,15 +618,15 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           
           std::vector<Value *> args(1,secOp);
           const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-          args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
+          args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
           CallInst *newCI = new CallInst(ExactCheck,args,"", Casted);
           ++BoundChecks;
           //	    DEBUG(std::cerr << "Inserted exact check call Instruction \n");
           continue;
         } else if (GEPNew->getNumOperands() == 3) {
-          if (ConstantSInt *COP = dyn_cast<ConstantSInt>(GEPNew->getOperand(1))) {
+          if (ConstantInt *COP = dyn_cast<ConstantInt>(GEPNew->getOperand(1))) {
             //FIXME assuming that the first array index is 0
-            assert((COP->getRawValue() == 0) && "non zero array index\n");
+            assert((COP->getZExtValue() == 0) && "non zero array index\n");
             Value * secOp = GEPNew->getOperand(2);
             if (secOp->getType() != Type::UIntTy) {
               secOp = new CastInst(secOp, Type::UIntTy,
@@ -637,7 +634,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             }
             std::vector<Value *> args(1,secOp);
             const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
-            args.push_back(ConstantSInt::get(csiType,AT->getNumElements()));
+            args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
             CallInst *newCI = new CallInst(ExactCheck,args,"", Casted->getNext());
             ++BoundChecks;
             continue;

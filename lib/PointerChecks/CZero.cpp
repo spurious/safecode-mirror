@@ -51,7 +51,6 @@ string& CZeroInfo::getWarnings() {
 void CZeroInfo::depthFirstGatherer() {
   // Adding the pointer values among the arguments to the alias graph
   // We treat them as pointers to global targets.
-  const FunctionType *FT = cast<FunctionType>(TheFunction.getFunctionType());
 
   for (Function::const_arg_iterator I = TheFunction.arg_begin(), 
 	 E = TheFunction.arg_end(); I != E; ++I) {
@@ -112,7 +111,7 @@ void CZeroInfo::depthFirstGatherer() {
 	  // We only consider stores of scalar pointers.
 	  if (I.getNumOperands() <= 2 ||
 	      (I.getNumOperands() == 3 &&
-	       I.getOperand(2) != ConstantUInt::get(Type::UIntTy, 0))) {
+	       I.getOperand(2) != ConstantInt::get(Type::UIntTy, 0))) {
 	    if (!isa<ConstantPointerNull>(I.getOperand(1))) {
 	      BBPointerLiveInfo[BB][I.getOperand(1)] = true;
 	      df_iterator<const Function*> localIt = df_begin(&TheFunction), 
@@ -248,7 +247,7 @@ enum WarningType CZeroInfo::checkInstruction(const BasicBlock *BB,
       const Type *elemType = I->getType();
       for(unsigned int i = 1; i < I->getNumOperands(); i++) {
 	if (elemType->getTypeID() == Type::PointerTyID) {
-	  if (I->getOperand(i) != ConstantUInt::get(Type::UIntTy, 0))
+	  if (I->getOperand(i) != ConstantInt::get(Type::UIntTy, 0))
 	    return IllegalMemoryLoc;
 	  elemType = cast<const PointerType>(elemType)->getElementType();
 	}
@@ -310,7 +309,7 @@ bool CZeroInfo::findSpuriousInsts() {
 	  const Type *elemType = I->getOperand(1)->getType();
 	  for(unsigned int i = 2; i < I->getNumOperands(); i++) {
 	    if (elemType->getTypeID() == Type::PointerTyID) {
-	      if (I->getOperand(i) != ConstantUInt::get(Type::UIntTy, 0)) {
+	      if (I->getOperand(i) != ConstantInt::get(Type::UIntTy, 0)) {
 		WarningsList += "Stores to pointer variables should not have pointer arithmetic\n";
 		WarningFlag = true;
 	      }
@@ -440,7 +439,7 @@ namespace {
 	Error = true;
       }
 
-      free(CZI);
+      delete CZI;
       
       return false;
       
@@ -454,7 +453,7 @@ namespace {
     
   };
   
-  RegisterOpt<CZeroPtrChecks> X("czeroptrchecks", "CZero Pointer Checks");
+  RegisterPass<CZeroPtrChecks> X("czeroptrchecks", "CZero Pointer Checks");
   
 }
 

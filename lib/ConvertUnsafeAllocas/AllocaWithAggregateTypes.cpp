@@ -107,10 +107,9 @@ namespace
 		  new CastInst(AllocInst, 
 			       PointerType::get(Type::SByteTy), "casted", AllocInst->getNext());
 		std::vector<Value *> args(1, CastI);
-		args.push_back(ConstantSInt::get(Type::IntTy,204));
-		args.push_back(ConstantUInt::get(Type::UIntTy,
+		args.push_back(ConstantInt::get(Type::IntTy,204));
+		args.push_back(ConstantInt::get(Type::UIntTy,
 						 TD.getTypeSize(AllocInst->getType())));
-		CallInst *CI = 
 		  new CallInst(memsetF, args, "", CastI->getNext());
 	      }
 	  }
@@ -118,6 +117,6 @@ namespace
     return modified;
   }
 
-  RegisterOpt<MallocPass> Z("convallocai", "converts unsafe allocas to mallocs");
+  RegisterPass<MallocPass> Z("convallocai", "converts unsafe allocas to mallocs");
 } // end of namespace
 
