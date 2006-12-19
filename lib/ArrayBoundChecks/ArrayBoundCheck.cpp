@@ -4,6 +4,8 @@
 // for 
 //===----------------------------------------------------------------------===//
 #include <unistd.h>
+
+#include "dsa/DSGraph.h"
 #include "utils/fdstream.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
@@ -18,7 +20,6 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/Support/CommandLine.h"
 #include <fstream>
 #include <iostream>

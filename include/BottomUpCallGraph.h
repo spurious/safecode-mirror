@@ -1,8 +1,10 @@
 #ifndef BOTTOMUP_CALLGRAPH_H
 #define BOTTOMUP_CALLGRAPH_H
+
+#include "dsa/DataStructure.h"
+#include "dsa/DSSupport.h"
+#include "llvm/ADT/hash_map"
 #include "llvm/Pass.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSSupport.h"
 #include "llvm/Function.h"
 #include "llvm/Module.h"
 

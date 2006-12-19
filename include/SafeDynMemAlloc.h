@@ -9,6 +9,8 @@
 #define LLVM_EMBEC_H
 
 
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "safecode/Config/config.h"
 #include "llvm/Pass.h"
 #include "poolalloc/PoolAllocate.h"
@@ -19,8 +21,6 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/VectorExtras.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/Support/Debug.h"
 #include <set>
 #include <map>

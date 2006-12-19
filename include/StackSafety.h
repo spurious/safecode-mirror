@@ -7,11 +7,13 @@
 #ifndef LLVM_STACKSAFETY_H
 #define LLVM_STACKSAFETY_H
 
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/DSNode.h"
 #include "llvm/Pass.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
-#include "llvm/Analysis/DataStructure/DSNode.h"
+
 #include <set>
+
 namespace llvm {
 
   ModulePass* createStackSafetyPass();

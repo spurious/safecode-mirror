@@ -1,5 +1,5 @@
-#include "llvm/Analysis/DataStructure/DSGraph.h"
-#include "llvm/Analysis/DataStructure/DSNode.h"
+#include "dsa/DSGraph.h"
+#include "dsa/DSNode.h"
 #include "BottomUpCallGraph.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
