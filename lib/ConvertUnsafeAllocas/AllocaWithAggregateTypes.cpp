@@ -104,7 +104,7 @@ namespace
 		*/
 
 		CastInst *CastI = 
-		  new CastInst(AllocInst, 
+		  CastInst::createPointerCast (AllocInst, 
 			       PointerType::get(Type::SByteTy), "casted", AllocInst->getNext());
 		std::vector<Value *> args(1, CastI);
 		args.push_back(ConstantInt::get(Type::IntTy,204));

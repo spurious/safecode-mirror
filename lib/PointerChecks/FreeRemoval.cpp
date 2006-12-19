@@ -392,6 +392,10 @@ static void printSets(set<Value *> &FuncPoolPtrs,
     return retDSNode;
   }
 
+//
+// Disabled guessPoolPtrAndInsertCheck(); no one seems to use it right now.
+//
+#if 0
   void EmbeCFreeRemoval::guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG) {
     Visited.clear();
     //follow up v through the ssa def0use chains
@@ -421,6 +425,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
     DEBUG(std::cerr << "inserted a pool check for unknown node \n");
 
   }
+#endif
   
   void EmbeCFreeRemoval::insertNonCollapsedChecks(Function *Forig, Function *F, DSNode *DSN) {
     assert(!DSN->isNodeCompletelyFolded() && "its collapsed! \n");
@@ -457,7 +462,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	    if (StI->getOperand(1) == NewPtr) {
 	      moduleChanged = true;
 	      CastInst *CastI = 
-		new CastInst(StI->getOperand(1), 
+		CastInst::createPointerCast(StI->getOperand(1), 
 			     PointerType::get(Type::SByteTy), "casted", StI);
 	      new CallInst(PoolCheck, 
 			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
@@ -476,7 +481,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	    if (LdI->getOperand(0) == NewPtr) {
 	      moduleChanged = true;
 	      CastInst *CastI = 
-		new CastInst(LdI->getOperand(0), 
+		CastInst::createPointerCast(LdI->getOperand(0), 
 			     PointerType::get(Type::SByteTy), "casted", LdI);
 	      new CallInst(PoolCheck, 
 			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
