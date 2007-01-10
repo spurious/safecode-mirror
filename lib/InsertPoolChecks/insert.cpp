@@ -42,24 +42,26 @@ cl::opt<string> InitFunctionName ("initfunc",
                                   cl::value_desc("function name"));
 
 // Pass Statistics
-static Statistic NullChecks ("safecode",
+namespace {
+  STATISTIC (NullChecks ,
                              "Poolchecks with NULL pool descriptor");
-static Statistic FullChecks ("safecode",
+  STATISTIC (FullChecks ,
                              "Poolchecks with non-NULL pool descriptor");
-static Statistic MissChecks ("safecode",
+  STATISTIC (MissChecks ,
                              "Poolchecks omitted due to bad pool descriptor");
-static Statistic PoolChecks ("safecode", "Poolchecks Added");
-static Statistic BoundChecks("safecode",
+  STATISTIC (PoolChecks , "Poolchecks Added");
+  STATISTIC (BoundChecks,
                              "Bounds checks inserted");
 
-static Statistic MissedIncompleteChecks ("safecode",
+  STATISTIC (MissedIncompleteChecks ,
                                "Poolchecks missed because of incompleteness");
-static Statistic MissedMultDimArrayChecks ("safecode",
+  STATISTIC (MissedMultDimArrayChecks ,
                                            "Multi-dimensional array checks");
 
-static Statistic MissedStackChecks  ("safecode", "Missed stack checks");
-static Statistic MissedGlobalChecks ("safecode", "Missed global checks");
-static Statistic MissedNullChecks   ("safecode", "Missed PD checks");
+  STATISTIC (MissedStackChecks  , "Missed stack checks");
+  STATISTIC (MissedGlobalChecks , "Missed global checks");
+  STATISTIC (MissedNullChecks   , "Missed PD checks");
+}
 
 bool InsertPoolChecks::runOnModule(Module &M) {
   cuaPass = &getAnalysis<ConvertUnsafeAllocas>();

@@ -28,7 +28,9 @@ static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
 //
 // Statistics
 //
-static Statistic ConvAllocas ("convalloca", "Number of converted allocas");
+namespace {
+  STATISTIC (ConvAllocas,  "Number of converted allocas");
+}
 
 RegisterPass<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
