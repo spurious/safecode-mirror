@@ -20,9 +20,9 @@
 #include "PoolAllocator.h"
 #include "PoolCheck.h"
 #include "PageManager.h"
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstdio>
 #include <unistd.h>
 #define DEBUG(x)
 #define POOLCHECK(x) x 
