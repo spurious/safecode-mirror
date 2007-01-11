@@ -49,9 +49,9 @@ namespace llvm {
   struct EmbeCFreeRemoval : public ModulePass {
     
     // The function representing 'poolmakeunfreeable'
-    Function *PoolMakeUnfreeable;
+    Constant *PoolMakeUnfreeable;
 
-    Function *PoolCheck;
+    Constant *PoolCheck;
 
     bool runOnModule(Module &M);
     std::vector<Value *> Visited;

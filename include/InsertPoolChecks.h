@@ -43,10 +43,10 @@ struct InsertPoolChecks : public ModulePass {
 #else
   TDDataStructures * TDPass;
 #endif  
-  Function *PoolCheck;
-  Function *PoolCheckArray;
-  Function *ExactCheck;
-  Function *FunctionCheck;
+  Constant *PoolCheck;
+  Constant *PoolCheckArray;
+  Constant *ExactCheck;
+  Constant *FunctionCheck;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
   void addGetElementPtrChecks(Module &M);
