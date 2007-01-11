@@ -135,7 +135,7 @@ string ConstraintGeneration::getValueName(const Value *V) {
 
 ABCExprTree* ConstraintGeneration::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
-  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
   const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -293,7 +293,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 
   //adds constraints for known functions 
   ABCExprTree* ConstraintGeneration::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     const ConstantInt * signedzero = ConstantInt::get(csiType,0);
     string var = "0";
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -316,7 +316,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
       getConstraints(CI->getOperand(2), rootp);
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
-      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
       const ConstantInt * signedzero = ConstantInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
@@ -410,7 +410,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	  Constraint *c1 = new Constraint(var, l1, "<");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
-	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
 	  LinearExpr *l2 = new LinearExpr(signedzero, Mang);
 	  Constraint *c2 = new Constraint(var, l2, ">=");
@@ -441,7 +441,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
-	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	  const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -457,7 +457,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 	  //	  if (CastInst *csI = dyn_cast<CastInst>(I->getOperand(0))) {
 	  //	    const Type *toType = csI->getType();
 	  //	    const Type *fromType = csI->getOperand(0)->getType();
-	  //	    if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::UIntTyID)) {
+	  //	    if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::Int32TyID)) {
 	  //	      sizeVal = csI->getOperand(0);
 	  //	  }
 	  //	  }
@@ -485,7 +485,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 		      elSize = aType2->getNumElements();
 		    }
 		  }
-		  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -520,7 +520,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 		    if (CSI2->getSExtValue() == 0) {
 		      //Now add the constraint
 
-		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
 		      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -542,7 +542,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
       //It could be an array
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-	const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -554,7 +554,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
 
   void ConstraintGeneration::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
       const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
@@ -570,7 +570,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
   
   void ConstraintGeneration::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -582,7 +582,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
       //not help us prove the safety of the access ....
       unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
       string var2 = var1 + "_i";
-      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
       const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
       Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -662,7 +662,7 @@ bool ConstraintGeneration::runOnModule(Module &M) {
 void ConstraintGeneration::addBranchConstraints(BranchInst *BI,BasicBlock *Successor, ABCExprTree **rootp) {
   //this has to be a conditional branch, otherwise we wouldnt have been here
   assert((BI->isConditional()) && "abcd wrong branch constraint");
-  if (SetCondInst *SCI = dyn_cast<SetCondInst>(BI->getCondition())) {
+  if (CmpInst *SCI = dyn_cast<CmpInst>(BI->getCondition())) {
 
     //SCI now has the conditional statement
     Value *operand0 = SCI->getOperand(0);
@@ -677,42 +677,46 @@ void ConstraintGeneration::addBranchConstraints(BranchInst *BI,BasicBlock *Succe
     string var0 = getValueName(operand0);
     Constraint *ct = 0;
 
-    switch(SCI->getOpcode()) {
-    case Instruction::SetLE : 
+    switch(SCI->getPredicate()) {
+    case ICmpInst::ICMP_ULE: 
+    case ICmpInst::ICMP_SLE: 
       //there are 2 cases for each opcode!
       //its the true branch or the false branch
       if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,"<=");
+        //true branch 
+        ct = new Constraint(var0,l1,"<=");
       } else {
-	ct = new Constraint(var0,l1,">");
+        ct = new Constraint(var0,l1,">");
       }
       break;
-    case Instruction::SetGE : 
+    case ICmpInst::ICMP_UGE: 
+    case ICmpInst::ICMP_SGE: 
       if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,">=");
+        //true branch 
+        ct = new Constraint(var0,l1,">=");
       } else {
-	//false branch
-	ct = new Constraint(var0,l1,"<");
+        //false branch
+        ct = new Constraint(var0,l1,"<");
       }
       break;
-    case Instruction::SetLT : 
+    case ICmpInst::ICMP_ULT: 
+    case ICmpInst::ICMP_SLT: 
       if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,"<");
+        //true branch 
+        ct = new Constraint(var0,l1,"<");
       } else {
-	//false branch
-	ct = new Constraint(var0,l1,">=");
+        //false branch
+        ct = new Constraint(var0,l1,">=");
       }
       break;
-    case Instruction::SetGT :
+    case ICmpInst::ICMP_UGT:
+    case ICmpInst::ICMP_SGT:
       if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,">");
+        //true branch 
+        ct = new Constraint(var0,l1,">");
       } else {
-	//false branch
-	ct = new Constraint(var0,l1,"<=");
+        //false branch
+        ct = new Constraint(var0,l1,"<=");
       }
       break;
     default :
@@ -779,12 +783,8 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
       Left->addLinearExpr(Right);
       return Left;
     }
-    case Instruction::SetLE : 
-    case Instruction::SetNE : 
-    case Instruction::SetEQ : 
-    case Instruction::SetGE : 
-    case Instruction::SetLT : 
-    case Instruction::SetGT : {
+    case Instruction::FCmp :
+    case Instruction::ICmp : {
       LinearExpr* L = new LinearExpr(I->getOperand(1),Mang);
       return L;
     };
@@ -811,23 +811,23 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
       bool addC = false;
       if (toType->isPrimitiveType() && fromType->isPrimitiveType()) {
 	switch(toType->getTypeID()) {
-	case Type::IntTyID :
+	case Type::Int32TyID :
 	  switch (fromType->getTypeID()) {
-	  case Type::SByteTyID :
+	  case Type::Int8TyID :
 	    number1 = "-128";
 	    number2 = "127";
 	    addC = true;
 	    break;
-	  case Type::UByteTyID :
+	  case Type::Int8TyID :
 	    number1 = "0";
 	    number2 = "255";
 	    addC = true;
 	  default:
 	    break;
 	  }
-	case Type::UIntTyID :
+	case Type::Int32TyID :
 	  switch(fromType->getTypeID()) {
-	  case Type::IntTyID :
+	  case Type::Int32TyID :
 	    //in llvm front end the malloc argument is always casted to
 	    //uint! so we hack it here
 	    //This hack works incorrectly for
@@ -835,8 +835,8 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
 	    //FIXME FIXME This might give incorrect results in some cases!!!!
 	    addC = true;
 	    break;
-	  case Type::SByteTyID :
-	  case Type::UByteTyID :
+	  case Type::Int8TyID :
+	  case Type::Int8TyID :
 	    number1 = "0";
 	    number2 = "255";
 	    addC = true;
@@ -868,7 +868,7 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
 	//If it is a cast from struct to something else * ...
 	if (const PointerType *pType = dyn_cast<PointerType>(I->getType())){
 	  const Type *eltype = pType->getElementType();
-	  if (eltype->isPrimitiveType() && (eltype->getTypeID() == Type::SByteTyID)) {
+	  if (eltype->isPrimitiveType() && (eltype->getTypeID() == Type::Int8TyID)) {
 	    if (const PointerType *opPType = dyn_cast<PointerType>(fromType)){
 	      const Type *opEltype = opPType->getElementType();
 	      if (const StructType *stype = dyn_cast<StructType>(opEltype)) {
@@ -876,16 +876,16 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
 		  if (aType->getElementType()->isPrimitiveType()) {
 		    int elSize = aType->getNumElements();
 		    switch (aType->getElementType()->getTypeID()) {
-		    case Type::ShortTyID :
-		    case Type::UShortTyID :  elSize *= 2; break;
-		    case Type::IntTyID :
-		    case Type::UIntTyID :  elSize *= 4; break;
-		    case Type::LongTyID :
-		    case Type::ULongTyID :  elSize *= 8; break;
+		    case Type::Int16Ty :
+		    case Type::Int16TyID :  elSize *= 2; break;
+		    case Type::Int32TyID :
+		    case Type::Int32TyID :  elSize *= 4; break;
+		    case Type::Int64Ty :
+		    case Type::Int64TyID :  elSize *= 8; break;
 		    default : break;
 		    }
 		    string varName = getValueName(I);
-		    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;

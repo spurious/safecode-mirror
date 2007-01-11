@@ -64,10 +64,10 @@ namespace
     bool modified = false;
     TargetData &TD = getAnalysis<TargetData>();
     Module *theM = F.getParent();  
-    Function *memsetF = 
+    Constant *memsetF = 
       theM->getOrInsertFunction("memset", Type::VoidTy, 
-				PointerType::get(Type::SByteTy), Type::IntTy , 
-				Type::UIntTy, 0);
+				PointerType::get(Type::Int8Ty), Type::Int32Ty , 
+				Type::Int32Ty, 0);
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I)
       {
 	for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
@@ -105,10 +105,10 @@ namespace
 
 		CastInst *CastI = 
 		  CastInst::createPointerCast (AllocInst, 
-			       PointerType::get(Type::SByteTy), "casted", AllocInst->getNext());
+			       PointerType::get(Type::Int8Ty), "casted", AllocInst->getNext());
 		std::vector<Value *> args(1, CastI);
-		args.push_back(ConstantInt::get(Type::IntTy,204));
-		args.push_back(ConstantInt::get(Type::UIntTy,
+		args.push_back(ConstantInt::get(Type::Int32Ty,204));
+		args.push_back(ConstantInt::get(Type::Int32Ty,
 						 TD.getTypeSize(AllocInst->getType())));
 		  new CallInst(memsetF, args, "", CastI->getNext());
 	      }

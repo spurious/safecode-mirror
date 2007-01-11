@@ -109,14 +109,14 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Value *Argv = AI;
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*MainFunc);
     Value *PH= getPoolHandle(Argv, MainFunc, *FI);
-    Function *PoolRegister = paPass->PoolRegister;
+    Constant *PoolRegister = paPass->PoolRegister;
     BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
     while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
     if (PH) {
-      Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+      Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
       Instruction *GVCasted = CastInst::createPointerCast(Argv,
 					   VoidPtrType, Argv->getName()+"casted",InsertPt);
-      const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
       Value *AllocSize = CastInst::createZExtOrBitCast(Argc,
 				      csiType, Argc->getName()+"casted",InsertPt);
       AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -135,7 +135,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Module::global_iterator GI = M.global_begin(), GE = M.global_end();
     for ( ; GI != GE; ++GI) {
       if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-	Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+	Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
 	Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
 	Type *PoolDescPtrTy = PointerType::get(PoolDescType);
 	if (GV->getType() != PoolDescPtrTy) {
@@ -143,7 +143,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	  DSNode *DSN  = G.getNodeForValue(GV).getNode();
 	  if ((isa<ArrayType>(GV->getType()->getElementType())) || DSN->isNodeCompletelyFolded()) {
 	    Value * AllocSize;
-	    const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
 	      //std::cerr << "found global \n";
 	      AllocSize = ConstantInt::get(csiType,
@@ -151,7 +151,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	    } else {
 	      AllocSize = ConstantInt::get(csiType, TD->getTypeSize(GV->getType()));
 	    }
-	    Function *PoolRegister = paPass->PoolRegister;
+	    Constant *PoolRegister = paPass->PoolRegister;
 	    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
 	    //skip the calls to poolinit
 	    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
@@ -215,7 +215,7 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
         return;
-      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+      PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
     } else {
       //
       // Only add the pool check if the pool is a global value or it
@@ -253,10 +253,10 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
     // into sbyte pointers.
     CastInst *CastVI = 
       CastInst::createPointerCast(V, 
-		   PointerType::get(Type::SByteTy), "node.lscasted", I);
+		   PointerType::get(Type::Int8Ty), "node.lscasted", I);
     CastInst *CastPHI = 
       CastInst::createPointerCast(PH, 
-		   PointerType::get(Type::SByteTy), "poolhandle.lscasted", I);
+		   PointerType::get(Type::Int8Ty), "poolhandle.lscasted", I);
 
     // Create the call to poolcheck
     std::vector<Value *> args(1,CastPHI);
@@ -311,12 +311,12 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 	std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
 	unsigned num = FuncList.size();
 	if (flI != flE) {
-	  const Type* csiType = Type::getPrimitiveType(Type::UIntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	  Value *NumArg = ConstantInt::get(csiType, num);	
 					 
 	  CastInst *CastVI = 
 	    CastInst::createPointerCast (Vnew, 
-			 PointerType::get(Type::SByteTy), "casted", I);
+			 PointerType::get(Type::Int8Ty), "casted", I);
 	
 	  std::vector<Value *> args(1, NumArg);
 	  args.push_back(CastVI);
@@ -324,7 +324,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 	    Function *func = *flI;
 	    CastInst *CastfuncI = 
 	      CastInst::createPointerCast (func, 
-			   PointerType::get(Type::SByteTy), "casted", I);
+			   PointerType::get(Type::Int8Ty), "casted", I);
 	    args.push_back(CastfuncI);
 	  }
 	  new CallInst(FunctionCheck, args,"", I);
@@ -334,10 +334,10 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 
 	CastInst *CastVI = 
 	  CastInst::createPointerCast (Vnew, 
-		       PointerType::get(Type::SByteTy), "casted", I);
+		       PointerType::get(Type::Int8Ty), "casted", I);
 	CastInst *CastPHI = 
 	  CastInst::createPointerCast (PH, 
-		       PointerType::get(Type::SByteTy), "casted", I);
+		       PointerType::get(Type::Int8Ty), "casted", I);
 	std::vector<Value *> args(1,CastPHI);
 	args.push_back(CastVI);
 	
@@ -436,12 +436,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             // Don't bother to insert the NULL check unless the user asked
             if (!EnableNullChecks)
               continue;
-            PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+            PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
-            CastInst::createPointerCast(CI->getOperand(1), Type::UIntTy, "node.lscasted", InsertPt);
+            CastInst::createPointerCast(CI->getOperand(1), Type::Int32Ty, "node.lscasted", InsertPt);
           CastInst *CastCIOp3 = 
-            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::UIntTy, "node.lscasted", InsertPt);
+            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
           Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
                           CastCIOp3, "memcpyadd",InsertPt);
           
@@ -449,13 +449,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
             CastInst::createPointerCast(CI->getOperand(1), 
-                         PointerType::get(Type::SByteTy), "memcpy.1.casted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "memcpy.1.casted", InsertPt);
           CastInst *CastCI = 
             CastInst::createPointerCast(Bop, 
-                         PointerType::get(Type::SByteTy), "mempcy.2.casted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "mempcy.2.casted", InsertPt);
           CastInst *CastPHI = 
             CastInst::createPointerCast(PH, 
-                         PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
           std::vector<Value *> args(1,CastPHI);
@@ -471,12 +471,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             // Don't bother to insert the NULL check unless the user asked
             if (!EnableNullChecks)
               continue;
-            PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+            PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
-            CastInst::createPointerCast(CI, Type::UIntTy, "node.lscasted", InsertPt);
+            CastInst::createPointerCast(CI, Type::Int32Ty, "node.lscasted", InsertPt);
           CastInst *CastCIOp3 = 
-            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::UIntTy, "node.lscasted", InsertPt);
+            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
           Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
                           CastCIOp3, "memsetadd",InsertPt);
           
@@ -484,13 +484,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
             CastInst::createPointerCast(CI->getOperand(1), 
-                         PointerType::get(Type::SByteTy), "memset.1.casted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "memset.1.casted", InsertPt);
           CastInst *CastCI = 
             CastInst::createPointerCast(Bop, 
-                         PointerType::get(Type::SByteTy), "memset.2.casted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "memset.2.casted", InsertPt);
           CastInst *CastPHI = 
             CastInst::createPointerCast(PH, 
-                         PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPt);
+                         PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
           std::vector<Value *> args(1,CastPHI);
@@ -551,12 +551,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             // This only works for one or two dimensional arrays.
             if (GEPNew->getNumOperands() == 2) {
               Value *secOp = GEPNew->getOperand(1);
-              if (secOp->getType() != Type::UIntTy) {
-                secOp = CastInst::createSExtOrBitCast(secOp, Type::UIntTy,
+              if (secOp->getType() != Type::Int32Ty) {
+                secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
                                      secOp->getName()+".ec.casted", Casted);
               }
 
-              const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+              const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
               std::vector<Value *> args(1,secOp);
               args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
               new CallInst(ExactCheck,args,"", Casted);
@@ -567,12 +567,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
                 // FIXME: assuming that the first array index is 0
                 assert((COP->getZExtValue() == 0) && "non zero array index\n");
                 Value * secOp = GEPNew->getOperand(2);
-                if (secOp->getType() != Type::UIntTy) {
-                  secOp = CastInst::createSExtOrBitCast(secOp, Type::UIntTy,
+                if (secOp->getType() != Type::Int32Ty) {
+                  secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
                                        secOp->getName()+".ec2.casted", Casted);
                 }
                 std::vector<Value *> args(1,secOp);
-                const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+                const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
                 args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
                 new CallInst(ExactCheck, args, "", Casted->getNext());
                 continue;
@@ -594,8 +594,8 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         //      (*iCurrent)->dump();
         continue ;
       } else {
-        if (Casted->getType() != PointerType::get(Type::SByteTy)) {
-          Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::SByteTy),
+        if (Casted->getType() != PointerType::get(Type::Int8Ty)) {
+          Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::Int8Ty),
                                 (Casted)->getName()+".pc.casted",
                                 (Casted)->getNext());
         }
@@ -633,13 +633,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         // This only works for one or two dimensional arrays
         if (GEPNew->getNumOperands() == 2) {
           Value *secOp = GEPNew->getOperand(1);
-          if (secOp->getType() != Type::UIntTy) {
-            secOp = CastInst::createSExtOrBitCast(secOp, Type::UIntTy,
+          if (secOp->getType() != Type::Int32Ty) {
+            secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
                                  secOp->getName()+".ec3.casted", Casted);
           }
           
           std::vector<Value *> args(1,secOp);
-          const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+          const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
           args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
           CallInst *newCI = new CallInst(ExactCheck,args,"", Casted);
           ++BoundChecks;
@@ -650,12 +650,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             //FIXME assuming that the first array index is 0
             assert((COP->getZExtValue() == 0) && "non zero array index\n");
             Value * secOp = GEPNew->getOperand(2);
-            if (secOp->getType() != Type::UIntTy) {
-              secOp = CastInst::createSExtOrBitCast(secOp, Type::UIntTy,
+            if (secOp->getType() != Type::Int32Ty) {
+              secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
                                    secOp->getName()+".ec4.casted", Casted);
             }
             std::vector<Value *> args(1,secOp);
-            const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
             args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
             CallInst *newCI = new CallInst(ExactCheck,args,"", Casted->getNext());
             ++BoundChecks;
@@ -705,7 +705,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
         continue;
-      PH = Constant::getNullValue(PointerType::get(Type::SByteTy));
+      PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
       DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
       //
@@ -755,15 +755,15 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     // If this is an icomplete node, insert a poolcheckarray.
     //
     Instruction *InsertPt = Casted->getNext();
-    if (Casted->getType() != PointerType::get(Type::SByteTy)) {
-      Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::SByteTy),
+    if (Casted->getType() != PointerType::get(Type::Int8Ty)) {
+      Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::Int8Ty),
                             (Casted)->getName()+".pc2.casted",InsertPt);
     }
     Instruction *CastedPointerOperand = CastInst::createPointerCast(PointerOperand,
-                                         PointerType::get(Type::SByteTy),
+                                         PointerType::get(Type::Int8Ty),
                                          PointerOperand->getName()+".casted",InsertPt);
     Instruction *CastedPH = CastInst::createPointerCast(PH,
-                                         PointerType::get(Type::SByteTy),
+                                         PointerType::get(Type::Int8Ty),
                                          "ph",InsertPt);
     if (Node->isIncomplete()) {
       std::vector<Value *> args(1, CastedPH);
@@ -780,11 +780,11 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 }
 
 void InsertPoolChecks::addPoolCheckProto(Module &M) {
-  const Type * VoidPtrType = PointerType::get(Type::SByteTy);
+  const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
   /*
   const Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
   //	StructType::get(make_vector<const Type*>(VoidPtrType, VoidPtrType,
-  //                                               Type::UIntTy, Type::UIntTy, 0));
+  //                                               Type::Int32Ty, Type::Int32Ty, 0));
   const Type * PoolDescTypePtr = PointerType::get(PoolDescType);
   */  
 
@@ -801,12 +801,12 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
     FunctionType::get(Type::VoidTy,Arg2, false);
   PoolCheckArray = M.getOrInsertFunction("poolcheckarray", PoolCheckArrayTy);
   
-  std::vector<const Type *> FArg2(1, Type::UIntTy);
-  FArg2.push_back(Type::IntTy);
+  std::vector<const Type *> FArg2(1, Type::Int32Ty);
+  FArg2.push_back(Type::Int32Ty);
   FunctionType *ExactCheckTy = FunctionType::get(Type::VoidTy, FArg2, false);
   ExactCheck = M.getOrInsertFunction("exactcheck", ExactCheckTy);
 
-  std::vector<const Type *> FArg3(1, Type::UIntTy);
+  std::vector<const Type *> FArg3(1, Type::Int32Ty);
   FArg3.push_back(VoidPtrType);
   FArg3.push_back(VoidPtrType);
   FunctionType *FunctionCheckTy = FunctionType::get(Type::VoidTy, FArg3, true);
@@ -837,7 +837,7 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo
   const DSNode *Node = getDSNode(V,F);
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
-  Type *VoidPtrType = PointerType::get(Type::SByteTy); 
+  Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
   Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
   Type *PoolDescPtrTy = PointerType::get(PoolDescType);
   if (!Node) {

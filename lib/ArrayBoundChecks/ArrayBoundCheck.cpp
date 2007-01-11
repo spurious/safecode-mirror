@@ -205,7 +205,7 @@ RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
 ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
-  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
   const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -372,7 +372,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 
   // adds constraints for known functions 
   ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     const ConstantInt * signedzero = ConstantInt::get(csiType,0);
     string var = "0";
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -395,7 +395,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       getConstraints(CI->getOperand(2), rootp);
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
-      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
       const ConstantInt * signedzero = ConstantInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
@@ -489,7 +489,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	  Constraint *c1 = new Constraint(var, l1, "<");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
-	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
 	  LinearExpr *l2 = new LinearExpr(signedzero, Mang);
 	  Constraint *c2 = new Constraint(var, l2, ">=");
@@ -520,7 +520,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
-	  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	  const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -536,7 +536,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	  //	  if (CastInst *csI = dyn_cast<CastInst>(I->getOperand(0))) {
 	  //	    const Type *toType = csI->getType();
 	  //	    const Type *fromType = csI->getOperand(0)->getType();
-	  //	    if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::UIntTyID)) {
+	  //	    if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::Int32TyID)) {
 	  //	      sizeVal = csI->getOperand(0);
 	  //	  }
 	  //	  }
@@ -564,7 +564,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 		      elSize = aType2->getNumElements();
 		    }
 		  }
-		  const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -599,7 +599,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 		    if (CSI2->getSExtValue() == 0) {
 		      //Now add the constraint
 
-		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
 		      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -621,7 +621,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       //It could be an array
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-	const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+	const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 	const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -633,7 +633,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 
   void ArrayBoundsCheck::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
       const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
@@ -649,7 +649,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   
   void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -661,7 +661,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       //not help us prove the safety of the access ....
       unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
       string var2 = var1 + "_i";
-      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
       const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
       Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -1174,10 +1174,14 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
   }
 }
 
+//
+// TODO:
+//  Need to handle the new floating point compare instructions
+//
 void ArrayBoundsCheck::addBranchConstraints(BranchInst *BI,BasicBlock *Successor, ABCExprTree **rootp) {
   //this has to be a conditional branch, otherwise we wouldnt have been here
   assert((BI->isConditional()) && "abcd wrong branch constraint");
-  if (SetCondInst *SCI = dyn_cast<SetCondInst>(BI->getCondition())) {
+  if (CmpInst *SCI = dyn_cast<CmpInst>(BI->getCondition())) {
 
     //SCI now has the conditional statement
     Value *operand0 = SCI->getOperand(0);
@@ -1192,46 +1196,50 @@ void ArrayBoundsCheck::addBranchConstraints(BranchInst *BI,BasicBlock *Successor
     string var0 = getValueName(operand0);
     Constraint *ct = 0;
 
-    switch(SCI->getOpcode()) {
-    case Instruction::SetLE : 
-      //there are 2 cases for each opcode!
-      //its the true branch or the false branch
-      if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,"<=");
-      } else {
-	ct = new Constraint(var0,l1,">");
-      }
-      break;
-    case Instruction::SetGE : 
-      if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,">=");
-      } else {
-	//false branch
-	ct = new Constraint(var0,l1,"<");
-      }
-      break;
-    case Instruction::SetLT : 
-      if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,"<");
-      } else {
-	//false branch
-	ct = new Constraint(var0,l1,">=");
-      }
-      break;
-    case Instruction::SetGT :
-      if (BI->getSuccessor(0) == Successor) {
-	//true branch 
-	ct = new Constraint(var0,l1,">");
-      } else {
-	//false branch
-	ct = new Constraint(var0,l1,"<=");
-      }
-      break;
-    default :
-      break;
+    switch (SCI->getPredicate()) {
+      case ICmpInst::ICMP_ULE: 
+      case ICmpInst::ICMP_SLE: 
+        //there are 2 cases for each opcode!
+        //its the true branch or the false branch
+        if (BI->getSuccessor(0) == Successor) {
+          //true branch 
+          ct = new Constraint(var0,l1,"<=");
+        } else {
+          ct = new Constraint(var0,l1,">");
+        }
+        break;
+      case ICmpInst::ICMP_UGE: 
+      case ICmpInst::ICMP_SGE: 
+        if (BI->getSuccessor(0) == Successor) {
+          //true branch 
+          ct = new Constraint(var0,l1,">=");
+        } else {
+          //false branch
+          ct = new Constraint(var0,l1,"<");
+        }
+        break;
+      case ICmpInst::ICMP_ULT: 
+      case ICmpInst::ICMP_SLT: 
+        if (BI->getSuccessor(0) == Successor) {
+          //true branch 
+          ct = new Constraint(var0,l1,"<");
+        } else {
+          //false branch
+          ct = new Constraint(var0,l1,">=");
+        }
+        break;
+      case ICmpInst::ICMP_UGT:
+      case ICmpInst::ICMP_SGT:
+        if (BI->getSuccessor(0) == Successor) {
+          //true branch 
+          ct = new Constraint(var0,l1,">");
+        } else {
+          //false branch
+          ct = new Constraint(var0,l1,"<=");
+        }
+        break;
+      default:
+        break;
     }
     if (ct != 0) {
       ct->print(std::cerr);
@@ -1294,12 +1302,8 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
       Left->addLinearExpr(Right);
       return Left;
     }
-    case Instruction::SetLE : 
-    case Instruction::SetNE : 
-    case Instruction::SetEQ : 
-    case Instruction::SetGE : 
-    case Instruction::SetLT : 
-    case Instruction::SetGT : {
+    case Instruction::FCmp :
+    case Instruction::ICmp : {
       LinearExpr* L = new LinearExpr(I->getOperand(1),Mang);
       return L;
     };
@@ -1326,23 +1330,23 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 	//Here we have to give constraints for 
 	//FIXME .. this should be for all types not just sbyte 
 	switch(toType->getTypeID()) {
-	case Type::IntTyID :
+	case Type::Int32TyID :
 	  switch (fromType->getTypeID()) {
-	  case Type::SByteTyID :
+	  case Type::Int8TyID :
 	    number1 = "-128";
 	    number2 = "127";
 	    addC = true;
 	    break;
-	  case Type::UByteTyID :
+	  case Type::Int8TyID :
 	    number1 = "0";
 	    number2 = "255";
 	    addC = true;
 	  default:
 	    break;
 	  }
-	case Type::UIntTyID :
+	case Type::Int32TyID :
 	  switch(fromType->getTypeID()) {
-	  case Type::IntTyID :
+	  case Type::Int32TyID :
 	    //in llvm front end the malloc argument is always casted to
 	    //uint! so we hack it here
 	    //This hack works incorrectly for
@@ -1350,8 +1354,8 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 	    //FIXME FIXME This might give incorrect results in some cases!!!!
 	    addC = true;
 	    break;
-	  case Type::SByteTyID :
-	  case Type::UByteTyID :
+	  case Type::Int8TyID :
+	  case Type::Int8TyID :
 	    number1 = "0";
 	    number2 = "255";
 	    addC = true;
@@ -1382,22 +1386,22 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 	  const Type *eltype = pType->getElementType();
 	  if (eltype->isPrimitiveType()) {
 	    unsigned numbytes = 0;
-	    if (eltype->getTypeID() == Type::SByteTyID) {
+	    if (eltype->getTypeID() == Type::Int8TyID) {
 	    //FIXME: this should make use of Target!!!!
 	      numbytes = 1;
-	    } else if (eltype->getTypeID() == Type::UByteTyID) {
+	    } else if (eltype->getTypeID() == Type::Int8TyID) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::IntTyID) {
+	    } else if (eltype->getTypeID() == Type::Int32TyID) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::UIntTyID) {
+	    } else if (eltype->getTypeID() == Type::Int32TyID) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::ShortTyID) {
+	    } else if (eltype->getTypeID() == Type::Int16TyID) {
 	      numbytes = 2;
-	    } else if (eltype->getTypeID() == Type::UShortTyID) {
+	    } else if (eltype->getTypeID() == Type::Int16TyID) {
 	      numbytes = 2;
-	    } else if (eltype->getTypeID() == Type::LongTyID) {
+	    } else if (eltype->getTypeID() == Type::Int64TyID) {
 	      numbytes = 8;
-	    } else if (eltype->getTypeID() == Type::ULongTyID) {
+	    } else if (eltype->getTypeID() == Type::Int64TyID) {
 	      numbytes = 8;
 	    } 
 
@@ -1412,16 +1416,16 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		    if (aType->getElementType()->isPrimitiveType()) {
 		      int elSize = aType->getNumElements();
 		      switch (aType->getElementType()->getTypeID()) {
-		      case Type::ShortTyID :
-		      case Type::UShortTyID :  elSize = (elSize/numbytes)*2; break;
-		      case Type::IntTyID :
-		      case Type::UIntTyID :  elSize = (elSize/numbytes)*4; break;
-		      case Type::LongTyID :
-		      case Type::ULongTyID :  elSize = (elSize/numbytes)*8; break;
+		      case Type::Int16TyID :
+		      case Type::Int16TyID :  elSize = (elSize/numbytes)*2; break;
+		      case Type::Int32TyID :
+		      case Type::Int32TyID :  elSize = (elSize/numbytes)*4; break;
+		      case Type::Int64TyID :
+		      case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
 		      default : break;
 		      }
 		      string varName = getValueName(I);
-		      const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		      LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		      return l1;
@@ -1431,18 +1435,18 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		  if (aType->getElementType()->isPrimitiveType()) {
 		    int elSize = aType->getNumElements();
 		    switch (aType->getElementType()->getTypeID()) {
-		    case Type::SByteTyID : 
-		    case Type::UByteTyID : elSize = elSize / numbytes; break;
-		    case Type::ShortTyID :
-		    case Type::UShortTyID :  elSize = (elSize/numbytes) *2; break;
-		    case Type::IntTyID :
-		    case Type::UIntTyID :  elSize = (elSize/numbytes)*4; break;
-		    case Type::LongTyID :
-		    case Type::ULongTyID :  elSize = (elSize/numbytes)*8; break;
+		    case Type::Int8TyID : 
+		    case Type::Int8TyID : elSize = elSize / numbytes; break;
+		    case Type::Int16TyID :
+		    case Type::Int16TyID :  elSize = (elSize/numbytes) *2; break;
+		    case Type::Int32TyID :
+		    case Type::Int32TyID :  elSize = (elSize/numbytes)*4; break;
+		    case Type::Int64TyID :
+		    case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
 		    default : break;
 		    }
 		    string varName = getValueName(I);
-		    const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+		    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
 		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;

@@ -404,14 +404,14 @@ static void printSets(set<Value *> &FuncPoolPtrs,
     //    assert(PAFI->PoolDescriptors.count(DSN) && "no pool descriptor found \n");
     CastInst *CastI = 
       new CastInst(pOpI, 
-		   PointerType::get(Type::SByteTy), "casted", I);
+		   PointerType::get(Type::Int8Ty), "casted", I);
     if (DSN) {
 
     new CallInst(PoolCheck, 
 		 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 		 "", I);
     } else {
-      Type *VoidPtrTy = PointerType::get(Type::SByteTy); 
+      Type *VoidPtrTy = PointerType::get(Type::Int8Ty); 
       const Type *PoolDescType = 
 	ArrayType::get(VoidPtrTy, 50);
 
@@ -463,7 +463,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	      moduleChanged = true;
 	      CastInst *CastI = 
 		CastInst::createPointerCast(StI->getOperand(1), 
-			     PointerType::get(Type::SByteTy), "casted", StI);
+			     PointerType::get(Type::Int8Ty), "casted", StI);
 	      new CallInst(PoolCheck, 
 			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			   "", StI);
@@ -482,7 +482,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	      moduleChanged = true;
 	      CastInst *CastI = 
 		CastInst::createPointerCast(LdI->getOperand(0), 
-			     PointerType::get(Type::SByteTy), "casted", LdI);
+			     PointerType::get(Type::Int8Ty), "casted", LdI);
 	      new CallInst(PoolCheck, 
 			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			   "", LdI);
@@ -585,7 +585,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 		  moduleChanged = true;
 		  CastInst *CastI = 
 		    new CastInst(StI->getOperand(1), 
-				 PointerType::get(Type::SByteTy), "casted", StI);
+				 PointerType::get(Type::Int8Ty), "casted", StI);
 		  new CallInst(PoolCheck, 
 			       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			       "", StI);
@@ -608,7 +608,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 		  moduleChanged = true;
 		  CastInst *CastI = 
 		    new CastInst(LdI->getOperand(0), 
-				 PointerType::get(Type::SByteTy), "casted", LdI);
+				 PointerType::get(Type::Int8Ty), "casted", LdI);
 		  new CallInst(PoolCheck, 
 		       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			       "", LdI);
@@ -633,11 +633,11 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 
   // Insert prototypes in the module
   // NB: This has to be in sync with the types in PoolAllocate.cpp
-  const Type *VoidPtrTy = PointerType::get(Type::SByteTy);
+  const Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
 
   const Type *PoolDescType = 
     //    StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 
-    //					     Type::UIntTy, Type::UIntTy, 0));
+    //					     Type::Int32Ty, Type::Int32Ty, 0));
     ArrayType::get(VoidPtrTy, 50);
 
   const PointerType *PoolDescPtr = PointerType::get(PoolDescType);

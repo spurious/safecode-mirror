@@ -7,8 +7,9 @@
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instruction.h"
-#include "llvm/Support/CFG.h"
 #include "llvm/Analysis/Dominators.h"
+#include "llvm/Support/CFG.h"
+#include "llvm/Support/Debug.h"
 
 #include <iostream>
 
@@ -50,9 +51,9 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   // Get a reference to the kmalloc() function (the Linux kernel's general
   // memory allocator function).
   //
-  std::vector<const Type *> Arg(1, Type::UIntTy);
-  Arg.push_back(Type::IntTy);
-  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::SByteTy), Arg, false);
+  std::vector<const Type *> Arg(1, Type::Int32Ty);
+  Arg.push_back(Type::Int32Ty);
+  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::Int8Ty), Arg, false);
   kmalloc = M.getOrInsertFunction("kmalloc", kmallocTy);
 
   //
@@ -174,7 +175,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                 AI->getArraySize(), AI->getName(), AI);
 #else
             Value *AllocSize =
-            ConstantInt::get(Type::UIntTy,
+            ConstantInt::get(Type::Int32Ty,
                               TD->getTypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -182,7 +183,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
             ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
@@ -250,7 +251,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
-            ConstantInt::get(Type::UIntTy,
+            ConstantInt::get(Type::Int32Ty,
                               TD->getTypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -258,7 +259,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
             ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
@@ -316,7 +317,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
                                             AI);
 #else
             Value *AllocSize =
-            ConstantInt::get(Type::UIntTy,
+            ConstantInt::get(Type::Int32Ty,
                               TD->getTypeSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -324,7 +325,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
                                                  AI);	    
 
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::IntTyID);
+            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
             ConstantInt * signedzero = ConstantInt::get(csiType,32);
             args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
