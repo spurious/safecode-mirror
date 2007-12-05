@@ -13,7 +13,7 @@
 
 using namespace llvm;
 
-namespace
+namespace llvm
 {
 
   // Create the command line option for the pass
@@ -103,14 +103,16 @@ namespace
 		modified = true;
 		*/
 
+    Instruction * InsertPt = ++IAddrBegin;
+    --IAddrBegin;
 		CastInst *CastI = 
 		  CastInst::createPointerCast (AllocInst, 
-			       PointerType::get(Type::Int8Ty), "casted", AllocInst->getNext());
+			       PointerType::get(Type::Int8Ty), "casted", InsertPt);
 		std::vector<Value *> args(1, CastI);
 		args.push_back(ConstantInt::get(Type::Int32Ty,204));
 		args.push_back(ConstantInt::get(Type::Int32Ty,
-						 TD.getTypeSize(AllocInst->getType())));
-		  new CallInst(memsetF, args, "", CastI->getNext());
+						 TD.getABITypeSize(AllocInst->getType())));
+		  new CallInst(memsetF, args.begin(), args.end(), "", InsertPt);
 	      }
 	  }
       }

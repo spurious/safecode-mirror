@@ -17,6 +17,7 @@ using namespace llvm;
 using namespace CUA;
 using namespace ABC;
 
+#if 0
 extern DominatorSet::DomSetMapType dsmt;
 extern DominanceFrontier::DomSetMapType dfmt;
 
@@ -25,6 +26,7 @@ static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
   assert((dsmtI != dsmt.end()) && " basic block not found in dominator set");
   return (dsmtI->second.count(bb2) != 0);
 }
+#endif
 
 //
 // Statistics
@@ -94,6 +96,7 @@ bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
 }
 
 void ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
+#if 0
   //need to insert a corresponding free
   // The dominator magic again
   BasicBlock *currentBlock = MI->getParent();
@@ -135,6 +138,7 @@ void ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
       new FreeInst(MI, InsertPt);
     }
   }
+#endif
 }
 
 // Precondition: Enforce that the alloca nodes haven't been already converted
@@ -189,7 +193,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
-	    DSN->setHeapNodeMarker();
+	    DSN->setHeapMarker();
 	    AI->replaceAllUsesWith(MI);
 	    SM.erase(SMI++);
 	    AI->getParent()->getInstList().erase(AI);
@@ -265,7 +269,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
-	    DSN->setHeapNodeMarker();
+	    DSN->setHeapMarker();
 	    AI->replaceAllUsesWith(MI);
 	    SM.erase(SMI++);
 	    AI->getParent()->getInstList().erase(AI);
@@ -304,7 +308,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
   //Need to check if the following is incomplete becasue we are only looking at scalars.
   //It may be complete because every instruction actually is a scalar in LLVM?!
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    if (!MI->isExternal()) {
+    if (!MI->isDeclaration()) {
       DSGraph &G = budsPass->getDSGraph(*MI);
       DSGraph::ScalarMapTy &SM = G.getScalarMap();
       for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
@@ -332,7 +336,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
             CastInst * MI = new CastInst(CI, AI->getType(), "",AI);
 #endif
             AI->replaceAllUsesWith(MI);
-            SMI->second.getNode()->setHeapNodeMarker();
+            SMI->second.getNode()->setHeapMarker();
             SM.erase(SMI++);
             AI->getParent()->getInstList().erase(AI);	  
             ++ConvAllocas;
