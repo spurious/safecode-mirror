@@ -17,6 +17,8 @@ using namespace CUA;
 
 struct InsertPoolChecks : public ModulePass {
     public :
+    static char ID;
+    InsertPoolChecks () : ModulePass ((intptr_t) &ID) {}
     const char *getPassName() const { return "Inserting pool checks for array bounds "; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {

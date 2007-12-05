@@ -56,6 +56,9 @@ namespace llvm {
     bool runOnModule(Module &M);
     std::vector<Value *> Visited;
 
+    static char ID;
+    EmbeCFreeRemoval () : ModulePass ((intptr_t) &ID) {}
+
     void checkPoolSSAVarUses(Function *F, Value *V, 
 			     map<Value *, set<Instruction *> > &FuncAllocs, 
 			     map<Value *, set<Instruction *> > &FuncFrees, 

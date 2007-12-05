@@ -50,11 +50,11 @@ bool checkStackSafety::runOnModule(Module &M) {
   //  TDDS = &getAnalysis<TDDataStructures>();
   CompleteBUDataStructures *BUDS;
   BUDS = &getAnalysis<CompleteBUDataStructures>();
-  Function *MainFunc = M.getMainFunction();
+  Function *MainFunc = M.getFunction("main");
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if (&F != MainFunc) {
-      if (!F.isExternal()) {
+      if (!F.isDeclaration()) {
 	DSGraph &BUG = BUDS->getDSGraph(F);
 	
 	// check if return value is a  pointers
