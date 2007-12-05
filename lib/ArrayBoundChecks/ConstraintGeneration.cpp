@@ -1,8 +1,8 @@
-//===- ConstraintGeneration.cpp for Interprocedural Constraint Generation----------------===//
+//===- ConstraintGeneration.cpp: Interprocedural Constraint Generation --===//
 //
-// Now we use the control dependence, post dominance frontier to generate constraints
-// for 
-//===----------------------------------------------------------------------===//
+// Now we use the control dependence, post dominance frontier to generate
+// constraints for 
+//===--------------------------------------------------------------------===//
 #include <unistd.h>
 #include "dsa/DSGraph.h"
 #include "utils/fdstream.h"
@@ -29,9 +29,11 @@ using namespace ABC;
 //The following are filled from the preprocess pass, since they require
 //fn passes
 extern IndVarMap indMap; 
+#if 0
 extern DominatorSet::DomSetMapType dsmt;
 extern PostDominatorSet::DomSetMapType pdsmt;
 extern PostDominanceFrontier::DomSetMapType pdfmt;
+#endif
 
 static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
   DominatorSet::DomSetMapType::const_iterator dsmtI = dsmt.find(bb1);

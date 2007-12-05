@@ -16,10 +16,12 @@ using namespace llvm;
 using namespace ABC;
 
 IndVarMap indMap;
+#if 0
 DominatorSet::DomSetMapType dsmt;
 PostDominatorSet::DomSetMapType pdsmt;
 PostDominanceFrontier::DomSetMapType pdfmt;
 DominanceFrontier::DomSetMapType dfmt;
+#endif
 
 void ABCPreProcess::print(ostream &out, const Module * M) const {
   out << " Printing phi nodes which are induction variables ... \n";
@@ -44,6 +46,7 @@ void ABCPreProcess::indVariables(Loop *L) {
 
 bool ABCPreProcess::runOnFunction(Function &F) {
   LoopInfo &LI =  getAnalysis<LoopInfo>();
+#if 0
   pdf = &getAnalysis<PostDominanceFrontier>();
   df = &getAnalysis<DominanceFrontier>();
   //copy it to a global for later use by a module pass
@@ -94,6 +97,7 @@ bool ABCPreProcess::runOnFunction(Function &F) {
       pdsmt[pdsmI->first].insert(*dstI);
     }
   }
+#endif
 
 
   

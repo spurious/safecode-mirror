@@ -44,10 +44,13 @@ std::ofstream includeOut;
 //The following are filled from the preprocess pass, since they require
 //fn passes
 extern IndVarMap indMap; 
+#if 0
 extern DominatorSet::DomSetMapType dsmt;
 extern PostDominatorSet::DomSetMapType pdsmt;
 extern PostDominanceFrontier::DomSetMapType pdfmt;
+#endif
 
+#if 0
 static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
   DominatorSet::DomSetMapType::const_iterator dsmtI = dsmt.find(bb1);
   assert((dsmtI != dsmt.end()) && " basic block not found in dominator set");
@@ -60,6 +63,7 @@ static bool postDominates(BasicBlock *bb1, BasicBlock *bb2) {
     return false;
   return (pdsmtI->second.count(bb2) != 0);
 }
+#endif
 
 //count the number of problems given to Omega
 static  unsigned countA = 0;
@@ -205,7 +209,7 @@ RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
 ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
-  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+  const Type* csiType = Type::Int32Ty;
   const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -244,7 +248,7 @@ void ArrayBoundsCheck::addFormalToActual(Function *Fn, CallInst *CI, ABCExprTree
 // and ands it with the existing rootp!
 void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp) {
   if (Function *pf = dyn_cast<Function>(CI->getOperand(0))) {
-    if (pf->isExternal()) {
+    if (pf->isDeclaration()) {
       *rootp = new ABCExprTree(*rootp,addConstraintsForKnownFunctions(pf, CI), "&&");
       addFormalToActual(pf, CI, rootp);
     } else {
@@ -268,7 +272,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     //Actually thats fine, we ignore the return value constraints ;)
     for(; I != E; ++I) {
       CallSite CS = CallSite::get(I->first);
-      if ((I->second->isExternal()) ||
+      if ((I->second->isDeclaration()) ||
           (KnownFuncDB.find(I->second->getName()) != KnownFuncDB.end()) ) {
         ABCExprTree * temp = addConstraintsForKnownFunctions(I->second, CI);
         addFormalToActual(I->second, CI, &temp);
@@ -304,8 +308,8 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 }
 
   void ArrayBoundsCheck::addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp) {
-    PostDominanceFrontier::const_iterator it = pdfmt.find(currentBlock);
-    if (it != pdfmt.end()) {
+    PostDominanceFrontier::const_iterator it = postdomFrontier->find(currentBlock);
+    if (it != postdomFrontier->end()) {
       const PostDominanceFrontier::DomSetType &S = it->second;
       if (S.size() > 0) {
         PostDominanceFrontier::DomSetType::iterator pCurrent = S.begin(),
@@ -323,13 +327,13 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
             continue;
           }
           if (!dominated) {
-            if (dominates(*pCurrent, currentBlock)) {
+            if (domTree->dominates(*pCurrent, currentBlock)) {
               dominated = true;
               rdominated = false;
               continue;
             }
           }
-          if (dominates(currentBlock, *pCurrent)) {
+          if (domTree->dominates(currentBlock, *pCurrent)) {
             rdominated = rdominated & true;
             continue;
           } else {
@@ -355,7 +359,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
               if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
                 for (unsigned index = 0; index < BI->getNumSuccessors(); ++index) {
                   BasicBlock * succBlock = BI->getSuccessor(index);
-                  if (postDominates(currentBlock, succBlock)) {
+                  if (postdomTree->properlyDominates(currentBlock, succBlock)) {
                     DoneList.insert(CBB);
                     addControlDependentConditions(CBB,rootp);
                     addBranchConstraints(BI, BI->getSuccessor(index), rootp);
@@ -372,7 +376,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 
   // adds constraints for known functions 
   ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
-    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+    const Type* csiType = Type::Int32Ty;
     const ConstantInt * signedzero = ConstantInt::get(csiType,0);
     string var = "0";
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
@@ -395,7 +399,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       getConstraints(CI->getOperand(2), rootp);
     } else if (funcName == "strlen") {
       string var = getValueName(CI);
-      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+      const Type* csiType = Type::Int32Ty;
       const ConstantInt * signedzero = ConstantInt::get(csiType,0);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
@@ -489,7 +493,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	  Constraint *c1 = new Constraint(var, l1, "<");
 	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
-	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+	  const Type* csiType = Type::Int32Ty;
 	  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
 	  LinearExpr *l2 = new LinearExpr(signedzero, Mang);
 	  Constraint *c2 = new Constraint(var, l2, ">=");
@@ -520,7 +524,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 	if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
 	  //sometime allocas have some array as their allocating constant !!
 	  //We then have to generate constraints for all the dimensions
-	  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+	  const Type* csiType = Type::Int32Ty;
 	  const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
 	  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -564,7 +568,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 		      elSize = aType2->getNumElements();
 		    }
 		  }
-		  const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+		  const Type* csiType = Type::Int32Ty;
 		  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -599,7 +603,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 		    if (CSI2->getSExtValue() == 0) {
 		      //Now add the constraint
 
-		      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+		      const Type* csiType = Type::Int32Ty;
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
 		      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
 		      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -621,7 +625,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       //It could be an array
       var = getValueName(GV);
       if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-	const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+	const Type* csiType = Type::Int32Ty;
 	const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 	
 	Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
@@ -633,7 +637,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
 
   void ArrayBoundsCheck::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+    const Type* csiType = Type::Int32Ty;
     if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
       const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
@@ -649,7 +653,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   
   void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
     string var1 = var + "_i";
-    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+    const Type* csiType = Type::Int32Ty;
     const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -659,9 +663,9 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       //This will only work one level of arrays and structs
       //If there are arrays inside a struct then this will
       //not help us prove the safety of the access ....
-      unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
+      unsigned Size = getAnalysis<TargetData>().getABITypeSize(ST);
       string var2 = var1 + "_i";
-      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+      const Type* csiType = Type::Int32Ty;
       const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
       Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -764,7 +768,7 @@ ABCExprTree *ArrayBoundsCheck::getArgumentConstraints(Function & F) {
   
   //FIXME doesn't handle any kind of recursion 
   void ArrayBoundsCheck::checkSafety(Function &F) {
-    if (F.isExternal()) return;
+    if (F.isDeclaration()) return;
     if (fMap[&F] != 0) {
       MemAccessInstListType MemAccessInstList = fMap[&F]->getMemAccessInstList();
       MemAccessInstListIt maI = MemAccessInstList.begin(), maE = MemAccessInstList.end();
@@ -897,12 +901,25 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   //  out << " First Collect Safety Constraints ";
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     Function &F = *I;
+
+    // Retrieve dominator information about the function we're processing
+    DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
+    PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
+    PostDominanceFrontier & PDF = getAnalysis<PostDominanceFrontier>(F);
+    domTree = &DTDT;
+    postdomTree = &PDTDT;
+    postdomFrontier = & PDF;
     if (!(F.hasName()) || (KnownFuncDB.find(F.getName()) == KnownFuncDB.end()))
       collectSafetyConstraints(F);
     }
 #ifndef NO_STATIC_CHECK  
   //  out << " Now checking the constraints  \n ";
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    // Retrieve dominator information about the function we're processing
+    DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
+    PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
+    domTree = &DTDT;
+    postdomTree = &PDTDT;
     if (!(provenSafe.count(I) != 0)) checkSafety(*I);
   }
 #endif  
@@ -1153,7 +1170,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	      }
 	    }
 	  }
-	} else if (FCI->isExternal()) {
+	} else if (FCI->isDeclaration()) {
 	  if (KnownFuncDB.find(funcName) == KnownFuncDB.end()) {
             //	    std::cerr << "Don't know what constraints to add " << funcName << "\n";
 	    //	    std::cerr << "Exiting \n";
@@ -1165,7 +1182,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 	CompleteBUDataStructures::callee_iterator
 	  cI = cbudsPass->callee_begin(CI), cE = cbudsPass->callee_end(CI);
 	for (; cI != cE; ++cI) { 
-	  if ((cI->second->isExternal()) || (KnownFuncDB.find(cI->second->getName()) != KnownFuncDB.end())) {
+	  if ((cI->second->isDeclaration()) || (KnownFuncDB.find(cI->second->getName()) != KnownFuncDB.end())) {
 	    assert(1 && " Assumption that indirect fn call doesnt call an externalfails");
 	  }
 	}
@@ -1264,7 +1281,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
   }
   if (isa<Constant>(Expr)) {
     Constant *CPV = cast<Constant>(Expr);
-    if (CPV->getType()->isIntegral()) { // It's an integral constant!
+    if (CPV->getType()->isInteger()) { // It's an integral constant!
       if (dyn_cast<ConstantArray>(CPV)) {
 	assert(1 && "Constant Array don't know how to get the values ");
       } else if (ConstantInt *CPI = dyn_cast<ConstantInt>(Expr)) {
@@ -1329,6 +1346,24 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
       if (toType->isPrimitiveType() && fromType->isPrimitiveType()) {
 	//Here we have to give constraints for 
 	//FIXME .. this should be for all types not just sbyte 
+  // FIXME: JTC: I am pretty sure this is overly conservative; I'm just not
+  //             sure how to handle the lack of signed-ness on LLVM types.
+  if (toType == Type::Int32Ty) {
+    if (fromType == Type::Int8Ty) {
+	    number1 = "0";
+	    number2 = "127";
+	    addC = true;
+    } else if (fromType == Type::Int8Ty) {
+	    //in llvm front end the malloc argument is always casted to
+	    //uint! so we hack it here
+	    //This hack works incorrectly for
+	    //some programs so moved it to malloc itself
+	    //FIXME FIXME This might give incorrect results in some cases!!!!
+	    addC = true;
+    }
+  }
+
+#if 0
 	switch(toType->getTypeID()) {
 	case Type::Int32TyID :
 	  switch (fromType->getTypeID()) {
@@ -1366,6 +1401,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 	default:
 	  break;
 	}
+#endif
 	if (addC) {
 	  string var = getValueName(I);
 	  LinearExpr *l1 = new LinearExpr(I,Mang);
@@ -1386,22 +1422,22 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 	  const Type *eltype = pType->getElementType();
 	  if (eltype->isPrimitiveType()) {
 	    unsigned numbytes = 0;
-	    if (eltype->getTypeID() == Type::Int8TyID) {
+	    if (eltype == Type::Int8Ty) {
 	    //FIXME: this should make use of Target!!!!
 	      numbytes = 1;
-	    } else if (eltype->getTypeID() == Type::Int8TyID) {
+	    } else if (eltype == Type::Int8Ty) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::Int32TyID) {
+	    } else if (eltype == Type::Int32Ty) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::Int32TyID) {
+	    } else if (eltype == Type::Int32Ty) {
 	      numbytes = 4;
-	    } else if (eltype->getTypeID() == Type::Int16TyID) {
+	    } else if (eltype == Type::Int16Ty) {
 	      numbytes = 2;
-	    } else if (eltype->getTypeID() == Type::Int16TyID) {
+	    } else if (eltype == Type::Int16Ty) {
 	      numbytes = 2;
-	    } else if (eltype->getTypeID() == Type::Int64TyID) {
+	    } else if (eltype == Type::Int64Ty) {
 	      numbytes = 8;
-	    } else if (eltype->getTypeID() == Type::Int64TyID) {
+	    } else if (eltype == Type::Int64Ty) {
 	      numbytes = 8;
 	    } 
 
@@ -1415,6 +1451,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		  if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
 		    if (aType->getElementType()->isPrimitiveType()) {
 		      int elSize = aType->getNumElements();
+#if 0
 		      switch (aType->getElementType()->getTypeID()) {
 		      case Type::Int16TyID :
 		      case Type::Int16TyID :  elSize = (elSize/numbytes)*2; break;
@@ -1424,8 +1461,17 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		      case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
 		      default : break;
 		      }
+#else
+		      if ((aType->getElementType()) == Type::Int16Ty) {
+            elSize = (elSize/numbytes)*2;
+          } else if ((aType->getElementType()) == Type::Int32Ty) {
+            elSize = (elSize/numbytes)*4;
+          } else if ((aType->getElementType()) == Type::Int64Ty) {
+            elSize = (elSize/numbytes)*8;
+          }
+#endif
 		      string varName = getValueName(I);
-		      const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+		      const Type* csiType = Type::Int32Ty;
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		      LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		      return l1;
@@ -1434,6 +1480,7 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		} else if (const ArrayType *aType = dyn_cast<ArrayType>(opEltype)) {
 		  if (aType->getElementType()->isPrimitiveType()) {
 		    int elSize = aType->getNumElements();
+#if 0
 		    switch (aType->getElementType()->getTypeID()) {
 		    case Type::Int8TyID : 
 		    case Type::Int8TyID : elSize = elSize / numbytes; break;
@@ -1445,8 +1492,19 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		    case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
 		    default : break;
 		    }
+#else
+		    if ((aType->getElementType()) == Type::Int8Ty) {
+          elSize = elSize / numbytes;
+        } else if ((aType->getElementType()) == Type::Int16Ty) {
+          elSize = (elSize/numbytes) *2;
+        } else if ((aType->getElementType()) == Type::Int32Ty) {
+          elSize = (elSize/numbytes)*4;
+        } else if ((aType->getElementType()) == Type::Int64Ty) {
+          elSize = (elSize/numbytes)*8;
+        }
+#endif
 		    string varName = getValueName(I);
-		    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
+		    const Type* csiType = Type::Int32Ty;
 		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;
