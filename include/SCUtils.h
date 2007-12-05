@@ -1,9 +1,31 @@
+#include "llvm/BasicBlock.h"
+#include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 
 #include <vector>
 
 using namespace llvm;
 
+//
+// Function: getNextInst()
+//
+// Description:
+//  Get the next instruction following this instruction.
+//
+// Return value:
+//  0 - There is no instruction after this instruction in the Basic Block.
+//  Otherwise, a pointer to the next instruction is returned.
+//
+Instruction *
+getNextInst (Instruction * Inst) {
+  BasicBlock::iterator i(Inst);
+  ++i;
+  if ((i) == Inst->getParent()->getInstList().end())
+    return 0;
+  return i;
+}
+
+#if 0
 //
 // Function: castTo()
 //
@@ -85,4 +107,5 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
 
   return true;
 }
+#endif
 
