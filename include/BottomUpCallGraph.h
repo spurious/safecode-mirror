@@ -24,6 +24,9 @@ namespace llvm {
 
     public:
     
+    static char ID;
+    BottomUpCallGraph () : ModulePass ((intptr_t) &ID) {}
+
     //This keeps the map of a function and its call sites in all the callers
     //including the indirectly called sites
     std::map<Function *, std::vector<CallSite> > FuncCallSiteMap;

@@ -3,6 +3,8 @@
 #ifndef ARRAY_BOUNDS_CHECK
 #define ARRAY_BOUNDS_CHECK
 
+#include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
 #include "AffineExpressions.h"
@@ -17,6 +19,8 @@ namespace ABC {
 
 struct ArrayBoundsCheck : public ModulePass {
   public :
+    static char ID;
+    ArrayBoundsCheck () : ModulePass ((intptr_t) &ID) {}
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool runOnModule(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
@@ -24,8 +28,13 @@ struct ArrayBoundsCheck : public ModulePass {
       AU.addRequired<TargetData>();
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<PostDominatorTree>();
       AU.setPreservesAll();
     }
+  DominatorTree * domTree;
+  PostDominatorTree * postdomTree;
+  PostDominanceFrontier * postdomFrontier;
   private :
   CompleteBUDataStructures *cbudsPass;
   BottomUpCallGraph *buCG;

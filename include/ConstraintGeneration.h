@@ -16,6 +16,8 @@ namespace ABC {
 
 struct ConstraintGeneration : public ModulePass {
   public :
+    static char ID;
+    ConstraintGeneration () : ModulePass ((intptr_t) &ID) {}
     const char *getPassName() const { return "Interprocedural Constraint Generation"; }
     virtual bool runOnModule(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
