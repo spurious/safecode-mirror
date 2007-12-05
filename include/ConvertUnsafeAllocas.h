@@ -17,11 +17,13 @@ using namespace CSS;
  struct MallocPass : public FunctionPass
  {
    private:
-inline bool changeType (Instruction * Inst);
-   
+   DominatorTree * domTree;
+   inline bool changeType (Instruction * Inst);
    inline bool TypeContainsPointer(const Type *Ty);
    
    public:
+   static char ID;
+   MallocPass() : FunctionPass((intptr_t)(&ID)) {}
    virtual bool runOnFunction (Function &F);
    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
      AU.addRequired<TargetData>();
@@ -35,6 +37,8 @@ inline bool changeType (Instruction * Inst);
 namespace CUA {
 struct ConvertUnsafeAllocas : public ModulePass {
     public :
+    static char ID;
+    ConvertUnsafeAllocas () : ModulePass ((intptr_t)(&ID)) {}
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {

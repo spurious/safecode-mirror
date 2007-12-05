@@ -23,6 +23,8 @@ namespace llvm {
     struct checkStackSafety : public ModulePass {
       
     public :
+      static char ID;
+      checkStackSafety() : ModulePass ((intptr_t) &ID) {}
       std::vector<DSNode *> AllocaNodes;
       const char *getPassName() const { return "Stack Safety Check";}
       virtual bool runOnModule(Module &M);
