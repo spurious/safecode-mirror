@@ -117,7 +117,7 @@ void CZeroInfo::depthFirstGatherer() {
 	      df_iterator<const Function*> localIt = df_begin(&TheFunction), 
 		localEnd = df_end(&TheFunction);
 	      for ( ; localIt != localEnd; ++localIt) {
-		if (DomSet->dominates((BasicBlock *) BB, 
+		if (DomTree->dominates((BasicBlock *) BB, 
 				      (BasicBlock *) *localIt))
 		  BBPointerLiveInfo[*localIt][I.getOperand(1)] = true;
 	      }
@@ -425,13 +425,14 @@ namespace {
   
   // The Pass class we implement
   struct CZeroPtrChecks : public FunctionPass {
-    
+    static char ID;
+    CZeroPtrChecks () : FunctionPass ((intptr_t)(&ID)) {}
     const char *getPassName() const { return "CZero security pass"; }
     
     virtual bool runOnFunction (Function &F) {
       bool Error = false;
-      DominatorSet *DomSet = &getAnalysis<DominatorSet>();  
-      CZeroInfo *CZI = new CZeroInfo(F, DomSet);
+      DominatorTree *DomTree = &getAnalysis<DominatorTree>();  
+      CZeroInfo *CZI = new CZeroInfo(F, DomTree);
       std::cerr << "\nIn function " << F.getName() << "\n";
       if (CZI->getWarnings() != "") {
 	std::cerr << "Security Warning/s: \n";
@@ -448,7 +449,7 @@ namespace {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // TODO: Check when we generate code.
       AU.setPreservesAll();
-      AU.addRequired<DominatorSet>();
+      AU.addRequired<DominatorTree>();
     }
     
   };

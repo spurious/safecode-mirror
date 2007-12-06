@@ -20,7 +20,7 @@ using namespace llvm;
 #ifndef LLVA_KERNEL
 
 
-namespace {
+namespace llvm {
   RegisterPass<EmbeCFreeRemoval> Y("EmbeC", "EmbeC pass that removes all frees and issues warnings if behaviour has changed");
   
 
@@ -68,7 +68,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	      continue;
 	    }
 	  }
-	  if (!calledF->isExternal()) {
+	  if (!calledF->isDeclaration()) {
 	    // the pool pointer is passed to the called function
 	    
 	    // Find the formal parameter corresponding to the parameter V
@@ -125,7 +125,8 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    } else if (calledF->getName() == PoolCh) {
 	      // Ignore
 	    } else if (calledF->getName() == PoolAA) {
-	        FuncPoolAllocs[V].insert(cast<Instruction>(CI->getNext()));
+          BasicBlock::iterator it(CI);
+	        FuncPoolAllocs[V].insert(cast<Instruction>(++it));
 	    } else {
 	      hasError = true;
 	      std::cerr << "EmbeC: " << F->getName() << ": Unrecognized pool variable use \n";
@@ -226,7 +227,7 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V) {
 	    continue;
 	  }
 	}
-	if (!calledF->isExternal()) {
+	if (!calledF->isDeclaration()) {
 	  // the pool pointer is passed to the called function
 	  
 	  // Find the formal parameter corresponding to the parameter V
@@ -464,9 +465,9 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	      CastInst *CastI = 
 		CastInst::createPointerCast(StI->getOperand(1), 
 			     PointerType::get(Type::Int8Ty), "casted", StI);
-	      new CallInst(PoolCheck, 
-			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
-			   "", StI);
+        std::vector<Value *> args =
+          make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
+	      new CallInst(PoolCheck, args.begin(), args.end(), "", StI);
 	      std::cerr << " inserted poolcheck for noncollapsed pool\n";
 	    }
 	  } else if (CallInst *CallI = dyn_cast<CallInst>(*UI)) {
@@ -483,9 +484,9 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	      CastInst *CastI = 
 		CastInst::createPointerCast(LdI->getOperand(0), 
 			     PointerType::get(Type::Int8Ty), "casted", LdI);
-	      new CallInst(PoolCheck, 
-			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
-			   "", LdI);
+        std::vector<Value *> args =
+			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
+	      new CallInst(PoolCheck, args.begin(), args.end(), "", LdI);
 	      std::cerr << " inserted poolcheck for noncollpased pool\n";
 	    }
 	  }
@@ -658,7 +659,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   
   moduleChanged = true;
 
-  Function *mainF = M.getMainFunction();
+  Function *mainF = M.getFunction("main");
   
   if (!mainF) {
     hasError = true;
@@ -696,7 +697,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
     // Traverse the function finding poolfrees and calls to functions that
     // have poolfrees without pooldestroys on all paths in that function.
     
-    if (!F->isExternal()) {
+    if (!F->isDeclaration()) {
       // For each pool pointer def check its uses and ensure that there are 
       // no uses other than the pool_alloc, pool_free or pool_destroy calls
       
@@ -850,7 +851,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
       continue;
     
     // Ignore nodes representing external functions in the call graph
-    if (!F->isExternal()) {
+    if (!F->isDeclaration()) {
       // For each pool pointer def check its uses and ensure that there are 
       // no uses other than the pool_alloc, pool_free or pool_destroy calls
       

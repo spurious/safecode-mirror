@@ -243,14 +243,14 @@ protected:
   CZeroAliasGraph PointerAliasGraph;
   
   // Dominator set information
-  DominatorSet *DomSet;
+  DominatorTree *DomTree;
   
   string WarningsList;
   
   
 public:
   
-  CZeroInfo (Function& F, DominatorSet* DSet) : TheFunction(F), DomSet(DSet) {
+  CZeroInfo (Function& F, DominatorTree* DSet) : TheFunction(F), DomTree(DSet) {
     
   } 
   
