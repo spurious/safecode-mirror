@@ -41,6 +41,5 @@ namespace ABC {
     virtual bool runOnFunction(Function &F);
   };
 }
-
 }
 #endif

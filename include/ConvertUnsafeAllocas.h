@@ -33,7 +33,6 @@ using namespace CSS;
    }
  };
  
- 
 namespace CUA {
 struct ConvertUnsafeAllocas : public ModulePass {
     public :
@@ -87,5 +86,6 @@ Function *kmalloc;
 
 };
 }
+
 } 
 #endif

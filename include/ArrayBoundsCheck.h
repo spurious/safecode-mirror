@@ -106,6 +106,5 @@ struct ArrayBoundsCheck : public ModulePass {
 
   };
 }
-
 }
 #endif

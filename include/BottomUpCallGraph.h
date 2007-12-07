@@ -42,6 +42,5 @@ namespace llvm {
     }
     virtual bool runOnModule(Module&M);
   };
-  
 }
 #endif
