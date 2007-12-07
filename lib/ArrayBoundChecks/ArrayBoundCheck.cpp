@@ -32,6 +32,8 @@
 using namespace llvm;
 using namespace ABC;
 
+char llvm::ABC::ArrayBoundsCheck::ID = 0;
+
 namespace {
   cl::opt<string> OmegaFilename("omegafile",
                                 cl::desc("Specify omega include filename"),

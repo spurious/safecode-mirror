@@ -26,6 +26,8 @@
 using namespace llvm;
 using namespace ABC;
 
+char ConstraintGeneration::ID = 0;
+
 //The following are filled from the preprocess pass, since they require
 //fn passes
 extern IndVarMap indMap; 

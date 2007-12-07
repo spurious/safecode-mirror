@@ -11,6 +11,9 @@
 
 using namespace llvm;
 
+namespace llvm {
+char BottomUpCallGraph::ID = 0;
+
 //This is needed because some call sites get merged away during DSA if they have
 //the same inputs for instance.
 //But for array bounds checking we need to get constraints from all the call sites
@@ -96,6 +99,7 @@ void BottomUpCallGraph::figureOutSCCs(Module &M) {
   for (Module::iterator I = M.begin(), E= M.end(); I != E ; ++I) {
     visit(I);
   }
+}
 }
 
   RegisterPass<BottomUpCallGraph> bucg("bucg","Call Graph from CBUDS");

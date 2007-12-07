@@ -11,6 +11,9 @@
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
+
+char llvm::InsertPoolChecks::ID = 0;
+
 extern Value *getRepresentativeMetaPD(Value *);
 RegisterPass<InsertPoolChecks> ipc("safecode", "insert runtime checks");
 
@@ -64,6 +67,7 @@ namespace {
   STATISTIC (MissedNullChecks   , "Missed PD checks");
 }
 
+namespace llvm {
 bool InsertPoolChecks::runOnModule(Module &M) {
   cuaPass = &getAnalysis<ConvertUnsafeAllocas>();
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
@@ -888,3 +892,4 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F) {
   return 0;
 }
 #endif
+}

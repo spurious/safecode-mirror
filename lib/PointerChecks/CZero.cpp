@@ -453,6 +453,8 @@ namespace {
     }
     
   };
+
+  char CZeroPtrChecks::ID = 0;
   
   RegisterPass<CZeroPtrChecks> X("czeroptrchecks", "CZero Pointer Checks");
   

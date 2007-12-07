@@ -17,6 +17,8 @@ using namespace llvm;
  
 using namespace CSS;
 
+char checkStackSafety::ID = 0;
+
 RegisterPass<checkStackSafety> css("css1", "check stack safety");
 
 

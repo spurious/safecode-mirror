@@ -10,7 +10,7 @@ LEVEL = .
 #
 # Directories that needs to be built.
 #
-DIRS = lib runtime
+DIRS = lib tools runtime
 
 #
 # Include the Master Makefile that knows how to build all.

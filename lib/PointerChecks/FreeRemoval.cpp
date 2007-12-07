@@ -23,6 +23,7 @@ using namespace llvm;
 namespace llvm {
   RegisterPass<EmbeCFreeRemoval> Y("EmbeC", "EmbeC pass that removes all frees and issues warnings if behaviour has changed");
   
+char EmbeCFreeRemoval::ID = 0;
 
 // Check if SSA pool pointer variable V has uses other than alloc, free and 
 // destroy

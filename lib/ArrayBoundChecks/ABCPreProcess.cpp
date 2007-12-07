@@ -15,6 +15,8 @@
 using namespace llvm;
 using namespace ABC;
 
+char ABCPreProcess::ID = 0;
+
 IndVarMap indMap;
 #if 0
 DominatorSet::DomSetMapType dsmt;

@@ -35,6 +35,10 @@ namespace {
   STATISTIC (ConvAllocas,  "Number of converted allocas");
 }
 
+char CUA::ConvertUnsafeAllocas::ID = 0;
+char MallocPass::ID = 0;
+
+
 RegisterPass<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
