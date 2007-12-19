@@ -24,6 +24,7 @@ using namespace CSS;
    public:
    static char ID;
    MallocPass() : FunctionPass((intptr_t)(&ID)) {}
+   const char *getPassName() const { return "Malloc Pass"; }
    virtual bool runOnFunction (Function &F);
    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
      AU.addRequired<TargetData>();
@@ -38,7 +39,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     public :
     static char ID;
     ConvertUnsafeAllocas () : ModulePass ((intptr_t)(&ID)) {}
-    const char *getPassName() const { return "Array Bounds Check"; }
+    const char *getPassName() const { return "Convert Unsafe Allocas"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheck>();
@@ -46,6 +47,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
       AU.addRequired<TargetData>();
+
       // Does not preserve the BU or TD graphs
 #ifdef LLVA_KERNEL       
             AU.setPreservesAll();
