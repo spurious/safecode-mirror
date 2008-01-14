@@ -87,8 +87,13 @@ int main(int argc, char **argv) {
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
 
-    Passes.add(new ABCPreProcess());
     Passes.add(new TargetData(M.get()));
+    Passes.add(new ConvertUnsafeAllocas());
+    Passes.add(new EquivClassGraphs());
+    Passes.add(new BottomUpCallGraph());
+    Passes.add(new PoolAllocate());
+    Passes.add(new ABCPreProcess());
+    Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
 
     // Figure out where we are going to send the output...
