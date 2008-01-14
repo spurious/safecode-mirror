@@ -7,6 +7,8 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "AffineExpressions.h"
+#include "poolalloc/PoolAllocate.h"
+
 namespace llvm {
 
 Pass *createABCPreProcessPass();
@@ -31,6 +33,7 @@ namespace ABC {
     const char *getPassName() const { return "Collect Induction Variables"; }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<LoopInfo>();
+      AU.addPreserved<PoolAllocate>();
 #if 0
       AU.addRequired<DominatorSet>();
       AU.addRequired<PostDominatorSet>();
