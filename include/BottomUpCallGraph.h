@@ -26,6 +26,7 @@ namespace llvm {
     
     static char ID;
     BottomUpCallGraph () : ModulePass ((intptr_t) &ID) {}
+    const char *getPassName() const { return "Bottom-Up Call Graph"; }
 
     //This keeps the map of a function and its call sites in all the callers
     //including the indirectly called sites
