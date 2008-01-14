@@ -39,7 +39,7 @@ char CUA::ConvertUnsafeAllocas::ID = 0;
 char MallocPass::ID = 0;
 
 
-RegisterPass<ConvertUnsafeAllocas> cua("convalloca", "converts unsafe allocas");
+RegisterPass<ConvertUnsafeAllocas> cua("convalloca", "Converts Unsafe Allocas");
 
 bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   //
