@@ -30,6 +30,8 @@ using namespace CSS;
      AU.addRequired<TargetData>();
 #ifdef LLVA_KERNEL
      AU.setPreservesAll();
+#else
+     AU.setPreservesAll();
 #endif     
    }
  };
