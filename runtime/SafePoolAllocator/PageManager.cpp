@@ -59,9 +59,15 @@ static void *GetPages(unsigned NumPages) {
   //                 MAP_SHARED|MAP_ANONYMOUS, fd, 0);
   //  void *pa = malloc(NumPages * PageSize);
   //  assert(Addr != MAP_FAILED && "MMAP FAILED!");
+#if POSIX_MEMALIGN
    if (posix_memalign(&Addr, PageSize, NumPages*PageSize) != 0){
-     assert(1 && "memalign failed \n");
+     assert(0 && "memalign failed \n");
    }
+#else
+   if ((Addr = valloc (NumPages*PageSize)) == 0){
+     assert(0 && "valloc failed \n");
+   }
+#endif
   poolmemusage += NumPages * PageSize;
   memset(Addr, 0xcc, NumPages *PageSize);
   return Addr;
