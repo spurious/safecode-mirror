@@ -28,15 +28,15 @@ typedef struct MetaPoolTy {
 } MetaPoolTy;
 
 
-#ifdef __cpluscplus
+#ifdef __cplusplus
 extern "C" {
 #endif
   //register that starting from allocaptr numbytes are a part of the pool
   void poolcheck(MetaPoolTy **Pool, void *Node);
   bool poolcheckoptim(void *Pool, void *Node);
   void poolcheckregister(Splay *splay, void * allocaptr, unsigned NumBytes);
-  void AddPoolDescToMetaPool(void **MetaPool, void *PoolDesc);
-  void poolcheckarray(MetaPoolTy *Pool, void *Node, void * Node1);
+  void AddPoolDescToMetaPool(MetaPoolTy **MetaPool, void *PoolDesc);
+  void poolcheckarray(MetaPoolTy **Pool, void *Node, void * Node1);
   bool poolcheckarrayoptim(MetaPoolTy *Pool, void *Node, void * Node1);
   void poolcheckAddSlab(PoolCheckSlab **PoolCheckSlabPtr, void *Slab);
   void poolcheckinit(void *Pool, unsigned NodeSize);
@@ -48,7 +48,7 @@ extern "C" {
   Splay *poolchecksplay(void *Pool);
   void poolcheckfail (const char * msg);
   void * poolcheckmalloc (unsigned int size);
-#ifdef __cpluscplus
+#ifdef __cplusplus
 }
 #endif
 

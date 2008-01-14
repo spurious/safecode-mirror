@@ -24,6 +24,7 @@
 #define DEBUG(x) 
 
 //===----------------------------------------------------------------------===//
+extern "C" {
 extern unsigned PageSize;
 
 void poolcheckinit(void *Pool, unsigned NodeSize) {
@@ -90,7 +91,7 @@ inline bool refcheck(Splay *splay, void *Node) {
 }
 
 
-bool poolcheckarrayoptim(void *Pool, void *NodeSrc, void *NodeResult) {
+bool poolcheckarrayoptim(MetaPoolTy *Pool, void *NodeSrc, void *NodeResult) {
   Splay *psplay = poolchecksplay(Pool);
   splay *ref = splay_find_ptr(psplay, (unsigned long)NodeSrc);
   if (ref) {
@@ -107,7 +108,7 @@ void poolcheckarray(MetaPoolTy **MP, void *NodeSrc, void *NodeResult) {
   //iteratively search through the list
   //Check if there are other efficient data structures.
   while (MetaPool) {
-    void *Pool = MetaPool->Pool;
+    MetaPoolTy *Pool = (MetaPoolTy *)(MetaPool->Pool);
     if (poolcheckarrayoptim(Pool, NodeSrc, NodeResult)) return ;
     MetaPool = MetaPool->next;
   }
@@ -183,3 +184,4 @@ void poolcheckAddSlab(PoolCheckSlab **PCSPtr, void *Slab) {
   void poolcheckregister(Splay *splay, void * allocaptr, unsigned NumBytes) {
     splay_insert_ptr(splay, (unsigned long)(allocaptr), NumBytes);
   }
+}
