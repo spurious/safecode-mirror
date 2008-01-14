@@ -3,6 +3,7 @@
 
 #include "safecode/Config/config.h"
 #include "llvm/Pass.h"
+#include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
 
 #ifndef LLVA_KERNEL
@@ -22,21 +23,20 @@ struct InsertPoolChecks : public ModulePass {
     const char *getPassName() const { return "Inserting pool checks for array bounds "; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<ConvertUnsafeAllocas>();
 //      AU.addRequired<CompleteBUDataStructures>();
 //      AU.addRequired<TDDataStructures>();
 #ifndef LLVA_KERNEL      
       AU.addRequired<EquivClassGraphs>();
-      AU.addRequired<PoolAllocate>();
+      AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<EmbeCFreeRemoval>();
       AU.addRequired<TargetData>();
+      AU.addPreserved<PoolAllocate>();
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
-      
     };
     private :
-      CUA::ConvertUnsafeAllocas * cuaPass;
+      ArrayBoundsCheck * abcPass;
 #ifndef  LLVA_KERNEL
   PoolAllocate * paPass;
   EquivClassGraphs *equivPass;
