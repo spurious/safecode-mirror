@@ -66,7 +66,7 @@ namespace llvm
     Module *theM = F.getParent();  
     Constant *memsetF = 
       theM->getOrInsertFunction("memset", Type::VoidTy, 
-				PointerType::get(Type::Int8Ty), Type::Int32Ty , 
+				PointerType::getUnqual(Type::Int8Ty), Type::Int32Ty , 
 				Type::Int32Ty, 0);
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I)
       {
@@ -107,7 +107,7 @@ namespace llvm
     --IAddrBegin;
 		CastInst *CastI = 
 		  CastInst::createPointerCast (AllocInst, 
-			       PointerType::get(Type::Int8Ty), "casted", InsertPt);
+			       PointerType::getUnqual(Type::Int8Ty), "casted", InsertPt);
 		std::vector<Value *> args(1, CastI);
 		args.push_back(ConstantInt::get(Type::Int32Ty,204));
 		args.push_back(ConstantInt::get(Type::Int32Ty,
