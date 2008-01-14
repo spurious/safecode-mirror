@@ -47,7 +47,6 @@ bool checkStackSafety::markReachableAllocasInt(DSNode *DSN, bool start) {
 }
 
 bool checkStackSafety::runOnModule(Module &M) {
-  
   //  TDDataStructures *TDDS;
   //  TDDS = &getAnalysis<TDDataStructures>();
   CompleteBUDataStructures *BUDS;
@@ -57,22 +56,22 @@ bool checkStackSafety::runOnModule(Module &M) {
     Function &F = *MI;
     if (&F != MainFunc) {
       if (!F.isDeclaration()) {
-	DSGraph &BUG = BUDS->getDSGraph(F);
-	
-	// check if return value is a  pointers
-	if (isa<PointerType>(F.getReturnType())) {
-	  //return value type is a pointer
-	  for(inst_iterator ii = inst_begin(F), ie = inst_end(&F); ii != ie; ++ii) {
-	    if (ReturnInst *RI = dyn_cast<ReturnInst>(&*ii)) {
-	      DSNode *DSN = BUG.getNodeForValue(RI).getNode();
-	      if (DSN && markReachableAllocas(DSN)) {
-		std::cerr << "Instruction : \n" << RI << "points to a stack location\n";
-		std::cerr << "In Function " << F.getName() << "\n";
-		return false;
-	      }
-	    }
-	  }
-	}
+        DSGraph &BUG = BUDS->getDSGraph(F);
+
+        // check if return value is a  pointers
+        if (isa<PointerType>(F.getReturnType())) {
+          //return value type is a pointer
+          for(inst_iterator ii = inst_begin(F), ie = inst_end(&F); ii != ie; ++ii) {
+            if (ReturnInst *RI = dyn_cast<ReturnInst>(&*ii)) {
+              DSNode *DSN = BUG.getNodeForValue(RI).getNode();
+              if (DSN && markReachableAllocas(DSN)) {
+                std::cerr << "Instruction : \n" << RI << "points to a stack location\n";
+                std::cerr << "In Function " << F.getName() << "\n";
+                return false;
+              }
+            }
+          }
+        }
     
 	Function::arg_iterator AI = F.arg_begin(), AE = F.arg_end();
 	for (; AI != AE; ++AI) {
@@ -100,7 +99,7 @@ bool checkStackSafety::runOnModule(Module &M) {
       }
     }
   }
-  return true;
+  return false;
 }
 
 
