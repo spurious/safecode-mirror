@@ -69,10 +69,11 @@ namespace {
 
 namespace llvm {
 bool InsertPoolChecks::runOnModule(Module &M) {
-  cuaPass = &getAnalysis<ConvertUnsafeAllocas>();
+  abcPass = getAnalysisToUpdate<ArrayBoundsCheck>();
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
 #ifndef LLVA_KERNEL  
-  paPass = &getAnalysis<PoolAllocate>();
+  paPass = getAnalysisToUpdate<PoolAllocate>();
+  assert (paPass && "Pool Allocation Transform *must* be run first!");
   equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
   TD  = &getAnalysis<TargetData>();
@@ -118,7 +119,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
     while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
     if (PH) {
-      Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
+      Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
       Instruction *GVCasted = CastInst::createPointerCast(Argv,
 					   VoidPtrType, Argv->getName()+"casted",InsertPt);
       const Type* csiType = Type::Int32Ty;
@@ -139,9 +140,9 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Module::global_iterator GI = M.global_begin(), GE = M.global_end();
     for ( ; GI != GE; ++GI) {
       if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-	Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
+	Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
 	Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-	Type *PoolDescPtrTy = PointerType::get(PoolDescType);
+	Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
 	if (GV->getType() != PoolDescPtrTy) {
 	  DSGraph &G = equivPass->getGlobalsGraph();
 	  DSNode *DSN  = G.getNodeForValue(GV).getNode();
@@ -168,8 +169,10 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         std::vector<Value *> args = make_vector(PH, AllocSize, GVCasted, 0);
 	      new CallInst(PoolRegister, args.begin(), args.end(), "", InsertPt); 
 	    } else {
-	      std::cerr << "pool descriptor not present \n ";
+	      std::cerr << "pool descriptor not present for " << *GV << std::endl;
+#if 0
 	      abort();
+#endif
 	    }
 	  }
 	}
@@ -218,7 +221,7 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
         return;
-      PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
+      PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
     } else {
       //
       // Only add the pool check if the pool is a global value or it
@@ -256,10 +259,10 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
     // into sbyte pointers.
     CastInst *CastVI = 
       CastInst::createPointerCast(V, 
-		   PointerType::get(Type::Int8Ty), "node.lscasted", I);
+		   PointerType::getUnqual(Type::Int8Ty), "node.lscasted", I);
     CastInst *CastPHI = 
       CastInst::createPointerCast(PH, 
-		   PointerType::get(Type::Int8Ty), "poolhandle.lscasted", I);
+		   PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", I);
 
     // Create the call to poolcheck
     std::vector<Value *> args(1,CastPHI);
@@ -319,7 +322,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 					 
 	  CastInst *CastVI = 
 	    CastInst::createPointerCast (Vnew, 
-			 PointerType::get(Type::Int8Ty), "casted", I);
+			 PointerType::getUnqual(Type::Int8Ty), "casted", I);
 	
 	  std::vector<Value *> args(1, NumArg);
 	  args.push_back(CastVI);
@@ -327,7 +330,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 	    Function *func = *flI;
 	    CastInst *CastfuncI = 
 	      CastInst::createPointerCast (func, 
-			   PointerType::get(Type::Int8Ty), "casted", I);
+			   PointerType::getUnqual(Type::Int8Ty), "casted", I);
 	    args.push_back(CastfuncI);
 	  }
 	  new CallInst(FunctionCheck, args.begin(), args.end(), "", I);
@@ -337,10 +340,10 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 
 	CastInst *CastVI = 
 	  CastInst::createPointerCast (Vnew, 
-		       PointerType::get(Type::Int8Ty), "casted", I);
+		       PointerType::getUnqual(Type::Int8Ty), "casted", I);
 	CastInst *CastPHI = 
 	  CastInst::createPointerCast (PH, 
-		       PointerType::get(Type::Int8Ty), "casted", I);
+		       PointerType::getUnqual(Type::Int8Ty), "casted", I);
 	std::vector<Value *> args(1,CastPHI);
 	args.push_back(CastVI);
 	
@@ -372,34 +375,44 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-	//we need to get the LI from the original function
-	Value *P = LI->getPointerOperand();
-	if (isClonedFunc) {
-	  assert(FI->NewToOldValueMap.count(LI) && " not in the value map \n");
-	  const LoadInst *temp = dyn_cast<LoadInst>(FI->NewToOldValueMap[LI]);
-	  assert(temp && " Instruction  not there in the NewToOldValue map");
-	  const Value *Ptr = temp->getPointerOperand();
-	  addLSChecks(P, Ptr, LI, Forig);
-	} else {
-	  addLSChecks(P, P, LI, Forig);
-	}
+        // We need to get the LI from the original function
+        Value *P = LI->getPointerOperand();
+        if (isClonedFunc) {
+          assert (FI && "No FuncInfo for this function\n");
+          assert((FI->MapValueToOriginal(LI)) && " not in the value map \n");
+          const LoadInst *temp = dyn_cast<LoadInst>(FI->MapValueToOriginal(LI));
+          assert(temp && " Instruction  not there in the NewToOldValue map");
+          const Value *Ptr = temp->getPointerOperand();
+          addLSChecks(P, Ptr, LI, Forig);
+        } else {
+          addLSChecks(P, P, LI, Forig);
+        }
       } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
-	Value *P = SI->getPointerOperand();
-	if (isClonedFunc) {
-	  assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
-	  const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
-	  assert(temp && " Instruction  not there in the NewToOldValue map");
-	  const Value *Ptr = temp->getPointerOperand();
-	  addLSChecks(P, Ptr, SI, Forig);
-	} else {
-	  addLSChecks(P, P, SI, Forig);
-	}
+        Value *P = SI->getPointerOperand();
+        if (isClonedFunc) {
+          std::cerr << *(SI) << std::endl;
+#if 0
+          assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
+#else
+          assert((FI->MapValueToOriginal(SI)) && " not in the value map \n");
+#endif
+#if 0
+          const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
+#else
+          const StoreInst *temp = dyn_cast<StoreInst>(FI->MapValueToOriginal(SI));
+#endif
+          assert(temp && " Instruction  not there in the NewToOldValue map");
+          const Value *Ptr = temp->getPointerOperand();
+          addLSChecks(P, Ptr, SI, Forig);
+        } else {
+          addLSChecks(P, P, SI, Forig);
+        }
       } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
 	Value *FunctionOp = CI->getOperand(0);
 	if (!isa<Function>(FunctionOp)) {
 	  if (isClonedFunc) {
-	    assert(FI->NewToOldValueMap.count(CI) && " not in the value map \n");
-	    const CallInst *temp = dyn_cast<CallInst>(FI->NewToOldValueMap[CI]);
+	    assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
+	    const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
 	    assert(temp && " Instruction  not there in the NewToOldValue map");
 	    const Value* FunctionOp1 = temp->getOperand(0);
 	    addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
@@ -415,7 +428,7 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 #endif
 
 void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
-  std::vector<Instruction *> & UnsafeGetElemPtrs = cuaPass->getUnsafeGetElementPtrsFromABC();
+  std::vector<Instruction *> & UnsafeGetElemPtrs = abcPass->UnsafeGetElemPtrs;
   std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
   for (; iCurrent != iEnd; ++iCurrent) {
     // We have the GetElementPtr
@@ -439,7 +452,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             // Don't bother to insert the NULL check unless the user asked
             if (!EnableNullChecks)
               continue;
-            PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
+            PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
             CastInst::createPointerCast(CI->getOperand(1), Type::Int32Ty, "node.lscasted", InsertPt);
@@ -452,13 +465,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
             CastInst::createPointerCast(CI->getOperand(1), 
-                         PointerType::get(Type::Int8Ty), "memcpy.1.casted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "memcpy.1.casted", InsertPt);
           CastInst *CastCI = 
             CastInst::createPointerCast(Bop, 
-                         PointerType::get(Type::Int8Ty), "mempcy.2.casted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "mempcy.2.casted", InsertPt);
           CastInst *CastPHI = 
             CastInst::createPointerCast(PH, 
-                         PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
           std::vector<Value *> args(1,CastPHI);
@@ -474,7 +487,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
             // Don't bother to insert the NULL check unless the user asked
             if (!EnableNullChecks)
               continue;
-            PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
+            PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
             CastInst::createPointerCast(CI, Type::Int32Ty, "node.lscasted", InsertPt);
@@ -487,13 +500,13 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
             CastInst::createPointerCast(CI->getOperand(1), 
-                         PointerType::get(Type::Int8Ty), "memset.1.casted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "memset.1.casted", InsertPt);
           CastInst *CastCI = 
             CastInst::createPointerCast(Bop, 
-                         PointerType::get(Type::Int8Ty), "memset.2.casted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "memset.2.casted", InsertPt);
           CastInst *CastPHI = 
             CastInst::createPointerCast(PH, 
-                         PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
+                         PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
           std::vector<Value *> args(1,CastPHI);
@@ -520,12 +533,20 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 #ifndef LLVA_KERNEL    
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     Instruction *Casted = GEP;
+#if 0
+    //
+    // JTC: Disabled.  I'm not sure why we would look up a cloned value when
+    //                 processing an old value.
+    //
+std::cerr << "Parent: " << GEP->getParent()->getParent()->getName() << std::endl;
+std::cerr << "Ins   : " << *GEP << std::endl;
     if (!FI->ValueMap.empty()) {
       assert(FI->ValueMap.count(GEP) && "Instruction not in the value map \n");
       Instruction *temp = dyn_cast<Instruction>(FI->ValueMap[GEP]);
       assert(temp && " Instruction  not there in the Value map");
       Casted  = temp;
     }
+#endif
     if (GetElementPtrInst *GEPNew = dyn_cast<GetElementPtrInst>(Casted)) {
       Value *PH = getPoolHandle(GEP, F, *FI);
       if (PH && isa<ConstantPointerNull>(PH)) continue;
@@ -597,15 +618,19 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
         //      (*iCurrent)->dump();
         continue ;
       } else {
-        if (Casted->getType() != PointerType::get(Type::Int8Ty)) {
-          Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::Int8Ty),
+        if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
+          Casted = CastInst::createPointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
                                 (Casted)->getName()+".pc.casted",
                                 getNextInst(Casted));
         }
-        std::vector<Value *> args(1, PH);
+        std::cerr << "PH = " << *PH << std::endl;
+        Instruction *CastedPH = CastInst::createPointerCast(PH,
+                                             PointerType::getUnqual(Type::Int8Ty),
+                                             "ph",getNextInst(Casted));
+        std::vector<Value *> args(1, CastedPH);
         args.push_back(Casted);
         // Insert it
-        new CallInst(PoolCheck,args.begin(), args.end(), "",getNextInst(Casted));
+        new CallInst(PoolCheck,args.begin(), args.end(), "",getNextInst(CastedPH));
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -708,7 +733,7 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
         continue;
-      PH = Constant::getNullValue(PointerType::get(Type::Int8Ty));
+      PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
       DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
       //
@@ -758,15 +783,15 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
     // If this is an icomplete node, insert a poolcheckarray.
     //
     Instruction *InsertPt = Casted->getNext();
-    if (Casted->getType() != PointerType::get(Type::Int8Ty)) {
-      Casted = CastInst::createPointerCast(Casted,PointerType::get(Type::Int8Ty),
+    if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
+      Casted = CastInst::createPointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
                             (Casted)->getName()+".pc2.casted",InsertPt);
     }
     Instruction *CastedPointerOperand = CastInst::createPointerCast(PointerOperand,
-                                         PointerType::get(Type::Int8Ty),
+                                         PointerType::getUnqual(Type::Int8Ty),
                                          PointerOperand->getName()+".casted",InsertPt);
     Instruction *CastedPH = CastInst::createPointerCast(PH,
-                                         PointerType::get(Type::Int8Ty),
+                                         PointerType::getUnqual(Type::Int8Ty),
                                          "ph",InsertPt);
     if (Node->isIncomplete()) {
       std::vector<Value *> args(1, CastedPH);
@@ -783,12 +808,12 @@ void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
 }
 
 void InsertPoolChecks::addPoolCheckProto(Module &M) {
-  const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
+  const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
   /*
   const Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
   //	StructType::get(make_vector<const Type*>(VoidPtrType, VoidPtrType,
   //                                               Type::Int32Ty, Type::Int32Ty, 0));
-  const Type * PoolDescTypePtr = PointerType::get(PoolDescType);
+  const Type * PoolDescTypePtr = PointerType::getUnqual(PoolDescType);
   */  
 
   std::vector<const Type *> Arg(1, VoidPtrType);
@@ -837,12 +862,23 @@ unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
 }
 #ifndef LLVA_KERNEL
 Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed) {
+#if 1
+  //
+  // JTC:
+  //  If this function has a clone, then try to grab the original.
+  //
+  if (!(paPass->getFuncInfo(*F)))
+  {
+std::cerr << "PoolHandle: Getting original Function\n";
+    F = paPass->getOrigFunctionFromClone(F);
+  }
+#endif
   const DSNode *Node = getDSNode(V,F);
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
-  Type *VoidPtrType = PointerType::get(Type::Int8Ty); 
+  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
   Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-  Type *PoolDescPtrTy = PointerType::get(PoolDescType);
+  Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   if (!Node) {
     return 0; //0 means there is no isse with the value, otherwise there will be a callnode
   }
@@ -870,9 +906,15 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo
 #endif
 	return Constant::getNullValue(PoolDescPtrTy);
       } else {
+        if (Argument * Arg = dyn_cast<Argument>(v))
+          if ((Arg->getParent()) != F)
+            return Constant::getNullValue(PoolDescPtrTy);
 	return v;
       }
     } else {
+      if (Argument * Arg = dyn_cast<Argument>(I->second))
+        if ((Arg->getParent()) != F)
+          return Constant::getNullValue(PoolDescPtrTy);
       return I->second;
     } 
   }
