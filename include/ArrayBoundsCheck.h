@@ -25,16 +25,17 @@ struct ArrayBoundsCheck : public ModulePass {
     virtual bool runOnModule(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesAll();
       AU.addRequired<TargetData>();
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<PostDominatorTree>();
-      AU.setPreservesAll();
+      AU.addRequired<PostDominanceFrontier>();
     }
-  DominatorTree * domTree;
-  PostDominatorTree * postdomTree;
-  PostDominanceFrontier * postdomFrontier;
+    DominatorTree * domTree;
+    PostDominatorTree * postdomTree;
+    PostDominanceFrontier * postdomFrontier;
   private :
   CompleteBUDataStructures *cbudsPass;
   BottomUpCallGraph *buCG;
