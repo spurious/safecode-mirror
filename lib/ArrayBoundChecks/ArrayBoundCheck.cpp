@@ -904,6 +904,9 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     Function &F = *I;
 
+    if (F.isDeclaration())
+      continue;
+
     // Retrieve dominator information about the function we're processing
     DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
     PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
@@ -917,9 +920,11 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
 #ifndef NO_STATIC_CHECK  
   //  out << " Now checking the constraints  \n ";
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    if (I->isDeclaration())
+      continue;
     // Retrieve dominator information about the function we're processing
-    DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
-    PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
+    DominatorTree &DTDT = getAnalysis<DominatorTree>(I);
+    PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(I);
     domTree = &DTDT;
     postdomTree = &PDTDT;
     if (!(provenSafe.count(I) != 0)) checkSafety(*I);
