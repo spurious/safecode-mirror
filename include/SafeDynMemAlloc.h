@@ -58,7 +58,7 @@ namespace llvm {
 
     static char ID;
     EmbeCFreeRemoval () : ModulePass ((intptr_t) &ID) {}
-
+    const char *getPassName() const { return "Embedded C Free Removal"; }
     void checkPoolSSAVarUses(Function *F, Value *V, 
 			     map<Value *, set<Instruction *> > &FuncAllocs, 
 			     map<Value *, set<Instruction *> > &FuncFrees, 
@@ -75,7 +75,9 @@ namespace llvm {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
       AU.addRequired<EquivClassGraphs>();
-      AU.addRequired<PoolAllocate>();
+#if 1
+      AU.addRequiredTransitive<PoolAllocate>();
+#endif
 #endif      
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
