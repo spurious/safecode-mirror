@@ -16,7 +16,7 @@ using namespace llvm;
 //  0 - There is no instruction after this instruction in the Basic Block.
 //  Otherwise, a pointer to the next instruction is returned.
 //
-Instruction *
+static Instruction *
 getNextInst (Instruction * Inst) {
   BasicBlock::iterator i(Inst);
   ++i;
@@ -25,7 +25,6 @@ getNextInst (Instruction * Inst) {
   return i;
 }
 
-#if 0
 //
 // Function: castTo()
 //
@@ -33,7 +32,7 @@ getNextInst (Instruction * Inst) {
 //  Given an LLVM value, insert a cast instruction to make it a given type.
 //
 static inline Value *
-castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
+castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -44,15 +43,21 @@ castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
   // If it's a constant, just create a constant expression.
   //
   if (Constant * C = dyn_cast<Constant>(V)) {
-    Constant * CE = ConstantExpr::getCast (C, Ty);
+    Constant * CE = ConstantExpr::getZExtOrBitCast (C, Ty);
     return CE;
   }
                                                                                 
   //
   // Otherwise, insert a cast instruction.
   //
-  return new CastInst(V, Ty, "cast", InsertPt);
+  return CastInst::createZExtOrBitCast (V, Ty, Name, InsertPt);
 }
+
+static inline Value *
+castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
+  castTo (V, Ty, "casted", InsertPt);
+}
+
 
 //
 // Function: indexesStructsOnly()
@@ -107,5 +112,4 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
 
   return true;
 }
-#endif
 
