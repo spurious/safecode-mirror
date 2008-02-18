@@ -6,9 +6,11 @@
 #include "safecode/Config/config.h"
 #include "ConvertUnsafeAllocas.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/Dominators.h"
 #include "llvm/Instruction.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Support/CFG.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 #include <iostream>
@@ -27,6 +29,14 @@ static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
   return (dsmtI->second.count(bb2) != 0);
 }
 #endif
+
+//
+// Command line options
+//
+cl::opt<bool> DisableStackPromote ("disable-stackpromote", cl::Hidden,
+                                   cl::init(false),
+                                   cl::desc("Do not promote stack allocations"));
+                                                                                
 
 //
 // Statistics
@@ -54,13 +64,13 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   TD = &getAnalysis<TargetData>();
 #ifdef LLVA_KERNEL
   //
-  // Get a reference to the kmalloc() function (the Linux kernel's general
-  // memory allocator function).
+  // Get a reference to the sp_malloc() function (a function in the kernel
+  // used for allocating promoted stack allocations).
   //
   std::vector<const Type *> Arg(1, Type::Int32Ty);
-  Arg.push_back(Type::Int32Ty);
-  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::Int8Ty), Arg, false);
-  kmalloc = M.getOrInsertFunction("kmalloc", kmallocTy);
+  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::Int8Ty),
+                                              Arg, false);
+  kmalloc = M.getOrInsertFunction("sp_malloc", kmallocTy);
 
   //
   // If we fail to get the kmalloc function, generate an error.
@@ -70,9 +80,11 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
 
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
-  //  TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
-  //  TransformAllocasToMallocs(unsafeAllocaNodes);
-  //  TransformCollapsedAllocas(M);
+  if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+#ifndef LLVA_KERNEL
+  TransformAllocasToMallocs(unsafeAllocaNodes);
+  TransformCollapsedAllocas(M);
+#endif
   return true;
 }
 
@@ -191,9 +203,6 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-            ConstantInt * signedzero = ConstantInt::get(csiType,32);
-            args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
@@ -267,9 +276,6 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-            ConstantInt * signedzero = ConstantInt::get(csiType,32);
-            args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             MI = new CastInst(CI, AI->getType(), "",AI);
 #endif	    
@@ -333,9 +339,6 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
                                                  AI);	    
 
             std::vector<Value *> args(1, AllocSize);
-            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-            ConstantInt * signedzero = ConstantInt::get(csiType,32);
-            args.push_back(signedzero);
             CallInst *CI = new CallInst(kmalloc, args, "", AI);
             CastInst * MI = new CastInst(CI, AI->getType(), "",AI);
 #endif
@@ -356,21 +359,27 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 }
 
 void ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
-  std::vector<Instruction *> & UnsafeGetElemPtrs = abcPass->UnsafeGetElemPtrs;
-  std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
-  for (; iCurrent != iEnd; ++iCurrent) {
-    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(*iCurrent)) {
-      Value *pointerOperand = GEP->getPointerOperand();
-      DSGraph &TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
-      DSNode *DSN = TDG.getNodeForValue(pointerOperand).getNode();
-      //FIXME DO we really need this ?	    markReachableAllocas(DSN);
-      if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
-        unsafeAllocaNodes.push_back(DSN);
+#if 1
+  std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGEPMap= abcPass->UnsafeGetElemPtrs;
+  std::map<BasicBlock *,std::set<Instruction*>*>::const_iterator bCurrent = UnsafeGEPMap.begin(), bEnd = UnsafeGEPMap.end();
+  for (; bCurrent != bEnd; ++bCurrent) {
+    std::set<Instruction *> * UnsafeGetElemPtrs = bCurrent->second;
+    std::set<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs->begin(), iEnd = UnsafeGetElemPtrs->end();
+    for (; iCurrent != iEnd; ++iCurrent) {
+      if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(*iCurrent)) {
+        Value *pointerOperand = GEP->getPointerOperand();
+        DSGraph &TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
+        DSNode *DSN = TDG.getNodeForValue(pointerOperand).getNode();
+        //FIXME DO we really need this ?	    markReachableAllocas(DSN);
+        if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
+          unsafeAllocaNodes.push_back(DSN);
+        }
+      } else {
+        
+        //call instruction add the corresponding 	  *iCurrent->dump();
+        //FIXME 	  abort();
       }
-    } else {
-      
-      //call instruction add the corresponding 	  *iCurrent->dump();
-      //FIXME 	  abort();
     }
   }
+#endif
 }

@@ -7,8 +7,12 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
+#include "llvm/Pass.h"
 #include "AffineExpressions.h"
 #include "BottomUpCallGraph.h"
+
+#include <map>
+#include <set>
 
 namespace llvm {
 
@@ -23,7 +27,6 @@ struct ArrayBoundsCheck : public ModulePass {
     ArrayBoundsCheck () : ModulePass ((intptr_t) &ID) {}
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool runOnModule(Module &M);
-    std::vector<Instruction*> UnsafeGetElemPtrs;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
       AU.addRequired<TargetData>();
@@ -33,15 +36,26 @@ struct ArrayBoundsCheck : public ModulePass {
       AU.addRequired<PostDominatorTree>();
       AU.addRequired<PostDominanceFrontier>();
     }
+
+    std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;
+    std::set<Instruction*> UnsafeCalls;
+    
+    std::set<Instruction*> * getUnsafeGEPs (BasicBlock * BB) {
+      return UnsafeGetElemPtrs[BB];
+    }
+
+  private :
+    // Referenced passes
+    CompleteBUDataStructures *cbudsPass;
+    BottomUpCallGraph *buCG;
+
+    typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
+    typedef std::map<Function*, int> FuncIntMap;
+
     DominatorTree * domTree;
     PostDominatorTree * postdomTree;
     PostDominanceFrontier * postdomFrontier;
-  private :
-  CompleteBUDataStructures *cbudsPass;
-  BottomUpCallGraph *buCG;
-  typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
-  typedef std::map<Function*, int> FuncIntMap;
-    
+
     //This is required for getting the names/unique identifiers for variables.
     Mangler *Mang;
 
@@ -74,6 +88,17 @@ struct ArrayBoundsCheck : public ModulePass {
   //This method adds constraints for known trusted functions
   ABCExprTree* addConstraintsForKnownFunctions(Function *kf, CallInst *CI);
     
+    // Mark an instruction as an unsafe GEP instruction
+    void MarkGEPUnsafe (Instruction * GEP) {
+      // Pointer to set of unsafe GEPs
+      std::set<Instruction*> * UnsafeGEPs;
+
+      if (!(UnsafeGetElemPtrs[GEP->getParent()]))
+        UnsafeGetElemPtrs[GEP->getParent()] = new std::set<Instruction*>;
+      UnsafeGEPs = UnsafeGetElemPtrs[GEP->getParent()];
+      UnsafeGEPs->insert(GEP);
+    }
+
     //Interface for getting constraints for a particular value
     void getConstraintsInternal( Value *v, ABCExprTree **rootp);
     void getConstraints( Value *v, ABCExprTree **rootp);

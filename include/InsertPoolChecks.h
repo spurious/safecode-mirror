@@ -51,7 +51,7 @@ struct InsertPoolChecks : public ModulePass {
   Constant *FunctionCheck;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
-  void addGetElementPtrChecks(Module &M);
+  void addGetElementPtrChecks(BasicBlock * BB);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
   void addLoadStoreChecks(Module &M);

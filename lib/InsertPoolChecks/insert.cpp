@@ -182,7 +182,17 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 #endif
 
 void InsertPoolChecks::addPoolChecks(Module &M) {
-  if (!DisableGEPChecks) addGetElementPtrChecks(M);
+  if (!DisableGEPChecks) {
+    Module::iterator mI = M.begin(), mE = M.end();
+    for ( ; mI != mE; ++mI) {
+      Function * F = mI;
+      Function::iterator fI = F->begin(), fE = F->end();
+      for ( ; fI != fE; ++fI) {
+        BasicBlock * BB = fI;
+        addGetElementPtrChecks (BB);
+      }
+    }
+  }
   if (!DisableLSChecks)  addLoadStoreChecks(M);
 }
 
@@ -408,18 +418,19 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
           addLSChecks(P, P, SI, Forig);
         }
       } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-	Value *FunctionOp = CI->getOperand(0);
-	if (!isa<Function>(FunctionOp)) {
-	  if (isClonedFunc) {
-	    assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
-	    const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
-	    assert(temp && " Instruction  not there in the NewToOldValue map");
-	    const Value* FunctionOp1 = temp->getOperand(0);
-	    addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
-	  } else {
-	    addLSChecks(FunctionOp, FunctionOp, CI, Forig);
-	  }
-	}
+        Value *FunctionOp = CI->getOperand(0);
+        if (!isa<Function>(FunctionOp)) {
+          std::cerr << "JTC: LIC: " << F->getName() << " : " << *CI << std::endl;
+          if (isClonedFunc) {
+            assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
+            const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
+            assert(temp && " Instruction  not there in the NewToOldValue map");
+            const Value* FunctionOp1 = temp->getOperand(0);
+            addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
+          } else {
+            addLSChecks(FunctionOp, FunctionOp, CI, Forig);
+          }
+        }
       } 
     }
   }
@@ -427,9 +438,11 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 
 #endif
 
-void InsertPoolChecks::addGetElementPtrChecks(Module &M) {
-  std::vector<Instruction *> & UnsafeGetElemPtrs = abcPass->UnsafeGetElemPtrs;
-  std::vector<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs.begin(), iEnd = UnsafeGetElemPtrs.end();
+void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
+  std::set<Instruction *> * UnsafeGetElemPtrs = abcPass->getUnsafeGEPs (BB);
+  if (!UnsafeGetElemPtrs)
+    return;
+  std::set<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs->begin(), iEnd = UnsafeGetElemPtrs->end();
   for (; iCurrent != iEnd; ++iCurrent) {
     // We have the GetElementPtr
     if (!isa<GetElementPtrInst>(*iCurrent)) {

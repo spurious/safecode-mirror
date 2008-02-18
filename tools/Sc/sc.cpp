@@ -88,13 +88,25 @@ int main(int argc, char **argv) {
     PassManager Passes;
 
     Passes.add(new TargetData(M.get()));
+
+    // Convert Unsafe alloc instructions first.  This does not rely upon
+    // pool allocation and has problems dealing with cloned functions.
     Passes.add(new ConvertUnsafeAllocas());
+
+    // Schedule the Equivalence Class and Bottom-Up call graph analyses
+    // before pool allocation.  They don't work after pool allocation has
+    // been run, and PassManager schedules them after pool allocation for
+    // some reason.
     Passes.add(new EquivClassGraphs());
     Passes.add(new BottomUpCallGraph());
+
+    // Currently deactiviated
     Passes.add(new PoolAllocate());
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
+#if 0
     Passes.add(new InsertPoolChecks());
+#endif
 
     // Figure out where we are going to send the output...
     std::ostream *Out = 0;

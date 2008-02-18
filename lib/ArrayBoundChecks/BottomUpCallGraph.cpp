@@ -23,34 +23,38 @@ bool BottomUpCallGraph::runOnModule(Module &M) {
   CompleteBUDataStructures &CBU = getAnalysis<CompleteBUDataStructures>();
   const CompleteBUDataStructures::ActualCalleesTy &AC = CBU.getActualCallees();
 
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) 
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function * F = MI;
+    if (!(CBU.hasGraph(*F)))
+      std::cerr << "JTC: Function " << F->getName() << " has no CBU graph" << std::endl;
     for (inst_iterator I = inst_begin(MI), E = inst_end(MI); I != E; ++I) {
       if (Instruction *CI = dyn_cast<Instruction>(&*I)) {
-	if (isa<CallInst>(CI)) {
-	  CompleteBUDataStructures::callee_iterator cI = CBU.callee_begin(CI),
-                                              cE = CBU.callee_end(CI);
-	  if (cI == cE) {
-	    //Hmm this call site is not included in the cbuds
-	    //so we need to extra stuff.
-	    CallSite CS = CallSite::get(CI);
-	    if (Function *FCI = dyn_cast<Function>(CI->getOperand(0))) {
-	      //if it is a direct call, we can just add it!
-	      FuncCallSiteMap[FCI].push_back(CS);
-	    } else {
-	      //Here comes the ugly part
-	      Function *parenFunc = CI->getParent()->getParent();
-	      DSNode *calleeNode = CBU.getDSGraph(*parenFunc).getNodeForValue(CS.getCalledValue()).getNode();
-	      CalleeNodeCallSiteMap.insert(std::make_pair(calleeNode, CS));
-	    }
-	  }
-	}
+        if (isa<CallInst>(CI)) {
+          CompleteBUDataStructures::callee_iterator cI = CBU.callee_begin(CI),
+                                                    cE = CBU.callee_end(CI);
+          if (cI == cE) {
+            //Hmm this call site is not included in the cbuds
+            //so we need to extra stuff.
+            CallSite CS = CallSite::get(CI);
+            if (Function *FCI = dyn_cast<Function>(CI->getOperand(0))) {
+              //if it is a direct call, we can just add it!
+              FuncCallSiteMap[FCI].push_back(CS);
+            } else {
+              //Here comes the ugly part
+              Function *parenFunc = CI->getParent()->getParent();
+              DSNode *calleeNode = CBU.getDSGraph(*parenFunc).getNodeForValue(CS.getCalledValue()).getNode();
+              CalleeNodeCallSiteMap.insert(std::make_pair(calleeNode, CS));
+            }
+          }
+        }
       }
     }
+  }
   
-  for (CompleteBUDataStructures::ActualCalleesTy::const_iterator I = AC.begin(),
-         E = AC.end(); I != E; ++I) {
+  for (CompleteBUDataStructures::ActualCalleesTy::const_iterator
+       I = AC.begin(), E = AC.end(); I != E; ++I) {
     CallSite CS = CallSite::get(I->first);
-    DEBUG(std::cerr << "CALLEE: " << I->second->getName() << " from : " << I->first);
+    std::cerr << "CALLEE: " << I->second->getName() << " from : " << *(I->first) << std::endl;
     FuncCallSiteMap[I->second].push_back(CS);
     //see if this is equivalent to any other callsites of this function.....
     //FIXME This is very expensive way of doing it, 
