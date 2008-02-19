@@ -104,9 +104,10 @@ int main(int argc, char **argv) {
     Passes.add(new PoolAllocate());
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
-#if 0
     Passes.add(new InsertPoolChecks());
-#endif
+
+    // Verify the final result
+    Passes.add(createVerifierPass());
 
     // Figure out where we are going to send the output...
     std::ostream *Out = 0;
