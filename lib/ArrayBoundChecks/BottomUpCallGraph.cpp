@@ -25,8 +25,6 @@ bool BottomUpCallGraph::runOnModule(Module &M) {
 
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function * F = MI;
-    if (!(CBU.hasGraph(*F)))
-      std::cerr << "JTC: Function " << F->getName() << " has no CBU graph" << std::endl;
     for (inst_iterator I = inst_begin(MI), E = inst_end(MI); I != E; ++I) {
       if (Instruction *CI = dyn_cast<Instruction>(&*I)) {
         if (isa<CallInst>(CI)) {
