@@ -314,51 +314,49 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
   DSNode* Node = getDSNode(V, F);
   if (!PH) {
     return;
-  } else {
-    if (PH && isa<ConstantPointerNull>(PH)) {
-      //we have a collapsed/Unknown pool
-      Value *PH = getPoolHandle(V, F, *FI, true); 
+  }
 
-      if (dyn_cast<CallInst>(I)) {
-	// GEt the globals list corresponding to the node
-	return;
-	std::vector<Function *> FuncList;
-	Node->addFullFunctionList(FuncList);
-	std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
-	unsigned num = FuncList.size();
-	if (flI != flE) {
-	  const Type* csiType = Type::Int32Ty;
-	  Value *NumArg = ConstantInt::get(csiType, num);	
-					 
-	  CastInst *CastVI = 
-	    CastInst::createPointerCast (Vnew, 
-			 PointerType::getUnqual(Type::Int8Ty), "casted", I);
-	
-	  std::vector<Value *> args(1, NumArg);
-	  args.push_back(CastVI);
-	  for (; flI != flE ; ++flI) {
-	    Function *func = *flI;
-	    CastInst *CastfuncI = 
-	      CastInst::createPointerCast (func, 
-			   PointerType::getUnqual(Type::Int8Ty), "casted", I);
-	    args.push_back(CastfuncI);
-	  }
-	  new CallInst(FunctionCheck, args.begin(), args.end(), "", I);
-	}
-      } else {
+  if (isa<ConstantPointerNull>(PH)) {
+    //we have a collapsed/Unknown pool
+    Value *PH = getPoolHandle(V, F, *FI, true); 
 
+    if (dyn_cast<CallInst>(I)) {
+      // Get the globals list corresponding to the node
+      return;
+      std::vector<Function *> FuncList;
+      Node->addFullFunctionList(FuncList);
+      std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
+      unsigned num = FuncList.size();
+      if (flI != flE) {
+        const Type* csiType = Type::Int32Ty;
+        Value *NumArg = ConstantInt::get(csiType, num);	
+               
+        CastInst *CastVI = 
+          CastInst::createPointerCast (Vnew, 
+           PointerType::getUnqual(Type::Int8Ty), "casted", I);
 
-	CastInst *CastVI = 
-	  CastInst::createPointerCast (Vnew, 
-		       PointerType::getUnqual(Type::Int8Ty), "casted", I);
-	CastInst *CastPHI = 
-	  CastInst::createPointerCast (PH, 
-		       PointerType::getUnqual(Type::Int8Ty), "casted", I);
-	std::vector<Value *> args(1,CastPHI);
-	args.push_back(CastVI);
-	
-	new CallInst(PoolCheck,args.begin(), args.end(), "", I);
+        std::vector<Value *> args(1, NumArg);
+        args.push_back(CastVI);
+        for (; flI != flE ; ++flI) {
+          Function *func = *flI;
+          CastInst *CastfuncI = 
+            CastInst::createPointerCast (func, 
+             PointerType::getUnqual(Type::Int8Ty), "casted", I);
+          args.push_back(CastfuncI);
+        }
+        new CallInst(FunctionCheck, args.begin(), args.end(), "", I);
       }
+    } else {
+      CastInst *CastVI = 
+        CastInst::createPointerCast (Vnew, 
+               PointerType::getUnqual(Type::Int8Ty), "casted", I);
+      CastInst *CastPHI = 
+        CastInst::createPointerCast (PH, 
+               PointerType::getUnqual(Type::Int8Ty), "casted", I);
+      std::vector<Value *> args(1,CastPHI);
+      args.push_back(CastVI);
+
+      new CallInst(PoolCheck,args.begin(), args.end(), "", I);
     }
   }
 }
@@ -898,7 +896,12 @@ std::cerr << "PoolHandle: Getting original Function\n";
   if (Node->isUnknownNode()) {
     //FIXME this should be in a top down pass or propagated like collapsed pools below 
     if (!collapsed) {
+#if 0
       assert(!getDSNodeOffset(V, F) && " we don't handle middle of structs yet\n");
+#else
+      if (getDSNodeOffset(V, F))
+        std::cerr << "ERROR: we don't handle middle of structs yet" << std::endl;
+#endif
       return Constant::getNullValue(PoolDescPtrTy);
     }
   }
