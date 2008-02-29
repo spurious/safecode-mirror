@@ -64,7 +64,10 @@ extern "C" {
   void poolinit(PoolTy *Pool, unsigned NodeSize);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
-  void *poolalloc(PoolTy *Pool, unsigned NumBytes);
+  void * poolalloc(PoolTy *Pool, unsigned NumBytes);
+  void * poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
+  void * poolstrdup(PoolTy *Pool, char *Node);
+
   void poolregister(PoolTy *Pool, unsigned NumBytes, void *allocaptr);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);

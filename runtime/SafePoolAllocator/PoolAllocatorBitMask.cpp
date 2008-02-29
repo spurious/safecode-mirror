@@ -609,7 +609,7 @@ static void *poolallocarray(PoolTy* Pool, unsigned Size) {
 void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
   if (!Pool) {
     abort();
-    printf("Null pool pointer passed in to poolalloc!\n");
+    printf("Null pool pointer passed in to poolregister!\n");
     exit(-1);
   } 
   if (Pool->AllocadPool != -1) {
@@ -710,6 +710,34 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   retAddress = New->getElementAddress(0, 0);
   //  printf(" returning the address %x",retAddress);
   return retAddress;
+}
+
+void *
+poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
+  if (Node == 0) return poolalloc(Pool, NumBytes);
+  if (NumBytes == 0) {
+    poolfree(Pool, Node);
+    return 0;
+  }
+
+  void *New = poolalloc(Pool, NumBytes);
+  //    unsigned Size =
+  //FIXME the following may not work in all cases  
+  memcpy(New, Node, NumBytes);
+  poolfree(Pool, Node);
+  return New;
+}
+
+void *
+poolstrdup(PoolTy *Pool, char *Node) {
+  if (Node == 0) return 0;
+
+  unsigned int NumBytes = strlen(Node) + 1;
+  void *New = poolalloc(Pool, NumBytes);
+  if (New) {
+    memcpy(New, Node, NumBytes+1);
+  }
+  return New;
 }
 
 /*
