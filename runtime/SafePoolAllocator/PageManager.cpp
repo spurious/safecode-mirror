@@ -43,6 +43,8 @@ static void *GetPages(unsigned NumPages) {
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 #elif defined(sparc) || defined(__sparc__) || defined(__sparcv9)
   /* nothing */
+#elif defined(__APPLE__)
+  /* On MacOS X, just use valloc */
 #else
   std::cerr << "This architecture is not supported by the pool allocator!\n";
   abort();
