@@ -83,6 +83,7 @@ void logusage() {
   fflush(f);
   //    fclose(f);
 }
+
 /*
 void *RemapPage(void *va) {
   //This is for creating an alias
@@ -104,14 +105,17 @@ void *RemapPage(void *va) {
 }
 */
 
-void *RemapPage(void *va){
+void *RemapPage(void * va){
 	kern_return_t		kr;
-	mach_vm_address_t *	addr;
+	mach_vm_address_t 	target_addr;
+	mach_vm_address_t	source_addr;
 	vm_prot_t			prot_cur;
 	vm_prot_t			prot_max;
 	
-	kr = mach_vm_remap(mach_task_self(), addr, PageSize, 0, TRUE,
-						mach_task_self(), 0, FALSE, &prot_cur, &prot_max, VM_INHERIT_SHARE); 
+	source_addr = (mach_vm_address_t) va;
+	
+	kr = mach_vm_remap(mach_task_self(), &target_addr, PageSize, 0, TRUE,
+						mach_task_self(), source_addr, FALSE, &prot_cur, &prot_max, VM_INHERIT_SHARE); 
 
 	if (kr != KERN_SUCCESS) {
 		perror(" mremap error \n");
@@ -119,8 +123,7 @@ void *RemapPage(void *va){
 		abort();
 	}
 	
-	va = (void *) addr;
-	
+	va = (void *) target_addr;
 	return va;
 
 #ifdef FILESTATISTIC
@@ -129,59 +132,66 @@ void *RemapPage(void *va){
 #ifdef STATISTIC
 	AddressSpaceUsage2++;
 #endif
-
 }
 
 
-/// AllocatePage - This function returns a chunk of memory with size and
-/// alignment specified by PageSize.
+// AllocatePage - This function returns a chunk of memory with size and
+// alignment specified by PageSize.
 void *AllocatePage() {
-  RemappablePagesListType &FPL = getRemappablePageList();
-  if (!FPL.empty()) {
-    void *Result = FPL.back();
-    FPL.pop_back();
-    void *Ptr = mmap(Result, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    AddressSpaceUsage3++;
+	RemappablePagesListType &FPL = getRemappablePageList();
+	if (!FPL.empty()) {
+		void *Result = FPL.back();
+		FPL.pop_back();
+		void *Ptr = mmap(Result, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+		AddressSpaceUsage3++;
     
-    return Ptr;
-  }
+		return Ptr;
+	}
 
-  // Allocate a page using mmap shared
-  //  int sd = shmget(IPC_PRIVATE, PageSize, 0x1c0|0600);
-  // void *Ptr = shmat(sd, 0,0);
-  //   shmctl(sd, IPC_RMID, 0);
-  //  void *Ptr = mmap(0, PageSize, PROT_READ|PROT_WRITE, MAP_PRIVATE |MAP_ANONYMOUS, -1, 0);
-  void *Ptr = mmap(0, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED |MAP_ANONYMOUS, -1, 0);
-  //  void *Ptr = mmap((void *)mmapstart, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED |MAP_ANONYMOUS|MAP_FIXED, -1, 0);
-  if (Ptr == (void *)-1 ) {
-    perror("couldn't mmap\n");
-    printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
-    abort();
-  }
+	// Allocate a page using mmap shared
+	//  int sd = shmget(IPC_PRIVATE, PageSize, 0x1c0|0600);
+	// void *Ptr = shmat(sd, 0,0);
+	//   shmctl(sd, IPC_RMID, 0);
+	void *Ptr = mmap(0, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED |MAP_ANONYMOUS, -1, 0);
+	//  void *Ptr = mmap((void *)mmapstart, PageSize, PROT_READ|PROT_WRITE, MAP_SHARED |MAP_ANONYMOUS|MAP_FIXED, -1, 0);
+	if (Ptr == (void *)-1 ) {
+		perror("couldn't mmap\n");
+		printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
+		abort();
+	}
+	
 #ifdef STATISTIC 
-  mmapstart += PageSize;
-  AddressSpaceUsage1++;
+	mmapstart += PageSize;
+	AddressSpaceUsage1++;
 #endif    
-  return Ptr;
+	return Ptr;
 }
 
 void *AllocateNPages(unsigned Num) {
   if (Num <= 1) return AllocatePage();
-  void *Ptr = mmap(0, PageSize * Num, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0); 
-#ifdef STATISTIC 
+  void *Ptr = mmap(0, PageSize * Num, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); 
+#ifdef STATISTIC
   AddressSpaceUsage1++;
 #endif    
   return Ptr;
   
 }
 
+
+// MprotectPage - This function changes the protection status of the page to become
+//                 none-accessible
 void MprotectPage(void *pa, unsigned numPages) {
-  mprotect(pa, numPages *PageSize, PROT_NONE);
+	kern_return_t kr;
+	kr = mprotect(pa, numPages * PageSize, PROT_NONE);
+	if (kr != KERN_SUCCESS)
+		perror(" mprotect error \n");
+	return;
 }
-/// FreePage - This function returns the specified page to the pagemanager for
-/// future allocation.
+
+// FreePage - This function returns the specified page to the pagemanager for
+// future allocation.
 void FreePage(void *Page) {
-  munmap(Page, PageSize);
-  RemappablePagesListType &FPL = getRemappablePageList();
-  FPL.push_back(Page);
+	munmap(Page, PageSize);
+	RemappablePagesListType &FPL = getRemappablePageList();
+	FPL.push_back(Page);
 }
