@@ -513,6 +513,8 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
 
   Pool->NumSlabs = 0;
 
+  Pool->RegNodes = new std::map<void*,unsigned>;
+
   ///  Pool->Slabs = new hash_set<void*>;
   // Call hash_set constructor explicitly
   //   void *SlabPtr = &Pool->Slabs;
@@ -529,7 +531,10 @@ void poolmakeunfreeable(PoolTy *Pool) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   if (Pool->AllocadPool) return;
-  
+
+  // Remove all registered pools
+  delete Pool->RegNodes;
+
   if (Pool->NumSlabs > AddrArrSize) {
     Pool->Slabs->clear();
     delete Pool->Slabs;
@@ -608,10 +613,12 @@ static void *poolallocarray(PoolTy* Pool, unsigned Size) {
 
 void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
   if (!Pool) {
-    abort();
     printf("Null pool pointer passed in to poolregister!\n");
+    fflush (stdout);
+    abort();
     exit(-1);
   } 
+#if 0
   if (Pool->AllocadPool != -1) {
     if (Pool->AllocadPool == 0) {
       printf(" Handle this case later\n");
@@ -624,6 +631,9 @@ void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
     Pool->AllocadPool = NumBytes;
     Pool->allocaptr = allocaptr;
   }
+#else
+  Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
+#endif
 }
 
 //Pool->AllocadPool -1 : unused so far
@@ -882,6 +892,7 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
 }
 
 void poolcheckoptim(PoolTy *Pool, void *Node) {
+#if 0
   if (Pool->AllocadPool > 0) {
     if (Pool->allocaptr <= Node) {
      unsigned diffPtr = (unsigned)Node - (unsigned)Pool->allocaptr;
@@ -892,6 +903,15 @@ void poolcheckoptim(PoolTy *Pool, void *Node) {
     PCheckPassed = 0;
     abort();
   }
+#else
+  return;
+  std::map<void*,unsigned>::iterator i = Pool->RegNodes->begin();
+  while (i != Pool->RegNodes->end()) {
+    if ((i->first <= Node) && (Node < ((unsigned char *)(i->first) + i->second)))
+      return;
+    ++i;
+  }
+#endif
   
   PoolSlab *PS = (PoolSlab*)((long)Node & ~(PageSize-1));
 
@@ -995,7 +1015,8 @@ void poolcheckoptim(PoolTy *Pool, void *Node) {
   }
 }
 
-void poolcheck(PoolTy *Pool, void *Node) {
+void
+poolcheck(PoolTy *Pool, void *Node) {
   PoolSlab *PS;
   PS = (PoolSlab*)((long)Node & ~(PageSize-1));
   if (Pool->prevPage[0] == PS) {

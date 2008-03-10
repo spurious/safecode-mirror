@@ -16,6 +16,9 @@
 #define POOLALLOCATOR_RUNTIME_H
 #include "llvm/ADT/hash_set"
 
+#include <map>
+#include <utility>
+
 #define AddrArrSize 2
 unsigned poolmemusage = 0;
 unsigned PCheckPassed = 1;
@@ -52,6 +55,7 @@ typedef struct PoolTy {
   short AllocadPool;
   void *allocaptr;
 
+  std::map<void *,unsigned> * RegNodes;
 } PoolTy;
 
 extern "C" {
