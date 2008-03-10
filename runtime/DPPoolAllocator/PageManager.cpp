@@ -107,18 +107,27 @@ void *RemapPage(void *va) {
 
 void *RemapPage(void * va){
 	kern_return_t		kr;
-	mach_vm_address_t 	target_addr;
+	mach_vm_address_t 	target_addr=0;
 	mach_vm_address_t	source_addr;
-	vm_prot_t			prot_cur;
-	vm_prot_t			prot_max;
+	vm_prot_t			prot_cur = VM_PROT_READ | VM_PROT_WRITE;
+	vm_prot_t			prot_max = VM_PROT_READ | VM_PROT_WRITE;
 	
 	source_addr = (mach_vm_address_t) va;
 	
-	kr = mach_vm_remap(mach_task_self(), &target_addr, PageSize, 0, TRUE,
-						mach_task_self(), source_addr, FALSE, &prot_cur, &prot_max, VM_INHERIT_SHARE); 
+	kr = mach_vm_remap (mach_task_self(),
+                      &target_addr,
+                      PageSize,
+                      0,
+                      TRUE,
+                      mach_task_self(),
+                      source_addr,
+                      FALSE,
+                      &prot_cur,
+                      &prot_max,
+                      VM_INHERIT_SHARE); 
 
 	if (kr != KERN_SUCCESS) {
-		perror(" mremap error \n");
+		printf(" mremap error: %d \n", kr);
 		printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
 		abort();
 	}
