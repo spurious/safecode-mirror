@@ -575,6 +575,26 @@ void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
   return New;
 }
 
+//
+// Function: poolstrdup()
+//
+// Description:
+//  This is a pool allocated equivalent of strdup().  It allocates new memory
+//  from the given pool, copies the string into it, and returns a pointer to
+//  to the newly allocated memory.
+//
+void *
+poolstrdup(PoolTy *Pool, char *Node) {
+  if (Node == 0) return 0;
+
+  unsigned int NumBytes = strlen(Node) + 1;
+  void *New = poolalloc(Pool, NumBytes);
+  if (New) {
+    memcpy(New, Node, NumBytes+1);
+  }
+  return New;
+}
+
 // poolallocarray - a helper function used to implement poolalloc, when the
 // number of nodes to allocate is not 1.
 static void *poolallocarray(PoolTy* Pool, unsigned Size) {

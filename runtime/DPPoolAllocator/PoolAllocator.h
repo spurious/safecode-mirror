@@ -37,6 +37,7 @@ extern "C" {
   
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
   void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
+  void *poolstrdup(PoolTy *Pool, char *Node);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);
 #ifdef __cplusplus
