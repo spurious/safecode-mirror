@@ -117,7 +117,10 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Value *PH= getPoolHandle(Argv, MainFunc, *FI);
     Constant *PoolRegister = paPass->PoolRegister;
     BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
+    while ((isa<CallInst>(InsertPt))  ||
+            isa<CastInst>(InsertPt)   ||
+            isa<AllocaInst>(InsertPt) ||
+            isa<BinaryOperator>(InsertPt)) ++InsertPt;
     if (PH) {
       Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
       Instruction *GVCasted = CastInst::createPointerCast(Argv,
@@ -127,9 +130,11 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 				      csiType, Argc->getName()+"casted",InsertPt);
       AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
 					 ConstantInt::get(csiType, 4), "sizetmp", InsertPt);
-      std::vector<Value *> args = make_vector (PH, AllocSize, GVCasted);
+      std::vector<Value *> args;
+      args.push_back (PH);
+      args.push_back (GVCasted);
+      args.push_back (AllocSize);
       new CallInst(PoolRegister, args.begin(), args.end(), "", InsertPt); 
-      
     } else {
       std::cerr << "argv's pool descriptor is not present. \n";
       //	abort();
@@ -166,7 +171,10 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	      Value *PH = I->second;
 	      Instruction *GVCasted = CastInst::createPointerCast(GV,
 						   VoidPtrType, GV->getName()+"casted",InsertPt);
-        std::vector<Value *> args = make_vector(PH, AllocSize, GVCasted, 0);
+        std::vector<Value *> args;
+        args.push_back (PH);
+        args.push_back (GVCasted);
+        args.push_back (AllocSize);
 	      new CallInst(PoolRegister, args.begin(), args.end(), "", InsertPt); 
 	    } else {
 	      std::cerr << "pool descriptor not present for " << *GV << std::endl;
@@ -319,6 +327,14 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
   if (isa<ConstantPointerNull>(PH)) {
     //we have a collapsed/Unknown pool
     Value *PH = getPoolHandle(V, F, *FI, true); 
+#if 0
+    assert (PH && "Null pool handle!\n");
+#else
+    if (!PH) {
+      std::cerr << "ERROR: Missing Pool: " << *V << std::endl;
+      return;
+    }
+#endif
 
     if (dyn_cast<CallInst>(I)) {
       // Get the globals list corresponding to the node
@@ -488,7 +504,7 @@ void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
           std::vector<Value *> args(1,CastPHI);
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
-          new CallInst(PoolCheckArray,args,"", InsertPt);
+          new CallInst(PoolCheckArray,args.begin(), args.end(),"", InsertPt);
 #if 0
         } else if (Fop->getName() == "memset") {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
@@ -629,19 +645,32 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         //      (*iCurrent)->dump();
         continue ;
       } else {
-        if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
-          Casted = CastInst::createPointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
-                                (Casted)->getName()+".pc.casted",
-                                getNextInst(Casted));
+        //
+        // Determine if this is a pool belonging to a cloned version of the
+        // function.  If so, do not add a pool check.
+        //
+        if (Instruction * InsPH = dyn_cast<Instruction>(PH)) {
+          if ((InsPH->getParent()->getParent()) !=
+              (Casted->getParent()->getParent()))
+            return;
         }
-        std::cerr << "PH = " << *PH << std::endl;
-        Instruction *CastedPH = CastInst::createPointerCast(PH,
-                                             PointerType::getUnqual(Type::Int8Ty),
-                                             "ph",getNextInst(Casted));
+
+        BasicBlock::iterator InsertPt = Casted;
+        ++InsertPt;
+        Casted = castTo (Casted,
+                         PointerType::getUnqual(Type::Int8Ty),
+                         (Casted)->getName()+".pc.casted",
+                         InsertPt);
+        std::cerr << "JTC: PH: " << *PH << std::endl;
+        Value *CastedPH = castTo (PH,
+                                  PointerType::getUnqual(Type::Int8Ty),
+                                  "jtcph",
+                                  InsertPt);
         std::vector<Value *> args(1, CastedPH);
         args.push_back(Casted);
+
         // Insert it
-        new CallInst(PoolCheck,args.begin(), args.end(), "",getNextInst(CastedPH));
+        new CallInst(PoolCheck,args.begin(), args.end(), "",InsertPt);
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -872,7 +901,9 @@ unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
   return TDG.getNodeForValue((Value *)V).getOffset();
 }
 #ifndef LLVA_KERNEL
-Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed) {
+Value *
+InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
+                                bool collapsed) {
 #if 1
   //
   // JTC:
@@ -888,9 +919,10 @@ std::cerr << "PoolHandle: Getting original Function\n";
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
   Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-  Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-  Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+  const Type *PoolDescType = paPass->getPoolType();
+  const Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   if (!Node) {
+std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
     return 0; //0 means there is no isse with the value, otherwise there will be a callnode
   }
   if (Node->isUnknownNode()) {
@@ -905,6 +937,7 @@ std::cerr << "PoolHandle: Getting original Function\n";
       return Constant::getNullValue(PoolDescPtrTy);
     }
   }
+
   std::map<const DSNode*, Value*>::iterator I = FI.PoolDescriptors.find(Node);
   map <Function *, set<Value *> > &
     CollapsedPoolPtrs = efPass->CollapsedPoolPtrs;
@@ -915,17 +948,16 @@ std::cerr << "PoolHandle: Getting original Function\n";
     
     if (!collapsed && CollapsedPoolPtrs.count(F)) {
       Value *v = I->second;
-      if (CollapsedPoolPtrs[F].find(I->second) !=
-	  CollapsedPoolPtrs[F].end()) {
+      if (CollapsedPoolPtrs[F].find(I->second) != CollapsedPoolPtrs[F].end()) {
 #ifdef DEBUG
-	std::cerr << "Collapsed pools \n";
+        std::cerr << "Collapsed pools \n";
 #endif
-	return Constant::getNullValue(PoolDescPtrTy);
+        return Constant::getNullValue(PoolDescPtrTy);
       } else {
         if (Argument * Arg = dyn_cast<Argument>(v))
           if ((Arg->getParent()) != F)
             return Constant::getNullValue(PoolDescPtrTy);
-	return v;
+        return v;
       }
     } else {
       if (Argument * Arg = dyn_cast<Argument>(I->second))
@@ -934,6 +966,8 @@ std::cerr << "PoolHandle: Getting original Function\n";
       return I->second;
     } 
   }
+
+std::cerr << "JTC: Value " << *V << " not in PoolDescriptor List!" << std::endl;
   return 0;
 }
 #else
