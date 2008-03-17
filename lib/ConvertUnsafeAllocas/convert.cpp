@@ -5,6 +5,7 @@
 
 #include "safecode/Config/config.h"
 #include "ConvertUnsafeAllocas.h"
+#include "SCUtils.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Instruction.h"
@@ -68,7 +69,7 @@ bool ConvertUnsafeAllocas::runOnModule(Module &M) {
   // used for allocating promoted stack allocations).
   //
   std::vector<const Type *> Arg(1, Type::Int32Ty);
-  FunctionType *kmallocTy = FunctionType::get(PointerType::get(Type::Int8Ty),
+  FunctionType *kmallocTy = FunctionType::get(PointerType::getUnqual(Type::Int8Ty),
                                               Arg, false);
   kmalloc = M.getOrInsertFunction("sp_malloc", kmallocTy);
 
@@ -175,7 +176,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 #ifndef LLVA_KERNEL    
     MallocInst *MI = 0;
 #else
-    CastInst *MI = 0;
+    Value *MI = 0;
 #endif
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
          SMI != SME; ) {
@@ -196,15 +197,15 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
-                              TD->getTypeSize(AI->getAllocatedType()));
+                              TD->getABITypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            CallInst *CI = new CallInst(kmalloc, args, "", AI);
-            MI = new CastInst(CI, AI->getType(), "",AI);
+            CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
+            MI = castTo (CI, AI->getType(), "", AI);
 #endif	    
 	    DSN->setHeapMarker();
 	    AI->replaceAllUsesWith(MI);
@@ -254,7 +255,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 #ifndef LLVA_KERNEL    
     MallocInst *MI = 0;
 #else
-    CastInst *MI = 0;
+    Value *MI = 0;
 #endif
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
          SMI != SME; ) {
@@ -269,15 +270,15 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
-                              TD->getTypeSize(AI->getAllocatedType()));
+                              TD->getABITypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            CallInst *CI = new CallInst(kmalloc, args, "", AI);
-            MI = new CastInst(CI, AI->getType(), "",AI);
+            CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
+            MI = castTo (CI, AI->getType(), "",AI);
 #endif	    
 	    DSN->setHeapMarker();
 	    AI->replaceAllUsesWith(MI);
@@ -332,15 +333,15 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
-                              TD->getTypeSize(AI->getAllocatedType()));
+                              TD->getABITypeSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
 
             std::vector<Value *> args(1, AllocSize);
-            CallInst *CI = new CallInst(kmalloc, args, "", AI);
-            CastInst * MI = new CastInst(CI, AI->getType(), "",AI);
+            CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
+            Value * MI = castTo (CI, AI->getType(), "", AI);
 #endif
             AI->replaceAllUsesWith(MI);
             SMI->second.getNode()->setHeapMarker();
