@@ -3,7 +3,7 @@
 #ifdef USE_RB
 
 #include "rb_kernel.h"
-#include "PoolSystem.h"
+#include "safecode/Runtime/PoolSystem.h"
 
 typedef struct tree_node Tree;
 struct tree_node {

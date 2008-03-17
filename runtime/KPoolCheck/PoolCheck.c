@@ -14,7 +14,7 @@
 /*===----------------------------------------------------------------------===*/
 
 #include "PoolCheck.h"
-#include "PoolSystem.h"
+#include "safecode/Runtime/PoolSystem.h"
 #include "adl_splay.h"
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
