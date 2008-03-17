@@ -1058,12 +1058,11 @@ poolcheck(PoolTy *Pool, void *Node) {
 }
 
 
-
 // Check that Node falls within the pool and within start and (including)
 // end offset
 void
 poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset, 
-                     unsigned EndOffset) {
+                unsigned EndOffset) {
   PoolSlab *PS;
   if (StartOffset >= Pool->NodeSize || EndOffset >= Pool->NodeSize) {
     printf("Error: Offset specified exceeded node size");
