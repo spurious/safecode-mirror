@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #define DEBUG(x) 
+
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -168,7 +169,8 @@ public:
 };
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
-PoolSlab *PoolSlab::create(PoolTy *Pool) {
+PoolSlab *
+PoolSlab::create(PoolTy *Pool) {
   unsigned NodesPerSlab = getSlabSize(Pool);
 
   unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
@@ -188,7 +190,8 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
   return PS;
 }
 
-void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
+void *
+PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   // FIXME: This wastes memory by allocating space for the NodeFlagsVector
   unsigned NodesPerSlab = getSlabSize(Pool);
   assert(NumNodes > NodesPerSlab && "No need to create a single array!");
@@ -220,7 +223,8 @@ void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   return PS->getElementAddress(0, 0);
 }
 
-void PoolSlab::destroy() {
+void
+PoolSlab::destroy() {
   if (isSingleArray)
     for (unsigned NumPages = *(unsigned*)&FirstUnused; NumPages != 1;--NumPages)
       FreePage((char*)this + (NumPages-1)*PageSize);
@@ -230,7 +234,8 @@ void PoolSlab::destroy() {
 
 // allocateSingle - Allocate a single element from this pool, returning -1 if
 // there is no space.
-int PoolSlab::allocateSingle() {
+int
+PoolSlab::allocateSingle() {
   // If the slab is a single array, go on to the next slab.  Don't allocate
   // single nodes in a SingleArray slab.
   if (isSingleArray) return -1;
@@ -277,7 +282,8 @@ int PoolSlab::allocateSingle() {
 
 // allocateMultiple - Allocate multiple contiguous elements from this pool,
 // returning -1 if there is no space.
-int PoolSlab::allocateMultiple(unsigned Size) {
+int
+PoolSlab::allocateMultiple(unsigned Size) {
   // Do not allocate small arrays in SingleArray slabs
   if (isSingleArray) return -1;
 
@@ -344,7 +350,8 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 
 // containsElement - Return the element number of the specified address in
 // this slab.  If the address is not in slab, return -1.
-int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
+int
+PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   const void *FirstElement = getElementAddress(0, 0);
   if (FirstElement <= Ptr) {
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
@@ -365,7 +372,8 @@ int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
 
 
 // freeElement - Free the single node, small array, or entire array indicated.
-void PoolSlab::freeElement(unsigned short ElementIdx) {
+void
+PoolSlab::freeElement(unsigned short ElementIdx) {
   if (!isNodeAllocated(ElementIdx)) return;
   //  assert(isNodeAllocated(ElementIdx) &&
   //         "poolfree: Attempt to free node that is already freed\n");
@@ -428,7 +436,8 @@ void PoolSlab::freeElement(unsigned short ElementIdx) {
   }
 }
 
-unsigned PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
+unsigned
+PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
   // Check the last few nodes in the current word of flags...
   unsigned CurWord = ScanIdx/16;
   unsigned short Flags = NodeFlagsVector[CurWord] & 0xFFFF;
@@ -489,7 +498,8 @@ ContainsAllocatedNode:
 
 // poolinit - Initialize a pool descriptor to empty
 //
-void poolinit(PoolTy *Pool, unsigned NodeSize) {
+void
+poolinit(PoolTy *Pool, unsigned NodeSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   DEBUG(printf("pool init %x, %d\n", Pool, NodeSize);)
 
@@ -521,14 +531,16 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
   //   new (SlabPtr) hash_set<void*>;
 }
 
-void poolmakeunfreeable(PoolTy *Pool) {
+void
+poolmakeunfreeable(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolmakeunfreeable!\n");
   //  Pool->FreeablePool = 0;
 }
 
 // pooldestroy - Release all memory allocated for a pool
 //
-void pooldestroy(PoolTy *Pool) {
+void
+pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   if (Pool->AllocadPool) return;
 
@@ -569,7 +581,8 @@ void pooldestroy(PoolTy *Pool) {
 
 // poolallocarray - a helper function used to implement poolalloc, when the
 // number of nodes to allocate is not 1.
-static void *poolallocarray(PoolTy* Pool, unsigned Size) {
+static void *
+poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
   if (Size > PoolSlab::getSlabSize(Pool))
     return PoolSlab::createSingleArray(Pool, Size);
@@ -611,7 +624,8 @@ static void *poolallocarray(PoolTy* Pool, unsigned Size) {
   return New->getElementAddress(0, 0);
 }
 
-void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
+void
+poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
   if (!Pool) {
     printf("Null pool pointer passed in to poolregister!\n");
     fflush (stdout);
@@ -639,7 +653,8 @@ void poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
 //Pool->AllocadPool -1 : unused so far
 //Pool->AllocadPool 0 : used only for mallocs
 //Pool->AllocadPool >0 : used for only allocas indicating the size 
-void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
+void *
+poolalloc(PoolTy *Pool, unsigned NumBytes) {
   void *retAddress = NULL;
   if (!Pool) {
     printf("Null pool pointer passed in to poolalloc!, FAILING\n");
@@ -753,7 +768,8 @@ poolstrdup(PoolTy *Pool, char *Node) {
 /*
 // SearchForContainingSlab - This implementation uses the hash_set as well
 // as the array to search the list of allocated slabs for the node in question
-static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
+static PoolSlab *
+SearchForContainingSlab(PoolTy *Pool, void *Node,
                                          unsigned &TheIndex) {
   //  printf("in pool check for pool %x, node %x\n",Pool,Node);
   unsigned NodeSize = Pool->NodeSize;
@@ -843,8 +859,8 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
 // SearchForContainingSlab - Do a brute force search through the list of
 // allocated slabs for the node in question.
 //
-static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
-                                         unsigned &TheIndex) {
+static PoolSlab *
+SearchForContainingSlab(PoolTy *Pool, void *Node, unsigned &TheIndex) {
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
   unsigned NodeSize = Pool->NodeSize;
 
@@ -891,7 +907,8 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
   return PS;
 }
 
-void poolcheckoptim(PoolTy *Pool, void *Node) {
+void
+poolcheckoptim(PoolTy *Pool, void *Node) {
 #if 0
   if (Pool->AllocadPool > 0) {
     if (Pool->allocaptr <= Node) {
@@ -1038,7 +1055,8 @@ poolcheck(PoolTy *Pool, void *Node) {
 
 // Check that Node falls within the pool and within start and (including)
 // end offset
-void poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset, 
+void
+poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset, 
                      unsigned EndOffset) {
   PoolSlab *PS;
   if (StartOffset >= Pool->NodeSize || EndOffset >= Pool->NodeSize) {
@@ -1165,7 +1183,8 @@ void poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
 
 
 /*
-void poolcheck(PoolTy *Pool, void *Node) {
+void
+poolcheck(PoolTy *Pool, void *Node) {
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
   unsigned NodeSize = Pool->NodeSize;
 
@@ -1194,7 +1213,8 @@ void poolcheck(PoolTy *Pool, void *Node) {
 }
 */
 
-void poolfree(PoolTy *Pool, void *Node) {
+void
+poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
   PoolSlab *PS;
