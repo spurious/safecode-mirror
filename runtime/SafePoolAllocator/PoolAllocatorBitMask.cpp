@@ -19,6 +19,7 @@
 
 #include "PoolAllocator.h"
 #include "PageManager.h"
+#include "adl_splay.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -542,6 +543,7 @@ poolmakeunfreeable(PoolTy *Pool) {
 void
 pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+  adl_splay_delete_tag(&Pool->Objects, Pool);
   if (Pool->AllocadPool) return;
 
   // Remove all registered pools
@@ -674,6 +676,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   unsigned NodesToAllocate = (NumBytes+NodeSize-1)/NodeSize;
   if (NodesToAllocate > 1) {
     retAddress = poolallocarray(Pool, NodesToAllocate);
+    adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
     return retAddress;
   }
 
@@ -692,6 +695,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       }
       retAddress = PS->getElementAddress(Element, NodeSize);
       // printf(" returning the address %x",retAddress);
+      adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
       return retAddress;
     }
 
@@ -708,6 +712,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         
         retAddress = PS->getElementAddress(Element, NodeSize);
         //printf(" returning the address %x",retAddress);
+        adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
         return retAddress;
       }
     }
@@ -734,6 +739,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
   retAddress = New->getElementAddress(0, 0);
   //  printf(" returning the address %x",retAddress);
+  adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
   return retAddress;
 }
 
@@ -1219,6 +1225,7 @@ poolfree(PoolTy *Pool, void *Node) {
   DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
   PoolSlab *PS;
   int Idx;
+  adl_splay_delete(&Pool->Objects, Node);
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
     PS = SearchForContainingSlab(Pool, Node, TheIndex);

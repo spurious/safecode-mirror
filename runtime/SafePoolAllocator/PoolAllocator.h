@@ -23,6 +23,9 @@
 unsigned poolmemusage = 0;
 unsigned PCheckPassed = 1;
 typedef struct PoolTy {
+  // Splay tree used for object registration
+  void * Objects;
+
   // Ptr1, Ptr2 - Implementation specified data pointers.
   void *Ptr1, *Ptr2;
 
