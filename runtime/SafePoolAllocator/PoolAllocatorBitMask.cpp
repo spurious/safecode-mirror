@@ -1057,6 +1057,29 @@ poolcheck(PoolTy *Pool, void *Node) {
   poolcheckoptim(Pool, Node);
 }
 
+/*
+ * Function: boundscheck()
+ *
+ * Description:
+ *  Perform a precise bounds check.  Ensure that Source is within a valid
+ *  object within the pool and that Dest is within the bounds of the same
+ *  object.
+ */
+void *
+boundscheck (PoolTy * Pool, void * Source, void * Dest) {
+  void* S = Source;
+  unsigned len = 0;
+  int fs = adl_splay_retrieve(&Pool->Objects, &S, &len, 0);
+  if ((fs) && (S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+    return Dest;
+  }
+
+  /*
+   * The node is not found or is not within bounds; fail!
+   */
+  abort ();
+  return Dest;
+}
 
 // Check that Node falls within the pool and within start and (including)
 // end offset
