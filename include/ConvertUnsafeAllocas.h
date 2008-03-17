@@ -93,8 +93,8 @@ struct ConvertUnsafeAllocas : public ModulePass {
   TargetData *TD;
   
 #ifdef LLVA_KERNEL
-Function *kmalloc;
-Function *StackPromote;
+Constant *kmalloc;
+Constant *StackPromote;
 #endif
     std::list<DSNode *> unsafeAllocaNodes;
     std::set<DSNode *> reachableAllocaNodes; 
