@@ -48,9 +48,9 @@ poolcheckinfo2 (const char * msg, int a, int b)
 }
 
 void *
-poolcheckmalloc (unsigned int size)
+poolcheckmalloc (unsigned int power)
 {
-  return malloc (size);
+  return malloc (4096 * (1U << power));
 }
 
 void *
