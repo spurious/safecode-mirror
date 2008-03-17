@@ -53,6 +53,21 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
   return CastInst::createZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
+static inline Instruction *
+castTo (Instruction * I, const Type * Ty, std::string Name,
+        Instruction * InsertPt) {
+  //
+  // Don't bother creating a cast if it's already the correct type.
+  //
+  if (I->getType() == Ty)
+    return I;
+                                                                                
+  //
+  // Otherwise, insert a cast instruction.
+  //
+  return CastInst::createZExtOrBitCast (I, Ty, Name, InsertPt);
+}
+
 static inline Value *
 castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
   castTo (V, Ty, "casted", InsertPt);
