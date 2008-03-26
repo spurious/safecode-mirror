@@ -141,6 +141,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     }
     
   }
+
   //Now iterate over globals and register all the arrays
     Module::global_iterator GI = M.global_begin(), GE = M.global_end();
     for ( ; GI != GE; ++GI) {
@@ -164,7 +165,10 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	    Constant *PoolRegister = paPass->PoolRegister;
 	    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
 	    //skip the calls to poolinit
-	    while ((isa<CallInst>(InsertPt)) || isa<CastInst>(InsertPt) || isa<AllocaInst>(InsertPt) || isa<BinaryOperator>(InsertPt)) ++InsertPt;
+	    while ((isa<CallInst>(InsertPt)) ||
+              isa<CastInst>(InsertPt) ||
+              isa<AllocaInst>(InsertPt) ||
+              isa<BinaryOperator>(InsertPt)) ++InsertPt;
 	    
 	    std::map<const DSNode *, Value *>::iterator I = paPass->GlobalNodes.find(DSN);
 	    if (I != paPass->GlobalNodes.end()) {
