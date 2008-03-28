@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     Passes.add(new BottomUpCallGraph());
 
     // Currently deactiviated
-    Passes.add(new PoolAllocate());
+    Passes.add(new PoolAllocateSimple());
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
