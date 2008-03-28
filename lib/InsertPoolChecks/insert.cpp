@@ -909,6 +909,14 @@ unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
 Value *
 InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
                                 bool collapsed) {
+  //
+  // FIXME:
+  //  This is a big hack.  Basically, if we used the simple pool allocation
+  //  pass to put everything into a single pool, ask for any global pool, and
+  //  we'll get the one pool.  Simply pass this back to the caller.
+#if 1
+  return paPass->getGlobalPool (NULL);
+#endif
 #if 1
   //
   // JTC:
