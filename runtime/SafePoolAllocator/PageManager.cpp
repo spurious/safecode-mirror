@@ -81,15 +81,9 @@ static void *GetPages(unsigned NumPages) {
 typedef std::vector<void*, llvm::MallocAllocator<void*> > FreePagesListType;
 
 static FreePagesListType &getFreePageList() {
-  static FreePagesListType *FreePages = 0;
+  static FreePagesListType FreePages;
 
-  if (!FreePages) {
-    // Avoid using operator new!
-    FreePages = (FreePagesListType*)malloc(sizeof(FreePagesListType));
-    // Use placement new now.
-    //    new (FreePages) std::vector<void*, llvm::MallocAllocator<void*> >();
-  }
-  return *FreePages;
+  return FreePages;
 }
 
 /// AllocatePage - This function returns a chunk of memory with size and

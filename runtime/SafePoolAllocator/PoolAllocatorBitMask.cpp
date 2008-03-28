@@ -1272,6 +1272,9 @@ poolfree(PoolTy *Pool, void *Node) {
 
   // If PS was full, it must have been in list #2.  Unlink it and move it to
   // list #1.
+  if (!PS)
+    return;
+  assert (PS && "PS is NULL!\n");
   if (PS->isFull()) {
     // Now that we found the node, we are about to free an element from it.
     // This will make the slab no longer completely full, so we must move it to
