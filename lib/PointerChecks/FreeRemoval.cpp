@@ -671,7 +671,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
 #ifndef LLVA_KERNEL
-  PoolInfo = getAnalysisToUpdate<PoolAllocate>();
+  PoolInfo = getAnalysisToUpdate<PoolAllocateSimple>();
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
   BUDS = &(PoolInfo->getECGraphs());
 #endif  
@@ -714,16 +714,16 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 	continue;
 
       if (!PAFI->PoolDescriptors.empty()) {
-	for (std::map<const DSNode*, Value*>::iterator PoolDI = 
+        for (std::map<const DSNode*, Value*>::iterator PoolDI = 
 	       PAFI->PoolDescriptors.begin(), PoolDE = 
 	       PAFI->PoolDescriptors.end(); PoolDI != PoolDE; ++PoolDI) {
-	  checkPoolSSAVarUses(F, PoolDI->second, FuncPoolAllocs, 
-	  		      FuncPoolFrees, FuncPoolDestroys);
-	  FuncPoolPtrs[F].insert(PoolDI->second);
-	}
+          checkPoolSSAVarUses(F, PoolDI->second, FuncPoolAllocs, 
+          FuncPoolFrees, FuncPoolDestroys);
+          FuncPoolPtrs[F].insert(PoolDI->second);
+        }
       }
       else
-	continue;
+        continue;
 
       /*
       if (F->getName() == "main") {

@@ -73,6 +73,8 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
 #ifndef LLVA_KERNEL  
   paPass = getAnalysisToUpdate<PoolAllocate>();
+  if (!paPass)
+    paPass = getAnalysisToUpdate<PoolAllocateSimple>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
@@ -170,9 +172,8 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
               isa<AllocaInst>(InsertPt) ||
               isa<BinaryOperator>(InsertPt)) ++InsertPt;
 	    
-	    std::map<const DSNode *, Value *>::iterator I = paPass->GlobalNodes.find(DSN);
-	    if (I != paPass->GlobalNodes.end()) {
-	      Value *PH = I->second;
+      Value * PH = paPass->getGlobalPool (DSN);
+	    if (PH) {
 	      Instruction *GVCasted = CastInst::createPointerCast(GV,
 						   VoidPtrType, GV->getName()+"casted",InsertPt);
         std::vector<Value *> args;
