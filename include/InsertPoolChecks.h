@@ -31,6 +31,7 @@ struct InsertPoolChecks : public ModulePass {
       AU.addRequired<EmbeCFreeRemoval>();
       AU.addRequired<TargetData>();
       AU.addPreserved<PoolAllocate>();
+      AU.addPreserved<PoolAllocateSimple>();
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
