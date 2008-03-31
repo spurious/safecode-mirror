@@ -581,8 +581,16 @@ pooldestroy(PoolTy *Pool) {
 }
 
 
-// poolallocarray - a helper function used to implement poolalloc, when the
-// number of nodes to allocate is not 1.
+// Function: poolallocarray()
+//
+// Description:
+//  This is a helper function used to implement poolalloc() when the number of
+//  nodes to allocate is not 1.
+//
+// Inputs:
+//  Pool - A pointer to the pool from which to allocate.
+//  Size - The number of nodes to allocate.
+//
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
