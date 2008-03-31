@@ -30,7 +30,7 @@ unsigned PageSize = 0;
 extern unsigned poolmemusage;
 void InitializePageManager() {
   if (!PageSize) {
-    PageSize =  32 * sysconf(_SC_PAGESIZE) ;
+    PageSize =  16 * sysconf(_SC_PAGESIZE) ;
   }
 }
 
