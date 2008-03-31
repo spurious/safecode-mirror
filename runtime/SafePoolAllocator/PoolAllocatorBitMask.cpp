@@ -935,7 +935,6 @@ poolcheckoptim(PoolTy *Pool, void *Node) {
     abort();
   }
 #else
-  return;
   std::map<void*,unsigned>::iterator i = Pool->RegNodes->begin();
   while (i != Pool->RegNodes->end()) {
     if ((i->first <= Node) && (Node < ((unsigned char *)(i->first) + i->second)))
