@@ -461,7 +461,8 @@ void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
   std::set<Instruction *> * UnsafeGetElemPtrs = abcPass->getUnsafeGEPs (BB);
   if (!UnsafeGetElemPtrs)
     return;
-  std::set<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs->begin(), iEnd = UnsafeGetElemPtrs->end();
+  std::set<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs->begin(),
+                                          iEnd     = UnsafeGetElemPtrs->end();
   for (; iCurrent != iEnd; ++iCurrent) {
     // We have the GetElementPtr
     if (!isa<GetElementPtrInst>(*iCurrent)) {
@@ -662,20 +663,26 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
         BasicBlock::iterator InsertPt = Casted;
         ++InsertPt;
-        Casted = castTo (Casted,
-                         PointerType::getUnqual(Type::Int8Ty),
-                         (Casted)->getName()+".pc.casted",
-                         InsertPt);
-        std::cerr << "JTC: PH: " << *PH << std::endl;
+        Casted            = castTo (Casted,
+                                    PointerType::getUnqual(Type::Int8Ty),
+                                    (Casted)->getName()+".pc.casted",
+                                    InsertPt);
+
+        Value * CastedSrc = castTo (GEP->getPointerOperand(),
+                                    PointerType::getUnqual(Type::Int8Ty),
+                                    (Casted)->getName()+".pcsrc.casted",
+                                    InsertPt);
+
         Value *CastedPH = castTo (PH,
                                   PointerType::getUnqual(Type::Int8Ty),
                                   "jtcph",
                                   InsertPt);
         std::vector<Value *> args(1, CastedPH);
+        args.push_back(CastedSrc);
         args.push_back(Casted);
 
         // Insert it
-        new CallInst(PoolCheck,args.begin(), args.end(), "",InsertPt);
+        new CallInst(PoolCheckArray,args.begin(), args.end(), "", InsertPt);
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -760,26 +767,17 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     //
     // We cannot insert an exactcheck().  Insert a pool check.
     //
-    // FIXME:
-    //  Currently, we cannot register stack or global memory with pools.  If
-    //  the node is from alloc() or is a global, do not insert a poolcheck.
-    // 
-#if 0
-    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
-#else
     if (!PH) {
-#endif
+      DEBUG(std::cerr << "missing GEP check: Null PH: " << GEP << "\n");
       ++NullChecks;
       if (!PH) ++MissedNullChecks;
-#if 0
-      if (Node->isAllocaNode()) ++MissedStackChecks;
-      if (Node->isGlobalNode()) ++MissedGlobalChecks;
-#endif
+
       // Don't bother to insert the NULL check unless the user asked
       if (!EnableNullChecks)
+      {
         continue;
+      }
       PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
-      DEBUG(std::cerr << "missing a GEP check for" << GEP << "alloca case?\n");
     } else {
       //
       // Determine whether the pool handle dominates the pool check.
@@ -824,8 +822,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     }
 
     //
-    // If this is a complete node, insert a poolcheck.
-    // If this is an icomplete node, insert a poolcheckarray.
+    // Regardless of the node type, always perform an accurate bounds check.
     //
     Instruction *InsertPt = Casted->getNext();
     if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
@@ -838,16 +835,10 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     Instruction *CastedPH = CastInst::createPointerCast(PH,
                                          PointerType::getUnqual(Type::Int8Ty),
                                          "ph",InsertPt);
-    if (Node->isIncomplete()) {
-      std::vector<Value *> args(1, CastedPH);
-      args.push_back(CastedPointerOperand);
-      args.push_back(Casted);
-      CallInst * newCI = new CallInst(PoolCheckArray,args, "",InsertPt);
-    } else {
-      std::vector<Value *> args(1, CastedPH);
-      args.push_back(Casted);
-      CallInst * newCI = new CallInst(PoolCheck,args, "",InsertPt);
-    }
+    std::vector<Value *> args(1, CastedPH);
+    args.push_back(CastedPointerOperand);
+    args.push_back(Casted);
+    CallInst * newCI = new CallInst(PoolCheckArray,args, "",InsertPt);
 #endif    
   }
 }
@@ -872,7 +863,7 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   Arg2.push_back(VoidPtrType);
   FunctionType *PoolCheckArrayTy =
     FunctionType::get(Type::VoidTy,Arg2, false);
-  PoolCheckArray = M.getOrInsertFunction("poolcheckarray", PoolCheckArrayTy);
+  PoolCheckArray = M.getOrInsertFunction("boundscheck", PoolCheckArrayTy);
   
   std::vector<const Type *> FArg2(1, Type::Int32Ty);
   FArg2.push_back(Type::Int32Ty);
