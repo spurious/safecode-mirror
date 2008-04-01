@@ -635,7 +635,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 }
 
 void
-poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
+poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   if (!Pool) {
     printf("Null pool pointer passed in to poolregister!\n");
     fflush (stdout);
@@ -657,6 +657,7 @@ poolregister(PoolTy *Pool, unsigned NumBytes, void * allocaptr) {
   }
 #else
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
+  adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, (Pool));
 #endif
 }
 
@@ -1076,7 +1077,7 @@ void *
 boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   void* S = Source;
   unsigned len = 0;
-  int fs = adl_splay_retrieve(&Pool->Objects, &S, &len, 0);
+  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
   if ((fs) && (S <= Dest) && (((char*)S + len) > (char*)Dest)) {
     return Dest;
   }
@@ -1084,6 +1085,8 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   /*
    * The node is not found or is not within bounds; fail!
    */
+  fprintf (stderr, "Boundscheck failed(%x:%x): %x %x %x from %x\n", Pool, fs, Source, Dest, len, __builtin_return_address(0));
+  fflush (stderr);
   abort ();
   return Dest;
 }

@@ -75,10 +75,11 @@ extern "C" {
   void * poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
   void * poolstrdup(PoolTy *Pool, char *Node);
 
-  void poolregister(PoolTy *Pool, unsigned NumBytes, void *allocaptr);
+  void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);
   void poolcheckoptim(PoolTy *Pool, void *Node);
+  void * boundscheck (PoolTy * Pool, void * Source, void * Dest);
   void poolstats() {
     fprintf(stderr, "pool mem usage %d\n",poolmemusage);
   }
