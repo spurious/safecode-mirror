@@ -75,7 +75,7 @@ namespace llvm {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
       AU.addRequired<EquivClassGraphs>();
-      AU.addRequired<PoolAllocateSimple>();
+      AU.addRequiredTransitive<PoolAllocateSimple>();
 #endif      
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
