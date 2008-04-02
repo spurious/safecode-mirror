@@ -23,13 +23,15 @@ LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
 #pointerchecks.o \
 #stackcheck.o
 
-LDFLAGS += $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
-           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o
+LDFLAGS += -Wl,-rpath $(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
+           -Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib \
+           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.so \
+           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.so \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libconvert.so \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libaddchecks.so \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libarrayboundcheck.so \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpointerchecks.so \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libstackcheck.so
 
 # Include this here so we can get the configuration of the targets
 # that have been configured for construction. We have to do this 
