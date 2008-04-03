@@ -42,7 +42,8 @@ InputFilename(cl::Positional, cl::desc("<input bytecode>"), cl::init("-"));
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
 
-static cl::opt<bool> Force("f", cl::desc("Overwrite output files"));
+static cl::opt<bool>
+Force("f", cl::desc("Overwrite output files"));
 
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
