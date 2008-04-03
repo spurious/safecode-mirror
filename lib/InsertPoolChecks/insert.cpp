@@ -152,7 +152,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 	Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
 	Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
 	if (GV->getType() != PoolDescPtrTy) {
-	  DSGraph &G = equivPass->getGlobalsGraph();
+	  DSGraph &G = paPass->getGlobalsGraph();
 	  DSNode *DSN  = G.getNodeForValue(GV).getNode();
 	  if ((isa<ArrayType>(GV->getType()->getElementType())) || DSN->isNodeCompletelyFolded()) {
 	    Value * AllocSize;
@@ -880,7 +880,7 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
 
 DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {
 #ifndef LLVA_KERNEL
-  DSGraph &TDG = equivPass->getDSGraph(*F);
+  DSGraph &TDG = paPass->getDSGraph(*F);
 #else  
   DSGraph &TDG = TDPass->getDSGraph(*F);
 #endif  
@@ -890,7 +890,7 @@ DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {
 
 unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
 #ifndef LLVA_KERNEL
-  DSGraph &TDG = equivPass->getDSGraph(*F);
+  DSGraph &TDG = paPass->getDSGraph(*F);
 #else  
   DSGraph &TDG = TDPass->getDSGraph(*F);
 #endif  
@@ -900,14 +900,6 @@ unsigned InsertPoolChecks::getDSNodeOffset(const Value *V, Function *F) {
 Value *
 InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
                                 bool collapsed) {
-  //
-  // FIXME:
-  //  This is a big hack.  Basically, if we used the simple pool allocation
-  //  pass to put everything into a single pool, ask for any global pool, and
-  //  we'll get the one pool.  Simply pass this back to the caller.
-#if 1
-  return paPass->getGlobalPool (NULL);
-#endif
 #if 1
   //
   // JTC:
@@ -919,40 +911,50 @@ std::cerr << "PoolHandle: Getting original Function\n";
     F = paPass->getOrigFunctionFromClone(F);
   }
 #endif
+
+  //
+  // Get the DSNode for the value.
+  //
   const DSNode *Node = getDSNode(V,F);
+  if (!Node) {
+std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
+    return 0;
+  }
+
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
   Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
   const Type *PoolDescType = paPass->getPoolType();
   const Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
-  if (!Node) {
-std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
-    return 0; //0 means there is no isse with the value, otherwise there will be a callnode
-  }
   if (Node->isUnknownNode()) {
-    //FIXME this should be in a top down pass or propagated like collapsed pools below 
+    //
+    // FIXME:
+    //  This should be in a top down pass or propagated like collapsed pools
+    //  below .
+    //
     if (!collapsed) {
 #if 0
       assert(!getDSNodeOffset(V, F) && " we don't handle middle of structs yet\n");
 #else
       if (getDSNodeOffset(V, F))
-        std::cerr << "ERROR: we don't handle middle of structs yet" << std::endl;
+        std::cerr << "ERROR: we don't handle middle of structs yet"
+                  << std::endl;
 #endif
       return Constant::getNullValue(PoolDescPtrTy);
     }
   }
 
-  std::map<const DSNode*, Value*>::iterator I = FI.PoolDescriptors.find(Node);
+  Value * PH = paPass->getPool (Node, *F);
   map <Function *, set<Value *> > &
     CollapsedPoolPtrs = efPass->CollapsedPoolPtrs;
   
-  if (I != FI.PoolDescriptors.end()) {
+  if (PH) {
     // Check that the node pointed to by V in the TD DS graph is not
     // collapsed
     
     if (!collapsed && CollapsedPoolPtrs.count(F)) {
-      Value *v = I->second;
-      if (CollapsedPoolPtrs[F].find(I->second) != CollapsedPoolPtrs[F].end()) {
+      Value *v = PH;
+      if (CollapsedPoolPtrs[F].find(PH) != CollapsedPoolPtrs[F].end()) {
 #ifdef DEBUG
         std::cerr << "Collapsed pools \n";
 #endif
@@ -964,10 +966,10 @@ std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
         return v;
       }
     } else {
-      if (Argument * Arg = dyn_cast<Argument>(I->second))
+      if (Argument * Arg = dyn_cast<Argument>(PH))
         if ((Arg->getParent()) != F)
           return Constant::getNullValue(PoolDescPtrTy);
-      return I->second;
+      return PH;
     } 
   }
 

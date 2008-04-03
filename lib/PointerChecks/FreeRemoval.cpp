@@ -440,7 +440,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
     else
       isClonedFunc = true;
     
-    DSGraph& oldG = BUDS->getDSGraph(*Forig);
+    DSGraph& oldG = PoolInfo->getDSGraph(*Forig);
     
     // For each scalar pointer in the original function
     for (DSGraph::ScalarMapTy::iterator SMI = oldG.getScalarMap().begin(), 
