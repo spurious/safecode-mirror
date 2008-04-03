@@ -142,7 +142,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    if (CI->getOperand(i) == V)
 	      operandNo = i;
 	  CompleteBUDataStructures::callee_iterator CalleesI =
-	    BUDS->callee_begin(CI), CalleesE = BUDS->callee_end(CI);
+	    PoolInfo->callee_begin(CI), CalleesE = PoolInfo->callee_end(CI);
 
 	  for (; CalleesI != CalleesE; ++CalleesI) {
 	    Function *calledF = CalleesI->second;
@@ -261,7 +261,7 @@ void EmbeCFreeRemoval::propagateCollapsedInfo(Function *F, Value *V) {
 	    operandNo = i;
 	
 	CompleteBUDataStructures::callee_iterator CalleesI =
-	  BUDS->callee_begin(CI),  CalleesE = BUDS->callee_end(CI);
+	  PoolInfo->callee_begin(CI),  CalleesE = PoolInfo->callee_end(CI);
 	
 	for (; CalleesI != CalleesE; ++CalleesI) {
 	  Function *calledF = CalleesI->second;
@@ -673,7 +673,6 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
 #ifndef LLVA_KERNEL
   PoolInfo = getAnalysisToUpdate<PoolAllocateSimple>();
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
-  BUDS = &(PoolInfo->getECGraphs());
 #endif  
   CallGraph &CG = getAnalysis<CallGraph>();
   //  BUDS = &getAnalysis<CompleteBUDataStructures>();
