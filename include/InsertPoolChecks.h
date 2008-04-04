@@ -40,7 +40,6 @@ struct InsertPoolChecks : public ModulePass {
       ArrayBoundsCheck * abcPass;
 #ifndef  LLVA_KERNEL
   PoolAllocate * paPass;
-  EquivClassGraphs *equivPass;
   EmbeCFreeRemoval *efPass;
   TargetData * TD;
 #else

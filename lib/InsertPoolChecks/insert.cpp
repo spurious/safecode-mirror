@@ -76,7 +76,6 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   if (!paPass)
     paPass = getAnalysisToUpdate<PoolAllocateSimple>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
-  equivPass = &(paPass->getECGraphs());
   efPass = &getAnalysis<EmbeCFreeRemoval>();
   TD  = &getAnalysis<TargetData>();
 #else
