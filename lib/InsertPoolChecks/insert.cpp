@@ -331,18 +331,12 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
   if (isa<ConstantPointerNull>(PH)) {
     //we have a collapsed/Unknown pool
     Value *PH = getPoolHandle(V, F, *FI, true); 
-#if 0
     assert (PH && "Null pool handle!\n");
-#else
-    if (!PH) {
-      std::cerr << "ERROR: Missing Pool: " << *V << std::endl;
-      return;
-    }
-#endif
+  }
 
+  if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
       // Get the globals list corresponding to the node
-      return;
       std::vector<Function *> FuncList;
       Node->addFullFunctionList(FuncList);
       std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
@@ -438,7 +432,7 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
       } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
         Value *FunctionOp = CI->getOperand(0);
         if (!isa<Function>(FunctionOp)) {
-          std::cerr << "JTC: LIC: " << F->getName() << " : " << *CI << std::endl;
+          std::cerr << "JTC: LIC: " << F->getName() << " : " << *(CI->getOperand(0)) << std::endl;
           if (isClonedFunc) {
             assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
             const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
