@@ -80,6 +80,7 @@ extern "C" {
   void poolcheck(PoolTy *Pool, void *Node);
   void poolcheckoptim(PoolTy *Pool, void *Node);
   void * boundscheck (PoolTy * Pool, void * Source, void * Dest);
+  void funccheck (unsigned num, void *f, void *g, ...);
   void poolstats() {
     fprintf(stderr, "pool mem usage %d\n",poolmemusage);
   }

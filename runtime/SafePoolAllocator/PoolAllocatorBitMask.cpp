@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #define DEBUG(x) 
 
@@ -1328,3 +1329,34 @@ poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
 }
+
+//
+// Function: funccheck()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.
+//
+// Inputs:
+//  num - The number of function targets in the DSNode.
+//  f   - The function pointer that we are testing.
+//  g   - The first function given in the DSNode.
+//
+void
+funccheck (unsigned num, void *f, void *g, ...) {
+  va_list ap;
+  unsigned i = 0;
+
+  // Test against the first function in the list
+  if (f == g) return;
+  i++;
+  va_start(ap, g);
+  for ( ; i != num; ++i) {
+    void *h = va_arg(ap, void *);
+    if (f == h) {
+      return;
+    }
+  }
+  abort();
+  }
+
