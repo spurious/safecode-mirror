@@ -135,7 +135,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       args.push_back (PH);
       args.push_back (GVCasted);
       args.push_back (AllocSize);
-      new CallInst(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+      CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
     } else {
       std::cerr << "argv's pool descriptor is not present. \n";
       //	abort();
@@ -179,7 +179,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         args.push_back (PH);
         args.push_back (GVCasted);
         args.push_back (AllocSize);
-	      new CallInst(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+	      CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
 	    } else {
 	      std::cerr << "pool descriptor not present for " << *GV << std::endl;
 #if 0
@@ -289,7 +289,7 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
     // Create the call to poolcheck
     std::vector<Value *> args(1,CastPHI);
     args.push_back(CastVI);
-    new CallInst(PoolCheck,args,"", I);
+    CallInst::Create(PoolCheck,args,"", I);
   }
 }
 
@@ -358,7 +358,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
              PointerType::getUnqual(Type::Int8Ty), "casted", I);
           args.push_back(CastfuncI);
         }
-        new CallInst(FunctionCheck, args.begin(), args.end(), "", I);
+        CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
       }
     } else {
       CastInst *CastVI = 
@@ -370,7 +370,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
 
-      new CallInst(PoolCheck,args.begin(), args.end(), "", I);
+      CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
     }
   }
 }
@@ -503,7 +503,7 @@ void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
           std::vector<Value *> args(1,CastPHI);
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
-          new CallInst(PoolCheckArray,args.begin(), args.end(),"", InsertPt);
+          CallInst::Create(PoolCheckArray,args.begin(), args.end(),"", InsertPt);
 #if 0
         } else if (Fop->getName() == "memset") {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
@@ -538,7 +538,7 @@ void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
           std::vector<Value *> args(1,CastPHI);
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
-          new CallInst(PoolCheckArray,args,"", InsertPt);
+          CallInst::Create(PoolCheckArray,args,"", InsertPt);
 #endif
         }
       }
@@ -609,7 +609,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
               const Type* csiType = Type::Int32Ty;
               std::vector<Value *> args(1,secOp);
               args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-              new CallInst(ExactCheck,args.begin(), args.end(), "", Casted);
+              CallInst::Create(ExactCheck,args.begin(), args.end(), "", Casted);
               DEBUG(std::cerr << "Inserted exact check call Instruction \n");
               continue;
             } else if (GEPNew->getNumOperands() == 3) {
@@ -624,7 +624,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
                 std::vector<Value *> args(1,secOp);
                 const Type* csiType = Type::Int32Ty;
                 args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-                new CallInst(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
+                CallInst::Create(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
                 continue;
               } else {
                 // Handle non constant index two dimensional arrays later
@@ -675,7 +675,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         args.push_back(Casted);
 
         // Insert it
-        new CallInst(PoolCheckArray,args.begin(), args.end(), "", InsertPt);
+        CallInst::Create(PoolCheckArray,args.begin(), args.end(), "", InsertPt);
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -714,7 +714,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
           std::vector<Value *> args(1,secOp);
           const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
           args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-          CallInst *newCI = new CallInst(ExactCheck,args,"", Casted);
+          CallInst *newCI = CallInst::Create(ExactCheck,args,"", Casted);
           ++BoundChecks;
           //	    DEBUG(std::cerr << "Inserted exact check call Instruction \n");
           continue;
@@ -730,7 +730,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
             std::vector<Value *> args(1,secOp);
             const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
             args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-            CallInst *newCI = new CallInst(ExactCheck,args,"", Casted->getNext());
+            CallInst *newCI = CallInst::Create(ExactCheck,args,"", Casted->getNext());
             ++BoundChecks;
             continue;
           } else {
@@ -831,7 +831,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     std::vector<Value *> args(1, CastedPH);
     args.push_back(CastedPointerOperand);
     args.push_back(Casted);
-    CallInst * newCI = new CallInst(PoolCheckArray,args, "",InsertPt);
+    CallInst * newCI = CallInst::Create(PoolCheckArray,args, "",InsertPt);
 #endif    
   }
 }

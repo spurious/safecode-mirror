@@ -112,7 +112,7 @@ void EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
 	    if (calledF->getName() == PoolI) {
 	      // Insert call to poolmakeunfreeable after every poolinit since 
 	      // we do not free memory to the system for safety in all cases.
-	      //new CallInst(PoolMakeUnfreeable, make_vector(V, 0), "", 
+	      //CallInst::Create(PoolMakeUnfreeable, make_vector(V, 0), "", 
 	      //	      	   CI->getNext()); //taken care of in runtime library
 	      moduleChanged = true;
 	    } else if (calledF->getName() == PoolA) {
@@ -409,7 +409,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 		   PointerType::getUnqual(Type::Int8Ty), "casted", I);
     if (DSN) {
 
-    new CallInst(PoolCheck, 
+    CallInst::Create(PoolCheck, 
 		 make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 		 "", I);
     } else {
@@ -419,7 +419,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 
       const PointerType *PoolDescPtr = PointerType::getUnqual(PoolDescType);      
       Value *PH = Constant::getNullValue(PoolDescPtr);
-      new CallInst(PoolCheck, 
+      CallInst::Create(PoolCheck, 
 		 make_vector(PH, CastI, 0),
 		 "", I);
       
@@ -468,7 +468,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 			     PointerType::getUnqual(Type::Int8Ty), "casted", StI);
         std::vector<Value *> args =
           make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
-	      new CallInst(PoolCheck, args.begin(), args.end(), "", StI);
+	      CallInst::Create(PoolCheck, args.begin(), args.end(), "", StI);
 	      std::cerr << " inserted poolcheck for noncollapsed pool\n";
 	    }
 	  } else if (CallInst *CallI = dyn_cast<CallInst>(*UI)) {
@@ -487,7 +487,7 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 			     PointerType::getUnqual(Type::Int8Ty), "casted", LdI);
         std::vector<Value *> args =
 			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
-	      new CallInst(PoolCheck, args.begin(), args.end(), "", LdI);
+	      CallInst::Create(PoolCheck, args.begin(), args.end(), "", LdI);
 	      std::cerr << " inserted poolcheck for noncollpased pool\n";
 	    }
 	  }
@@ -588,7 +588,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 		  CastInst *CastI = 
 		    new CastInst(StI->getOperand(1), 
 				 PointerType::getUnqual(Type::Int8Ty), "casted", StI);
-		  new CallInst(PoolCheck, 
+		  CallInst::Create(PoolCheck, 
 			       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			       "", StI);
 		  DEBUG(std::cerr << " inserted poolcheck for collpased pool\n";);
@@ -611,7 +611,7 @@ void EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 		  CastInst *CastI = 
 		    new CastInst(LdI->getOperand(0), 
 				 PointerType::getUnqual(Type::Int8Ty), "casted", LdI);
-		  new CallInst(PoolCheck, 
+		  CallInst::Create(PoolCheck, 
 		       make_vector(PAFI->PoolDescriptors[DSN], CastI, 0),
 			       "", LdI);
 		  std::cerr << " inserted poolcheck for collpased pool\n";
@@ -671,7 +671,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
 #ifndef LLVA_KERNEL
-  PoolInfo = getAnalysisToUpdate<PoolAllocateSimple>();
+  PoolInfo = &getAnalysis<PoolAllocateSimple>();
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
 #endif  
   CallGraph &CG = getAnalysis<CallGraph>();

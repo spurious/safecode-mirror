@@ -170,7 +170,7 @@ static const unsigned meminitvalue = 0xcc;
           std::vector<Value *> args(1, TheAlloca);
           args.push_back (ConstantInt::get(Type::Int32Ty, meminitvalue));
           args.push_back (AllocSize);
-          new CallInst(memsetF, args.begin(), args.end(), "", iptI);
+          CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
           ++InitAllocas;
         }
       }
