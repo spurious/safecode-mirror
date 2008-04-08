@@ -101,6 +101,8 @@ int main(int argc, char **argv) {
     Passes.add(new EquivClassGraphs());
     Passes.add(new BottomUpCallGraph());
 
+    Passes.add(new PoolAllocateSimple());
+
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());

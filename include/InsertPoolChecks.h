@@ -30,8 +30,7 @@ struct InsertPoolChecks : public ModulePass {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<EmbeCFreeRemoval>();
       AU.addRequired<TargetData>();
-      AU.addPreserved<PoolAllocate>();
-      AU.addPreserved<PoolAllocateSimple>();
+      AU.addPreserved<PoolAllocateGroup>();
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
@@ -39,7 +38,7 @@ struct InsertPoolChecks : public ModulePass {
     private :
       ArrayBoundsCheck * abcPass;
 #ifndef  LLVA_KERNEL
-  PoolAllocate * paPass;
+  PoolAllocateGroup * paPass;
   EmbeCFreeRemoval *efPass;
   TargetData * TD;
 #else

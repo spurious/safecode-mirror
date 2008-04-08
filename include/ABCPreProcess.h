@@ -33,7 +33,7 @@ namespace ABC {
     const char *getPassName() const { return "Collect Induction Variables"; }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<LoopInfo>();
-      AU.addPreserved<PoolAllocate>();
+      AU.addPreserved<PoolAllocateGroup>();
 #if 0
       AU.addRequired<DominatorSet>();
       AU.addRequired<PostDominatorSet>();

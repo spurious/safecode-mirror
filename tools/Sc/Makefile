@@ -25,13 +25,13 @@ LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
 
 LDFLAGS += -Wl,-rpath $(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
            -Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib \
-           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.so \
-           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.so \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libconvert.so \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libaddchecks.so \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libarrayboundcheck.so \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpointerchecks.so \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libstackcheck.so
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libstackcheck.so \
+           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.so \
+           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.so
 
 # Include this here so we can get the configuration of the targets
 # that have been configured for construction. We have to do this 

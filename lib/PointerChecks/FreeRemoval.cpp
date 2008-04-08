@@ -671,7 +671,7 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
 #ifndef LLVA_KERNEL
-  PoolInfo = &getAnalysis<PoolAllocateSimple>();
+  PoolInfo = &getAnalysis<PoolAllocateGroup>();
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
 #endif  
   CallGraph &CG = getAnalysis<CallGraph>();

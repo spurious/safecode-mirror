@@ -72,9 +72,11 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   abcPass = getAnalysisToUpdate<ArrayBoundsCheck>();
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
 #ifndef LLVA_KERNEL  
-  paPass = getAnalysisToUpdate<PoolAllocate>();
+  paPass = getAnalysisToUpdate<PoolAllocateGroup>();
+#if 0
   if (!paPass)
     paPass = getAnalysisToUpdate<PoolAllocateSimple>();
+#endif
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   efPass = &getAnalysis<EmbeCFreeRemoval>();
   TD  = &getAnalysis<TargetData>();

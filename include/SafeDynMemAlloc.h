@@ -11,9 +11,10 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+
 #include "safecode/Config/config.h"
+
 #include "llvm/Pass.h"
-#include "poolalloc/PoolAllocate.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/DerivedTypes.h"
@@ -22,9 +23,13 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/Support/Debug.h"
+
+#include "poolalloc/PoolAllocate.h"
+
 #include <set>
 #include <map>
 #include <string>
+
 using std::set;
 using std::map;
 
@@ -75,7 +80,7 @@ namespace llvm {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
       AU.addRequired<EquivClassGraphs>();
-      AU.addRequiredTransitive<PoolAllocateSimple>();
+      AU.addRequired<PoolAllocateGroup>();
 #endif      
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
@@ -95,7 +100,7 @@ namespace llvm {
     TDDataStructures *TDDS;
     EquivClassGraphs *BUDS;
 #ifndef LLVA_KERNEL    
-    PoolAllocate *PoolInfo;
+    PoolAllocateGroup *PoolInfo;
 #endif    
     bool moduleChanged;
     bool hasError;
