@@ -45,6 +45,9 @@ OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
 static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
 
+static cl::opt<bool>
+FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
+
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
 GetFileNameRoot(const std::string &InputFilename) {
@@ -101,7 +104,10 @@ int main(int argc, char **argv) {
     Passes.add(new EquivClassGraphs());
     Passes.add(new BottomUpCallGraph());
 
-    Passes.add(new PoolAllocateSimple());
+    if (FullPA)
+      Passes.add(new PoolAllocate());
+    else
+      Passes.add(new PoolAllocateSimple());
 
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
