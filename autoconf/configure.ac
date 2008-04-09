@@ -26,6 +26,7 @@ AC_CONFIG_MAKEFILE(lib/ConvertUnsafeAllocas/Makefile)
 AC_CONFIG_MAKEFILE(lib/InsertPoolChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/PointerChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/StackSafety/Makefile)
+AC_CONFIG_MAKEFILE(test/Makefile)
 
 dnl **************************************************************************
 dnl * Determine which system we are building on

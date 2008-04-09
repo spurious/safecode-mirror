@@ -1321,6 +1321,9 @@ fi;
           ac_config_commands="$ac_config_commands lib/StackSafety/Makefile"
 
 
+          ac_config_commands="$ac_config_commands test/Makefile"
+
+
 
 
 
@@ -1962,6 +1965,7 @@ do
   "lib/InsertPoolChecks/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS lib/InsertPoolChecks/Makefile" ;;
   "lib/PointerChecks/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS lib/PointerChecks/Makefile" ;;
   "lib/StackSafety/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS lib/StackSafety/Makefile" ;;
+  "test/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/Makefile" ;;
   "include/safecode/Config/config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS include/safecode/Config/config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
@@ -2639,6 +2643,8 @@ echo "$as_me: executing $ac_dest commands" >&6;}
    ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/lib/PointerChecks/Makefile lib/PointerChecks/Makefile ;;
     lib/StackSafety/Makefile ) ${llvm_src}/autoconf/mkinstalldirs `dirname lib/StackSafety/Makefile`
    ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/lib/StackSafety/Makefile lib/StackSafety/Makefile ;;
+    test/Makefile ) ${llvm_src}/autoconf/mkinstalldirs `dirname test/Makefile`
+   ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/test/Makefile test/Makefile ;;
   esac
 done
 _ACEOF
