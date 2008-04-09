@@ -43,7 +43,7 @@ namespace {
   STATISTIC(TotalStructs, "Total structures used in GEPs");
 
   cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
-                                cl::init(false),
+                                cl::init(true),
                                 cl::desc("Disable Static Array Bounds Checks"));
 
   cl::opt<string> OmegaFilename("omegafile",
