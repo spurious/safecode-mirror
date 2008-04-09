@@ -16,6 +16,8 @@
 #define POOLALLOCATOR_RUNTIME_H
 #include "llvm/ADT/hash_set"
 
+#include <stdarg.h>
+
 #include <map>
 #include <utility>
 
