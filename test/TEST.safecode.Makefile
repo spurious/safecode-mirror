@@ -9,10 +9,12 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 
 CFLAGS = -O2 -fno-strict-aliasing
 
+
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
-GCCLD   =  $(LLVM_SRC_ROOT)/$(CONFIGURATION)/bin/gccld
+GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
@@ -26,19 +28,11 @@ PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
-# Command to run opt with the pool allocator pass loaded
-OPT_SC := $(LOPT) \
-          -load $(PROJECT_DIR)/../llvm-poolalloc/Debug/lib/poolalloc$(SHLIBEXT) \
-          -load $(PROJECT_DIR)/Debug/lib/libstackcheck$(SHLIBEXT) \
-          -load $(PROJECT_DIR)/Debug/lib/libarrayboundcheck$(SHLIBEXT) \
-          -load $(PROJECT_DIR)/Debug/lib/libconvert$(SHLIBEXT) \
-          -load $(PROJECT_DIR)/Debug/lib/libpointerchecks$(SHLIBEXT) \
-          -load $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT) \
+POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
 
-
-# OPT_SC_STATS - Run opt with the -stats and -time-passes options, capturing the
+# SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
-OPT_SC_STATS = $(OPT_SC) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
+SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 OPTZN_PASSES :=
@@ -51,7 +45,8 @@ OPTZN_PASSES :=
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_SC_STATS) -abcpre -safecode $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(SC_STATS) $(OPTZN_PASSES) $< -o $@.sc -f 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.sc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
@@ -61,23 +56,23 @@ Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
 #
 # These rules compile the new .bc file into a .c file using CBE
 #
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.cbe.c): \
-Output/%.safecode.cbe.c: Output/%.$(TEST).bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.s): \
+Output/%.safecode.s: Output/%.$(TEST).bc $(LLC)
+	-$(LLC) -f $< -o $@
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe.c): \
-Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc.s): \
+Output/%.nonsc.s: Output/%.nonsc.bc $(LLC)
+	-$(LLC) -f $< -o $@
 
 #
 # These rules compile the CBE .c file into a final executable
 #
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.cbe): \
-Output/%.safecode.cbe: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.safecode): \
+Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM)
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe): \
-Output/%.nonsc.cbe: Output/%.nonsc.cbe.c $(PA_RT_O)
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
+Output/%.nonsc: Output/%.nonsc.s
 	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
 
 
@@ -88,12 +83,12 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 # This rule runs the generated executable, generating timing information, for
 # normal test programs
 #
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.out-cbe): \
-Output/%.safecode.out-cbe: Output/%.safecode.cbe
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
+Output/%.safecode.out-llc: Output/%.safecode
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-cbe): \
-Output/%.nonsc.out-cbe: Output/%.nonsc.cbe
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-llc): \
+Output/%.nonsc.out-llc: Output/%.nonsc
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
@@ -102,16 +97,16 @@ else
 # This rule runs the generated executable, generating timing information, for
 # SPEC
 #
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.out-cbe): \
-Output/%.safecode.out-cbe: Output/%.safecode.cbe
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
+Output/%.safecode.out-llc: Output/%.safecode
 	-$(SPEC_SANDBOX) safecodecbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/safecodecbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/safecodecbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-cbe): \
-Output/%.nonsc.out-cbe: Output/%.nonsc.cbe
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-llc): \
+Output/%.nonsc.out-llc: Output/%.nonsc
 	-$(SPEC_SANDBOX) nonsccbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
@@ -123,40 +118,40 @@ endif
 
 # This rule diffs the post-poolallocated version to make sure we didn't break
 # the program!
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.diff-cbe): \
-Output/%.safecode.diff-cbe: Output/%.out-nat Output/%.safecode.out-cbe
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.diff-llc): \
+Output/%.safecode.diff-llc: Output/%.out-nat Output/%.safecode.out-llc
 	@cp Output/$*.out-nat Output/$*.safecode.out-nat
-	-$(DIFFPROG) cbe $*.safecode $(HIDEDIFF)
+	-$(DIFFPROG) llc $*.safecode $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonsc.diff-cbe): \
-Output/%.nonsc.diff-cbe: Output/%.out-nat Output/%.nonsc.out-cbe
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc.diff-llc): \
+Output/%.nonsc.diff-llc: Output/%.out-nat Output/%.nonsc.out-llc
 	@cp Output/$*.out-nat Output/$*.nonsc.out-nat
-	-$(DIFFPROG) cbe $*.nonsc $(HIDEDIFF)
+	-$(DIFFPROG) llc $*.nonsc $(HIDEDIFF)
 
 
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.out-nat                \
-                             Output/%.nonsc.diff-cbe         \
-                             Output/%.safecode.diff-cbe     \
+                             Output/%.nonsc.diff-llc         \
+                             Output/%.safecode.diff-llc     \
                              Output/%.LOC.txt
 	@echo > $@
-	@-if test -f Output/$*.nonsc.diff-cbe; then \
+	@-if test -f Output/$*.nonsc.diff-llc; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^program" Output/$*.out-nat.time >> $@;\
         fi
-	@-if test -f Output/$*.nonsc.diff-cbe; then \
+	@-if test -f Output/$*.nonsc.diff-llc; then \
 	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
-	  grep "^program" Output/$*.nonsc.out-cbe.time >> $@;\
+	  grep "^program" Output/$*.nonsc.out-llc.time >> $@;\
         fi
-	@-if test -f Output/$*.safecode.diff-cbe; then \
+	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "CBE-RUN-TIME-SAFECODE: " >> $@;\
-	  grep "^program" Output/$*.safecode.out-cbe.time >> $@;\
+	  grep "^program" Output/$*.safecode.out-llc.time >> $@;\
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
-	@cat Output/$*.$(TEST).bc.info >> $@
+	#@cat Output/$*.$(TEST).bc.info >> $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
 test.$(TEST).%: Output/%.$(TEST).report.txt
