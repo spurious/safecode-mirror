@@ -27,6 +27,9 @@
 #include <unistd.h>
 #define DEBUG(x) 
 
+/* Set to 1 to log object registrations */
+static const unsigned logregs = 0;
+
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -515,6 +518,7 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   // For SAFECode, we set FreeablePool to 0 always
   //  Pool->FreeablePool = 0;
   Pool->AllocadPool = -1;
+  Pool->allocaptr = 0;
   Pool->lastUsed = 0;
   Pool->prevPage[0] = 0;
   Pool->prevPage[1] = 0;
@@ -526,6 +530,9 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   Pool->NumSlabs = 0;
 
   Pool->RegNodes = new std::map<void*,unsigned>;
+
+  // Initialize the splay tree
+  Pool->Objects = 0;
 
   ///  Pool->Slabs = new hash_set<void*>;
   // Call hash_set constructor explicitly
@@ -661,6 +668,9 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 #else
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
   adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, (Pool));
+  if (logregs) {
+    fprintf (stderr, "poolregister: %x %x\n", allocaptr, NumBytes);
+  }
 #endif
 }
 
@@ -689,6 +699,9 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (NodesToAllocate > 1) {
     retAddress = poolallocarray(Pool, NodesToAllocate);
     adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
+    if (logregs) {
+      fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
+    }
     return retAddress;
   }
 
@@ -708,6 +721,9 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       retAddress = PS->getElementAddress(Element, NodeSize);
       // printf(" returning the address %x",retAddress);
       adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
+      if (logregs) {
+        fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
+      }
       return retAddress;
     }
 
@@ -725,6 +741,9 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         retAddress = PS->getElementAddress(Element, NodeSize);
         //printf(" returning the address %x",retAddress);
         adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
+        if (logregs) {
+          fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
+        }
         return retAddress;
       }
     }
@@ -752,6 +771,9 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   retAddress = New->getElementAddress(0, 0);
   //  printf(" returning the address %x",retAddress);
   adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, (Pool));
+  if (logregs) {
+    fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
+  }
   return retAddress;
 }
 
@@ -963,7 +985,13 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   /*
    * The node is not found or is not within bounds; fail!
    */
-  fprintf (stderr, "Boundscheck failed(%x:%x): %x %x %x from %x\n", Pool, fs, Source, Dest, len, __builtin_return_address(0));
+  if (fs) {
+    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x\n",
+             Pool, fs, Source, Dest, len, __builtin_return_address(0));
+  } else {
+    fprintf (stderr, "Boundscheck failed(%x:%x): No object: %x %x %x from %x\n",
+             Pool, fs, Source, Dest, len, __builtin_return_address(0));
+  }
   fflush (stderr);
   abort ();
   return Dest;
