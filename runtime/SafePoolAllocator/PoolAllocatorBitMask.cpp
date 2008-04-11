@@ -28,7 +28,7 @@
 #define DEBUG(x) 
 
 /* Set to 1 to log object registrations */
-static const unsigned logregs = 0;
+static const unsigned logregs = 1;
 
 //===----------------------------------------------------------------------===//
 //
@@ -532,7 +532,7 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   Pool->RegNodes = new std::map<void*,unsigned>;
 
   // Initialize the splay tree
-  Pool->Objects = 0;
+  Pool->Objects = Pool->OOB = 0;
 
   ///  Pool->Slabs = new hash_set<void*>;
   // Call hash_set constructor explicitly
@@ -680,10 +680,17 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 void *
 poolalloc(PoolTy *Pool, unsigned NumBytes) {
   void *retAddress = NULL;
+
+  // Ensure that the pool pointer is valid
   if (!Pool) {
-    printf("Null pool pointer passed in to poolalloc!, FAILING\n");
+    fprintf(stderr, "Null pool pointer passed in to poolalloc!, FAILING\n");
     exit(-1);
   } 
+
+#if 0
+  //
+  // Ensure that stack objects and heap objects do not belong to the same pool.
+  //
   if (Pool->AllocadPool != -1) {
     if (Pool->AllocadPool != 0) {
       printf(" Did not Handle this case, an alloa and malloc point to");
@@ -693,6 +700,13 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   } else {
     Pool->AllocadPool = 0;
   }
+#endif
+
+  //
+  // Ensure that we're always allocating at least 1 byte.
+  //
+  if (NumBytes == 0)
+    NumBytes = 1;
 
   unsigned NodeSize = Pool->NodeSize;
   unsigned NodesToAllocate = (NumBytes+NodeSize-1)/NodeSize;
@@ -973,12 +987,36 @@ poolcheck(PoolTy *Pool, void *Node) {
  *  object within the pool and that Dest is within the bounds of the same
  *  object.
  */
+static const unsigned InvalidUpper = 4096;
+static const unsigned InvalidLower = 0x03;
+
+static unsigned char * invalidptr = 0;
+
 void *
 boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   void* S = Source;
   unsigned len = 0;
   int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
   if ((fs) && (S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+    return Dest;
+  }
+
+  /*
+   * Handle the case where a pointer is allowed to move just beyond the end of
+   * the allocated space.
+   */
+  if (fs) {
+    if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+    ++invalidptr;
+    void* P = invalidptr;
+    if ((unsigned)P & ~(InvalidUpper - 1)) {
+      fprintf (stderr, "boundscheck failure: out of rewrite ptrs", 0,
+               (void*)__builtin_return_address(0));
+      fflush (stderr);
+      abort();
+    }
+
+    adl_splay_insert (&(Pool->OOB), P, 1, Dest);
     return Dest;
   }
 
@@ -995,6 +1033,32 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   fflush (stderr);
   abort ();
   return Dest;
+}
+
+/*
+ * Function: getActualValue()
+ *
+ * Description:
+ *  If src is an out of object pointer, get the original value.
+ */
+void *
+pchk_getActualValue (PoolTy * Pool, void * src) {
+  if ((unsigned)src <= InvalidLower) return src;
+
+  void* tag = 0;
+
+  /* outside rewrite zone */
+  if ((unsigned)src & ~(InvalidUpper - 1)) return src;
+  if (adl_splay_retrieve(&(Pool->OOB), &src, 0, &tag)) {
+    return tag;
+  }
+
+  /* Lookup has failed */
+  fprintf (stderr, "GetActualValue failure: src = %x, pc = %x", (unsigned) src,
+           (void*) __builtin_return_address(0));
+  fflush (stderr);
+  abort ();
+  return tag;
 }
 
 // Check that Node falls within the pool and within start and (including)

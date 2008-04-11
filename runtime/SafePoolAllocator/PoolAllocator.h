@@ -28,6 +28,9 @@ typedef struct PoolTy {
   // Splay tree used for object registration
   void * Objects;
 
+  // Splay tree used for out of bound objects
+  void * OOB;
+
   // Ptr1, Ptr2 - Implementation specified data pointers.
   void *Ptr1, *Ptr2;
 
