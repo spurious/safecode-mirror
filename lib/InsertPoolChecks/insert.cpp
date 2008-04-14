@@ -149,47 +149,45 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Module::global_iterator GI = M.global_begin(), GE = M.global_end();
     for ( ; GI != GE; ++GI) {
       if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-	Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-	Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-	Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
-	if (GV->getType() != PoolDescPtrTy) {
-	  DSGraph &G = paPass->getGlobalsGraph();
-	  DSNode *DSN  = G.getNodeForValue(GV).getNode();
-	  if ((isa<ArrayType>(GV->getType()->getElementType())) || DSN->isNodeCompletelyFolded()) {
-	    Value * AllocSize;
-	    const Type* csiType = Type::Int32Ty;
-	    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-	      //std::cerr << "found global \n";
-	      AllocSize = ConstantInt::get(csiType,
- 					    (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
-	    } else {
-	      AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()));
-	    }
-	    Constant *PoolRegister = paPass->PoolRegister;
-	    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-	    //skip the calls to poolinit
-	    while ((isa<CallInst>(InsertPt)) ||
-              isa<CastInst>(InsertPt) ||
-              isa<AllocaInst>(InsertPt) ||
-              isa<BinaryOperator>(InsertPt)) ++InsertPt;
-	    
-      Value * PH = paPass->getGlobalPool (DSN);
-	    if (PH) {
-	      Instruction *GVCasted = CastInst::createPointerCast(GV,
-						   VoidPtrType, GV->getName()+"casted",InsertPt);
-        std::vector<Value *> args;
-        args.push_back (PH);
-        args.push_back (GVCasted);
-        args.push_back (AllocSize);
-	      CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
-	    } else {
-	      std::cerr << "pool descriptor not present for " << *GV << std::endl;
-#if 0
-	      abort();
-#endif
-	    }
-	  }
-	}
+        Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+        Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+        Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+        if (GV->getType() != PoolDescPtrTy) {
+          DSGraph &G = paPass->getGlobalsGraph();
+          DSNode *DSN  = G.getNodeForValue(GV).getNode();
+          Value * AllocSize;
+          const Type* csiType = Type::Int32Ty;
+          if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+            //std::cerr << "found global \n";
+            AllocSize = ConstantInt::get(csiType,
+                  (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
+          } else {
+            AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()));
+          }
+          Constant *PoolRegister = paPass->PoolRegister;
+          BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+          //skip the calls to poolinit
+          while ((isa<CallInst>(InsertPt)) ||
+                  isa<CastInst>(InsertPt) ||
+                  isa<AllocaInst>(InsertPt) ||
+                  isa<BinaryOperator>(InsertPt)) ++InsertPt;
+          
+          Value * PH = paPass->getGlobalPool (DSN);
+          if (PH) {
+            Instruction *GVCasted = CastInst::createPointerCast(GV,
+                   VoidPtrType, GV->getName()+"casted",InsertPt);
+            std::vector<Value *> args;
+            args.push_back (PH);
+            args.push_back (GVCasted);
+            args.push_back (AllocSize);
+            CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+          } else {
+            std::cerr << "pool descriptor not present for " << *GV << std::endl;
+      #if 0
+            abort();
+      #endif
+          }
+        }
       }
     }
   }
@@ -208,6 +206,63 @@ void InsertPoolChecks::addPoolChecks(Module &M) {
     }
   }
   if (!DisableLSChecks)  addLoadStoreChecks(M);
+}
+
+void
+InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
+#if 1
+  // We know that the operand is a pointer type 
+  Value *op   = SCI->getOperand(operand);
+  Function *F = SCI->getParent()->getParent();
+
+#ifndef LLVA_KERNEL    
+#if 0
+  // Some times the ECGraphs doesnt contain F for newly created cloned
+  // functions
+  if (!equivPass->ContainsDSGraphFor(*F)) {
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    op = FI->MapValueToOriginal(op);
+    if (!op) return; //abort();
+  }
+#endif
+#endif    
+
+  Function *Fnew = F;
+  Value *PH = 0;
+  if (Argument *arg = dyn_cast<Argument>(op)) {
+    Fnew = arg->getParent();
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*Fnew);
+    PH = getPoolHandle(op, Fnew, *FI);
+  } else if (Instruction *Inst = dyn_cast<Instruction>(op)) {
+    Fnew = Inst->getParent()->getParent();
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*Fnew);
+    PH = getPoolHandle(op, Fnew, *FI);
+  } else if (isa<Constant>(op)) {
+    return;
+    //      abort();
+  } else if (!isa<ConstantPointerNull>(op)) {
+    //has to be a global
+    abort();
+  }
+  op = SCI->getOperand(operand);
+  if (!isa<ConstantPointerNull>(op)) {
+    if (PH) {
+      if (1) { //HACK fixed
+        const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+        Value * PHVptr = castTo (PH, VoidPtrType, PH->getName()+".casted", SCI);
+        Value * OpVptr = castTo (op, VoidPtrType, op->getName()+".casted", SCI);
+
+        std::vector<Value *> args = make_vector(PHVptr, OpVptr,0);
+        CallInst *CI = CallInst::Create (GetActualValue, args.begin(), args.end(), "getval", SCI);
+        Instruction *CastBack = castTo (CI, op->getType(),
+                                         op->getName()+".castback", SCI);
+        SCI->setOperand (operand, CastBack);
+      }
+    } else {
+      //It shouldn't work if PH is not null
+    }
+  }
+#endif
 }
 
 
@@ -231,7 +286,8 @@ void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
     }
     // Get the pool handle associated with this pointer.  If there is no pool
     // handle, use a NULL pointer value and let the runtime deal with it.
-    Value *PH = getPoolHandle(V, F);
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    Value *PH = getPoolHandle(V, F, *FI);
 #ifdef DEBUG
 std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
 #endif
@@ -306,7 +362,30 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
       } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
         Value *P = SI->getPointerOperand();
         addLSChecks(P, SI, F);
-      } 
+      } else if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
+        switch (CmpI->getPredicate()) {
+          ICmpInst::Predicate::ICMP_EQ:
+          ICmpInst::Predicate::ICMP_NE:
+            // Replace all pointer operands with the getActualValue() call
+            assert ((CmpI->getNumOperands() == 2) &&
+                     "nmber of operands for CmpI different from 2 ");
+            if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
+              // we need to insert a call to getactualvalue
+              // First get the poolhandle for the pointer
+              // TODO: We don't have a working getactualvalue(), so don't waste
+              // time calling it.
+              if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
+                  (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
+                addGetActualValue(CmpI, 0);
+                addGetActualValue(CmpI, 1);
+              }
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
     }
   }
 }
@@ -870,7 +949,11 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   FArg3.push_back(VoidPtrType);
   FunctionType *FunctionCheckTy = FunctionType::get(Type::VoidTy, FArg3, true);
   FunctionCheck = M.getOrInsertFunction("funccheck", FunctionCheckTy);
-  
+
+  std::vector<const Type*> FArg5(1, VoidPtrType);
+  FArg5.push_back(VoidPtrType);
+  FunctionType *GetActualValueTy = FunctionType::get(VoidPtrType, FArg5, false);
+  GetActualValue=M.getOrInsertFunction("pchk_getActualValue", GetActualValueTy);
 }
 
 DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {
