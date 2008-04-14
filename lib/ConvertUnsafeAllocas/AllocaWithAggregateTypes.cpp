@@ -30,9 +30,6 @@ static const unsigned meminitvalue = 0x00;
 static const unsigned meminitvalue = 0xcc;
 #endif
 
-  // Create the command line option for the pass
-  //  RegisterOpt<MallocPass> X ("malloc", "Alloca to Malloc Pass");
-
   inline bool MallocPass::TypeContainsPointer(const Type *Ty) {
     if (Ty->getTypeID() == Type::PointerTyID)
       return true;
@@ -51,6 +48,22 @@ static const unsigned meminitvalue = 0xcc;
     return false;
   }
 
+  //
+  // FIXME:
+  //  I don't think the code below is strictly correct.  I think we could have
+  //  a type-known node that allocates memory using non-pointer LLVM types but
+  //  uses the memory as a structure with a pointer in a type consistent
+  //  manner.
+  //
+  //    Example:
+  //
+  //    foo = alloc (unsigned char array[24]);
+  //    ...
+  //    (struct bar *)(foo)->pointer = p;
+  //
+  //  I think what we really want to do is to see if the DSNode for the given
+  //  alloca is type-known *and* whether it has any links to other DSNodes.
+  //
   inline bool
   MallocPass::changeType (DSGraph & TDG, Instruction * Inst)
   {
@@ -163,9 +176,9 @@ static const unsigned meminitvalue = 0xcc;
             AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                                AllocInst->getOperand(0),
                                                "sizetmp",
-                                               AllocInst);
+                                               iptI);
 
-          Value * TheAlloca = castTo (AllocInst, VoidPtrType, iptI);
+          Value * TheAlloca = castTo (AllocInst, VoidPtrType, "cast", iptI);
 
           std::vector<Value *> args(1, TheAlloca);
           args.push_back (ConstantInt::get(Type::Int32Ty, meminitvalue));
