@@ -162,7 +162,7 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
             AllocSize = ConstantInt::get(csiType,
                   (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
           } else {
-            AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()));
+            AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()->getElementType()));
           }
           Constant *PoolRegister = paPass->PoolRegister;
           BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
