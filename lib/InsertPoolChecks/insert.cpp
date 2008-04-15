@@ -102,7 +102,8 @@ bool InsertPoolChecks::runOnModule(Module &M) {
 }
 
 #ifndef LLVA_KERNEL
-void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
+void
+InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
     std::cerr << "Cannot do array bounds check for this program"
@@ -145,52 +146,52 @@ void InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     
   }
 
-  //Now iterate over globals and register all the arrays
-    Module::global_iterator GI = M.global_begin(), GE = M.global_end();
-    for ( ; GI != GE; ++GI) {
-      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-        Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-        Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-        Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
-        if (GV->getType() != PoolDescPtrTy) {
-          DSGraph &G = paPass->getGlobalsGraph();
-          DSNode *DSN  = G.getNodeForValue(GV).getNode();
-          Value * AllocSize;
-          const Type* csiType = Type::Int32Ty;
-          if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-            //std::cerr << "found global \n";
-            AllocSize = ConstantInt::get(csiType,
-                  (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
-          } else {
-            AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()->getElementType()));
-          }
-          Constant *PoolRegister = paPass->PoolRegister;
-          BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-          //skip the calls to poolinit
-          while ((isa<CallInst>(InsertPt)) ||
-                  isa<CastInst>(InsertPt) ||
-                  isa<AllocaInst>(InsertPt) ||
-                  isa<BinaryOperator>(InsertPt)) ++InsertPt;
-          
-          Value * PH = paPass->getGlobalPool (DSN);
-          if (PH) {
-            Instruction *GVCasted = CastInst::createPointerCast(GV,
-                   VoidPtrType, GV->getName()+"casted",InsertPt);
-            std::vector<Value *> args;
-            args.push_back (PH);
-            args.push_back (GVCasted);
-            args.push_back (AllocSize);
-            CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
-          } else {
-            std::cerr << "pool descriptor not present for " << *GV << std::endl;
-      #if 0
-            abort();
-      #endif
-          }
+  // Now iterate over globals and register all the arrays
+  Module::global_iterator GI = M.global_begin(), GE = M.global_end();
+  for ( ; GI != GE; ++GI) {
+    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
+      Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+      Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+      Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+      if (GV->getType() != PoolDescPtrTy) {
+        DSGraph &G = paPass->getGlobalsGraph();
+        DSNode *DSN  = G.getNodeForValue(GV).getNode();
+        Value * AllocSize;
+        const Type* csiType = Type::Int32Ty;
+        if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+          //std::cerr << "found global \n";
+          AllocSize = ConstantInt::get(csiType,
+                (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
+        } else {
+          AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()->getElementType()));
+        }
+        Constant *PoolRegister = paPass->PoolRegister;
+        BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+        //skip the calls to poolinit
+        while ((isa<CallInst>(InsertPt)) ||
+                isa<CastInst>(InsertPt) ||
+                isa<AllocaInst>(InsertPt) ||
+                isa<BinaryOperator>(InsertPt)) ++InsertPt;
+        
+        Value * PH = paPass->getGlobalPool (DSN);
+        if (PH) {
+          Instruction *GVCasted = CastInst::createPointerCast(GV,
+                 VoidPtrType, GV->getName()+"casted",InsertPt);
+          std::vector<Value *> args;
+          args.push_back (PH);
+          args.push_back (GVCasted);
+          args.push_back (AllocSize);
+          CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+        } else {
+          std::cerr << "pool descriptor not present for " << *GV << std::endl;
+    #if 0
+          abort();
+    #endif
         }
       }
     }
   }
+}
 #endif
 
 void InsertPoolChecks::addPoolChecks(Module &M) {
