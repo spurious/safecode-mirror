@@ -46,10 +46,13 @@ struct InsertPoolChecks : public ModulePass {
 #endif  
   Constant *PoolCheck;
   Constant *PoolCheckArray;
+  Constant *PoolCheckArrayUI;
   Constant *ExactCheck;
   Constant *FunctionCheck;
+  Constant *GetActualValue;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
+  void addGetActualValue (ICmpInst *SCI, unsigned operand);
   void addGetElementPtrChecks(BasicBlock * BB);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
