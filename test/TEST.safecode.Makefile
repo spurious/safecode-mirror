@@ -54,28 +54,48 @@ Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
 	-$(LOPT) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 #
-# These rules compile the new .bc file into a .c file using CBE
+# These rules compile the new .bc file into a .c file using llc
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.s): \
 Output/%.safecode.s: Output/%.$(TEST).bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $(LLCFLAGS) -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.s): \
 Output/%.nonsc.s: Output/%.nonsc.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $(LLCFLAGS) -f $< -o $@
+
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.cbe.c): \
+Output/%.safecode.cbe.c: Output/%.$(TEST).bc $(LLC)
+	-$(LLC) -march=c $(LLCFLAGS) -f $< -o $@
+
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc.cbe.c): \
+Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
+	-$(LLC) -march=c $(LLCFLAGS) -f $< -o $@
 
 #
 # These rules compile the CBE .c file into a final executable
 #
+ifdef SC_USECBE
+$(PROGRAMS_TO_TEST:%=Output/%.safecode): \
+Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+
+$(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
+Output/%.nonsc: Output/%.nonsc.cbe.c
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM)
 	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+endif
 
-
+##############################################################################
+# Rules for running executables and generating reports
+##############################################################################
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 
