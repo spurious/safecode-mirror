@@ -28,7 +28,7 @@
 #define DEBUG(x) 
 
 /* Set to 1 to log object registrations */
-static const unsigned logregs = 1;
+static const unsigned logregs = 0;
 
 //===----------------------------------------------------------------------===//
 //
@@ -965,6 +965,7 @@ void
 poolcheck(PoolTy *Pool, void *Node) {
   void* S = Node;
   unsigned len = 0;
+  if (!Pool) return;
   int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
   if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
     return;
@@ -1024,14 +1025,49 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
    * The node is not found or is not within bounds; fail!
    */
   if (fs) {
-    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x\n",
-             Pool, fs, Source, Dest, len, __builtin_return_address(0));
+    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
+             Pool, fs, Source, Dest, len, __builtin_return_address(0), __builtin_frame_address(0));
   } else {
-    fprintf (stderr, "Boundscheck failed(%x:%x): No object: %x %x %x from %x\n",
-             Pool, fs, Source, Dest, len, __builtin_return_address(0));
+    fprintf (stderr, "Boundscheck failed(%x:%x): No object: %x %x %x from %x esp=%x\n",
+             Pool, fs, Source, Dest, len, __builtin_return_address(0), __builtin_frame_address(0));
   }
   fflush (stderr);
   abort ();
+  return Dest;
+}
+
+void *
+boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
+  void* S = Source;
+  unsigned len = 0;
+  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
+  if ((fs) && (S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+    return Dest;
+  }
+
+  /*
+   * Handle the case where a pointer is allowed to move just beyond the end of
+   * the allocated space.
+   */
+  if (fs) {
+    if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+    ++invalidptr;
+    void* P = invalidptr;
+    if ((unsigned)P & ~(InvalidUpper - 1)) {
+      fprintf (stderr, "boundscheck failure: out of rewrite ptrs", 0,
+               (void*)__builtin_return_address(0));
+      fflush (stderr);
+      abort();
+    }
+
+    adl_splay_insert (&(Pool->OOB), P, 1, Dest);
+    return Dest;
+  }
+
+  /*
+   * The node is not found or is not within bounds.  Let it go because it's
+   * incomplete or unknown.
+   */
   return Dest;
 }
 
