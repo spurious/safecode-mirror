@@ -147,24 +147,22 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   }
 
   // Now iterate over globals and register all the arrays
+  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+  Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+  Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for ( ; GI != GE; ++GI) {
     if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-      Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-      Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-      Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+      // Don't register external global variables
+
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph &G = paPass->getGlobalsGraph();
         DSNode *DSN  = G.getNodeForValue(GV).getNode();
         Value * AllocSize;
         const Type* csiType = Type::Int32Ty;
-        if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-          //std::cerr << "found global \n";
-          AllocSize = ConstantInt::get(csiType,
-                (AT->getNumElements() * TD->getABITypeSize(AT->getElementType())));
-        } else {
-          AllocSize = ConstantInt::get(csiType, TD->getABITypeSize(GV->getType()->getElementType()));
-        }
+        const Type * GlobalType = GV->getType()->getElementType();
+        AllocSize = ConstantInt::get (csiType, TD->getABITypeSize(GlobalType));
         Constant *PoolRegister = paPass->PoolRegister;
         BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
         //skip the calls to poolinit
@@ -757,7 +755,13 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         args.push_back(Casted);
 
         // Insert it
-        CallInst::Create(PoolCheckArray,args.begin(), args.end(), "", InsertPt);
+        DSNode * Node = getDSNode (GEP, F);
+        if (Node->isIncompleteNode())
+          CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
+                           "", InsertPt);
+        else
+          CallInst::Create(PoolCheckArray, args.begin(), args.end(),
+                           "", InsertPt);
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
@@ -938,7 +942,8 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   Arg2.push_back(VoidPtrType);
   FunctionType *PoolCheckArrayTy =
     FunctionType::get(Type::VoidTy,Arg2, false);
-  PoolCheckArray = M.getOrInsertFunction("boundscheck", PoolCheckArrayTy);
+  PoolCheckArray   = M.getOrInsertFunction("boundscheck",   PoolCheckArrayTy);
+  PoolCheckArrayUI = M.getOrInsertFunction("boundscheckui", PoolCheckArrayTy);
   
   std::vector<const Type *> FArg2(1, Type::Int32Ty);
   FArg2.push_back(Type::Int32Ty);
