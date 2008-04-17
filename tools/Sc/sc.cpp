@@ -28,6 +28,7 @@
 
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
+#include "IndirectCallChecks.h"
 
 #include <fstream>
 #include <iostream>
@@ -112,6 +113,7 @@ int main(int argc, char **argv) {
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
+    Passes.add(createIndirectCallChecksPass());
 
     // Verify the final result
     Passes.add(createVerifierPass());

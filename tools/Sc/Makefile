@@ -30,6 +30,7 @@ LDFLAGS += -Wl,-rpath $(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libarrayboundcheck$(SHLIBEXT) \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpointerchecks$(SHLIBEXT) \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libstackcheck$(SHLIBEXT) \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libindirectcalls$(SHLIBEXT) \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc$(SHLIBEXT) \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure$(SHLIBEXT)
 

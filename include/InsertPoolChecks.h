@@ -66,6 +66,9 @@ struct InsertPoolChecks : public ModulePass {
   Value * getPoolHandle(const Value *V, Function *F);
 #endif  
 
+  void addGetActualValue(llvm::ICmpInst*, unsigned int);
+  Constant *GetActualValue;
+
 };
 }
 #endif
