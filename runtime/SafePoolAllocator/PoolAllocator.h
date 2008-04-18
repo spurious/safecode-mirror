@@ -78,6 +78,7 @@ extern "C" {
   void pooldestroy(PoolTy *Pool);
   void * poolalloc(PoolTy *Pool, unsigned NumBytes);
   void * poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
+  void * poolcalloc (PoolTy *Pool, unsigned Number, unsigned NumBytes);
   void * poolstrdup(PoolTy *Pool, char *Node);
 
   void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);

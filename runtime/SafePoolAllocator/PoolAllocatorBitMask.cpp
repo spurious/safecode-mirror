@@ -716,6 +716,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     if (logregs) {
       fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
     }
+    bzero (retAddress, NumBytes);
     return retAddress;
   }
 
@@ -738,6 +739,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       if (logregs) {
         fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
       }
+      bzero (retAddress, NumBytes);
       return retAddress;
     }
 
@@ -758,6 +760,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         if (logregs) {
           fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
         }
+        bzero (retAddress, NumBytes);
         return retAddress;
       }
     }
@@ -788,6 +791,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (logregs) {
     fprintf (stderr, "poolalloc: %x %x\n", retAddress, NumBytes);
   }
+  bzero (retAddress, NumBytes);
   return retAddress;
 }
 
@@ -804,6 +808,13 @@ poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
   //FIXME the following may not work in all cases  
   memcpy(New, Node, NumBytes);
   poolfree(Pool, Node);
+  return New;
+}
+
+void *
+poolcalloc (PoolTy *Pool, unsigned Number, unsigned NumBytes) {
+  void * New = poolalloc (Pool, Number * NumBytes);
+  if (New) bzero (New, Number * NumBytes);
   return New;
 }
 
