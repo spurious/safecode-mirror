@@ -177,8 +177,6 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for ( ; GI != GE; ++GI) {
     if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-      // Don't register external global variables
-
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph &G = paPass->getGlobalsGraph();
         DSNode *DSN  = G.getNodeForValue(GV).getNode();
