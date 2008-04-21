@@ -57,6 +57,8 @@ struct InsertPoolChecks : public ModulePass {
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
   void addLoadStoreChecks(Module &M);
+  void registerStackObjects (Module &M);
+  void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig);
 #ifndef LLVA_KERNEL  
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
   Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = false);
