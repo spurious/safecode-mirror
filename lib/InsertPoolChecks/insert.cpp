@@ -129,10 +129,25 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     Value *PH= getPoolHandle(Argv, MainFunc, *FI);
     Constant *PoolRegister = paPass->PoolRegister;
     BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+
+    // Insert the registration after all calls to poolinit().  Also skip
+    // cast, alloca, and binary operators.
     while ((isa<CallInst>(InsertPt))  ||
             isa<CastInst>(InsertPt)   ||
             isa<AllocaInst>(InsertPt) ||
-            isa<BinaryOperator>(InsertPt)) ++InsertPt;
+            isa<BinaryOperator>(InsertPt)) {
+      if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+        if (Function * F = CI->getCalledFunction())
+          if (F->getName() == "poolinit")
+            ++InsertPt;
+          else
+            break;
+        else
+          break;
+      else
+        ++InsertPt;
+    }
+
     if (PH) {
       Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
       Instruction *GVCasted = CastInst::createPointerCast(Argv,
@@ -174,11 +189,22 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         Constant *PoolRegister = paPass->PoolRegister;
         BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
         //skip the calls to poolinit
-        while ((isa<CallInst>(InsertPt)) ||
-                isa<CastInst>(InsertPt) ||
+        while ((isa<CallInst>(InsertPt))  ||
+                isa<CastInst>(InsertPt)   ||
                 isa<AllocaInst>(InsertPt) ||
-                isa<BinaryOperator>(InsertPt)) ++InsertPt;
-        
+                isa<BinaryOperator>(InsertPt)) {
+          if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+            if (Function * F = CI->getCalledFunction())
+              if (F->getName() == "poolinit")
+                ++InsertPt;
+              else
+                break;
+            else
+              break;
+          else
+            ++InsertPt;
+        }
+
         Value * PH = paPass->getGlobalPool (DSN);
         if (PH) {
           Instruction *GVCasted = CastInst::createPointerCast(GV,
@@ -620,6 +646,9 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
     Value *PH = getPoolHandle(V, F, *FI, true); 
     assert (PH && "Null pool handle!\n");
   }
+
+  // Do not perform checks on incomplete nodes
+  if (Node && (Node->isIncompleteNode())) return;
 
   if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
