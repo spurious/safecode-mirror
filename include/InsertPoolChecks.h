@@ -52,8 +52,8 @@ struct InsertPoolChecks : public ModulePass {
   Constant *GetActualValue;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
-  void addGetActualValue (ICmpInst *SCI, unsigned operand);
   void addGetElementPtrChecks(BasicBlock * BB);
+  void addGetActualValue(llvm::ICmpInst*, unsigned int);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
   void addLoadStoreChecks(Module &M);
@@ -65,10 +65,6 @@ struct InsertPoolChecks : public ModulePass {
   void addLSChecks(Value *V, Instruction *I, Function *F);
   Value * getPoolHandle(const Value *V, Function *F);
 #endif  
-
-  void addGetActualValue(llvm::ICmpInst*, unsigned int);
-  Constant *GetActualValue;
-
 };
 }
 #endif
