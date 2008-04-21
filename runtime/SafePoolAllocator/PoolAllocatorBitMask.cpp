@@ -382,7 +382,9 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
   if (!isNodeAllocated(ElementIdx)) return;
   //  assert(isNodeAllocated(ElementIdx) &&
   //         "poolfree: Attempt to free node that is already freed\n");
+#if 0
   assert(!isSingleArray && "Cannot free an element from a single array!");
+#endif
 
   // Mark this element as being free!
   markNodeFree(ElementIdx);
