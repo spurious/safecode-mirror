@@ -384,6 +384,15 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
   //         "poolfree: Attempt to free node that is already freed\n");
 #if 0
   assert(!isSingleArray && "Cannot free an element from a single array!");
+#else
+#if 0
+  //
+  // If this is a single array, and we're freeing it, just treat it like a
+  // regular slab from now on.
+  //
+  if (isSingleArray)
+    isSingleArray = false;
+#endif
 #endif
 
   // Mark this element as being free!
@@ -1019,19 +1028,26 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
    * Handle the case where a pointer is allowed to move just beyond the end of
    * the allocated space.
    */
-  if (fs) {
+  if ((fs) && (((char *) Dest) == ((char*)S + len))) {
+    if (logregs)
+      fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
+               S, Source, Dest, len, (void*)__builtin_return_address(0));
     if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
     ++invalidptr;
     void* P = invalidptr;
     if ((unsigned)P & ~(InvalidUpper - 1)) {
-      fprintf (stderr, "boundscheck failure: out of rewrite ptrs", 0,
-               (void*)__builtin_return_address(0));
+      fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x, pc=%x\n",
+               Source, Dest, (void*)__builtin_return_address(0));
       fflush (stderr);
+#if 0
       abort();
+#else
+      return Dest;
+#endif
     }
 
     adl_splay_insert (&(Pool->OOB), P, 1, Dest);
-    return Dest;
+    return invalidptr;
   }
 
   /*
@@ -1054,27 +1070,29 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   void* S = Source;
   unsigned len = 0;
   int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
-  if ((fs) && (S <= Dest) && (((char*)S + len) > (char*)Dest)) {
-    return Dest;
-  }
-
-  /*
-   * Handle the case where a pointer is allowed to move just beyond the end of
-   * the allocated space.
-   */
   if (fs) {
-    if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
-    ++invalidptr;
-    void* P = invalidptr;
-    if ((unsigned)P & ~(InvalidUpper - 1)) {
-      fprintf (stderr, "boundscheck failure: out of rewrite ptrs", 0,
-               (void*)__builtin_return_address(0));
-      fflush (stderr);
-      abort();
+    if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+      return Dest;
+    } else if (((char *) Dest) == ((char*)S + len)) {
+      if (logregs)
+        fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
+                 S, Source, Dest, len, (void*)__builtin_return_address(0));
+      if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+      ++invalidptr;
+      void* P = invalidptr;
+      if ((unsigned)P & ~(InvalidUpper - 1)) {
+        fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
+                 Source, Dest, (void*)__builtin_return_address(0));
+        fflush (stderr);
+#if 0
+        abort();
+#else
+        return Dest;
+#endif
+      }
+      adl_splay_insert (&(Pool->OOB), P, 1, Dest);
+      return invalidptr;
     }
-
-    adl_splay_insert (&(Pool->OOB), P, 1, Dest);
-    return Dest;
   }
 
   /*
