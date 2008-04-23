@@ -49,6 +49,10 @@ Force("f", cl::desc("Overwrite output files"));
 static cl::opt<bool>
 FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
 
+static cl::opt<bool>
+EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
+                     cl::desc("Enable fast indirect call checks"));
+
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
 GetFileNameRoot(const std::string &InputFilename) {
@@ -113,7 +117,9 @@ int main(int argc, char **argv) {
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
-    Passes.add(createIndirectCallChecksPass());
+    Passes.add(new MallocPass());
+    if (EnableFastCallChecks)
+      Passes.add(createIndirectCallChecksPass());
 
     // Verify the final result
     Passes.add(createVerifierPass());
