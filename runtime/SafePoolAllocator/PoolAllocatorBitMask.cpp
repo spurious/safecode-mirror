@@ -365,7 +365,8 @@ PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
     unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
       if (Delta % ElementSize != 0) {
-        printf("Freeing pointer into the middle of an element!");
+        fprintf(stderr, "Freeing pointer into the middle of an element!");
+        fflush (stderr);
         abort();
       }
       
@@ -658,8 +659,8 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 void
 poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   if (!Pool) {
-    printf("Null pool pointer passed in to poolregister!\n");
-    fflush (stdout);
+    fprintf(stderr, "Null pool pointer passed in to poolregister!\n");
+    fflush (stderr);
     abort();
     exit(-1);
   } 
@@ -1010,8 +1011,8 @@ poolcheck(PoolTy *Pool, void *Node) {
  *  object within the pool and that Dest is within the bounds of the same
  *  object.
  */
-static const unsigned InvalidUpper = 4096;
-static const unsigned InvalidLower = 0x03;
+static const unsigned InvalidUpper = 0xf0000000;
+static const unsigned InvalidLower = 0xc0000000;
 
 static unsigned char * invalidptr = 0;
 
@@ -1175,6 +1176,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
         if (Idx == -1) {
           printf("poolcheck1: node being checked not found in pool with right"
            " alignment\n");
+          fflush (stdout);
           abort();
           exit(-1);
         } else {
@@ -1183,6 +1185,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
       } else {
         printf("poolcheck2: node being checked not found in pool with right"
                " alignment\n");
+        fflush (stdout);
         abort();
         exit(-1);
       }
@@ -1190,12 +1193,14 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
       unsigned long startaddr = (unsigned long)PS->getElementAddress(0,0);
       if (startaddr > (unsigned long) Node) {
         printf("poolcheck: node being checked points to meta-data \n");
+        fflush (stdout);
         abort();
         exit(-1);
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if ((offset < StartOffset) || (offset > EndOffset)) {
         printf("poolcheck3: node being checked does not have right alignment\n");
+        fflush (stdout);
         abort();
         exit(-1);
       }
@@ -1222,6 +1227,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if ((offset < StartOffset) || (offset > EndOffset)) {
         printf("poolcheck4: node being checked does not have right alignment\n");
+        fflush (stdout);
         abort();
         exit(-1);
       }
@@ -1244,12 +1250,14 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
         if (Idx == -1) {
           printf("poolcheck6: node being checked not found in pool with right"
            " alignment\n");
+          fflush (stdout);
           abort();
           exit(-1);
         }
       } else {
         printf("poolcheck5: node being checked not found in pool with right"
                " alignment %x %x\n",Pool,Node);
+        fflush (stdout);
         abort();
       }
     }
@@ -1393,6 +1401,9 @@ funccheck (unsigned num, void *f, void *g, ...) {
       return;
     }
   }
+
+  fprintf (stderr, "funccheck failed(num=%d): %x %x\n", num, f, g);
+  fflush (stderr);
   abort();
-  }
+}
 
