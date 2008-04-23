@@ -52,7 +52,7 @@ bool BottomUpCallGraph::runOnModule(Module &M) {
   for (CompleteBUDataStructures::ActualCalleesTy::const_iterator
        I = AC.begin(), E = AC.end(); I != E; ++I) {
     CallSite CS = CallSite::get(I->first);
-    std::cerr << "CALLEE: " << I->second->getName() << " from : " << *(I->first) << std::endl;
+    DOUT << "CALLEE: " << I->second->getName() << " from : " << *(I->first) << std::endl;
     FuncCallSiteMap[I->second].push_back(CS);
     //see if this is equivalent to any other callsites of this function.....
     //FIXME This is very expensive way of doing it, 
