@@ -658,12 +658,9 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 
 void
 poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
-  if (!Pool) {
-    fprintf(stderr, "Null pool pointer passed in to poolregister!\n");
-    fflush (stderr);
-    abort();
-    exit(-1);
-  } 
+  // If the pool is NULL, don't do anything.
+  if (!Pool) return;
+
 #if 0
   if (Pool->AllocadPool != -1) {
     if (Pool->AllocadPool == 0) {
