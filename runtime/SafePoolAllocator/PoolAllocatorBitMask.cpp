@@ -1011,9 +1011,6 @@ poolcheck(PoolTy *Pool, void *Node) {
  *  object within the pool and that Dest is within the bounds of the same
  *  object.
  */
-static const unsigned InvalidUpper = 0xf0000000;
-static const unsigned InvalidLower = 0xc0000000;
-
 static unsigned char * invalidptr = 0;
 
 void *

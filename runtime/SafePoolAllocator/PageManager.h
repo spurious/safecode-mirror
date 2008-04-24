@@ -37,4 +37,31 @@ void *AllocateNPages(unsigned Num);
 /// future allocation.
 void FreePage(void *Page);
 
+//
+// The lower and upper bound of an unmapped memory region.  This range is used
+// for rewriting pointers that go one beyond the edge of an object so that they
+// can be used for comparisons but will generate a fault if used for loads or
+// stores.
+//
+// There are a few restrictions:
+//  1) I *think* InvalidUpper must be on a page boundary.
+//  2) None of the values can be reserved pointer values.  Such values include:
+//      0 - This is the NULL pointer.
+//      1 - This is a reserved pointer in the Linux kernel.
+//      2 - This is another reserved pointer in the Linux kernel.
+//
+// Here's the breakdown of how it works on various operating systems:
+//  o) Linux           - We use the kernel's reserved address space (which is
+//                       inaccessible from applications).
+//  o) Other platforms - We use the first page of memory which is typically
+//                       unmapped.
+//
+#if defined(__linux__)
+static const unsigned InvalidUpper = 0xf0000000;
+static const unsigned InvalidLower = 0xc0000000;
+#else
+static const unsigned InvalidUpper = 0x00001000;
+static const unsigned InvalidLower = 0x00000003;
+#endif
+
 #endif
