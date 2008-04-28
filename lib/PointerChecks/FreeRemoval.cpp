@@ -663,9 +663,12 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   Function *mainF = M.getFunction("main");
   
   if (!mainF) {
-    hasError = true;
-    std::cerr << "EmbeC: Function main required\n";
-    return false;
+    mainF = M.getFunction("MAIN__");
+    if (!mainF) {
+      hasError = true;
+      std::cerr << "EmbeC: Function main required\n";
+      return false;
+    }
   }
 
   // Bottom up on the call graph

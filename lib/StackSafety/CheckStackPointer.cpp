@@ -51,7 +51,8 @@ bool checkStackSafety::runOnModule(Module &M) {
   //  TDDS = &getAnalysis<TDDataStructures>();
   CompleteBUDataStructures *BUDS;
   BUDS = &getAnalysis<CompleteBUDataStructures>();
-  Function *MainFunc = M.getFunction("main");
+  Function *MainFunc = M.getFunction("main") ? M.getFunction("main")
+                                             : M.getFunction ("MAIN__");
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if (&F != MainFunc) {

@@ -112,13 +112,22 @@ bool InsertPoolChecks::runOnModule(Module &M) {
 #ifndef LLVA_KERNEL
 void
 InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
+
+  //
+  // Find the main() function.  For FORTRAN programs converted to C using the
+  // NAG f2c tool, the function is named MAIN__.
+  //
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    std::cerr << "Cannot do array bounds check for this program"
-	      << "no 'main' function yet!\n";
-    abort();
+    MainFunc = M.getFunction("MAIN__");
+    if (MainFunc == 0 || MainFunc->isDeclaration()) {
+      std::cerr << "Cannot do array bounds check for this program"
+          << "no 'main' function yet!\n";
+      abort();
+    }
   }
-  //First register, argc and argv
+
+  // First register, argc and argv
   Function::arg_iterator AI = MainFunc->arg_begin(), AE = MainFunc->arg_end();
   if (AI != AE) {
     //There is argc and argv
@@ -1227,6 +1236,7 @@ InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
   {
 std::cerr << "PoolHandle: Getting original Function\n";
     F = paPass->getOrigFunctionFromClone(F);
+    assert (F && "No Function Information from Pool Allocation!\n");
   }
 #endif
 
@@ -1235,7 +1245,7 @@ std::cerr << "PoolHandle: Getting original Function\n";
   //
   const DSNode *Node = getDSNode(V,F);
   if (!Node) {
-std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
+    std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
     return 0;
   }
 
