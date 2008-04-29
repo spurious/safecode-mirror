@@ -55,7 +55,7 @@ private:
   unsigned short UsedEnd;
 
   // NumNodesInSlab - This contains the number of nodes in this slab, which
-  // effects the size of the NodeFlags vector, and indicates the number of nodes
+  // affects the size of the NodeFlags vector and indicates the number of nodes
   // which are in the slab.
   unsigned int NumNodesInSlab;
 
