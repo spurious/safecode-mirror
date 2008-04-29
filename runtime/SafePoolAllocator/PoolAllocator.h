@@ -56,6 +56,7 @@ typedef struct PoolTy {
   // A better implementation could split them up into single slabs for reuse,
   // upon being freed.
   void *LargeArrays;
+  void *FreeLargeArrays;
 
   void *prevPage[4];
   unsigned short lastUsed;

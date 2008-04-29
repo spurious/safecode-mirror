@@ -68,7 +68,14 @@ static void *GetPages(unsigned NumPages) {
 #else
    if ((Addr = valloc (NumPages*PageSize)) == 0){
      perror ("valloc:");
+     fflush (stdout);
+     fflush (stderr);
      assert(0 && "valloc failed \n");
+   } else {
+#if 0
+    fprintf (stderr, "valloc: Allocated %x\n", NumPages);
+    fflush (stderr);
+#endif
    }
 #endif
   poolmemusage += NumPages * PageSize;

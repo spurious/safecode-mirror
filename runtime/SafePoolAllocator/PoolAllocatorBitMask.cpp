@@ -385,6 +385,13 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
   //         "poolfree: Attempt to free node that is already freed\n");
 #if 0
   assert(!isSingleArray && "Cannot free an element from a single array!");
+#else
+#if 0
+  if (isSingleArray) {
+    this->addToList((PoolSlab**)&Pool->FreeLargeArrays);
+    return;
+  }
+#endif
 #endif
 
   // Mark this element as being free!
@@ -605,8 +612,14 @@ pooldestroy(PoolTy *Pool) {
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-  if (Size > PoolSlab::getSlabSize(Pool))
-  {
+  if (Size > PoolSlab::getSlabSize(Pool)) {
+#if 0
+    for (PoolSlab * PS = Pool->FreeLargeArrays; PS != NULL; PS=PS->Next) {
+      if (PS->NumNodesInSlab >= Size)
+        return PS->getElementAddress(0, 0);
+    }
+#endif
+
     return PoolSlab::createSingleArray(Pool, Size);
   }
  
@@ -678,6 +691,9 @@ void
 poolunregister(PoolTy *Pool, void * allocaptr) {
   if (!Pool) return;
   adl_splay_delete(&Pool->Objects, allocaptr);
+  if (logregs) {
+    fprintf (stderr, "pooluregister: %x\n", allocaptr);
+  }
 }
 
 //Pool->AllocadPool -1 : unused so far
@@ -1289,8 +1305,12 @@ poolcheck(PoolTy *Pool, void *Node) {
 
 void
 poolfree(PoolTy *Pool, void *Node) {
+  if (!Pool) return;
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
-  DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
+  if (logregs) {
+    fprintf(stderr, "poolfree(%x): %x \n",Pool, Node);
+    fflush (stderr);
+  }
   PoolSlab *PS;
   int Idx;
   adl_splay_delete(&Pool->Objects, Node);
