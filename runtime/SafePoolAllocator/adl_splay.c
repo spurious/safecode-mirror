@@ -69,7 +69,7 @@ static inline Tree* tmalloc() {
   } else {
     Tree * tmp = internal_malloc(sizeof(Tree));
     if (!tmp)
-      poolcheckfatal ("LLVA: tmalloc: Failed to allocate\n", 0);
+      poolcheckfatal ("LLVA: tmalloc: Failed to allocate", externallocs);
     return (Tree*) tmp;
   }
 }

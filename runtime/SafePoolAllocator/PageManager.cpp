@@ -67,6 +67,7 @@ static void *GetPages(unsigned NumPages) {
    }
 #else
    if ((Addr = valloc (NumPages*PageSize)) == 0){
+     perror ("valloc:");
      assert(0 && "valloc failed \n");
    }
 #endif

@@ -385,15 +385,6 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
   //         "poolfree: Attempt to free node that is already freed\n");
 #if 0
   assert(!isSingleArray && "Cannot free an element from a single array!");
-#else
-#if 0
-  //
-  // If this is a single array, and we're freeing it, just treat it like a
-  // regular slab from now on.
-  //
-  if (isSingleArray)
-    isSingleArray = false;
-#endif
 #endif
 
   // Mark this element as being free!
@@ -681,6 +672,12 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
     fprintf (stderr, "poolregister: %x %x\n", allocaptr, NumBytes);
   }
 #endif
+}
+
+void
+poolunregister(PoolTy *Pool, void * allocaptr) {
+  if (!Pool) return;
+  adl_splay_delete(&Pool->Objects, allocaptr);
 }
 
 //Pool->AllocadPool -1 : unused so far

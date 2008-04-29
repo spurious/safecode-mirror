@@ -82,6 +82,7 @@ extern "C" {
   void * poolstrdup(PoolTy *Pool, char *Node);
 
   void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
+  void poolunregister(PoolTy *Pool, void *allocaptr);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);
   void poolcheckoptim(PoolTy *Pool, void *Node);
