@@ -175,7 +175,6 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       std::cerr << "argv's pool descriptor is not present. \n";
       //	abort();
     }
-    
   }
 
   // Now iterate over globals and register all the arrays
@@ -398,13 +397,7 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
   //
   Instruction *Casted = castTo (AI, PointerType::getUnqual(Type::Int8Ty),
                                 AI->getName()+".casted", iptI);
-#if 0
-  Value *CastedPH     = castTo (PH,
-                                PointerType::getUnqual(Type::Int8Ty),
-                                "allocph",Casted);
-#else
   Value * CastedPH = PH;
-#endif
   std::vector<Value *> args;
   args.push_back (CastedPH);
   args.push_back (Casted);
@@ -415,7 +408,10 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
   //
   // Insert a call to unregister the object whenever the function can exit.
   //
-#if 0
+#if 1
+  CastedPH     = castTo (PH,
+                         PointerType::getUnqual(Type::Int8Ty),
+                         "allocph",Casted);
   args.clear();
   args.push_back (CastedPH);
   args.push_back (Casted);
@@ -1203,6 +1199,11 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   FArg5.push_back(VoidPtrType);
   FunctionType *GetActualValueTy = FunctionType::get(VoidPtrType, FArg5, false);
   GetActualValue=M.getOrInsertFunction("pchk_getActualValue", GetActualValueTy);
+
+  std::vector<const Type*> FArg6(1, VoidPtrType);
+  FArg6.push_back(VoidPtrType);
+  FunctionType *StackFreeTy = FunctionType::get(VoidPtrType, FArg6, false);
+  StackFree=M.getOrInsertFunction("poolunregister", StackFreeTy);
 }
 
 DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {
@@ -1268,6 +1269,7 @@ std::cerr << "PoolHandle: Getting original Function\n";
         std::cerr << "ERROR: we don't handle middle of structs yet"
                   << std::endl;
 #endif
+std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
       return Constant::getNullValue(PoolDescPtrTy);
     }
   }
@@ -1286,17 +1288,24 @@ std::cerr << "PoolHandle: Getting original Function\n";
 #ifdef DEBUG
         std::cerr << "Collapsed pools \n";
 #endif
+std::cerr << "JTC: PH: Null 2: " << *V << std::endl;
         return Constant::getNullValue(PoolDescPtrTy);
       } else {
         if (Argument * Arg = dyn_cast<Argument>(v))
           if ((Arg->getParent()) != F)
+{
+std::cerr << "JTC: PH: Null 3: " << *V << std::endl;
             return Constant::getNullValue(PoolDescPtrTy);
+}
         return v;
       }
     } else {
       if (Argument * Arg = dyn_cast<Argument>(PH))
         if ((Arg->getParent()) != F)
+{
+std::cerr << "JTC: PH: Null 4: " << *V << std::endl;
           return Constant::getNullValue(PoolDescPtrTy);
+}
       return PH;
     } 
   }
