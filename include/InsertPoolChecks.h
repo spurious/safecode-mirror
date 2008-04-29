@@ -50,6 +50,7 @@ struct InsertPoolChecks : public ModulePass {
   Constant *ExactCheck;
   Constant *FunctionCheck;
   Constant *GetActualValue;
+  Constant *StackFree;
   void addPoolCheckProto(Module &M);
   void addPoolChecks(Module &M);
   void addGetElementPtrChecks(BasicBlock * BB);
