@@ -276,7 +276,7 @@ PoolSlab::allocateSingle() {
     unsigned short FU = FirstUnused;
     do {
       ++FU;
-    } while (FU != SlabSize && isNodeAllocated(FU));
+    } while ((FU != SlabSize) && (isNodeAllocated(FU)));
     FirstUnused = FU;
     
     return Idx;
@@ -435,10 +435,16 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
     // that all nodes are free in the slab.  If this is the case, simply reset
     // our pointers.
     if (UsedBegin == UE) {
+#if 0
       //printf(": SLAB EMPTY\n");
       FirstUnused = 0;
       UsedBegin = 0;
       UsedEnd = 0;
+#else
+      UsedEnd = lastNodeAllocated(ElementIdx);
+      assert(FirstUnused <= UsedEnd+1 &&
+             "FirstUnused field was out of date!");
+#endif
     } else if (FirstUnused == ElementIdx) {
       // Freed the last node(s) in this slab.
       FirstUnused = ElementIdx;
