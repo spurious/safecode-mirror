@@ -64,4 +64,9 @@ static const unsigned InvalidUpper = 0x00001000;
 static const unsigned InvalidLower = 0x00000003;
 #endif
 
+//
+// Value used to initialize memory.
+//
+static const unsigned initvalue = 0xcc;
+
 #endif

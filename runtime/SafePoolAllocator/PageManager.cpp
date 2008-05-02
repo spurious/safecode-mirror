@@ -79,7 +79,7 @@ static void *GetPages(unsigned NumPages) {
    }
 #endif
   poolmemusage += NumPages * PageSize;
-  memset(Addr, 0xcc, NumPages *PageSize);
+  memset(Addr, initvalue, NumPages *PageSize);
   return Addr;
 }
 #endif
