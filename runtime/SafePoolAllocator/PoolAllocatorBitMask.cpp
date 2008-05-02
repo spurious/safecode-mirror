@@ -336,8 +336,16 @@ PoolSlab::allocateMultiple(unsigned Size) {
       assert(Idx != UsedEnd && "Shouldn't allocate at end of pool!");
 
       // If we are allocating out the first unused field, bump its index also.
-      if (Idx == FirstUnused)
-        FirstUnused += Size;
+      if (Idx == FirstUnused) {
+        unsigned SlabSize = getSlabSize();
+        unsigned i;
+        for (i = FirstUnused+Size; i < SlabSize; ++i) {
+          if (!isNodeAllocated(i)) {
+            break;
+          }
+        }
+        FirstUnused = i;
+      }
       
       // Return the entry
       return Idx;
@@ -435,16 +443,10 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
     // that all nodes are free in the slab.  If this is the case, simply reset
     // our pointers.
     if (UsedBegin == UE) {
-#if 0
       //printf(": SLAB EMPTY\n");
       FirstUnused = 0;
       UsedBegin = 0;
       UsedEnd = 0;
-#else
-      UsedEnd = lastNodeAllocated(ElementIdx);
-      assert(FirstUnused <= UsedEnd+1 &&
-             "FirstUnused field was out of date!");
-#endif
     } else if (FirstUnused == ElementIdx) {
       // Freed the last node(s) in this slab.
       FirstUnused = ElementIdx;
@@ -1357,8 +1359,8 @@ poolfree(PoolTy *Pool, void *Node) {
 
     // If the partially full list has an empty node sitting at the front of the
     // list, insert right after it.
-    if ((*InsertPosPtr)->isEmpty())
-      InsertPosPtr = &(*InsertPosPtr)->Next;
+    if ((*InsertPosPtr) && ((*InsertPosPtr)->isEmpty()))
+        InsertPosPtr = &(*InsertPosPtr)->Next;
 
     PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
   }
