@@ -189,6 +189,12 @@ PoolSlab::create(PoolTy *Pool) {
   PS->UsedBegin   = 0;    // Nothing allocated.
   PS->UsedEnd     = 0;    // Nothing allocated.
 
+  for (unsigned i = 0; i < PS->getSlabSize(); ++i)
+  {
+    PS->markNodeFree(i);
+    PS->clearStartBit(i);
+  }
+
   // Add the slab to the list...
   PS->addToList((PoolSlab**)&Pool->Ptr1);
   //  printf(" creating a slab %x\n", PS);
@@ -255,10 +261,12 @@ PoolSlab::allocateSingle() {
     setStartBit(UE);
     
     // If we are allocating out the first unused field, bump its index also
-    if (FirstUnused == UE)
+    if (FirstUnused == UE) {
       FirstUnused++;
+    }
     
     // Return the entry, increment UsedEnd field.
+    assert ((FirstUnused == SlabSize) || (!isNodeAllocated(FirstUnused)));
     return UsedEnd++;
   }
   
@@ -279,6 +287,7 @@ PoolSlab::allocateSingle() {
     } while ((FU != SlabSize) && (isNodeAllocated(FU)));
     FirstUnused = FU;
     
+    assert ((FirstUnused == SlabSize) || (!isNodeAllocated(FirstUnused)));
     return Idx;
   }
   
@@ -339,12 +348,13 @@ PoolSlab::allocateMultiple(unsigned Size) {
       if (Idx == FirstUnused) {
         unsigned SlabSize = getSlabSize();
         unsigned i;
-        for (i = FirstUnused+Size; i < SlabSize; ++i) {
+        for (i = FirstUnused+Size; i < UsedEnd; ++i) {
           if (!isNodeAllocated(i)) {
             break;
           }
         }
         FirstUnused = i;
+        assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
       }
       
       // Return the entry
@@ -357,6 +367,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
       ++Idx;
   }
 
+  assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
   return -1;
 }
 
@@ -457,6 +468,7 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
              "FirstUnused field was out of date!");
     }
   }
+  assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
 }
 
 unsigned
