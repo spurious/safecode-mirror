@@ -21,6 +21,12 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+
+// this is for dangling pointer detection in Mac OS X
+#include <mach/mach_vm.h>
+#include <mach/mach.h>
+#include <mach/mach_error.h>
+
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
@@ -33,6 +39,9 @@ void InitializePageManager() {
     PageSize =  16 * sysconf(_SC_PAGESIZE) ;
   }
 }
+
+unsigned PPageSize = sysconf(_SC_PAGESIZE);
+static unsigned logregs = 0;
 
 #if !USE_MEMALIGN
 static void *GetPages(unsigned NumPages) {
@@ -94,6 +103,85 @@ static FreePagesListType &getFreePageList() {
   return FreePages;
 }
 
+
+void *RemapPage(void * va, unsigned NumByte){
+	kern_return_t			kr;
+	mach_vm_address_t		target_addr = 0;
+	mach_vm_address_t		source_addr;
+	vm_prot_t				prot_cur = VM_PROT_READ | VM_PROT_WRITE;
+	vm_prot_t				prot_max = VM_PROT_READ | VM_PROT_WRITE;
+	
+	source_addr = (mach_vm_address_t) ((unsigned long)va & ~(PPageSize - 1));
+	unsigned offset = (unsigned long)va & (PPageSize - 1);
+	unsigned NumPPage = 0;
+	
+	NumPPage = (NumByte / PPageSize) + 1;
+	
+	//if((unsigned)va > 0x2f000000) {
+	//	logregs = 1;
+	//}
+	
+	if (logregs) {
+		fprintf(stderr, " RemapPage:117: source_addr = 0x%016p, offset = 0x%016x, NumPPage = %d\n", (void*)source_addr, offset, NumPPage);
+		fflush(stderr);
+	}
+	/*
+	//	FIX ME!! when there's time, check out why this doesn't work
+	if ( (NumByte - (NumPPage-1) * PPageSize) > (PPageSize - offset) ) {
+		NumPPage++;
+		NumByte = NumPPage * PPageSize;
+	}
+	*/
+	
+	unsigned byteToMap = NumByte + offset;
+	
+	if (logregs) {
+		fprintf(stderr, " RemapPage127: remapping page of size %d covering %d page with offset %d and byteToMap = %d",
+				NumByte, NumPPage, offset, byteToMap);
+		fflush(stderr);
+	}
+	kr = mach_vm_remap (mach_task_self(),
+						&target_addr,
+						byteToMap,
+						0,
+						TRUE,
+						mach_task_self(),
+						source_addr,
+						FALSE,
+						&prot_cur,
+						&prot_max,
+						VM_INHERIT_SHARE); 
+ 
+	if (kr != KERN_SUCCESS) {
+		fprintf(stderr, " mach_vm_remap error: %d \n", kr);
+		fprintf(stderr, " failed to remap %dB of memory from source_addr = 0x%08x\n", byteToMap, (unsigned)source_addr);
+		//printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
+		fprintf(stderr, "%s\n", mach_error_string(kr));
+		mach_error("mach_vm_remap:",kr); // just to make sure I've got this error right
+		fflush(stderr);
+		//goto repeat;
+		//abort();
+	}
+         
+	if (logregs) {
+		fprintf(stderr, " RemapPage:160: remap succeeded to addr 0x%08x\n", (unsigned)target_addr);
+		fflush(stderr);
+	}
+	va = (void *) target_addr;
+	return va;
+ 
+/* 
+#ifdef STATISTIC
+         AddressSpaceUsage2++;
+#endif
+*/
+}
+
+
+
+
+
+
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by PageSize.
 void *AllocatePage() {
@@ -120,13 +208,26 @@ void *AllocateNPages(unsigned Num) {
   return GetPages(Num);
 }
 
+
+// MprotectPage - This function changes the protection status of the page to become
+//                 none-accessible
+void MprotectPage(void *pa, unsigned numPages) {
+	kern_return_t kr;
+	kr = mprotect(pa, numPages * PageSize, PROT_NONE);
+	if (kr != KERN_SUCCESS)
+		perror(" mprotect error \n");
+	return;
+}
+
+
+
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
 #define THRESHOLD 5
 void FreePage(void *Page) {
   FreePagesListType &FPL = getFreePageList();
   FPL.push_back(Page);
-  //munmap(Page, 1);
+  munmap(Page, 1);
   /*
   if (FPL.size() >  THRESHOLD) {
     //    printf( "pool allocator : reached a threshold \n");
@@ -136,3 +237,28 @@ void FreePage(void *Page) {
   }
   */
 }
+
+
+// ProtectShadowPage - Protects shadow page that begins at beginAddr, spanning
+//						over PageNum
+void ProtectShadowPage(void * beginPage, unsigned NumPPages)
+{
+	kern_return_t kr;
+	kr = mprotect(beginPage, NumPPages * 4096, PROT_NONE);
+	if (kr != KERN_SUCCESS)
+		perror(" mprotect error \n");
+	return;
+}
+
+// UnprotectShadowPage - Unprotects the shadow page in the event of fault when
+//							accessing protected shadow page in order to
+//							resume execution
+void UnprotectShadowPage(void * beginPage, unsigned NumPPages)
+{
+	kern_return_t kr;
+	kr = mprotect(beginPage, NumPPages * 4096, PROT_READ | PROT_WRITE);
+	if (kr != KERN_SUCCESS)
+		perror(" unprotect error \n");
+	return;
+}
+
