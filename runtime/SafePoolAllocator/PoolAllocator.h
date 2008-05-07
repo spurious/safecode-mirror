@@ -22,11 +22,14 @@
 #include <utility>
 
 #define AddrArrSize 2
-unsigned poolmemusage = 0;
-unsigned PCheckPassed = 1;
+extern unsigned poolmemusage;
+//unsigned PCheckPassed = 1;
 typedef struct PoolTy {
   // Splay tree used for object registration
   void * Objects;
+  
+  // Splay tree used by dangling pointer runtime
+  void * DPTree;
 
   // Splay tree used for out of bound objects
   void * OOB;
@@ -67,8 +70,18 @@ typedef struct PoolTy {
   std::map<void *,unsigned> * RegNodes;
 } PoolTy;
 
+typedef struct DebugMetaData {
+	unsigned allocID;
+	unsigned freeID;
+	void * allocPC;
+	void * freePC;
+	void * canonAddr;
+} DebugMetaData;
+
+typedef DebugMetaData * PDebugMetaData;
+
 extern "C" {
-  void exactcheck(int a, int b) {
+  static void exactcheck(int a, int b) {
     if ((0 > a) || (a >= b)) {
       fprintf(stderr, "exact check failed\n");
       exit(-1);
@@ -90,11 +103,10 @@ extern "C" {
   void * boundscheck   (PoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui (PoolTy * Pool, void * Source, void * Dest);
   void funccheck (unsigned num, void *f, void *g, ...);
-  void poolstats() {
-    fprintf(stderr, "pool mem usage %d\n",poolmemusage);
-  }
+  void poolstats(void);
   void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
 		 unsigned EndOffset);
+  //void protect_shadowpage();
 }
 
 #endif
