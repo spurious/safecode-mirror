@@ -1,8 +1,9 @@
 
 LEVEL = ../../
 
-SHARED_LIBRARY=1
 LIBRARYNAME=addchecks
+
+BUILD_RELINKED=1
 
 include $(LEVEL)/Makefile.common
 

@@ -1,7 +1,8 @@
 
 LEVEL = ../../
 
-SHARED_LIBRARY=1
+BUILD_RELINKED=1
+
 LIBRARYNAME=arrayboundcheck
 
 SOURCES := ABCPreProcess.cpp AffineExpressions.cpp BottomUpCallGraph.cpp ArrayBoundCheck.cpp
