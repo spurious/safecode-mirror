@@ -1590,11 +1590,15 @@ bus_error_handler(int sig, siginfo_t * info, void * context) {
   // printing reports
   printf("=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n", alertNum);
   printf("%04d: Invalid access to memory address 0x%08x \n", alertNum, (unsigned)faultAddr);
+#if defined(__APPLE__)
+#if defined(i386) || defined(__i386__) || defined(__x86__)
   printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->ss.eip);
+#endif
   printf("%04d:     Object allocated at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->allocPC - 5);
   printf("%04d:     Object allocation generation number \t: %d \n", alertNum, debugmetadataptr->allocID);
   printf("%04d:     Object freed at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->freePC - 5);
   printf("%04d:     Object free generation number \t: %d \n", alertNum, debugmetadataptr->freeID);
+#endif
   printf("=======+++++++    end of runtime error report    +++++++=======\n");
   
   // reinstall the signal handler for subsequent faults
