@@ -61,162 +61,162 @@ void updatePtrMetaData(PDebugMetaData, unsigned, void *);
 // Invariants: FirstUnused <= UsedEnd
 //
 struct PoolSlab {
-	PoolSlab **PrevPtr, *Next;
-	bool isSingleArray;   // If this slab is used for exactly one array
+  PoolSlab **PrevPtr, *Next;
+  bool isSingleArray;   // If this slab is used for exactly one array
 
 private:
-	// FirstUnused - First empty node in slab
-	unsigned short FirstUnused;
+  // FirstUnused - First empty node in slab
+  unsigned short FirstUnused;
 
-	// UsedBegin - The first node in the slab that is used.
-	unsigned short UsedBegin;
+  // UsedBegin - The first node in the slab that is used.
+  unsigned short UsedBegin;
 
-	// UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
-	unsigned short UsedEnd;
+  // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
+  unsigned short UsedEnd;
 
-	// NumNodesInSlab - This contains the number of nodes in this slab, which
-	// effects the size of the NodeFlags vector, and indicates the number of nodes
-	// which are in the slab.
-	unsigned int NumNodesInSlab;
+  // NumNodesInSlab - This contains the number of nodes in this slab, which
+  // effects the size of the NodeFlags vector, and indicates the number of nodes
+  // which are in the slab.
+  unsigned int NumNodesInSlab;
 
-	// NodeFlagsVector - This array contains two bits for each node in this pool
-	// slab.  The first (low address) bit indicates whether this node has been
-	// allocated, and the second (next higher) bit indicates whether this is the
-	// start of an allocation.
-	//
-	// This is a variable sized array, which has 2*NumNodesInSlab bits (rounded up
-	// to 4 bytes).
-	unsigned NodeFlagsVector[1];
+  // NodeFlagsVector - This array contains two bits for each node in this pool
+  // slab.  The first (low address) bit indicates whether this node has been
+  // allocated, and the second (next higher) bit indicates whether this is the
+  // start of an allocation.
+  //
+  // This is a variable sized array, which has 2*NumNodesInSlab bits (rounded up
+  // to 4 bytes).
+  unsigned NodeFlagsVector[1];
   
-	bool isNodeAllocated(unsigned NodeNum) {
-		return NodeFlagsVector[NodeNum/16] & (1 << (NodeNum & 15));
-	}
+  bool isNodeAllocated(unsigned NodeNum) {
+    return NodeFlagsVector[NodeNum/16] & (1 << (NodeNum & 15));
+  }
 
-	void markNodeAllocated(unsigned NodeNum) {
-		NodeFlagsVector[NodeNum/16] |= 1 << (NodeNum & 15);
-	}
+  void markNodeAllocated(unsigned NodeNum) {
+    NodeFlagsVector[NodeNum/16] |= 1 << (NodeNum & 15);
+  }
 
-	void markNodeFree(unsigned NodeNum) {
-		NodeFlagsVector[NodeNum/16] &= ~(1 << (NodeNum & 15));
-	}
+  void markNodeFree(unsigned NodeNum) {
+    NodeFlagsVector[NodeNum/16] &= ~(1 << (NodeNum & 15));
+  }
 
-	void setStartBit(unsigned NodeNum) {
-		NodeFlagsVector[NodeNum/16] |= 1 << ((NodeNum & 15)+16);
-	}
+  void setStartBit(unsigned NodeNum) {
+    NodeFlagsVector[NodeNum/16] |= 1 << ((NodeNum & 15)+16);
+  }
 
-	bool isStartOfAllocation(unsigned NodeNum) {
-		return NodeFlagsVector[NodeNum/16] & (1 << ((NodeNum & 15)+16));
-	}
+  bool isStartOfAllocation(unsigned NodeNum) {
+    return NodeFlagsVector[NodeNum/16] & (1 << ((NodeNum & 15)+16));
+  }
   
-	void clearStartBit(unsigned NodeNum) {
-		NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
-	}
+  void clearStartBit(unsigned NodeNum) {
+    NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
+  }
 
 public:
-	// create - Create a new (empty) slab and add it to the end of the Pools list.
-	static PoolSlab *create(PoolTy *Pool);
+  // create - Create a new (empty) slab and add it to the end of the Pools list.
+  static PoolSlab *create(PoolTy *Pool);
 
-	// createSingleArray - Create a slab for a large singlearray with NumNodes
-	// entries in it, returning the pointer into the pool directly.
-	static void *createSingleArray(PoolTy *Pool, unsigned NumNodes);
+  // createSingleArray - Create a slab for a large singlearray with NumNodes
+  // entries in it, returning the pointer into the pool directly.
+  static void *createSingleArray(PoolTy *Pool, unsigned NumNodes);
 
-	// getSlabSize - Return the number of nodes that each slab should contain.
-	static unsigned getSlabSize(PoolTy *Pool) {
-		// We need space for the header...
-		unsigned NumNodes = PageSize-sizeof(PoolSlab);
+  // getSlabSize - Return the number of nodes that each slab should contain.
+  static unsigned getSlabSize(PoolTy *Pool) {
+    // We need space for the header...
+    unsigned NumNodes = PageSize-sizeof(PoolSlab);
     
-		// We need space for the NodeFlags...
-		unsigned NodeFlagsBytes = NumNodes/Pool->NodeSize * 2 / 8;
-		NumNodes -= (NodeFlagsBytes+3) & ~3;  // Round up to int boundaries.
+    // We need space for the NodeFlags...
+    unsigned NodeFlagsBytes = NumNodes/Pool->NodeSize * 2 / 8;
+    NumNodes -= (NodeFlagsBytes+3) & ~3;  // Round up to int boundaries.
 
-		// Divide the remainder among the nodes!
-		return NumNodes / Pool->NodeSize;
-	}
+    // Divide the remainder among the nodes!
+    return NumNodes / Pool->NodeSize;
+  }
 
-	void addToList(PoolSlab **PrevPtrPtr) {
-		PoolSlab *InsertBefore = *PrevPtrPtr;
-		*PrevPtrPtr = this;
-		PrevPtr = PrevPtrPtr;
-		Next = InsertBefore;
-		if (InsertBefore) InsertBefore->PrevPtr = &Next;
-	}
+  void addToList(PoolSlab **PrevPtrPtr) {
+    PoolSlab *InsertBefore = *PrevPtrPtr;
+    *PrevPtrPtr = this;
+    PrevPtr = PrevPtrPtr;
+    Next = InsertBefore;
+    if (InsertBefore) InsertBefore->PrevPtr = &Next;
+  }
 
-	void unlinkFromList() {
-		*PrevPtr = Next;
-		if (Next) Next->PrevPtr = PrevPtr;
-	}
+  void unlinkFromList() {
+    *PrevPtr = Next;
+    if (Next) Next->PrevPtr = PrevPtr;
+  }
 
-	unsigned getSlabSize() const {
-		return NumNodesInSlab;
-	}
+  unsigned getSlabSize() const {
+    return NumNodesInSlab;
+  }
 
-	// destroy - Release the memory for the current object.
-	void destroy();
+  // destroy - Release the memory for the current object.
+  void destroy();
 
-	// isEmpty - This is a quick check to see if this slab is completely empty or
-	// not.
-	bool isEmpty() const { return UsedEnd == 0; }
+  // isEmpty - This is a quick check to see if this slab is completely empty or
+  // not.
+  bool isEmpty() const { return UsedEnd == 0; }
 
-	// isFull - This is a quick check to see if the slab is completely allocated.
-	//
-	bool isFull() const { return isSingleArray || FirstUnused == getSlabSize(); }
+  // isFull - This is a quick check to see if the slab is completely allocated.
+  //
+  bool isFull() const { return isSingleArray || FirstUnused == getSlabSize(); }
 
-	// allocateSingle - Allocate a single element from this pool, returning -1 if
-	// there is no space.
-	int allocateSingle();
+  // allocateSingle - Allocate a single element from this pool, returning -1 if
+  // there is no space.
+  int allocateSingle();
 
-	// allocateMultiple - Allocate multiple contiguous elements from this pool,
-	// returning -1 if there is no space.
-	int allocateMultiple(unsigned Num);
+  // allocateMultiple - Allocate multiple contiguous elements from this pool,
+  // returning -1 if there is no space.
+  int allocateMultiple(unsigned Num);
 
-	// getElementAddress - Return the address of the specified element.
-	void *getElementAddress(unsigned ElementNum, unsigned ElementSize) {
-		char *Data = (char*)&NodeFlagsVector[((unsigned)NumNodesInSlab+15)/16];
-		return &Data[ElementNum*ElementSize];
-	}
+  // getElementAddress - Return the address of the specified element.
+  void *getElementAddress(unsigned ElementNum, unsigned ElementSize) {
+    char *Data = (char*)&NodeFlagsVector[((unsigned)NumNodesInSlab+15)/16];
+    return &Data[ElementNum*ElementSize];
+  }
   
-	const void *getElementAddress(unsigned ElementNum, unsigned ElementSize)const{
-		const char *Data =
-			(const char *)&NodeFlagsVector[(unsigned)(NumNodesInSlab+15)/16];
-		return &Data[ElementNum*ElementSize];
-	}
+  const void *getElementAddress(unsigned ElementNum, unsigned ElementSize)const{
+    const char *Data =
+      (const char *)&NodeFlagsVector[(unsigned)(NumNodesInSlab+15)/16];
+    return &Data[ElementNum*ElementSize];
+  }
 
-	// containsElement - Return the element number of the specified address in
-	// this slab.  If the address is not in slab, return -1.
-	int containsElement(void *Ptr, unsigned ElementSize) const;
+  // containsElement - Return the element number of the specified address in
+  // this slab.  If the address is not in slab, return -1.
+  int containsElement(void *Ptr, unsigned ElementSize) const;
 
-	// freeElement - Free the single node, small array, or entire array indicated.
-	void freeElement(unsigned short ElementIdx);
-	
-	// getSize --- size of an allocation
-	unsigned getSize(void *Node, unsigned ElementSize);
+  // freeElement - Free the single node, small array, or entire array indicated.
+  void freeElement(unsigned short ElementIdx);
   
-	// lastNodeAllocated - Return one past the last node in the pool which is
-	// before ScanIdx, that is allocated.  If there are no allocated nodes in this
-	// slab before ScanIdx, return 0.
-	unsigned lastNodeAllocated(unsigned ScanIdx);
+  // getSize --- size of an allocation
+  unsigned getSize(void *Node, unsigned ElementSize);
+  
+  // lastNodeAllocated - Return one past the last node in the pool which is
+  // before ScanIdx, that is allocated.  If there are no allocated nodes in this
+  // slab before ScanIdx, return 0.
+  unsigned lastNodeAllocated(unsigned ScanIdx);
 };
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 PoolSlab *
 PoolSlab::create(PoolTy *Pool) {
-	unsigned NodesPerSlab = getSlabSize(Pool);
+  unsigned NodesPerSlab = getSlabSize(Pool);
 
-	unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
-		Pool->NodeSize*getSlabSize(Pool);
-	assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
-	PoolSlab *PS = (PoolSlab*)AllocatePage();
+  unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
+    Pool->NodeSize*getSlabSize(Pool);
+  assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
+  PoolSlab *PS = (PoolSlab*)AllocatePage();
 
-	PS->NumNodesInSlab = NodesPerSlab;
-	PS->isSingleArray = 0;  // Not a single array!
-	PS->FirstUnused = 0;    // Nothing allocated.
-	PS->UsedBegin   = 0;    // Nothing allocated.
-	PS->UsedEnd     = 0;    // Nothing allocated.
+  PS->NumNodesInSlab = NodesPerSlab;
+  PS->isSingleArray = 0;  // Not a single array!
+  PS->FirstUnused = 0;    // Nothing allocated.
+  PS->UsedBegin   = 0;    // Nothing allocated.
+  PS->UsedEnd     = 0;    // Nothing allocated.
 
-	// Add the slab to the list...
-	PS->addToList((PoolSlab**)&Pool->Ptr1);
-	//  printf(" creating a slab %x\n", PS);
-	return PS;
+  // Add the slab to the list...
+  PS->addToList((PoolSlab**)&Pool->Ptr1);
+  //  printf(" creating a slab %x\n", PS);
+  return PS;
 }
 
 void *
@@ -265,12 +265,12 @@ PoolSlab::destroy() {
 // mprotect
 void
 PoolSlab::mprotect() {
-	if (isSingleArray) {
-		unsigned NumPages = *(unsigned*)&FirstUnused; 
-		MprotectPage((char*)this, NumPages);
-	}
-	else 
-		MprotectPage(this, 1);
+  if (isSingleArray) {
+    unsigned NumPages = *(unsigned*)&FirstUnused; 
+    MprotectPage((char*)this, NumPages);
+  }
+  else 
+    MprotectPage(this, 1);
 }
 */
 
@@ -405,33 +405,33 @@ PoolSlab::allocateMultiple(unsigned Size) {
 
 // getSize
 unsigned PoolSlab::getSize(void *Ptr, unsigned ElementSize) {
-	const void *FirstElement = getElementAddress(0, 0);
-	if (FirstElement <= Ptr) {
-		unsigned Delta = (char*)Ptr-(char*)FirstElement;
-		unsigned Index = Delta/ElementSize;
+  const void *FirstElement = getElementAddress(0, 0);
+  if (FirstElement <= Ptr) {
+    unsigned Delta = (char*)Ptr-(char*)FirstElement;
+    unsigned Index = Delta/ElementSize;
     
-		if (Index < getSlabSize()) {
-			//we have the index now do something like free
-			assert(isStartOfAllocation(Index) &&
-				"poolrealloc: Attempt to realloc from the middle of allocated array\n");
-			unsigned short ElementEndIdx = Index + 1;
+    if (Index < getSlabSize()) {
+      //we have the index now do something like free
+      assert(isStartOfAllocation(Index) &&
+        "poolrealloc: Attempt to realloc from the middle of allocated array\n");
+      unsigned short ElementEndIdx = Index + 1;
       
-			// FIXME: This should use manual strength reduction to produce decent code.
-			unsigned short UE = UsedEnd;
-			while (ElementEndIdx != UE &&
-					!isStartOfAllocation(ElementEndIdx) && 
-					isNodeAllocated(ElementEndIdx)) {
-				++ElementEndIdx;
-			}
-			return (ElementEndIdx - Index);
-		}
-	}
-	if (logregs)
-	{
-		fprintf(stderr, "PoolSlab::getSize failed!\n");
-		fflush(stderr);
-	}
-	abort();
+      // FIXME: This should use manual strength reduction to produce decent code.
+      unsigned short UE = UsedEnd;
+      while (ElementEndIdx != UE &&
+          !isStartOfAllocation(ElementEndIdx) && 
+          isNodeAllocated(ElementEndIdx)) {
+        ++ElementEndIdx;
+      }
+      return (ElementEndIdx - Index);
+    }
+  }
+  if (logregs)
+  {
+    fprintf(stderr, "PoolSlab::getSize failed!\n");
+    fflush(stderr);
+  }
+  abort();
 }
 
 
@@ -449,7 +449,7 @@ PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
       if (Delta % ElementSize != 0) {
         fprintf(stderr, "Freeing pointer into the middle of an element!\n");
         fflush(stderr);
-		abort();
+    abort();
       }
       
       return Index;
@@ -598,54 +598,54 @@ ContainsAllocatedNode:
 //
 void
 poolinit(PoolTy *Pool, unsigned NodeSize) {
-	assert(Pool && "Null pool pointer passed into poolinit!\n");
-	DEBUG(printf("pool init %x, %d\n", Pool, NodeSize);)
+  assert(Pool && "Null pool pointer passed into poolinit!\n");
+  DEBUG(printf("pool init %x, %d\n", Pool, NodeSize);)
 
-	// Ensure the page manager is initialized
-	InitializePageManager();
+  // Ensure the page manager is initialized
+  InitializePageManager();
 
-	// We must alway return unique pointers, even if they asked for 0 bytes
-	Pool->NodeSize = NodeSize ? NodeSize : 1;
-	// Initialize the splay tree
-	Pool->Objects = Pool->OOB = Pool->DPTree = 0;
-	Pool->DPTree = 0;
-	Pool->Ptr1 = Pool->Ptr2 = 0;
-	Pool->LargeArrays = 0;
-	// For SAFECode, we set FreeablePool to 0 always
-	//  Pool->FreeablePool = 0;
-	Pool->AllocadPool = -1;
-	Pool->allocaptr = 0;
-	Pool->lastUsed = 0;
-	Pool->prevPage[0] = 0;
-	Pool->prevPage[1] = 0;
-	// Initialize the SlabAddressArray to zero
-	for (int i = 0; i < AddrArrSize; ++i) {
-		Pool->SlabAddressArray[i] = 0;
-	}
-	Pool->NumSlabs = 0;
-	Pool->RegNodes = new std::map<void*,unsigned>;
-	
-	if (dummyInitialized == 1)
-		return;
-	
-	dummyPool.NodeSize = NodeSize ? NodeSize : 1;
-	// Initialize the splay tree
-	dummyPool.Objects = dummyPool.OOB = dummyPool.DPTree = 0;
-	dummyPool.Ptr1 = dummyPool.Ptr2 = 0;
-	dummyPool.LargeArrays = 0;
-	// For SAFECode, we set FreeablePool to 0 always
-	//  Pool->FreeablePool = 0;
-	dummyPool.AllocadPool = -1;
-	dummyPool.allocaptr = 0;
-	dummyPool.lastUsed = 0;
-	dummyPool.prevPage[0] = 0;
-	dummyPool.prevPage[1] = 0;
-	// Initialize the SlabAddressArray to zero
-	for (int i = 0; i < AddrArrSize; ++i) {
-		dummyPool.SlabAddressArray[i] = 0;
-	}
-	dummyPool.NumSlabs = 0;
-	dummyPool.RegNodes = new std::map<void*,unsigned>;
+  // We must alway return unique pointers, even if they asked for 0 bytes
+  Pool->NodeSize = NodeSize ? NodeSize : 1;
+  // Initialize the splay tree
+  Pool->Objects = Pool->OOB = Pool->DPTree = 0;
+  Pool->DPTree = 0;
+  Pool->Ptr1 = Pool->Ptr2 = 0;
+  Pool->LargeArrays = 0;
+  // For SAFECode, we set FreeablePool to 0 always
+  //  Pool->FreeablePool = 0;
+  Pool->AllocadPool = -1;
+  Pool->allocaptr = 0;
+  Pool->lastUsed = 0;
+  Pool->prevPage[0] = 0;
+  Pool->prevPage[1] = 0;
+  // Initialize the SlabAddressArray to zero
+  for (int i = 0; i < AddrArrSize; ++i) {
+    Pool->SlabAddressArray[i] = 0;
+  }
+  Pool->NumSlabs = 0;
+  Pool->RegNodes = new std::map<void*,unsigned>;
+  
+  if (dummyInitialized == 1)
+    return;
+  
+  dummyPool.NodeSize = NodeSize ? NodeSize : 1;
+  // Initialize the splay tree
+  dummyPool.Objects = dummyPool.OOB = dummyPool.DPTree = 0;
+  dummyPool.Ptr1 = dummyPool.Ptr2 = 0;
+  dummyPool.LargeArrays = 0;
+  // For SAFECode, we set FreeablePool to 0 always
+  //  Pool->FreeablePool = 0;
+  dummyPool.AllocadPool = -1;
+  dummyPool.allocaptr = 0;
+  dummyPool.lastUsed = 0;
+  dummyPool.prevPage[0] = 0;
+  dummyPool.prevPage[1] = 0;
+  // Initialize the SlabAddressArray to zero
+  for (int i = 0; i < AddrArrSize; ++i) {
+    dummyPool.SlabAddressArray[i] = 0;
+  }
+  dummyPool.NumSlabs = 0;
+  dummyPool.RegNodes = new std::map<void*,unsigned>;
 }
 
 void
@@ -710,92 +710,92 @@ pooldestroy(PoolTy *Pool) {
 //
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
-	assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-	if (Size > PoolSlab::getSlabSize(Pool)) {
-		if (logregs) {
-			fprintf(stderr, " poolallocarray:694: Size = %d, SlabSize = %d\n", Size, PoolSlab::getSlabSize(Pool));
-			fflush(stderr);
-		}
-		globalTemp = (PoolSlab*) PoolSlab::createSingleArray(Pool, Size);
-		unsigned offset = (unsigned)globalTemp & (PPageSize - 1);
-		void * retAddress = RemapPage(globalTemp, Size);
-		
-		if (logregs) {
-			fprintf(stderr, " poolallocarray:704: globalTemp = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
-					(unsigned)globalTemp, offset, (unsigned)retAddress);
-			fflush(stderr);
-		}
-		return (void*) ((unsigned)retAddress + offset);
-	}
+  assert(Pool && "Null pool pointer passed into poolallocarray!\n");
+  if (Size > PoolSlab::getSlabSize(Pool)) {
+    if (logregs) {
+      fprintf(stderr, " poolallocarray:694: Size = %d, SlabSize = %d\n", Size, PoolSlab::getSlabSize(Pool));
+      fflush(stderr);
+    }
+    globalTemp = (PoolSlab*) PoolSlab::createSingleArray(Pool, Size);
+    unsigned offset = (unsigned)globalTemp & (PPageSize - 1);
+    void * retAddress = RemapPage(globalTemp, Size);
+    
+    if (logregs) {
+      fprintf(stderr, " poolallocarray:704: globalTemp = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
+          (unsigned)globalTemp, offset, (unsigned)retAddress);
+      fflush(stderr);
+    }
+    return (void*) ((unsigned)retAddress + offset);
+  }
  
-	PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-	unsigned offset;
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  unsigned offset;
 
-	// Loop through all of the slabs looking for one with an opening
-	for (; PS; PS = PS->Next) {
-		int Element = PS->allocateMultiple(Size);
-		if (Element != -1) {
-		// We allocated an element.  Check to see if this slab has been completely
-		// filled up.  If so, move it to the Ptr2 list.
-			if (PS->isFull()) {
-				PS->unlinkFromList();
-				PS->addToList((PoolSlab**)&Pool->Ptr2);
-			}
-			
-			// insert info into adl splay tree for poolcheck runtime
-			//unsigned NodeSize = Pool->NodeSize;
-			globalTemp = PS->getElementAddress(Element, Pool->NodeSize);
-			offset = (unsigned)globalTemp & (PPageSize - 1); 
-			//adl_splay_insert(&(Pool->Objects), globalTemp, 
-			//					(unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
-			if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapPage\n");}
-			//	remap the page to get a shadow page (dangling pointer detection library)
-			PS = (PoolSlab *) RemapPage(globalTemp, Size);
-			if (logregs) {
-				fprintf(stderr, " poolallocarray:735: globalTemp = 0x%x\n", (unsigned)globalTemp);
-				fprintf(stderr ," poolallocarray:736: PS = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
-							(unsigned)PS, offset, (unsigned)PS + offset);
-			}
-			return (void*) ((unsigned)PS + offset);
-		}
-	}
+  // Loop through all of the slabs looking for one with an opening
+  for (; PS; PS = PS->Next) {
+    int Element = PS->allocateMultiple(Size);
+    if (Element != -1) {
+    // We allocated an element.  Check to see if this slab has been completely
+    // filled up.  If so, move it to the Ptr2 list.
+      if (PS->isFull()) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
+      }
+      
+      // insert info into adl splay tree for poolcheck runtime
+      //unsigned NodeSize = Pool->NodeSize;
+      globalTemp = PS->getElementAddress(Element, Pool->NodeSize);
+      offset = (unsigned)globalTemp & (PPageSize - 1); 
+      //adl_splay_insert(&(Pool->Objects), globalTemp, 
+      //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
+      if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapPage\n");}
+      //  remap the page to get a shadow page (dangling pointer detection library)
+      PS = (PoolSlab *) RemapPage(globalTemp, Size);
+      if (logregs) {
+        fprintf(stderr, " poolallocarray:735: globalTemp = 0x%x\n", (unsigned)globalTemp);
+        fprintf(stderr ," poolallocarray:736: PS = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
+              (unsigned)PS, offset, (unsigned)PS + offset);
+      }
+      return (void*) ((unsigned)PS + offset);
+    }
+  }
   
-	PoolSlab *New = PoolSlab::create(Pool);
-	//  printf("new slab created %x \n", New);
-	if (Pool->NumSlabs > AddrArrSize)
-		Pool->Slabs->insert((void *)New);
-	else if (Pool->NumSlabs == AddrArrSize) {
-		// Create the hash_set
-		Pool->Slabs = new hash_set<void *>;
-		Pool->Slabs->insert((void *)New);
-		for (unsigned i = 0; i < AddrArrSize; ++i)
-			Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
-	}
-	else {
-		// Insert it in the array
-		Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
-	}
-	
-	Pool->NumSlabs++;
+  PoolSlab *New = PoolSlab::create(Pool);
+  //  printf("new slab created %x \n", New);
+  if (Pool->NumSlabs > AddrArrSize)
+    Pool->Slabs->insert((void *)New);
+  else if (Pool->NumSlabs == AddrArrSize) {
+    // Create the hash_set
+    Pool->Slabs = new hash_set<void *>;
+    Pool->Slabs->insert((void *)New);
+    for (unsigned i = 0; i < AddrArrSize; ++i)
+      Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
+  }
+  else {
+    // Insert it in the array
+    Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
+  }
   
-	int Idx = New->allocateMultiple(Size);
-	assert(Idx == 0 && "New allocation didn't return zero'th node?");
-	
-	// insert info into adl splay tree for poolcheck runtime
-	//unsigned NodeSize = Pool->NodeSize;
-	globalTemp = New->getElementAddress(0, 0);
-	//adl_splay_insert(&(Pool->Objects), globalTemp, 
-	//					(unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
-	
-	// remap page to get a shadow page (dangling pointer detection library)
-	New = (PoolSlab *) RemapPage(globalTemp, Size);
-	offset = (unsigned)globalTemp & (PPageSize - 1);
-	if (logregs) {
-		fprintf(stderr, " poolallocarray:774: globalTemp = 0x%x\n, offset = 0x%x\n", (unsigned)globalTemp, offset);
-		fprintf(stderr, " poolallocarray:775: New = 0x%08x, Size = %d, retAddress = 0x%08x\n",
-				(unsigned)New, Size, (unsigned)New + offset);
-	}
-	return (void*) ((unsigned)New + offset);
+  Pool->NumSlabs++;
+  
+  int Idx = New->allocateMultiple(Size);
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  
+  // insert info into adl splay tree for poolcheck runtime
+  //unsigned NodeSize = Pool->NodeSize;
+  globalTemp = New->getElementAddress(0, 0);
+  //adl_splay_insert(&(Pool->Objects), globalTemp, 
+  //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
+  
+  // remap page to get a shadow page (dangling pointer detection library)
+  New = (PoolSlab *) RemapPage(globalTemp, Size);
+  offset = (unsigned)globalTemp & (PPageSize - 1);
+  if (logregs) {
+    fprintf(stderr, " poolallocarray:774: globalTemp = 0x%x\n, offset = 0x%x\n", (unsigned)globalTemp, offset);
+    fprintf(stderr, " poolallocarray:775: New = 0x%08x, Size = %d, retAddress = 0x%08x\n",
+        (unsigned)New, Size, (unsigned)New + offset);
+  }
+  return (void*) ((unsigned)New + offset);
 }
 
 void
@@ -839,184 +839,184 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
 //Pool->AllocadPool >0 : used for only allocas indicating the size 
 void *
 poolalloc(PoolTy *Pool, unsigned NumBytes) {
-	void *retAddress = NULL;
-	if (!Pool) {
-		fprintf(stderr, "Null pool pointer passed in to poolalloc!, FAILING\n");
-		exit(-1);
-	}
+  void *retAddress = NULL;
+  if (!Pool) {
+    fprintf(stderr, "Null pool pointer passed in to poolalloc!, FAILING\n");
+    exit(-1);
+  }
 
 #if 0
-	// Ensure that stack objects and heap objects d not belong to the same pool.
-	if (Pool->AllocadPool != -1) {
-		if (Pool->AllocadPool != 0) {
-		printf(" Did not Handle this case, an alloa and malloc point to");
-		printf("same DSNode, Will happen in stack safety \n");
-		exit(-1);
-		}
-	}
-	else {
-		Pool->AllocadPool = 0;
-	}
+  // Ensure that stack objects and heap objects d not belong to the same pool.
+  if (Pool->AllocadPool != -1) {
+    if (Pool->AllocadPool != 0) {
+    printf(" Did not Handle this case, an alloa and malloc point to");
+    printf("same DSNode, Will happen in stack safety \n");
+    exit(-1);
+    }
+  }
+  else {
+    Pool->AllocadPool = 0;
+  }
 #endif
    
-	// Ensure that we're always allocating at least 1 byte.
-	if (NumBytes == 0)
-		NumBytes = 1;
+  // Ensure that we're always allocating at least 1 byte.
+  if (NumBytes == 0)
+    NumBytes = 1;
 
-	unsigned NodeSize = Pool->NodeSize;
-	unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
-	unsigned offset = 0;
-	PDebugMetaData debugmetadataPtr;
+  unsigned NodeSize = Pool->NodeSize;
+  unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
+  unsigned offset = 0;
+  PDebugMetaData debugmetadataPtr;
   
-	// the case with more than 1 node, so we call helper function to allocate array
-	if (NodesToAllocate > 1) {
-		if (logregs) {
-			fprintf(stderr, " poolalloc:848: Allocating more than 1 node for %d bytes\n", NumBytes); fflush(stderr);
-		}
-		retAddress = poolallocarray(Pool, NodesToAllocate);
-		
-		// for the use of dangling pointer runtime
-		globalallocID++;
-		debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-		adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
-		if (logregs) {fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");}
-		adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
-		
-		//if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
-		//	logregs = 1;
-		
-		if (logregs) {
-			fprintf(stderr, " poolalloc:863: retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x\n",
-					(unsigned)retAddress, NumBytes, (unsigned)globalTemp); fflush(stderr);
-		}
-		return retAddress;
-	}
-	// Special case the most common situation, where a single node is being
-	// allocated.
-	PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  // the case with more than 1 node, so we call helper function to allocate array
+  if (NodesToAllocate > 1) {
+    if (logregs) {
+      fprintf(stderr, " poolalloc:848: Allocating more than 1 node for %d bytes\n", NumBytes); fflush(stderr);
+    }
+    retAddress = poolallocarray(Pool, NodesToAllocate);
+    
+    // for the use of dangling pointer runtime
+    globalallocID++;
+    debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
+    adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+    if (logregs) {fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");}
+    adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+    
+    //if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
+    //  logregs = 1;
+    
+    if (logregs) {
+      fprintf(stderr, " poolalloc:863: retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x\n",
+          (unsigned)retAddress, NumBytes, (unsigned)globalTemp); fflush(stderr);
+    }
+    return retAddress;
+  }
+  // Special case the most common situation, where a single node is being
+  // allocated.
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
 
-	if (__builtin_expect(PS != 0, 1)) {
-		int Element = PS->allocateSingle();
-		if (__builtin_expect(Element != -1, 1)) {
-			// We allocated an element.  Check to see if this slab has been
-			// completely filled up.  If so, move it to the Ptr2 list.
-			if (__builtin_expect(PS->isFull(), false)) {
-				PS->unlinkFromList();
-				PS->addToList((PoolSlab**)&Pool->Ptr2);
-			}
-			
-			globalTemp = PS->getElementAddress(Element, NodeSize);
-			offset = (unsigned)globalTemp & (PPageSize - 1);
-			if (logregs) {
-				fprintf(stderr, " poolalloc:885: canonical page = 0x%08x offset = 0x%08x\n", (unsigned)globalTemp, offset);
-			}
-			//adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
-			
-			// remap page to get a shadow page for dangling pointer library
-			PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
-			retAddress = (void*) ((unsigned)PS + offset);
-			// for the use of dangling pointer runtime
-			globalallocID++;
-			debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
-													__builtin_return_address(0), 0, globalTemp);
-			adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
-			
-			adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
-			if (logregs) {
-				fprintf(stderr, " poolalloc:900: retAddress = 0x%08x, NumBytes = %d\n", (unsigned)retAddress, NumBytes);
-			}
-			return retAddress;
-		}
+  if (__builtin_expect(PS != 0, 1)) {
+    int Element = PS->allocateSingle();
+    if (__builtin_expect(Element != -1, 1)) {
+      // We allocated an element.  Check to see if this slab has been
+      // completely filled up.  If so, move it to the Ptr2 list.
+      if (__builtin_expect(PS->isFull(), false)) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
+      }
+      
+      globalTemp = PS->getElementAddress(Element, NodeSize);
+      offset = (unsigned)globalTemp & (PPageSize - 1);
+      if (logregs) {
+        fprintf(stderr, " poolalloc:885: canonical page = 0x%08x offset = 0x%08x\n", (unsigned)globalTemp, offset);
+      }
+      //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
+      
+      // remap page to get a shadow page for dangling pointer library
+      PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+      retAddress = (void*) ((unsigned)PS + offset);
+      // for the use of dangling pointer runtime
+      globalallocID++;
+      debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
+                          __builtin_return_address(0), 0, globalTemp);
+      adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+      
+      adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+      if (logregs) {
+        fprintf(stderr, " poolalloc:900: retAddress = 0x%08x, NumBytes = %d\n", (unsigned)retAddress, NumBytes);
+      }
+      return retAddress;
+    }
 
-		// Loop through all of the slabs looking for one with an opening
-		for (PS = PS->Next; PS; PS = PS->Next) {
-			int Element = PS->allocateSingle();
-			if (Element != -1) {
-				// We allocated an element.  Check to see if this slab has been
-				// completely filled up.  If so, move it to the Ptr2 list.
-				if (PS->isFull()) {
-					PS->unlinkFromList();
-					PS->addToList((PoolSlab**)&Pool->Ptr2);
-				}
-				
-				globalTemp = PS->getElementAddress(Element, NodeSize);
-				offset = (unsigned)globalTemp & (PPageSize - 1);
-				//adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
-			
-				// remap page to get a shadow page for dangling pointer library
-				PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
-				retAddress = (void*) ((unsigned)PS + offset);
-				//printf(" returning the address %x",retAddress);
-				// for the use of dangling pointer runtime
-				globalallocID++;
-				debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
-														__builtin_return_address(0), 0, globalTemp);
-				adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
-				
-				adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
-				if (logregs) {
-					fprintf (stderr, " poolalloc:932: PS = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
-								(unsigned)PS, (unsigned)retAddress, NumBytes, offset);
-				}
-				return retAddress;
-			}
-		}
-	}
+    // Loop through all of the slabs looking for one with an opening
+    for (PS = PS->Next; PS; PS = PS->Next) {
+      int Element = PS->allocateSingle();
+      if (Element != -1) {
+        // We allocated an element.  Check to see if this slab has been
+        // completely filled up.  If so, move it to the Ptr2 list.
+        if (PS->isFull()) {
+          PS->unlinkFromList();
+          PS->addToList((PoolSlab**)&Pool->Ptr2);
+        }
+        
+        globalTemp = PS->getElementAddress(Element, NodeSize);
+        offset = (unsigned)globalTemp & (PPageSize - 1);
+        //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
+      
+        // remap page to get a shadow page for dangling pointer library
+        PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+        retAddress = (void*) ((unsigned)PS + offset);
+        //printf(" returning the address %x",retAddress);
+        // for the use of dangling pointer runtime
+        globalallocID++;
+        debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
+                            __builtin_return_address(0), 0, globalTemp);
+        adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+        
+        adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+        if (logregs) {
+          fprintf (stderr, " poolalloc:932: PS = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
+                (unsigned)PS, (unsigned)retAddress, NumBytes, offset);
+        }
+        return retAddress;
+      }
+    }
+  }
 
-	// Otherwise we must allocate a new slab and add it to the list
-	PoolSlab *New = PoolSlab::create(Pool);
-	//
-	// Ensure that we're always allocating at least 1 byte.
-	//
-	if (NumBytes == 0)
-		NumBytes = 1;
+  // Otherwise we must allocate a new slab and add it to the list
+  PoolSlab *New = PoolSlab::create(Pool);
+  //
+  // Ensure that we're always allocating at least 1 byte.
+  //
+  if (NumBytes == 0)
+    NumBytes = 1;
   
-	if (Pool->NumSlabs > AddrArrSize)
-		Pool->Slabs->insert((void *)New);
-	else if (Pool->NumSlabs == AddrArrSize) {
-		// Create the hash_set
-		Pool->Slabs = new hash_set<void *>;
-		Pool->Slabs->insert((void *)New);
-		for (unsigned i = 0; i < AddrArrSize; ++i)
-			Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
-	}
-	else {
-		// Insert it in the array
-		Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
-	}
-	Pool->NumSlabs++;
+  if (Pool->NumSlabs > AddrArrSize)
+    Pool->Slabs->insert((void *)New);
+  else if (Pool->NumSlabs == AddrArrSize) {
+    // Create the hash_set
+    Pool->Slabs = new hash_set<void *>;
+    Pool->Slabs->insert((void *)New);
+    for (unsigned i = 0; i < AddrArrSize; ++i)
+      Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
+  }
+  else {
+    // Insert it in the array
+    Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
+  }
+  Pool->NumSlabs++;
 
 
-	int Idx = New->allocateSingle();
-	assert(Idx == 0 && "New allocation didn't return zero'th node?");
-	if (logregs) {
-		fprintf(stderr, " poolalloc:967: canonical page at 0x%08x from underlying allocator\n", (unsigned)New);
-	}
-	globalTemp = New->getElementAddress(0, 0);
-	offset = (unsigned)globalTemp & (PPageSize - 1);
-	
-	if (logregs) {
-		fprintf(stderr, " poolalloc:973: element at 0x%08x, offset=0x%08x\n", (unsigned)globalTemp, offset);
-	}
-	//adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
-	
-	// remap  page to get a shadow page for dangling pointer library
-	New = (PoolSlab *) RemapPage(globalTemp, NumBytes);
-	offset = (unsigned)globalTemp & (PPageSize - 1);
-	//printf(" shadow page at 0x%x through remapping\n", (unsigned)New);
-	retAddress = (void*) ((unsigned)New + offset);
-	//printf(" returning the address 0x%x\n", (unsigned)retAddress);
-	// for the use of dangling pointer runtime
-	globalallocID++;
-	debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-	adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
-	
-	adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
-	if (logregs) {
-		fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
-					(unsigned)New, (unsigned)retAddress, NumBytes, offset);
-	}
-	return retAddress;
+  int Idx = New->allocateSingle();
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  if (logregs) {
+    fprintf(stderr, " poolalloc:967: canonical page at 0x%08x from underlying allocator\n", (unsigned)New);
+  }
+  globalTemp = New->getElementAddress(0, 0);
+  offset = (unsigned)globalTemp & (PPageSize - 1);
+  
+  if (logregs) {
+    fprintf(stderr, " poolalloc:973: element at 0x%08x, offset=0x%08x\n", (unsigned)globalTemp, offset);
+  }
+  //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
+  
+  // remap  page to get a shadow page for dangling pointer library
+  New = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+  offset = (unsigned)globalTemp & (PPageSize - 1);
+  //printf(" shadow page at 0x%x through remapping\n", (unsigned)New);
+  retAddress = (void*) ((unsigned)New + offset);
+  //printf(" returning the address 0x%x\n", (unsigned)retAddress);
+  // for the use of dangling pointer runtime
+  globalallocID++;
+  debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
+  adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+  
+  adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+  if (logregs) {
+    fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
+          (unsigned)New, (unsigned)retAddress, NumBytes, offset);
+  }
+  return retAddress;
 }
 
 void *
@@ -1119,7 +1119,7 @@ poolcheck(PoolTy *Pool, void *Node) {
    * The node is not found or is not within bounds; fail!
    */
   fprintf (stderr, "Poolcheck failed(%x:%x): %x %x from %x\n", 
-			(unsigned)Pool, fs, (unsigned)Node, len, (unsigned)__builtin_return_address(0));
+      (unsigned)Pool, fs, (unsigned)Node, len, (unsigned)__builtin_return_address(0));
   fflush (stderr);
   abort ();
   return;
@@ -1176,12 +1176,12 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   if (fs) {
     fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
              (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-			 (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
 
   } else {
     fprintf (stderr, "Boundscheck failed(%x:%x): No object: %x %x %x from %x esp=%x\n",
              (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-			 (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
   }
   fflush (stderr);
   abort ();
@@ -1299,7 +1299,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
           fprintf(stderr, "poolcheck1: node being checked not found in pool with right"
            " alignment\n");
           fflush(stderr);
-		  abort();
+      abort();
           exit(-1);
         } else {
           //exit(-1);
@@ -1308,7 +1308,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
         fprintf(stderr, "poolcheck2: node being checked not found in pool with right"
                " alignment\n");
         fflush(stderr);
-		abort();
+    abort();
         exit(-1);
       }
     } else {
@@ -1316,14 +1316,14 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
       if (startaddr > (unsigned long) Node) {
         fprintf(stderr, "poolcheck: node being checked points to meta-data \n");
         fflush(stderr);
-		abort();
+    abort();
         exit(-1);
       }
       unsigned long offset = ((unsigned long) Node - (unsigned long) startaddr) % Pool->NodeSize;
       if ((offset < StartOffset) || (offset > EndOffset)) {
         fprintf(stderr, "poolcheck3: node being checked does not have right alignment\n");
         fflush(stderr);
-		abort();
+    abort();
         exit(-1);
       }
       Pool->prevPage[Pool->lastUsed] = PS;
@@ -1350,7 +1350,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
       if ((offset < StartOffset) || (offset > EndOffset)) {
         fprintf(stderr, "poolcheck4: node being checked does not have right alignment\n");
         fflush(stderr);
-		abort();
+    abort();
         exit(-1);
       }
     } else {
@@ -1373,14 +1373,14 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
           fprintf(stderr, "poolcheck6: node being checked not found in pool with right"
            " alignment\n");
           fflush(stderr);
-		  abort();
+      abort();
           exit(-1);
         }
       } else {
         fprintf(stderr, "poolcheck5: node being checked not found in pool with right"
                " alignment %x %x\n", (unsigned)Pool, (unsigned)Node);
         fflush(stderr);
-		abort();
+    abort();
       }
     }
   }
@@ -1390,221 +1390,221 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
 
 void
 poolfree(PoolTy *Pool, void *Node) {
-	assert(Pool && "Null pool pointer passed in to poolfree!\n");
-	DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
-	PoolSlab *PS;
-	int Idx;
-	
-	
-	if (logregs) {
-		printf(" poolfree:1368: poolfree to addr 0x%08x\n", (unsigned)Node);
-	}
-	// update DebugMetaData
-	globalfreeID++;
-	void * mykey;
-	unsigned len = 1;
-	unsigned NumPPage = 0;
-	unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
-	PDebugMetaData debugmetadataptr;
-	mykey = Node;
-	
-	// retrieve the info about canonical page.
-	while (0 == adl_splay_retrieve(&(dummyPool.DPTree), &mykey, &len, (void **) &debugmetadataptr) ) {
-		fprintf(stderr, " poolfree:1381: retrieving info failed!");
-		sleep(1);
-		break;
-	}
-	
-	if (logregs) {
-		printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
-		printf(" poolfree:1388: len = %d\n", len);
-	}
-	NumPPage = (len / PPageSize) + 1;
-	if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
-		NumPPage++;
-	
-	globalTemp = debugmetadataptr->canonAddr;
-	
-	if (logregs) {
-		printf(" poolfree:1397: NumPPage = %d\n", NumPPage);
-		printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)globalTemp);
-	}
-	updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
-	
-	// then we protect the shadow pages
-	ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
-	
-	// then we allow the poolcheck runtime to finish the bookkeping it needs to do.
-	adl_splay_delete(&Pool->Objects, Node);
-	
-	if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
-		unsigned TheIndex;
-		PS = SearchForContainingSlab(Pool, globalTemp, TheIndex);
-		Idx = TheIndex;
-	}
-	else {
-		// Since it is undefined behavior to free a node which has not been
-		// allocated, we know that the pointer coming in has to be a valid node
-		// pointer in the pool.  Mask off some bits of the address to find the base
-		// of the pool.
-		assert((PageSize & PageSize-1) == 0 && "Page size is not a power of 2??");
-		PS = (PoolSlab*)((long)Node & ~(PageSize-1));
+  assert(Pool && "Null pool pointer passed in to poolfree!\n");
+  DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
+  PoolSlab *PS;
+  int Idx;
+  
+  
+  if (logregs) {
+    printf(" poolfree:1368: poolfree to addr 0x%08x\n", (unsigned)Node);
+  }
+  // update DebugMetaData
+  globalfreeID++;
+  void * mykey;
+  unsigned len = 1;
+  unsigned NumPPage = 0;
+  unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
+  PDebugMetaData debugmetadataptr;
+  mykey = Node;
+  
+  // retrieve the info about canonical page.
+  while (0 == adl_splay_retrieve(&(dummyPool.DPTree), &mykey, &len, (void **) &debugmetadataptr) ) {
+    fprintf(stderr, " poolfree:1381: retrieving info failed!");
+    sleep(1);
+    break;
+  }
+  
+  if (logregs) {
+    printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
+    printf(" poolfree:1388: len = %d\n", len);
+  }
+  NumPPage = (len / PPageSize) + 1;
+  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
+    NumPPage++;
+  
+  globalTemp = debugmetadataptr->canonAddr;
+  
+  if (logregs) {
+    printf(" poolfree:1397: NumPPage = %d\n", NumPPage);
+    printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)globalTemp);
+  }
+  updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
+  
+  // then we protect the shadow pages
+  ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+  
+  // then we allow the poolcheck runtime to finish the bookkeping it needs to do.
+  adl_splay_delete(&Pool->Objects, Node);
+  
+  if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
+    unsigned TheIndex;
+    PS = SearchForContainingSlab(Pool, globalTemp, TheIndex);
+    Idx = TheIndex;
+  }
+  else {
+    // Since it is undefined behavior to free a node which has not been
+    // allocated, we know that the pointer coming in has to be a valid node
+    // pointer in the pool.  Mask off some bits of the address to find the base
+    // of the pool.
+    assert((PageSize & PageSize-1) == 0 && "Page size is not a power of 2??");
+    PS = (PoolSlab*)((long)Node & ~(PageSize-1));
 
-		if (PS->isSingleArray) {
-			PS->unlinkFromList();
-			
-			// works done to update the DebugMetaData struct for
-			//  dangling pointer runtime
-			globalfreeID++;
-			void * mykey;
-			unsigned len = 0;
-			PDebugMetaData debugmetadataptr;
-			mykey = Node;
-			adl_splay_retrieve(&(Pool->DPTree), &mykey, &len, (void **) &debugmetadataptr);
-			updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));			
-			//PS->mprotect();
-			return;
-		}
+    if (PS->isSingleArray) {
+      PS->unlinkFromList();
+      
+      // works done to update the DebugMetaData struct for
+      //  dangling pointer runtime
+      globalfreeID++;
+      void * mykey;
+      unsigned len = 0;
+      PDebugMetaData debugmetadataptr;
+      mykey = Node;
+      adl_splay_retrieve(&(Pool->DPTree), &mykey, &len, (void **) &debugmetadataptr);
+      updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));      
+      //PS->mprotect();
+      return;
+    }
 
-		Idx = PS->containsElement(Node, Pool->NodeSize);
-		assert((int)Idx != -1 && "Node not contained in slab??");
-	}
-	
-	//	return if PS is NULL
-	if (!PS)
-		return;
-	assert (PS && "PS is NULL!\n");
-	
-	// If PS was full, it must have been in list #2.  Unlink it and move it to
-	// list #1.
-	if (PS->isFull()) {
-		// Now that we found the node, we are about to free an element from it.
-		// This will make the slab no longer completely full, so we must move it to
-		// the other list!
-		PS->unlinkFromList(); // Remove it from the Ptr2 list.
+    Idx = PS->containsElement(Node, Pool->NodeSize);
+    assert((int)Idx != -1 && "Node not contained in slab??");
+  }
+  
+  //  return if PS is NULL
+  if (!PS)
+    return;
+  assert (PS && "PS is NULL!\n");
+  
+  // If PS was full, it must have been in list #2.  Unlink it and move it to
+  // list #1.
+  if (PS->isFull()) {
+    // Now that we found the node, we are about to free an element from it.
+    // This will make the slab no longer completely full, so we must move it to
+    // the other list!
+    PS->unlinkFromList(); // Remove it from the Ptr2 list.
 
-		PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
+    PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
 
-		// If the partially full list has an empty node sitting at the front of the
-		// list, insert right after it.
-		if ((*InsertPosPtr)->isEmpty())
-			InsertPosPtr = &(*InsertPosPtr)->Next;
+    // If the partially full list has an empty node sitting at the front of the
+    // list, insert right after it.
+    if ((*InsertPosPtr)->isEmpty())
+      InsertPosPtr = &(*InsertPosPtr)->Next;
 
-		PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
-	}
+    PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
+  }
 
-	// Ok, if this slab is empty, we unlink it from the of slabs and either move
-	// it to the head of the list, or free it, depending on whether or not there
-	// is already an empty slab at the head of the list.
-	if (PS->isEmpty()) {
-		PS->unlinkFromList();   // Unlink from the list of slabs...
+  // Ok, if this slab is empty, we unlink it from the of slabs and either move
+  // it to the head of the list, or free it, depending on whether or not there
+  // is already an empty slab at the head of the list.
+  if (PS->isEmpty()) {
+    PS->unlinkFromList();   // Unlink from the list of slabs...
     
-		// If we can free this pool, check to see if there are any empty slabs at
-		// the start of this list.  If so, delete the FirstSlab!
-		PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
-		if (0 && FirstSlab && FirstSlab->isEmpty()) {
-			// Here we choose to delete FirstSlab instead of the pool we just freed
-			// from because the pool we just freed from is more likely to be in the
-			// processor cache.
-		FirstSlab->unlinkFromList();
-		FirstSlab->destroy();
-		//	Pool->Slabs.erase((void *)FirstSlab);
-		}
+    // If we can free this pool, check to see if there are any empty slabs at
+    // the start of this list.  If so, delete the FirstSlab!
+    PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
+    if (0 && FirstSlab && FirstSlab->isEmpty()) {
+      // Here we choose to delete FirstSlab instead of the pool we just freed
+      // from because the pool we just freed from is more likely to be in the
+      // processor cache.
+    FirstSlab->unlinkFromList();
+    FirstSlab->destroy();
+    //  Pool->Slabs.erase((void *)FirstSlab);
+    }
  
-		// Link our slab onto the head of the list so that allocations will find it
-		// efficiently.    
-		PS->addToList((PoolSlab**)&Pool->Ptr1);
-	}
-	
-	struct sigaction sa;
-	sa.sa_sigaction = bus_error_handler;
-	sa.sa_flags = SA_SIGINFO;
-	if (sigaction(SIGBUS, &sa, NULL) == -1)
-		printf("sigaction installer failed!");
-	return; 
+    // Link our slab onto the head of the list so that allocations will find it
+    // efficiently.    
+    PS->addToList((PoolSlab**)&Pool->Ptr1);
+  }
+  
+  struct sigaction sa;
+  sa.sa_sigaction = bus_error_handler;
+  sa.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGBUS, &sa, NULL) == -1)
+    printf("sigaction installer failed!");
+  return; 
 }
 
 /********************************************
-*											*
-*	functions for dangling ptr runtime		*
-*											*
+*                      *
+*  functions for dangling ptr runtime    *
+*                      *
 *********************************************/
 
 // createPtrMetaData - allocates memory for a DebugMetaData struct
-//							and fills up the appropriate fields so to
-//							keep a record of the pointer's meta data
+//              and fills up the appropriate fields so to
+//              keep a record of the pointer's meta data
 PDebugMetaData
 createPtrMetaData(unsigned paramAllocID, unsigned paramFreeID, void * paramAllocPC, void * paramFreePC, void * paramCanon)
 {
-	PDebugMetaData ret = (PDebugMetaData) malloc(sizeof(DebugMetaData));
-	ret->allocID = paramAllocID;
-	ret->freeID = paramFreeID;
-	ret->allocPC = paramAllocPC;
-	ret->freePC = paramFreePC;
-	ret->canonAddr = paramCanon;
+  PDebugMetaData ret = (PDebugMetaData) malloc(sizeof(DebugMetaData));
+  ret->allocID = paramAllocID;
+  ret->freeID = paramFreeID;
+  ret->allocPC = paramAllocPC;
+  ret->freePC = paramFreePC;
+  ret->canonAddr = paramCanon;
 
-	return ret;
+  return ret;
 }
 
 void
 updatePtrMetaData(PDebugMetaData debugmetadataptr, unsigned globalfreeID, void * paramFreePC) {
-	debugmetadataptr->freeID = globalfreeID;
-	debugmetadataptr->freePC = paramFreePC;
-	return;
+  debugmetadataptr->freeID = globalfreeID;
+  debugmetadataptr->freePC = paramFreePC;
+  return;
 }
 
 
 /****************************
-*							*
-*		signal handler		*
-*							*
+*              *
+*    signal handler    *
+*              *
 ****************************/
 void
 bus_error_handler(int sig, siginfo_t * info, void * context) {
-	signal(SIGBUS, NULL);
-	alertNum++;
-	ucontext_t * mycontext = (ucontext_t *) context;
-	
-	
-	
-	unsigned len = 0;
-	void * faultAddr = info->si_addr;
-	PDebugMetaData debugmetadataptr;
-	int fs = 0;
-	if (0 == (fs = adl_splay_retrieve(&(dummyPool.DPTree), &faultAddr, &len, (void **) &debugmetadataptr)))
-	{
-		fprintf(stderr, "signal handler: debug meta data retrieving failed");
-		fflush(stderr);
-		abort();
-	}
-	
-	unsigned NumPPage;
-	unsigned offset = (unsigned) ((long)info->si_addr & (PPageSize - 1) );
-	NumPPage = (len / PPageSize) + 1;
-	if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
-		NumPPage++;
-	
-	UnprotectShadowPage((void *)((long)info->si_addr & ~(PPageSize - 1)), NumPPage);
-	
-	//void* S = info->si_addr;
-	// printing reports
-	printf("=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n", alertNum);
-	printf("%04d: Invalid access to memory address 0x%08x \n", alertNum, (unsigned)faultAddr);
-	printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->ss.eip);
-	printf("%04d:     Object allocated at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->allocPC - 5);
-	printf("%04d:     Object allocation generation number \t: %d \n", alertNum, debugmetadataptr->allocID);
-	printf("%04d:     Object freed at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->freePC - 5);
-	printf("%04d:     Object free generation number \t: %d \n", alertNum, debugmetadataptr->freeID);
-	printf("=======+++++++    end of runtime error report    +++++++=======\n");
-	
-	// reinstall the signal handler for subsequent faults
-	struct sigaction sa;
-	sa.sa_sigaction = bus_error_handler;
-	sa.sa_flags = SA_SIGINFO;
-	if (sigaction(SIGBUS, &sa, NULL) == -1)
-		printf("sigaction installer failed!");
-	
-	return;
+  signal(SIGBUS, NULL);
+  alertNum++;
+  ucontext_t * mycontext = (ucontext_t *) context;
+  
+  
+  
+  unsigned len = 0;
+  void * faultAddr = info->si_addr;
+  PDebugMetaData debugmetadataptr;
+  int fs = 0;
+  if (0 == (fs = adl_splay_retrieve(&(dummyPool.DPTree), &faultAddr, &len, (void **) &debugmetadataptr)))
+  {
+    fprintf(stderr, "signal handler: debug meta data retrieving failed");
+    fflush(stderr);
+    abort();
+  }
+  
+  unsigned NumPPage;
+  unsigned offset = (unsigned) ((long)info->si_addr & (PPageSize - 1) );
+  NumPPage = (len / PPageSize) + 1;
+  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
+    NumPPage++;
+  
+  UnprotectShadowPage((void *)((long)info->si_addr & ~(PPageSize - 1)), NumPPage);
+  
+  //void* S = info->si_addr;
+  // printing reports
+  printf("=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n", alertNum);
+  printf("%04d: Invalid access to memory address 0x%08x \n", alertNum, (unsigned)faultAddr);
+  printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->ss.eip);
+  printf("%04d:     Object allocated at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->allocPC - 5);
+  printf("%04d:     Object allocation generation number \t: %d \n", alertNum, debugmetadataptr->allocID);
+  printf("%04d:     Object freed at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->freePC - 5);
+  printf("%04d:     Object free generation number \t: %d \n", alertNum, debugmetadataptr->freeID);
+  printf("=======+++++++    end of runtime error report    +++++++=======\n");
+  
+  // reinstall the signal handler for subsequent faults
+  struct sigaction sa;
+  sa.sa_sigaction = bus_error_handler;
+  sa.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGBUS, &sa, NULL) == -1)
+    printf("sigaction installer failed!");
+  
+  return;
 }
 
  
@@ -1637,13 +1637,13 @@ funccheck (unsigned num, void *f, void *g, ...) {
     }
   }
   if (logregs) {
-	fprintf(stderr, "funccheck failed(num=%d): %x %x\n", num, f, g);
-	fflush(stderr);
+  fprintf(stderr, "funccheck failed(num=%d): %x %x\n", num, f, g);
+  fflush(stderr);
   }
   abort();
 }
 
 void
 poolstats() {
-	fprintf(stderr, "pool mem usage %d\n",poolmemusage);
+  fprintf(stderr, "pool mem usage %d\n",poolmemusage);
 }
