@@ -71,11 +71,11 @@ typedef struct PoolTy {
 } PoolTy;
 
 typedef struct DebugMetaData {
-	unsigned allocID;
-	unsigned freeID;
-	void * allocPC;
-	void * freePC;
-	void * canonAddr;
+  unsigned allocID;
+  unsigned freeID;
+  void * allocPC;
+  void * freePC;
+  void * canonAddr;
 } DebugMetaData;
 
 typedef DebugMetaData * PDebugMetaData;
@@ -105,7 +105,7 @@ extern "C" {
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolstats(void);
   void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
-		 unsigned EndOffset);
+                      unsigned EndOffset);
   //void protect_shadowpage();
 }
 
