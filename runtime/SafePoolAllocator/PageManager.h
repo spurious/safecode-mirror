@@ -85,7 +85,13 @@ static const unsigned InvalidLower = 0x00000003;
 
 //
 // Value used to initialize memory.
+//    o Linux : We use the reserved address space for the kernel.
+//    o Others: We use the first page in memory (aka zero page).
 //
+#if defined(__linux__)
 static const unsigned initvalue = 0xcc;
+#else
+static const unsigned initvalue = 0x00;
+#endif
 
 #endif

@@ -112,6 +112,11 @@ private:
     NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
   }
 
+  void assertOkay (void) {
+    assert (FirstUnused <= UsedEnd);
+    assert ((UsedEnd == getSlabSize()) || (!isNodeAllocated(UsedEnd)));
+    assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
+  }
 public:
   // create - Create a new (empty) slab and add it to the end of the Pools list.
   static PoolSlab *create(PoolTy *Pool);
@@ -213,6 +218,12 @@ PoolSlab::create(PoolTy *Pool) {
   PS->UsedBegin   = 0;    // Nothing allocated.
   PS->UsedEnd     = 0;    // Nothing allocated.
 
+  for (unsigned i = 0; i < PS->getSlabSize(); ++i)
+  {
+    PS->markNodeFree(i);
+    PS->clearStartBit(i);
+  }
+
   // Add the slab to the list...
   PS->addToList((PoolSlab**)&Pool->Ptr1);
   //  printf(" creating a slab %x\n", PS);
@@ -298,8 +309,9 @@ PoolSlab::allocateSingle() {
     }
     
     // Return the entry, increment UsedEnd field.
-    assert ((FirstUnused == SlabSize) || (!isNodeAllocated(FirstUnused)));
-    return UsedEnd++;
+    ++UsedEnd;
+    assertOkay();
+    return UE;
   }
   
   // If not, check to see if this node has a declared "FirstUnused" value that
@@ -319,10 +331,11 @@ PoolSlab::allocateSingle() {
     } while ((FU != SlabSize) && (isNodeAllocated(FU)));
     FirstUnused = FU;
     
-    assert ((FirstUnused == SlabSize) || (!isNodeAllocated(FirstUnused)));
+    assertOkay();
     return Idx;
   }
   
+  assertOkay();
   return -1;
 }
 
@@ -350,6 +363,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
     UsedEnd += Size;
 
     // Return the entry
+    assertOkay();
     return UE;
   }
 
@@ -362,7 +376,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
 
     // Check if there is a continuous array of Size nodes starting FirstUnused
     unsigned LastUnused = Idx+1;
-    for (; LastUnused != Idx+Size && !isNodeAllocated(LastUnused); ++LastUnused)
+    for (; (LastUnused != Idx+Size) && (!isNodeAllocated(LastUnused)); ++LastUnused)
       /*empty*/;
 
     // If we found an unused section of this pool which is large enough, USE IT!
@@ -386,10 +400,12 @@ PoolSlab::allocateMultiple(unsigned Size) {
           }
         }
         FirstUnused = i;
-        assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
+        if (isNodeAllocated(i))
+          FirstUnused = SlabSize;
       }
       
       // Return the entry
+      assertOkay();
       return Idx;
     }
 
@@ -399,7 +415,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
       ++Idx;
   }
 
-  assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
+  assertOkay();
   return -1;
 }
 
@@ -531,7 +547,7 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
              "FirstUnused field was out of date!");
     }
   }
-  assert ((FirstUnused == getSlabSize()) || (!isNodeAllocated(FirstUnused)));
+  assertOkay();
 }
 
 unsigned
