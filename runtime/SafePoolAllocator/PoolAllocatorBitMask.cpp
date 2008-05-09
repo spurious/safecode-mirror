@@ -1608,7 +1608,7 @@ bus_error_handler(int sig, siginfo_t * info, void * context) {
   printf("%04d: Invalid access to memory address 0x%08x \n", alertNum, (unsigned)faultAddr);
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
-  printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->ss.eip);
+  printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->__ss.__eip);
 #endif
   printf("%04d:     Object allocated at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->allocPC - 5);
   printf("%04d:     Object allocation generation number \t: %d \n", alertNum, debugmetadataptr->allocID);
