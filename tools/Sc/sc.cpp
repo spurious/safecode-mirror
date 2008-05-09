@@ -22,6 +22,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
 #include "llvm/Config/config.h"
@@ -101,6 +102,12 @@ int main(int argc, char **argv) {
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     Passes.add(new ConvertUnsafeAllocas());
+
+    // Remove indirect calls to malloc and free functions
+    Passes.add(createIndMemRemPass());
+
+    // Ensure that all malloc/free calls are changed into LLVM instructions
+    Passes.add(createRaiseAllocationsPass());
 
     // Schedule the Equivalence Class and Bottom-Up call graph analyses
     // before pool allocation.  They don't work after pool allocation has
