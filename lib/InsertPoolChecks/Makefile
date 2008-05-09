@@ -1,7 +1,7 @@
 
 LEVEL = ../../
 
-LIBRARYNAME=svaaddchecks
+LIBRARYNAME=addchecks
 
 BUILD_RELINKED=1
 
