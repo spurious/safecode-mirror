@@ -662,6 +662,7 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   }
   dummyPool.NumSlabs = 0;
   dummyPool.RegNodes = new std::map<void*,unsigned>;
+  dummyInitialized = 1;
 }
 
 void
@@ -672,11 +673,13 @@ poolmakeunfreeable(PoolTy *Pool) {
 
 // pooldestroy - Release all memory allocated for a pool
 //
+// FIXME: determine how to adjust debug logs when 
+//        pooldestroy is called
 void
 pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   adl_splay_delete_tag(&Pool->Objects, Pool);
-  adl_splay_delete_tag(&Pool->DPTree, Pool);
+  //adl_splay_delete_tag(&Pool->DPTree, Pool);
   if (Pool->AllocadPool) return;
 
   // Remove all registered pools
@@ -724,9 +727,14 @@ pooldestroy(PoolTy *Pool) {
 //  Pool - A pointer to the pool from which to allocate.
 //  Size - The number of nodes to allocate.
 //
+// FIXME: look into globalTemp, make it a pass by reference arg instead of
+//          a global variable.
+// FIXME: determine whether Size is bytes or number of nodes.
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
+  
+  // check to see if we need to allocate a single large array
   if (Size > PoolSlab::getSlabSize(Pool)) {
     if (logregs) {
       fprintf(stderr, " poolallocarray:694: Size = %d, SlabSize = %d\n", Size, PoolSlab::getSlabSize(Pool));
@@ -896,6 +904,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
     adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
     if (logregs) {fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");}
+    // globalTemp is the canonical page address
     adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
     
     //if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
@@ -1417,6 +1426,7 @@ poolfree(PoolTy *Pool, void *Node) {
   }
   // update DebugMetaData
   globalfreeID++;
+  // FIXME: figure what mykey, NumPPAge and len are for
   void * mykey;
   unsigned len = 1;
   unsigned NumPPage = 0;
@@ -1435,6 +1445,15 @@ poolfree(PoolTy *Pool, void *Node) {
     printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
     printf(" poolfree:1388: len = %d\n", len);
   }
+
+  // figure out how many pages does this object span to
+  //  protect the pages. First we sum the offset and len
+  //  to get the total size we originally remapped.
+  //  Then, we determine if this sum is a multiple of
+  //  physical page size. If it is not, then we increment
+  //  the number of pages to protect.
+  //  FIXME!!!
+
   NumPPage = (len / PPageSize) + 1;
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
@@ -1531,7 +1550,9 @@ poolfree(PoolTy *Pool, void *Node) {
     // efficiently.    
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
-  
+ 
+  // this was put here because it does not work in poolinit, somehow.
+  //  FIXME: if there is time, you can fix this. 
   struct sigaction sa;
   sa.sa_sigaction = bus_error_handler;
   sa.sa_flags = SA_SIGINFO;
@@ -1593,13 +1614,16 @@ bus_error_handler(int sig, siginfo_t * info, void * context) {
     fflush(stderr);
     abort();
   }
-  
+ 
+  // FIXME: Correct the semantics for calculating NumPPage 
   unsigned NumPPage;
   unsigned offset = (unsigned) ((long)info->si_addr & (PPageSize - 1) );
   NumPPage = (len / PPageSize) + 1;
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
-  
+ 
+  // This is necessary so that the program continues execution,
+  //  especially in debugging mode 
   UnprotectShadowPage((void *)((long)info->si_addr & ~(PPageSize - 1)), NumPPage);
   
   //void* S = info->si_addr;
