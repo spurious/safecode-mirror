@@ -842,7 +842,7 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   }
 #else
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
-  adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, (Pool));
+  adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, 0);
   if (logregs) {
     fprintf (stderr, "poolregister: %x %d\n", (unsigned)allocaptr, NumBytes);
   }
@@ -892,20 +892,30 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   unsigned offset = 0;
   PDebugMetaData debugmetadataPtr;
   
-  // the case with more than 1 node, so we call helper function to allocate array
+  // Call a helper function if we need to allocate more than 1 node.
   if (NodesToAllocate > 1) {
     if (logregs) {
       fprintf(stderr, " poolalloc:848: Allocating more than 1 node for %d bytes\n", NumBytes); fflush(stderr);
     }
     retAddress = poolallocarray(Pool, NodesToAllocate);
-    
-    // for the use of dangling pointer runtime
+
+    //
+    // Record information about this allocation in the global debugging
+    // structure.
     globalallocID++;
     debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
     adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
-    if (logregs) {fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");}
+    if (logregs) {
+      fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");
+      fflush (stderr);
+    }
+
+    // Register the object in the splay tree.  Keep track of its debugging data
+    // with the splay node tag so that we can quickly map shadow address back
+    // to the canonical address.
+    //
     // globalTemp is the canonical page address
-    adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+    adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
     
     //if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
     //  logregs = 1;
@@ -946,7 +956,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
                           __builtin_return_address(0), 0, globalTemp);
       adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
       
-      adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+      adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
       if (logregs) {
         fprintf(stderr, " poolalloc:900: retAddress = 0x%08x, NumBytes = %d\n", (unsigned)retAddress, NumBytes);
       }
@@ -978,7 +988,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
                             __builtin_return_address(0), 0, globalTemp);
         adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
         
-        adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+        adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
         if (logregs) {
           fprintf (stderr, " poolalloc:932: PS = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
                 (unsigned)PS, (unsigned)retAddress, NumBytes, offset);
@@ -1036,7 +1046,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
   adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
   
-  adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, globalTemp);
+  adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
   if (logregs) {
     fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
           (unsigned)New, (unsigned)retAddress, NumBytes, offset);
@@ -1426,6 +1436,7 @@ poolfree(PoolTy *Pool, void *Node) {
   }
   // update DebugMetaData
   globalfreeID++;
+
   // FIXME: figure what mykey, NumPPAge and len are for
   void * mykey;
   unsigned len = 1;
@@ -1434,12 +1445,9 @@ poolfree(PoolTy *Pool, void *Node) {
   PDebugMetaData debugmetadataptr;
   mykey = Node;
   
-  // retrieve the info about canonical page.
-  while (0 == adl_splay_retrieve(&(dummyPool.DPTree), &mykey, &len, (void **) &debugmetadataptr) ) {
-    fprintf(stderr, " poolfree:1381: retrieving info failed!");
-    sleep(1);
-    break;
-  }
+  // Retrieve the debug information about the node.  This will include a
+  // pointer to the canonical page.
+  adl_splay_retrieve (&(Pool->Objects), &mykey, &len, (void **) &debugmetadataptr);
   
   if (logregs) {
     printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
@@ -1465,7 +1473,7 @@ poolfree(PoolTy *Pool, void *Node) {
     printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)globalTemp);
   }
   updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
-  
+
   // then we protect the shadow pages
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
   
