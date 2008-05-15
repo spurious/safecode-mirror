@@ -15,6 +15,19 @@
 #ifndef PAGEMANAGER_H
 #define PAGEMANAGER_H
 
+/// PageMultipler - This variable holds the ratio between physical pages and
+/// the number of pages returned by AllocatePage.
+///
+/// NOTE:
+///   The size of a page returned from AllocatePage *must* be under 64K.  This
+///   is because the pool slab using 16 bit integers to index into the slab.
+#define PAGEMULT 16
+static const int PageMultiplier=PAGEMULT;
+
+/// NumShadows - This variable specifies the number of shadows that should be
+/// created automatically for every piece of memory created by AllocatePage().
+static const int NumShadows=1;
+
 /// InitializePageManager - This function must be called before any other page
 /// manager accesses are performed.  It may be called multiple times.
 /// 
@@ -26,15 +39,17 @@ void InitializePageManager();
 ///
 extern "C" unsigned PageSize;
 
+/// PPageSize - Contains the size of a single physical page.  This is the
+/// smallest granularity at which virtual memory operations can be performed.
 extern unsigned PPageSize;
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by getPageSize().
 void *AllocatePage();
 
-// RemapPage - This function is used by the dangling pool allocator in order
-//             to remap canonical page to shadow page.
-void * RemapPage(void* va, unsigned NumByte);
+// RemapObject - This function is used by the dangling pool allocator in order
+//               to remap canonical pages to shadow pages.
+void * RemapObject(void* va, unsigned NumByte);
 
 /// AllocateNPages - Allocates Num number of pages
 void *AllocateNPages(unsigned Num);
