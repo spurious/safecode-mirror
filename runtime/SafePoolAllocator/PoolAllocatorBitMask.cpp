@@ -272,20 +272,6 @@ PoolSlab::destroy() {
   FreePage(this);
 }
 
-/*
-// mprotect
-void
-PoolSlab::mprotect() {
-  if (isSingleArray) {
-    unsigned NumPages = *(unsigned*)&FirstUnused; 
-    MprotectPage((char*)this, NumPages);
-  }
-  else 
-    MprotectPage(this, 1);
-}
-*/
-
-
 // allocateSingle - Allocate a single element from this pool, returning -1 if
 // there is no space.
 int
@@ -1505,7 +1491,6 @@ poolfree(PoolTy *Pool, void *Node) {
       mykey = Node;
       adl_splay_retrieve(&(Pool->DPTree), &mykey, &len, (void **) &debugmetadataptr);
       updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));      
-      //PS->mprotect();
       return;
     }
 
