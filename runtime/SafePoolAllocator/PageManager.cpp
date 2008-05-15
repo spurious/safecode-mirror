@@ -23,9 +23,11 @@
 #include <cassert>
 
 // this is for dangling pointer detection in Mac OS X
+#if defined(__APPLE__)
 #include <mach/mach_vm.h>
 #include <mach/mach.h>
 #include <mach/mach_error.h>
+#endif
 
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
@@ -70,6 +72,16 @@ static void *GetPages(unsigned NumPages) {
   //                 MAP_SHARED|MAP_ANONYMOUS, fd, 0);
   //  void *pa = malloc(NumPages * PageSize);
   //  assert(Addr != MAP_FAILED && "MMAP FAILED!");
+#if defined(__linux__)
+  Addr = mmap(0, NumPages * PageSize, PROT_READ|PROT_WRITE,
+                                      MAP_SHARED |MAP_ANONYMOUS, -1, 0);
+  if (Addr == MAP_FAILED) {
+     perror ("mmap:");
+     fflush (stdout);
+     fflush (stderr);
+     assert(0 && "valloc failed\n");
+  }
+#else
 #if POSIX_MEMALIGN
    if (posix_memalign(&Addr, PageSize, NumPages*PageSize) != 0){
      assert(0 && "memalign failed \n");
@@ -87,6 +99,7 @@ static void *GetPages(unsigned NumPages) {
 #endif
    }
 #endif
+#endif
   poolmemusage += NumPages * PageSize;
   memset(Addr, initvalue, NumPages *PageSize);
   return Addr;
@@ -103,6 +116,25 @@ static FreePagesListType &getFreePageList() {
   return FreePages;
 }
 
+//
+// Function: RemapPage()
+//
+// Description:
+//  Create another mapping of the memory object so that it appears in multiple
+//  locations of the virtual address space.
+//
+// Inputs:
+//  va - Virtual address of the memory object to remap.  It does not need to be
+//       page aligned.
+//
+//  NumByte - The length of the memory object in bytes.
+//
+// Notes:
+//  This function must generally determine the set of pages occupied by the
+//  memory object and remap those pages.  This is because most operating
+//  systems can only remap memory at page granularity.
+//
+#if defined(__APPLE__)
 void *
 RemapPage (void * va, unsigned NumByte) {
   kern_return_t      kr;
@@ -177,6 +209,74 @@ RemapPage (void * va, unsigned NumByte) {
 #endif
 */
 }
+#else
+#include <sys/syscall.h>
+
+extern "C"
+int
+llva_syscall6 (int sysnum, int arg1, int arg2, int arg3, int arg4, int arg5,
+                           int arg6)
+{
+  int ret_value;
+
+  /*
+   * Perform the system call.  Allow GCC to assign the variables into their
+   * required registers.
+   */
+  __asm__ __volatile__ ("int $0x80\n"
+                        : "=a" (ret_value)
+                        :  "a" (sysnum), "b" (arg1), "c" (arg2), "d" (arg3),
+                           "S" (arg4), "D" (arg5));
+
+  return ret_value;
+}
+
+void *
+RemapPage (void * va, unsigned NumByte) {
+  void *  target_addr = 0;
+  void *  source_addr;
+  void *  finish_addr;
+
+  //
+  // Find the beginning and end of the physical pages for this memory object.
+  //
+  source_addr = (void *) ((unsigned long)va & ~(PageSize - 1));
+  finish_addr = (void *) (((unsigned long)va + NumByte) & ~(PPageSize - 1));
+
+  unsigned int NumPages = ((unsigned)finish_addr - (unsigned)source_addr) / PPageSize;
+  if (!NumPages) NumPages = 1;
+
+  //
+  // Find the length in bytes of the memory we want to remap.
+  //
+  unsigned length = PageSize;
+
+fprintf (stderr, "remap: %x %x -> %x %x\n", va, NumByte, source_addr, length);
+fflush (stderr);
+#if 0
+  target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE, 0);
+#else
+    int flags = MREMAP_MAYMOVE;
+    target_addr = (void *)llva_syscall6 (SYS_mremap, (int)source_addr, 0, PageSize,
+                             (int)(flags), 0, 0);
+#endif
+  if (target_addr == MAP_FAILED) {
+    perror ("RemapPage: Failed to create shadow page: ");
+  }
+
+#if 1
+  volatile unsigned int * p = (unsigned int *) source_addr;
+  volatile unsigned int * q = (unsigned int *) target_addr;
+
+  p[0] = 0xbeefbeef;
+fprintf (stderr, "value: %x=%x, %x=%x\n", p, p[0], q, q[0]);
+  p[0] = 0xdeeddeed;
+fprintf (stderr, "value: %x=%x, %x=%x\n", p, p[0], q, q[0]);
+fflush (stderr);
+#endif
+  return target_addr;
+}
+#endif
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by PageSize.
@@ -207,15 +307,25 @@ void *AllocateNPages(unsigned Num) {
 
 // MprotectPage - This function changes the protection status of the page to become
 //                 none-accessible
-void MprotectPage(void *pa, unsigned numPages) {
+#if defined(__APPLE__)
+void
+MprotectPage (void *pa, unsigned numPages) {
   kern_return_t kr;
   kr = mprotect(pa, numPages * PageSize, PROT_NONE);
   if (kr != KERN_SUCCESS)
-    perror(" mprotect error \n");
+    perror(" mprotect error: Failed to mark page non-accessible\n");
   return;
 }
-
-
+#else
+void
+MprotectPage (void *pa, unsigned numPages) {
+  int kr;
+  kr = mprotect(pa, numPages * PageSize, PROT_NONE);
+  if (kr != -1)
+    perror(" mprotect error: Failed to mark page non-accessible\n");
+  return;
+}
+#endif
 
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
@@ -236,24 +346,50 @@ void FreePage(void *Page) {
 
 // ProtectShadowPage - Protects shadow page that begins at beginAddr, spanning
 //                     over PageNum
-void ProtectShadowPage(void * beginPage, unsigned NumPPages)
+#if defined(__APPLE__)
+void
+ProtectShadowPage (void * beginPage, unsigned NumPPages)
 {
   kern_return_t kr;
   kr = mprotect(beginPage, NumPPages * 4096, PROT_NONE);
   if (kr != KERN_SUCCESS)
-    perror(" mprotect error \n");
+    perror(" mprotect error: Failed to protect shadow page\n");
   return;
 }
+#else
+void
+ProtectShadowPage (void * beginPage, unsigned NumPPages)
+{
+  int kr;
+  kr = mprotect(beginPage, NumPPages * 4096, PROT_NONE);
+  if (kr == -1)
+    perror(" mprotect error: Failed to protect shadow page\n");
+  return;
+}
+#endif
 
 // UnprotectShadowPage - Unprotects the shadow page in the event of fault when
 //                       accessing protected shadow page in order to
 //                       resume execution
-void UnprotectShadowPage(void * beginPage, unsigned NumPPages)
+#if defined(__APPLE__)
+void
+UnprotectShadowPage (void * beginPage, unsigned NumPPages)
 {
   kern_return_t kr;
   kr = mprotect(beginPage, NumPPages * 4096, PROT_READ | PROT_WRITE);
   if (kr != KERN_SUCCESS)
-    perror(" unprotect error \n");
+    perror(" unprotect error: Failed to make shadow page accessible \n");
   return;
 }
+#else
+void
+UnprotectShadowPage (void * beginPage, unsigned NumPPages)
+{
+  int kr;
+  kr = mprotect(beginPage, NumPPages * 4096, PROT_READ | PROT_WRITE);
+  if (kr == -1)
+    perror(" unprotect error: Failed to make shadow page accessible \n");
+  return;
+}
+#endif
 
