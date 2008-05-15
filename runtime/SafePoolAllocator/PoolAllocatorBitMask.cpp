@@ -728,7 +728,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
     }
     globalTemp = (PoolSlab*) PoolSlab::createSingleArray(Pool, Size);
     unsigned offset = (unsigned)globalTemp & (PPageSize - 1);
-    void * retAddress = RemapPage(globalTemp, Size);
+    void * retAddress = RemapObject(globalTemp, Size);
     
     if (logregs) {
       fprintf(stderr, " poolallocarray:704: globalTemp = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
@@ -758,9 +758,9 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
       offset = (unsigned)globalTemp & (PPageSize - 1); 
       //adl_splay_insert(&(Pool->Objects), globalTemp, 
       //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
-      if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapPage\n");}
+      if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapObject\n");}
       //  remap the page to get a shadow page (dangling pointer detection library)
-      PS = (PoolSlab *) RemapPage(globalTemp, Size);
+      PS = (PoolSlab *) RemapObject(globalTemp, Size);
       if (logregs) {
         fprintf(stderr, " poolallocarray:735: globalTemp = 0x%x\n", (unsigned)globalTemp);
         fprintf(stderr ," poolallocarray:736: PS = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
@@ -798,7 +798,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
   //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
   
   // remap page to get a shadow page (dangling pointer detection library)
-  New = (PoolSlab *) RemapPage(globalTemp, Size);
+  New = (PoolSlab *) RemapObject(globalTemp, Size);
   offset = (unsigned)globalTemp & (PPageSize - 1);
   if (logregs) {
     fprintf(stderr, " poolallocarray:774: globalTemp = 0x%x\n, offset = 0x%x\n", (unsigned)globalTemp, offset);
@@ -910,6 +910,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       fprintf(stderr, " poolalloc:863: retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x\n",
           (unsigned)retAddress, NumBytes, (unsigned)globalTemp); fflush(stderr);
     }
+    assert (retAddress && "poolalloc(1): Returning NULL!\n");
     return retAddress;
   }
   // Special case the most common situation, where a single node is being
@@ -934,7 +935,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
       
       // remap page to get a shadow page for dangling pointer library
-      PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+      PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
       retAddress = (void*) ((unsigned)PS + offset);
       // for the use of dangling pointer runtime
       globalallocID++;
@@ -946,6 +947,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       if (logregs) {
         fprintf(stderr, " poolalloc:900: retAddress = 0x%08x, NumBytes = %d\n", (unsigned)retAddress, NumBytes);
       }
+      assert (retAddress && "poolalloc(2): Returning NULL!\n");
       return retAddress;
     }
 
@@ -965,7 +967,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
       
         // remap page to get a shadow page for dangling pointer library
-        PS = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+        PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
         retAddress = (void*) ((unsigned)PS + offset);
         //printf(" returning the address %x",retAddress);
         // for the use of dangling pointer runtime
@@ -979,6 +981,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
           fprintf (stderr, " poolalloc:932: PS = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
                 (unsigned)PS, (unsigned)retAddress, NumBytes, offset);
         }
+        assert (retAddress && "poolalloc(3): Returning NULL!\n");
         return retAddress;
       }
     }
@@ -1022,7 +1025,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
   
   // remap  page to get a shadow page for dangling pointer library
-  New = (PoolSlab *) RemapPage(globalTemp, NumBytes);
+  New = (PoolSlab *) RemapObject(globalTemp, NumBytes);
   offset = (unsigned)globalTemp & (PPageSize - 1);
   //printf(" shadow page at 0x%x through remapping\n", (unsigned)New);
   retAddress = (void*) ((unsigned)New + offset);
@@ -1037,6 +1040,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
           (unsigned)New, (unsigned)retAddress, NumBytes, offset);
   }
+  assert (retAddress && "poolalloc(4): Returning NULL!\n");
   return retAddress;
 }
 
@@ -1237,6 +1241,13 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
       adl_splay_insert (&(Pool->OOB), P, 1, Dest);
       return invalidptr;
     }
+  }
+
+  if (!Source) {
+    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
+             (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
+       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+    abort();
   }
 
   /*
