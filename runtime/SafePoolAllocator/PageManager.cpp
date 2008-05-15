@@ -210,27 +210,6 @@ RemapPage (void * va, unsigned NumByte) {
 */
 }
 #else
-#include <sys/syscall.h>
-
-extern "C"
-int
-llva_syscall6 (int sysnum, int arg1, int arg2, int arg3, int arg4, int arg5,
-                           int arg6)
-{
-  int ret_value;
-
-  /*
-   * Perform the system call.  Allow GCC to assign the variables into their
-   * required registers.
-   */
-  __asm__ __volatile__ ("int $0x80\n"
-                        : "=a" (ret_value)
-                        :  "a" (sysnum), "b" (arg1), "c" (arg2), "d" (arg3),
-                           "S" (arg4), "D" (arg5));
-
-  return ret_value;
-}
-
 void *
 RemapPage (void * va, unsigned NumByte) {
   void *  target_addr = 0;
@@ -253,13 +232,7 @@ RemapPage (void * va, unsigned NumByte) {
 
 fprintf (stderr, "remap: %x %x -> %x %x\n", va, NumByte, source_addr, length);
 fflush (stderr);
-#if 0
-  target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE, 0);
-#else
-    int flags = MREMAP_MAYMOVE;
-    target_addr = (void *)llva_syscall6 (SYS_mremap, (int)source_addr, 0, PageSize,
-                             (int)(flags), 0, 0);
-#endif
+  target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE);
   if (target_addr == MAP_FAILED) {
     perror ("RemapPage: Failed to create shadow page: ");
   }
