@@ -252,9 +252,9 @@ RemapPages (void * va, unsigned length) {
   //
   // Find the length in bytes of the memory we want to remap.
   //
-  unsigned length = PageSize;
+  unsigned map_length = PageSize;
 
-fprintf (stderr, "remap: %x %x -> %x %x\n", va, length, source_addr, length);
+fprintf (stderr, "remap: %x %x -> %x %x\n", va, map_length, source_addr, map_length);
 fflush (stderr);
   target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE);
   if (target_addr == MAP_FAILED) {
