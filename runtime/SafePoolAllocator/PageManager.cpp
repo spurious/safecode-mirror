@@ -15,12 +15,16 @@
 #ifndef _POSIX_MAPPED_FILES
 #define _POSIX_MAPPED_FILES
 #endif
-#include <unistd.h>
 #include "poolalloc/Support/MallocAllocator.h"
 #include "poolalloc/MMAPSupport.h"
+
+#include <unistd.h>
+
+#include <cassert>
 #include <iostream>
 #include <vector>
-#include <cassert>
+#include <map>
+#include <utility>
 
 // this is for dangling pointer detection in Mac OS X
 #if defined(__APPLE__)
@@ -29,16 +33,44 @@
 #include <mach/mach_error.h>
 #endif
 
+//
+// Structure: ShadowInfo
+//
+// Description:
+//  This structure provides information on a pre-created shadow page.
+//
+struct ShadowInfo {
+  // Start address of the shadow page
+  void * ShadowStart;
+
+  // Flag bits indicating which physical pages within the shadow are in use
+  unsigned short InUse;
+};
+
+// Map canonical pages to their shadow pages
+std::map<void *,std::vector<struct ShadowInfo> > ShadowPages;
+
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
 extern "C" {
 unsigned PageSize = 0;
 }
+
 extern unsigned poolmemusage;
-void InitializePageManager() {
+
+//
+// Function: InitializePageManager()
+//
+// Description:
+//  Perform nececessary initialization of the page manager code.  This must be
+//  called before any other function in this file is called.
+//
+void
+InitializePageManager() {
+  // Determine the page size.
   if (!PageSize) {
-    PageSize =  16 * sysconf(_SC_PAGESIZE) ;
+    PageSize =  PageMultiplier * sysconf(_SC_PAGESIZE) ;
   }
 }
 
@@ -101,53 +133,45 @@ static void *GetPages(unsigned NumPages) {
 #endif
 #endif
   poolmemusage += NumPages * PageSize;
+
+  // Initialize the page to contain safe inital values
   memset(Addr, initvalue, NumPages *PageSize);
+
   return Addr;
 }
 #endif
 
-// Explicitly use the malloc allocator here, to avoid depending on the C++
-// runtime library.
+// The set of free memory pages we retrieved from the OS.
 typedef std::vector<void*, llvm::MallocAllocator<void*> > FreePagesListType;
+static FreePagesListType FreePages;
 
-static FreePagesListType &getFreePageList() {
-  static FreePagesListType FreePages;
-
-  return FreePages;
-}
-
+#if defined(__APPLE__)
 //
-// Function: RemapPage()
+// Function: RemapPages()
 //
 // Description:
-//  Create another mapping of the memory object so that it appears in multiple
-//  locations of the virtual address space.
+//  This function takes a virtual, page aligned address and a length and remaps
+//  the memory so that the underlying physical pages appear in multiple
+//  locations within the virtual memory.
 //
 // Inputs:
-//  va - Virtual address of the memory object to remap.  It does not need to be
-//       page aligned.
+//  va     - Virtual address of the first page to double map.
+//  length - The length, in bytes of the memory to be remapped.
 //
-//  NumByte - The length of the memory object in bytes.
-//
-// Notes:
-//  This function must generally determine the set of pages occupied by the
-//  memory object and remap those pages.  This is because most operating
-//  systems can only remap memory at page granularity.
-//
-#if defined(__APPLE__)
-void *
-RemapPage (void * va, unsigned NumByte) {
+static void *
+RemapPages (void * va, unsigned length) {
   kern_return_t      kr;
   mach_vm_address_t  target_addr = 0;
   mach_vm_address_t  source_addr;
   vm_prot_t          prot_cur = VM_PROT_READ | VM_PROT_WRITE;
   vm_prot_t          prot_max = VM_PROT_READ | VM_PROT_WRITE;
+  vm_map_t           self     = mach_task_self();
 
   source_addr = (mach_vm_address_t) ((unsigned long)va & ~(PPageSize - 1));
   unsigned offset = (unsigned long)va & (PPageSize - 1);
   unsigned NumPPage = 0;
 
-  NumPPage = (NumByte / PPageSize) + 1;
+  NumPPage = (length / PPageSize) + 1;
 
   //if((unsigned)va > 0x2f000000) {
   //  logregs = 1;
@@ -160,25 +184,25 @@ RemapPage (void * va, unsigned NumByte) {
 
 #if 0
   // FIX ME!! when there's time, check out why this doesn't work
-  if ( (NumByte - (NumPPage-1) * PPageSize) > (PPageSize - offset) ) {
+  if ( (length - (NumPPage-1) * PPageSize) > (PPageSize - offset) ) {
     NumPPage++;
-    NumByte = NumPPage * PPageSize;
+    length = NumPPage * PPageSize;
   }
 #endif
 
-  unsigned byteToMap = NumByte + offset;
+  unsigned byteToMap = length + offset;
 
   if (logregs) {
     fprintf(stderr, " RemapPage127: remapping page of size %d covering %d page with offset %d and byteToMap = %d",
-    NumByte, NumPPage, offset, byteToMap);
+    length, NumPPage, offset, byteToMap);
     fflush(stderr);
   }
-  kr = mach_vm_remap (mach_task_self(),
+  kr = mach_vm_remap (self,
                       &target_addr,
                       byteToMap,
                       0,
                       TRUE,
-                      mach_task_self(),
+                      self,
                       source_addr,
                       FALSE,
                       &prot_cur,
@@ -211,7 +235,7 @@ RemapPage (void * va, unsigned NumByte) {
 }
 #else
 void *
-RemapPage (void * va, unsigned NumByte) {
+RemapPages (void * va, unsigned length) {
   void *  target_addr = 0;
   void *  source_addr;
   void *  finish_addr;
@@ -220,7 +244,7 @@ RemapPage (void * va, unsigned NumByte) {
   // Find the beginning and end of the physical pages for this memory object.
   //
   source_addr = (void *) ((unsigned long)va & ~(PageSize - 1));
-  finish_addr = (void *) (((unsigned long)va + NumByte) & ~(PPageSize - 1));
+  finish_addr = (void *) (((unsigned long)va + length) & ~(PPageSize - 1));
 
   unsigned int NumPages = ((unsigned)finish_addr - (unsigned)source_addr) / PPageSize;
   if (!NumPages) NumPages = 1;
@@ -230,14 +254,14 @@ RemapPage (void * va, unsigned NumByte) {
   //
   unsigned length = PageSize;
 
-fprintf (stderr, "remap: %x %x -> %x %x\n", va, NumByte, source_addr, length);
+fprintf (stderr, "remap: %x %x -> %x %x\n", va, length, source_addr, length);
 fflush (stderr);
   target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE);
   if (target_addr == MAP_FAILED) {
     perror ("RemapPage: Failed to create shadow page: ");
   }
 
-#if 1
+#if 0
   volatile unsigned int * p = (unsigned int *) source_addr;
   volatile unsigned int * q = (unsigned int *) target_addr;
 
@@ -251,11 +275,90 @@ fflush (stderr);
 }
 #endif
 
+//
+// Function: RemapObject()
+//
+// Description:
+//  Create another mapping of the memory object so that it appears in multiple
+//  locations of the virtual address space.
+//
+// Inputs:
+//  va     - Virtual address of the memory object to remap.  It does not need
+//           to be page aligned.
+//
+//  length - The length of the memory object in bytes.
+//
+// Notes:
+//  This function must generally determine the set of pages occupied by the
+//  memory object and remap those pages.  This is because most operating
+//  systems can only remap memory at page granularity.
+//
+void *
+RemapObject (void * va, unsigned length) {
+  // Start of the page in which the object lives
+  unsigned char * page_start;
+
+  // Start of the physical page in which the object lives
+  unsigned char * phy_page_start;
+
+  // The offset within the physical page in which the object lives
+  unsigned phy_offset = (unsigned long)va & (PPageSize - 1);
+  unsigned offset     = (unsigned long)va & (PageSize - 1);
+
+  //
+  // Compute the location of the object relative to the page and physical page.
+  //
+  page_start     = (unsigned char *)((unsigned long)va & ~(PageSize - 1));
+  phy_page_start = (unsigned char *)((unsigned long)va & ~(PPageSize - 1));
+
+  unsigned StartPage = ((unsigned)phy_page_start >> 12) - ((unsigned)page_start >> 12);
+  //unsigned EndPage   = ((phy_page_start + length - page_start) / PPageSize) + 1;
+
+  // Create a mask to easily tell if the needed pages are available
+  unsigned mask = 0;
+  for (unsigned i = StartPage; i < PageMultiplier; ++i) {
+    if (((unsigned char *)(page_start) + i*PPageSize) <= ((unsigned char *)(va)+length) )
+      mask |= (1u << i);
+    else
+      break;
+  }
+
+  //
+  // First, look to see if a pre-existing shadow page is available.
+  //
+#if 0
+  if (ShadowPages.find(page_start) != ShadowPages.end()) {
+    for (unsigned i = 0; i < NumShadows; ++i) {
+      struct ShadowInfo Shadow = ShadowPages[page_start][i];
+      if ((ShadowPages[page_start][i].InUse & mask) == 0) {
+        // Set the shadow pages as being used
+        ShadowPages[page_start][i].InUse |= mask;
+
+        // Return the pre-created shadow page
+fprintf (stderr, "Page Start: %x %x %x\n", (unsigned)((unsigned char *)(Shadow.ShadowStart) + offset) & ~(PPageSize-1), phy_page_start, Shadow.InUse);
+fprintf (stderr, "Obj  Start: %x %x %x\n", (unsigned char *)Shadow.ShadowStart + offset, va, ShadowPages[page_start][i].InUse);
+fflush (stderr);
+        assert (Shadow.ShadowStart && "Shadow Start is NULL!\n");
+        assert (((unsigned char *)Shadow.ShadowStart+offset) && "Shadow Start is NULL!\n");
+        return ((unsigned char *)(Shadow.ShadowStart) + offset);
+      }
+    }
+  }
+#endif
+
+  //
+  // We could not find a pre-existing shadow page.  Create a new one.
+  //
+  void * p = (RemapPages (phy_page_start, length + phy_offset));
+  assert (p && "New remap failed!\n");
+  return p;
+}
+
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by PageSize.
 void *AllocatePage() {
 
-  FreePagesListType &FPL = getFreePageList();
+  FreePagesListType &FPL = FreePages;
 
   if (!FPL.empty()) {
     void *Result = FPL.back();
@@ -267,8 +370,32 @@ void *AllocatePage() {
   unsigned NumToAllocate = 8;
   char *Ptr = (char*)GetPages(NumToAllocate);
 
-  for (unsigned i = 1; i != NumToAllocate; ++i)
-    FPL.push_back(Ptr+i*PageSize);
+  // Place all but the first page into the page cache
+  for (unsigned i = 1; i != NumToAllocate; ++i) {
+    FPL.push_back (Ptr+i*PageSize);
+  }
+
+#if 0
+  // Create several shadow mappings of all the pages
+  char * NewShadows[NumShadows];
+  for (unsigned i=0; i < NumShadows; ++i) {
+    NewShadows[i] = (char *) RemapPages (Ptr, NumToAllocate * PageSize);
+  }
+
+  // Place the shadow pages into the shadow cache
+  std::vector<struct ShadowInfo> Shadows(4);
+  for (unsigned i = 0; i != NumToAllocate; ++i) {
+    char * PagePtr = Ptr+i*PageSize;
+    for (unsigned j=0; j < NumShadows; ++j) {
+fprintf (stderr, "Shadow %x for %x\n", NewShadows[j]+(i*PageSize), PagePtr);
+      Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
+      Shadows[j].InUse       = 0;
+    }
+    ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
+  }
+  fflush (stderr);
+#endif
+
   return Ptr;
 }
 
@@ -277,34 +404,11 @@ void *AllocateNPages(unsigned Num) {
   return GetPages(Num);
 }
 
-
-// MprotectPage - This function changes the protection status of the page to become
-//                 none-accessible
-#if defined(__APPLE__)
-void
-MprotectPage (void *pa, unsigned numPages) {
-  kern_return_t kr;
-  kr = mprotect(pa, numPages * PageSize, PROT_NONE);
-  if (kr != KERN_SUCCESS)
-    perror(" mprotect error: Failed to mark page non-accessible\n");
-  return;
-}
-#else
-void
-MprotectPage (void *pa, unsigned numPages) {
-  int kr;
-  kr = mprotect(pa, numPages * PageSize, PROT_NONE);
-  if (kr != -1)
-    perror(" mprotect error: Failed to mark page non-accessible\n");
-  return;
-}
-#endif
-
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
 #define THRESHOLD 5
 void FreePage(void *Page) {
-  FreePagesListType &FPL = getFreePageList();
+  FreePagesListType &FPL = FreePages;
   FPL.push_back(Page);
   munmap(Page, 1);
   /*
