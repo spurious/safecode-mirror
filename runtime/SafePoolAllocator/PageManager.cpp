@@ -335,12 +335,14 @@ RemapObject (void * va, unsigned length) {
         ShadowPages[page_start][i].InUse |= mask;
 
         // Return the pre-created shadow page
+#if 0
 fprintf (stderr, "Page Start: %x %x %x\n", (unsigned)((unsigned char *)(Shadow.ShadowStart) + offset) & ~(PPageSize-1), phy_page_start, Shadow.InUse);
 fprintf (stderr, "Obj  Start: %x %x %x\n", (unsigned char *)Shadow.ShadowStart + offset, va, ShadowPages[page_start][i].InUse);
 fflush (stderr);
+#endif
         assert (Shadow.ShadowStart && "Shadow Start is NULL!\n");
         assert (((unsigned char *)Shadow.ShadowStart+offset) && "Shadow Start is NULL!\n");
-        return ((unsigned char *)(Shadow.ShadowStart) + offset);
+        return ((unsigned char *)(Shadow.ShadowStart));
       }
     }
   }
@@ -351,6 +353,10 @@ fflush (stderr);
   //
   void * p = (RemapPages (phy_page_start, length + phy_offset));
   assert (p && "New remap failed!\n");
+#if 0
+  fprintf (stderr, "Remap: %x %x\n", p, phy_page_start);
+  fflush (stderr);
+#endif
   return p;
 }
 
@@ -387,13 +393,17 @@ void *AllocatePage() {
   for (unsigned i = 0; i != NumToAllocate; ++i) {
     char * PagePtr = Ptr+i*PageSize;
     for (unsigned j=0; j < NumShadows; ++j) {
+#if 0
 fprintf (stderr, "Shadow %x for %x\n", NewShadows[j]+(i*PageSize), PagePtr);
+#endif
       Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
       Shadows[j].InUse       = 0;
     }
     ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
   }
+#if 0
   fflush (stderr);
+#endif
 #endif
 
   return Ptr;
@@ -428,7 +438,7 @@ void
 ProtectShadowPage (void * beginPage, unsigned NumPPages)
 {
   kern_return_t kr;
-  kr = mprotect(beginPage, NumPPages * 4096, PROT_NONE);
+  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_NONE);
   if (kr != KERN_SUCCESS)
     perror(" mprotect error: Failed to protect shadow page\n");
   return;
@@ -438,7 +448,7 @@ void
 ProtectShadowPage (void * beginPage, unsigned NumPPages)
 {
   int kr;
-  kr = mprotect(beginPage, NumPPages * 4096, PROT_NONE);
+  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_NONE);
   if (kr == -1)
     perror(" mprotect error: Failed to protect shadow page\n");
   return;
@@ -453,7 +463,7 @@ void
 UnprotectShadowPage (void * beginPage, unsigned NumPPages)
 {
   kern_return_t kr;
-  kr = mprotect(beginPage, NumPPages * 4096, PROT_READ | PROT_WRITE);
+  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_READ | PROT_WRITE);
   if (kr != KERN_SUCCESS)
     perror(" unprotect error: Failed to make shadow page accessible \n");
   return;
@@ -463,7 +473,7 @@ void
 UnprotectShadowPage (void * beginPage, unsigned NumPPages)
 {
   int kr;
-  kr = mprotect(beginPage, NumPPages * 4096, PROT_READ | PROT_WRITE);
+  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_READ | PROT_WRITE);
   if (kr == -1)
     perror(" unprotect error: Failed to make shadow page accessible \n");
   return;
