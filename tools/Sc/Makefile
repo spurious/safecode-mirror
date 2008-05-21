@@ -31,9 +31,7 @@ $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
 	$(Echo) ======= Finished Linking $(BuildMode) Executable $(TOOLNAME) \
 					$(StripWarnMsg)
 
-LDFLAGS += -Wl,-rpath $(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
-           -Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
+LDFLAGS += $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
