@@ -728,8 +728,8 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
     }
     globalTemp = (PoolSlab*) PoolSlab::createSingleArray(Pool, Size);
     unsigned offset = (unsigned)globalTemp & (PPageSize - 1);
-    void * retAddress = RemapObject(globalTemp, Size);
-    
+    void * retAddress = (void *)((unsigned)(globalTemp) & ~(PPageSize - 1));
+
     if (logregs) {
       fprintf(stderr, " poolallocarray:704: globalTemp = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
           (unsigned)globalTemp, offset, (unsigned)retAddress);
