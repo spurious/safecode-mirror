@@ -24,9 +24,13 @@
 #define PAGEMULT 16
 static const int PageMultiplier=PAGEMULT;
 
+/// NumToAllocate - This variable specifies the number of pages of size
+///                 PageMultipler to allocate at a time.
+static const unsigned NumToAllocate = 8;
+
 /// NumShadows - This variable specifies the number of shadows that should be
 /// created automatically for every piece of memory created by AllocatePage().
-static const int NumShadows=1;
+static const int NumShadows=4;
 
 /// InitializePageManager - This function must be called before any other page
 /// manager accesses are performed.  It may be called multiple times.

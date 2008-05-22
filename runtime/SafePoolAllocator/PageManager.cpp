@@ -288,10 +288,17 @@ fflush (stderr);
 //
 //  length - The length of the memory object in bytes.
 //
+// Return value:
+//  Returns a pointer *to the page* that was remapped.
+//
 // Notes:
 //  This function must generally determine the set of pages occupied by the
 //  memory object and remap those pages.  This is because most operating
 //  systems can only remap memory at page granularity.
+//
+// TODO:
+//  The constant 12 used to compute StartPage only works when the physical page
+//  size is 4096.  We need to make that configurable.
 //
 void *
 RemapObject (void * va, unsigned length) {
@@ -328,22 +335,27 @@ RemapObject (void * va, unsigned length) {
   //
 #if 0
   if (ShadowPages.find(page_start) != ShadowPages.end()) {
+    unsigned int numfull = 0;
     for (unsigned i = 0; i < NumShadows; ++i) {
       struct ShadowInfo Shadow = ShadowPages[page_start][i];
-      if ((ShadowPages[page_start][i].InUse & mask) == 0) {
+      if ((Shadow.ShadowStart) && ((Shadow.InUse & mask) == 0)) {
         // Set the shadow pages as being used
         ShadowPages[page_start][i].InUse |= mask;
 
         // Return the pre-created shadow page
-#if 0
-fprintf (stderr, "Page Start: %x %x %x\n", (unsigned)((unsigned char *)(Shadow.ShadowStart) + offset) & ~(PPageSize-1), phy_page_start, Shadow.InUse);
-fprintf (stderr, "Obj  Start: %x %x %x\n", (unsigned char *)Shadow.ShadowStart + offset, va, ShadowPages[page_start][i].InUse);
-fflush (stderr);
-#endif
-        assert (Shadow.ShadowStart && "Shadow Start is NULL!\n");
-        assert (((unsigned char *)Shadow.ShadowStart+offset) && "Shadow Start is NULL!\n");
-        return ((unsigned char *)(Shadow.ShadowStart));
+        return ((unsigned char *)(Shadow.ShadowStart) + (phy_page_start - page_start));
       }
+
+      // Keep track of how many shadows are full
+      if (Shadow.InUse == 0xffff) ++numfull;
+    }
+
+    //
+    // If all of the shadow pages are full, remove this entry from the set of
+    // ShadowPages.
+    //
+    if (numfull == NumShadows) {
+      ShadowPages.erase(page_start);
     }
   }
 #endif
@@ -354,7 +366,7 @@ fflush (stderr);
   void * p = (RemapPages (phy_page_start, length + phy_offset));
   assert (p && "New remap failed!\n");
 #if 0
-  fprintf (stderr, "Remap: %x %x\n", p, phy_page_start);
+  fprintf (stderr, "RN: %x %x\n", p, phy_page_start);
   fflush (stderr);
 #endif
   return p;
@@ -373,7 +385,6 @@ void *AllocatePage() {
   }
 
   // Allocate several pages, and put the extras on the freelist...
-  unsigned NumToAllocate = 8;
   char *Ptr = (char*)GetPages(NumToAllocate);
 
   // Place all but the first page into the page cache
@@ -393,17 +404,11 @@ void *AllocatePage() {
   for (unsigned i = 0; i != NumToAllocate; ++i) {
     char * PagePtr = Ptr+i*PageSize;
     for (unsigned j=0; j < NumShadows; ++j) {
-#if 0
-fprintf (stderr, "Shadow %x for %x\n", NewShadows[j]+(i*PageSize), PagePtr);
-#endif
       Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
       Shadows[j].InUse       = 0;
     }
     ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
   }
-#if 0
-  fflush (stderr);
-#endif
 #endif
 
   return Ptr;
