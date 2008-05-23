@@ -59,6 +59,13 @@ unsigned PageSize = 0;
 
 extern unsigned poolmemusage;
 
+// If not compiling on Mac OS X, define types and values to make the same code
+// work on multiple platforms.
+#if !defined(__APPLE__)
+typedef int kernel_return_t;
+static const KERN_SUCCESS=0
+#endif
+
 //
 // Function: InitializePageManager()
 //
@@ -430,7 +437,6 @@ void FreePage(void *Page) {
 
 // ProtectShadowPage - Protects shadow page that begins at beginAddr, spanning
 //                     over PageNum
-#if defined(__APPLE__)
 void
 ProtectShadowPage (void * beginPage, unsigned NumPPages)
 {
@@ -440,22 +446,10 @@ ProtectShadowPage (void * beginPage, unsigned NumPPages)
     perror(" mprotect error: Failed to protect shadow page\n");
   return;
 }
-#else
-void
-ProtectShadowPage (void * beginPage, unsigned NumPPages)
-{
-  int kr;
-  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_NONE);
-  if (kr == -1)
-    perror(" mprotect error: Failed to protect shadow page\n");
-  return;
-}
-#endif
 
 // UnprotectShadowPage - Unprotects the shadow page in the event of fault when
 //                       accessing protected shadow page in order to
 //                       resume execution
-#if defined(__APPLE__)
 void
 UnprotectShadowPage (void * beginPage, unsigned NumPPages)
 {
@@ -465,15 +459,4 @@ UnprotectShadowPage (void * beginPage, unsigned NumPPages)
     perror(" unprotect error: Failed to make shadow page accessible \n");
   return;
 }
-#else
-void
-UnprotectShadowPage (void * beginPage, unsigned NumPPages)
-{
-  int kr;
-  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_READ | PROT_WRITE);
-  if (kr == -1)
-    perror(" unprotect error: Failed to make shadow page accessible \n");
-  return;
-}
-#endif
 
