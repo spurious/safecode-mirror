@@ -45,11 +45,15 @@ unsigned poolmemusage = 0;
 static /*const*/ unsigned logregs = 0;
 
 // signal handler
-void bus_error_handler(int, siginfo_t *, void *);
+static void bus_error_handler(int, siginfo_t *, void *);
 
 // creates a new PtrMetaData structure to record pointer information
-PDebugMetaData createPtrMetaData(unsigned, unsigned, void *, void *, void *);
-void updatePtrMetaData(PDebugMetaData, unsigned, void *);
+static inline void updatePtrMetaData(PDebugMetaData, unsigned, void *);
+static PDebugMetaData createPtrMetaData (unsigned,
+                                         unsigned,
+                                         void *,
+                                         void *,
+                                         void *);
 
 //===----------------------------------------------------------------------===//
 //
@@ -598,8 +602,17 @@ ContainsAllocatedNode:
 
 void
 pool_init_runtime (unsigned Dangling) {
+  //
+  // Configure the allocator.
+  //
   extern ConfigData ConfigData;
   ConfigData.RemapObjects = Dangling;
+
+  //
+  // Install hooks for catching allocations outside the scope of SAFECode
+  //
+  extern void installAllocHooks(void);
+  installAllocHooks();
   return;
 }
 
@@ -1562,28 +1575,41 @@ poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
  
-  // this was put here because it does not work in poolinit, somehow.
-  //  FIXME: if there is time, you can fix this. 
+  //
+  // An object has been freed.  Set up a signal handler to catch any dangling
+  // pointer references.
+  //
+  // FIXME:
+  //  This code was placed here because it does not appear to work when placed
+  //  in poolinit().
+  //
   struct sigaction sa;
   sa.sa_sigaction = bus_error_handler;
   sa.sa_flags = SA_SIGINFO;
-  if (sigaction(SIGBUS, &sa, NULL) == -1)
-    printf("sigaction installer failed!");
+  if (sigaction(SIGBUS, &sa, NULL) == -1) {
+    fprintf (stderr, "sigaction installer failed!");
+    fflush (stderr);
+  }
   return; 
 }
 
-/********************************************
-*                      *
-*  functions for dangling ptr runtime    *
-*                      *
-*********************************************/
+//===----------------------------------------------------------------------===//
+//
+// Dangling pointer runtime functions
+//
+//===----------------------------------------------------------------------===//
 
-// createPtrMetaData - allocates memory for a DebugMetaData struct
-//              and fills up the appropriate fields so to
-//              keep a record of the pointer's meta data
-PDebugMetaData
-createPtrMetaData(unsigned paramAllocID, unsigned paramFreeID, void * paramAllocPC, void * paramFreePC, void * paramCanon)
-{
+//
+// Function: createPtrMetaData()
+//  Allocates memory for a DebugMetaData struct and fills up the appropriate
+//  fields so to keep a record of the pointer's meta data
+//
+static PDebugMetaData
+createPtrMetaData (unsigned paramAllocID,
+                   unsigned paramFreeID,
+                   void * paramAllocPC,
+                   void * paramFreePC,
+                   void * paramCanon) {
   PDebugMetaData ret = (PDebugMetaData) malloc(sizeof(DebugMetaData));
   ret->allocID = paramAllocID;
   ret->freeID = paramFreeID;
@@ -1594,34 +1620,34 @@ createPtrMetaData(unsigned paramAllocID, unsigned paramFreeID, void * paramAlloc
   return ret;
 }
 
-void
-updatePtrMetaData(PDebugMetaData debugmetadataptr, unsigned globalfreeID, void * paramFreePC) {
+static inline void
+updatePtrMetaData (PDebugMetaData debugmetadataptr,
+                   unsigned globalfreeID,
+                   void * paramFreePC) {
   debugmetadataptr->freeID = globalfreeID;
   debugmetadataptr->freePC = paramFreePC;
   return;
 }
 
-
-/****************************
-*              *
-*    signal handler    *
-*              *
-****************************/
-void
-bus_error_handler(int sig, siginfo_t * info, void * context) {
+//
+// Function: bus_error_handler()
+//
+// Description:
+//  This is the signal handler that catches bad memory references.
+//
+static void
+bus_error_handler (int sig, siginfo_t * info, void * context) {
   signal(SIGBUS, NULL);
   alertNum++;
   ucontext_t * mycontext = (ucontext_t *) context;
-  
-  
-  
+
   unsigned len = 0;
   void * faultAddr = info->si_addr;
   PDebugMetaData debugmetadataptr;
   int fs = 0;
   if (0 == (fs = adl_splay_retrieve(&(dummyPool.DPTree), &faultAddr, &len, (void **) &debugmetadataptr)))
   {
-    fprintf(stderr, "signal handler: debug meta data retrieving failed");
+    fprintf(stderr, "signal handler: retrieving debug meta data failed");
     fflush(stderr);
     abort();
   }
@@ -1700,5 +1726,6 @@ funccheck (unsigned num, void *f, void *g, ...) {
 
 void
 poolstats() {
-  fprintf(stderr, "pool mem usage %d\n",poolmemusage);
+  fprintf (stderr, "pool mem usage %d\n", poolmemusage);
+  fflush (stderr);
 }
