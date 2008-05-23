@@ -24,10 +24,18 @@ void * ExternalObjects;
 
 #if defined(__APPLE__)
 // The real allocation functions
-static void * (*real_malloc)(malloc_zone_t *, size_t size);
+static void * (*real_malloc)  (malloc_zone_t *, size_t);
+static void * (*real_calloc)  (malloc_zone_t *, size_t, size_t);
+static void * (*real_valloc)  (malloc_zone_t *, size_t);
+static void * (*real_realloc) (malloc_zone_t *, void *, size_t);
+static void   (*real_free)    (malloc_zone_t *, void *);
 
 // Prototypes for the tracking versions
-static void * track_malloc (malloc_zone_t *, size_t size);
+static void * track_malloc  (malloc_zone_t *, size_t size);
+static void * track_calloc  (malloc_zone_t *, size_t num_items, size_t size);
+static void * track_valloc  (malloc_zone_t *, size_t size);
+static void * track_realloc (malloc_zone_t *, void * p, size_t size);
+static void   track_free    (malloc_zone_t *, void * p);
 
 void
 installAllocHooks (void) {
@@ -39,7 +47,11 @@ installAllocHooks (void) {
   // functions.
   //
   default_zone = malloc_default_zone();
-  real_malloc = default_zone->malloc;
+  real_malloc  = default_zone->malloc;
+  real_calloc  = default_zone->calloc;
+  real_valloc  = default_zone->valloc;
+  real_realloc = default_zone->realloc;
+  real_free    = default_zone->free;
 
   //
   // Install intercept routines.
@@ -62,6 +74,71 @@ track_malloc (malloc_zone_t * zone, size_t size) {
   //
   adl_splay_insert (&(ExternalObjects), objp, size, 0);
   return objp;
+}
+
+static void *
+track_valloc (malloc_zone_t * zone, size_t size) {
+  // Pointer to the allocated object
+  void * objp;
+
+  //
+  // Perform the allocation.
+  //
+  objp = real_valloc (zone, size);
+
+  //
+  // Record the allocation and return to the caller.
+  //
+  adl_splay_insert (&(ExternalObjects), objp, size, 0);
+  return objp;
+}
+
+static void *
+track_calloc (malloc_zone_t * zone, size_t num, size_t size) {
+  // Pointer to the allocated object
+  void * objp;
+
+  //
+  // Perform the allocation.
+  //
+  objp = real_calloc (zone, num, size);
+
+  //
+  // Record the allocation and return to the caller.
+  //
+  adl_splay_insert (&(ExternalObjects), objp, num*size, 0);
+  return objp;
+}
+
+static void *
+track_realloc (malloc_zone_t * zone, void * oldp, size_t size) {
+  // Pointer to the allocated object
+  void * objp;
+
+  //
+  // Perform the allocation.
+  //
+  objp = real_realloc (zone, oldp, size);
+
+  //
+  // Record the allocation and return to the caller.
+  //
+  adl_splay_insert (&(ExternalObjects), objp, size, 0);
+  return objp;
+}
+
+static void
+track_free (malloc_zone_t * zone, void * p) {
+  //
+  // Perform the allocation.
+  //
+  real_free (zone, p);
+
+  //
+  // Record the allocation and return to the caller.
+  //
+  adl_splay_delete (&(ExternalObjects), p);
+  return;
 }
 #else
 void
