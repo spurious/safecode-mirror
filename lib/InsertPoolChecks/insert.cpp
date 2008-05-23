@@ -112,7 +112,6 @@ bool InsertPoolChecks::runOnModule(Module &M) {
 #ifndef LLVA_KERNEL
 void
 InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
-
   //
   // Find the main() function.  For FORTRAN programs converted to C using the
   // NAG f2c tool, the function is named MAIN__.
@@ -229,6 +228,33 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       }
     }
   }
+
+  //
+  // Initialize the runtime.
+  //
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+
+  // Insert the registration after all calls to poolinit().  Also skip
+  // cast, alloca, and binary operators.
+  while ((isa<CallInst>(InsertPt))  ||
+          isa<CastInst>(InsertPt)   ||
+          isa<AllocaInst>(InsertPt) ||
+          isa<BinaryOperator>(InsertPt)) {
+    if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+      if (Function * F = CI->getCalledFunction())
+        if (F->getName() == "poolinit")
+          ++InsertPt;
+        else
+          break;
+      else
+        break;
+    else
+      ++InsertPt;
+  }
+
+  std::vector<Value *> args;
+  args.push_back (ConstantInt::get(Type::Int32Ty,DanglingChecks,0));
+  CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif
 
@@ -1169,6 +1195,9 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   //                                               Type::Int32Ty, Type::Int32Ty, 0));
   const Type * PoolDescTypePtr = PointerType::getUnqual(PoolDescType);
   */  
+
+  RuntimeInit = M.getOrInsertFunction("pool_init_runtime", Type::VoidTy,
+                                                           Type::Int32Ty, 0);
 
   std::vector<const Type *> Arg(1, VoidPtrType);
   Arg.push_back(VoidPtrType);

@@ -17,9 +17,16 @@ ModulePass *creatInsertPoolChecks();
 using namespace CUA;
 
 struct InsertPoolChecks : public ModulePass {
+    private :
+    // Flags whether we want to do dangling checks
+    bool DanglingChecks;
+
     public :
     static char ID;
-    InsertPoolChecks () : ModulePass ((intptr_t) &ID) {}
+    InsertPoolChecks (bool DPChecks = false)
+      : ModulePass ((intptr_t) &ID) {
+      DanglingChecks = DPChecks;
+    }
     const char *getPassName() const { return "Inserting pool checks for array bounds "; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -44,6 +51,7 @@ struct InsertPoolChecks : public ModulePass {
 #else
   TDDataStructures * TDPass;
 #endif  
+  Constant *RuntimeInit;
   Constant *PoolCheck;
   Constant *PoolCheckArray;
   Constant *PoolCheckArrayUI;
