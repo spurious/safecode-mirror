@@ -333,7 +333,6 @@ RemapObject (void * va, unsigned length) {
   //
   // First, look to see if a pre-existing shadow page is available.
   //
-#if 0
   if (ShadowPages.find(page_start) != ShadowPages.end()) {
     unsigned int numfull = 0;
     for (unsigned i = 0; i < NumShadows; ++i) {
@@ -358,17 +357,12 @@ RemapObject (void * va, unsigned length) {
       ShadowPages.erase(page_start);
     }
   }
-#endif
 
   //
   // We could not find a pre-existing shadow page.  Create a new one.
   //
   void * p = (RemapPages (phy_page_start, length + phy_offset));
   assert (p && "New remap failed!\n");
-#if 0
-  fprintf (stderr, "RN: %x %x\n", p, phy_page_start);
-  fflush (stderr);
-#endif
   return p;
 }
 
@@ -392,7 +386,6 @@ void *AllocatePage() {
     FPL.push_back (Ptr+i*PageSize);
   }
 
-#if 0
   // Create several shadow mappings of all the pages
   char * NewShadows[NumShadows];
   for (unsigned i=0; i < NumShadows; ++i) {
@@ -400,7 +393,7 @@ void *AllocatePage() {
   }
 
   // Place the shadow pages into the shadow cache
-  std::vector<struct ShadowInfo> Shadows(4);
+  std::vector<struct ShadowInfo> Shadows(NumShadows);
   for (unsigned i = 0; i != NumToAllocate; ++i) {
     char * PagePtr = Ptr+i*PageSize;
     for (unsigned j=0; j < NumShadows; ++j) {
@@ -409,7 +402,6 @@ void *AllocatePage() {
     }
     ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
   }
-#endif
 
   return Ptr;
 }
