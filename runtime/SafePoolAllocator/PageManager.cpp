@@ -62,8 +62,8 @@ extern unsigned poolmemusage;
 // If not compiling on Mac OS X, define types and values to make the same code
 // work on multiple platforms.
 #if !defined(__APPLE__)
-typedef int kernel_return_t;
-static const KERN_SUCCESS=0
+typedef int kern_return_t;
+static const unsigned int KERN_SUCCESS=0;
 #endif
 
 //
