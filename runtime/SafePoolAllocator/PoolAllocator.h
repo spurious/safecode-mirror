@@ -87,6 +87,7 @@ extern "C" {
       exit(-1);
     }
   }
+  void pool_init_runtime(unsigned Dangling);
   void poolinit(PoolTy *Pool, unsigned NodeSize);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);

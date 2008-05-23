@@ -596,6 +596,13 @@ ContainsAllocatedNode:
 //
 //===----------------------------------------------------------------------===//
 
+void
+pool_init_runtime (unsigned Dangling) {
+  extern ConfigData ConfigData;
+  ConfigData.RemapObjects = Dangling;
+  return;
+}
+
 // poolinit - Initialize a pool descriptor to empty
 //
 void
