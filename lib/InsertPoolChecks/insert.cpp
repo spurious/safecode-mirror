@@ -651,7 +651,6 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
   }
 }
 #else
-
 //
 // Method: addLSChecks()
 //
@@ -676,8 +675,13 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
     assert (PH && "Null pool handle!\n");
   }
 
+  //
+  // For the debugging tool, we can do checks in incomplete nodes.
+  //
+#if 0
   // Do not perform checks on incomplete nodes
   if (Node && (Node->isIncompleteNode())) return;
+#endif
 
   if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
@@ -715,11 +719,13 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
 
-      CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
+      if (Node->isIncompleteNode())
+        CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
+      else
+        CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
     }
   }
 }
-
 
 void InsertPoolChecks::addLoadStoreChecks(Module &M){
   Module::iterator mI = M.begin(), mE = M.end();
@@ -1203,7 +1209,8 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   Arg.push_back(VoidPtrType);
   FunctionType *PoolCheckTy =
     FunctionType::get(Type::VoidTy,Arg, false);
-  PoolCheck = M.getOrInsertFunction("poolcheck", PoolCheckTy);
+  PoolCheck   = M.getOrInsertFunction("poolcheck", PoolCheckTy);
+  PoolCheckUI = M.getOrInsertFunction("poolcheckui", PoolCheckTy);
 
   std::vector<const Type *> Arg2(1, VoidPtrType);
   Arg2.push_back(VoidPtrType);

@@ -53,6 +53,7 @@ struct InsertPoolChecks : public ModulePass {
 #endif  
   Constant *RuntimeInit;
   Constant *PoolCheck;
+  Constant *PoolCheckUI;
   Constant *PoolCheckArray;
   Constant *PoolCheckArrayUI;
   Constant *ExactCheck;
