@@ -100,6 +100,7 @@ extern "C" {
   void poolunregister(PoolTy *Pool, void *allocaptr);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);
+  void poolcheckui(PoolTy *Pool, void *Node);
   void poolcheckoptim(PoolTy *Pool, void *Node);
   void * boundscheck   (PoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui (PoolTy * Pool, void * Source, void * Dest);

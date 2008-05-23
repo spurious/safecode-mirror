@@ -1170,6 +1170,43 @@ poolcheck(PoolTy *Pool, void *Node) {
   return;
 }
 
+void
+poolcheckui (PoolTy *Pool, void *Node) {
+  // Splay tree of external objects
+  extern void * ExternalObjects;
+
+  void* S = Node;
+  unsigned len = 0;
+  if (!Pool) return;
+
+  /*
+   * Look for the object within the pool's splay tree.
+   */
+  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
+  if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
+    return;
+  }
+
+  /*
+   * Look for the object within the splay tree of external objects.
+   */
+  S = Node;
+  len = 0;
+  fs = adl_splay_retrieve (&(ExternalObjects), &S, &len, 0);
+  if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
+    return;
+  }
+
+  /*
+   * The node is not found or is not within bounds.  Report a warning but keep
+   * going.
+   */
+  fprintf (stderr, "PoolcheckUI failed(%x:%x): %x %x from %x\n", 
+      (unsigned)Pool, fs, (unsigned)Node, len, (unsigned)__builtin_return_address(0));
+  fflush (stderr);
+  return;
+}
+
 /*
  * Function: boundscheck()
  *
@@ -1235,6 +1272,9 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
 
 void *
 boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
+  // Splay tree of external objects
+  extern void * ExternalObjects;
+
   void* S = Source;
   unsigned len = 0;
   int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
@@ -1271,9 +1311,24 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   }
 
   /*
-   * The node is not found or is not within bounds.  Let it go because it's
-   * incomplete or unknown.
+   * Attempt to look for the object in the external object splay tree.
    */
+  S = Source;
+  len = 0;
+  fs = adl_splay_retrieve (&(ExternalObjects), &S, &len, 0);
+  if (fs) {
+    if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+      return Dest;
+    }
+  }
+
+  /*
+   * We cannot find the object.  Print a warning and continue execution.
+   */
+  fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
+           (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
+     (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+  fflush (stderr);
   return Dest;
 }
 
