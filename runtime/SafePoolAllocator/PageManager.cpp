@@ -50,6 +50,9 @@ struct ShadowInfo {
 // Map canonical pages to their shadow pages
 std::map<void *,std::vector<struct ShadowInfo> > ShadowPages;
 
+// Structure defining configuration data
+struct ConfigData ConfigData = {false};
+
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
@@ -328,6 +331,12 @@ RemapObject (void * va, unsigned length) {
   unsigned StartPage = ((unsigned)phy_page_start >> 12) - ((unsigned)page_start >> 12);
   //unsigned EndPage   = ((phy_page_start + length - page_start) / PPageSize) + 1;
 
+  //
+  // If we're not remapping objects, don't do anything.
+  //
+  if (ConfigData.RemapObjects == false)
+    return (void *)(phy_page_start);
+
   // Create a mask to easily tell if the needed pages are available
   unsigned mask = 0;
   for (unsigned i = StartPage; i < PageMultiplier; ++i) {
@@ -394,20 +403,22 @@ void *AllocatePage() {
   }
 
   // Create several shadow mappings of all the pages
-  char * NewShadows[NumShadows];
-  for (unsigned i=0; i < NumShadows; ++i) {
-    NewShadows[i] = (char *) RemapPages (Ptr, NumToAllocate * PageSize);
-  }
-
-  // Place the shadow pages into the shadow cache
-  std::vector<struct ShadowInfo> Shadows(NumShadows);
-  for (unsigned i = 0; i != NumToAllocate; ++i) {
-    char * PagePtr = Ptr+i*PageSize;
-    for (unsigned j=0; j < NumShadows; ++j) {
-      Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
-      Shadows[j].InUse       = 0;
+  if (ConfigData.RemapObjects) {
+    char * NewShadows[NumShadows];
+    for (unsigned i=0; i < NumShadows; ++i) {
+      NewShadows[i] = (char *) RemapPages (Ptr, NumToAllocate * PageSize);
     }
-    ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
+
+    // Place the shadow pages into the shadow cache
+    std::vector<struct ShadowInfo> Shadows(NumShadows);
+    for (unsigned i = 0; i != NumToAllocate; ++i) {
+      char * PagePtr = Ptr+i*PageSize;
+      for (unsigned j=0; j < NumShadows; ++j) {
+        Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
+        Shadows[j].InUse       = 0;
+      }
+      ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
+    }
   }
 
   return Ptr;
@@ -441,9 +452,11 @@ void
 ProtectShadowPage (void * beginPage, unsigned NumPPages)
 {
   kern_return_t kr;
-  kr = mprotect(beginPage, NumPPages * PPageSize, PROT_NONE);
-  if (kr != KERN_SUCCESS)
-    perror(" mprotect error: Failed to protect shadow page\n");
+  if (ConfigData.RemapObjects) {
+    kr = mprotect(beginPage, NumPPages * PPageSize, PROT_NONE);
+    if (kr != KERN_SUCCESS)
+      perror(" mprotect error: Failed to protect shadow page\n");
+  }
   return;
 }
 
