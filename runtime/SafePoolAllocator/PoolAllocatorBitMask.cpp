@@ -611,8 +611,10 @@ pool_init_runtime (unsigned Dangling) {
   //
   // Install hooks for catching allocations outside the scope of SAFECode
   //
+#if 0
   extern void installAllocHooks(void);
   installAllocHooks();
+#endif
   return;
 }
 
@@ -645,7 +647,9 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
     Pool->SlabAddressArray[i] = 0;
   }
   Pool->NumSlabs = 0;
+#if 0
   Pool->RegNodes = new std::map<void*,unsigned>;
+#endif
   
   if (dummyInitialized == 1)
     return;
@@ -667,7 +671,9 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
     dummyPool.SlabAddressArray[i] = 0;
   }
   dummyPool.NumSlabs = 0;
+#if 0
   dummyPool.RegNodes = new std::map<void*,unsigned>;
+#endif
   dummyInitialized = 1;
 }
 
@@ -689,7 +695,9 @@ pooldestroy(PoolTy *Pool) {
   if (Pool->AllocadPool) return;
 
   // Remove all registered pools
+#if 0
   delete Pool->RegNodes;
+#endif
 
   if (Pool->NumSlabs > AddrArrSize) {
     Pool->Slabs->clear();
@@ -847,7 +855,9 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
     Pool->allocaptr = allocaptr;
   }
 #else
+#if 0
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
+#endif
   adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, 0);
   if (logregs) {
     fprintf (stderr, "poolregister: %x %d\n", (unsigned)allocaptr, NumBytes);
