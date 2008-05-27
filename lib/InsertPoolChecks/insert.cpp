@@ -184,6 +184,8 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for ( ; GI != GE; ++GI) {
     if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
+      // Don't register the llvm.used variable
+      if (GV->getName() == "llvm.used") continue;
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph &G = paPass->getGlobalsGraph();
         DSNode *DSN  = G.getNodeForValue(GV).getNode();
@@ -685,6 +687,9 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
 
   if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
+      // Do not perform function checks on incomplete nodes
+      if (Node->isIncompleteNode()) return;
+
       // Get the globals list corresponding to the node
       std::vector<Function *> FuncList;
       Node->addFullFunctionList(FuncList);
