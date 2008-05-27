@@ -1319,16 +1319,22 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   if (fs) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
+    } else {
+      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n", (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
+     (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+      fflush (stderr);
     }
   }
 
   /*
    * We cannot find the object.  Print a warning and continue execution.
    */
+#if 0
   fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
            (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
      (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
   fflush (stderr);
+#endif
   return Dest;
 }
 
