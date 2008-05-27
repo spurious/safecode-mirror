@@ -678,12 +678,12 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
   }
 
   //
-  // For the debugging tool, we can do checks in incomplete nodes.
+  // Do not perform checks on incomplete nodes.  While external heap
+  // allocations can be recorded via hooking functionality in the system's
+  // original allocator routines, external globals and stack allocations remain
+  // invisible.
   //
-#if 0
-  // Do not perform checks on incomplete nodes
   if (Node && (Node->isIncompleteNode())) return;
-#endif
 
   if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
