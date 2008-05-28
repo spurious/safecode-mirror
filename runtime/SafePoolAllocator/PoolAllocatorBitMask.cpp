@@ -1675,13 +1675,17 @@ poolfree(PoolTy *Pool, void *Node) {
 //  Allocates memory for a DebugMetaData struct and fills up the appropriate
 //  fields so to keep a record of the pointer's meta data
 //
+extern "C" { void * internal_malloc (unsigned int size);}
 static PDebugMetaData
 createPtrMetaData (unsigned paramAllocID,
                    unsigned paramFreeID,
                    void * paramAllocPC,
                    void * paramFreePC,
                    void * paramCanon) {
-  PDebugMetaData ret = (PDebugMetaData) malloc(sizeof(DebugMetaData));
+  // FIXME:
+  //  This only works because DebugMetaData and a splay tree node are of
+  //  identical size.
+  PDebugMetaData ret = (PDebugMetaData) internal_malloc(sizeof(DebugMetaData));
   ret->allocID = paramAllocID;
   ret->freeID = paramFreeID;
   ret->allocPC = paramAllocPC;
