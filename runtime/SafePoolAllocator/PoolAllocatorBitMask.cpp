@@ -414,7 +414,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
 
 // getSize
 unsigned PoolSlab::getSize(void *Ptr, unsigned ElementSize) {
-  if (isSingleArray()) abort();
+  if (isSingleArray) abort();
   const void *FirstElement = getElementAddress(0, 0);
   if (FirstElement <= Ptr) {
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
