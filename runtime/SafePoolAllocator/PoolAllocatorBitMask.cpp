@@ -135,7 +135,10 @@ public:
     unsigned NumNodes = PageSize-sizeof(PoolSlab);
     
     // We need space for the NodeFlags...
-    unsigned NodeFlagsBytes = NumNodes/Pool->NodeSize * 2 / 8;
+    // FIXME:
+    //  We unconditionally round up a byte.  We should only do that if
+    //  necessary.
+    unsigned NodeFlagsBytes = (NumNodes/Pool->NodeSize * 2 / 8) + 1;
     NumNodes -= (NodeFlagsBytes+3) & ~3;  // Round up to int boundaries.
 
     // Divide the remainder among the nodes!
@@ -262,7 +265,7 @@ PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   PS->addToList((PoolSlab**)&Pool->LargeArrays);
 
   PS->isSingleArray = 1;
-  PS->NumNodesInSlab = NumPages * PageSize;
+  PS->NumNodesInSlab = NodesPerSlab;
   *(unsigned*)&PS->FirstUnused = NumPages;
   return PS->getElementAddress(0, 0);
 }
@@ -411,6 +414,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
 
 // getSize
 unsigned PoolSlab::getSize(void *Ptr, unsigned ElementSize) {
+  if (isSingleArray()) abort();
   const void *FirstElement = getElementAddress(0, 0);
   if (FirstElement <= Ptr) {
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
@@ -448,8 +452,10 @@ PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   const void *FirstElement = getElementAddress(0, 0);
   if (FirstElement <= Ptr) {
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
-    if (isSingleArray) 
+    if (isSingleArray) {
+      assert (0 && "Must not use NumNodesInSlab!  Calculate size instead\n");
       if (Delta < NumNodesInSlab) return Delta/ElementSize;
+    }
     unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
       if (Delta % ElementSize != 0) {
