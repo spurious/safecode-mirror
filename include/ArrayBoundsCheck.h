@@ -28,13 +28,13 @@ struct ArrayBoundsCheck : public ModulePass {
     const char *getPassName() const { return "Array Bounds Check"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.setPreservesAll();
       AU.addRequired<TargetData>();
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<PostDominatorTree>();
       AU.addRequired<PostDominanceFrontier>();
+      AU.setPreservesAll();
     }
 
     std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;
