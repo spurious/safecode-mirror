@@ -23,8 +23,6 @@ unsigned int allallocs = 0;
 static Tree initmem[1024];
 static int use = 0;
 
-static volatile unsigned intsize = 0;
-
 void *
 internal_malloc (unsigned int size)
 {
@@ -43,14 +41,12 @@ internal_malloc (unsigned int size)
   {
     loc = page = ext_alloc (2);
     ++externallocs;
-    intsize += 16384;
   }
 
   if ((loc+size) > (page + 16384))
   {
     loc = page = ext_alloc (2);
     ++externallocs;
-    intsize += 16384;
   }
 
   /*
