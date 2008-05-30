@@ -112,50 +112,73 @@ bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
   return returnValue;
 }
 
-void ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
-#if 0
-  //need to insert a corresponding free
-  // The dominator magic again
+//
+// Method: InsertFreesAtEnd()
+//
+// Description:
+//  Insert free instructions so that the memory allocated by the specified
+//  malloc instruction is freed on function exit.
+//
+void
+ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
+  assert (MI && "MI is NULL!\n");
+
+  //
+  // Get the dominance frontier information about the malloc instruction's
+  // basic block.
+  //
   BasicBlock *currentBlock = MI->getParent();
-  DominanceFrontier::const_iterator it = dfmt.find(currentBlock);
-  if (it != dfmt.end()) {
+  Function * F = currentBlock->getParent();
+  DominanceFrontier & DF = getAnalysis<DominanceFrontier>(*F);
+  DominatorTree & domTree = getAnalysis<DominatorTree>(*F);
+  DominanceFrontier * dfmt = &DF;
+  DominanceFrontier::const_iterator it = dfmt->find(currentBlock);
+
+  //
+  // If the basic block has a dominance frontier, use it.
+  //
+  if (it != dfmt->end()) {
     const DominanceFrontier::DomSetType &S = it->second;
-      if (S.size() > 0) {
-	DominanceFrontier::DomSetType::iterator pCurrent = S.begin(), pEnd = S.end();
-	for (; pCurrent != pEnd; ++pCurrent) {
-	  BasicBlock *frontierBlock = *pCurrent;
-	  //One of its predecessors is dominated by
-	  // currentBlock
-	  //need to insert a free in that predecessor
-	  for (pred_iterator SI = pred_begin(frontierBlock), SE = pred_end(frontierBlock);
-	       SI != SE; ++SI) {
-	    BasicBlock *predecessorBlock = *SI;
-	    if (dominates(predecessorBlock, currentBlock)) {
-	      //get the terminator
-	      Instruction *InsertPt = predecessorBlock->getTerminator();
-	      new FreeInst(MI, InsertPt);
-	    } 
-	  }
-	}
+    if (S.size() > 0) {
+      DominanceFrontier::DomSetType::iterator pCurrent = S.begin(),
+                                                  pEnd = S.end();
+      for (; pCurrent != pEnd; ++pCurrent) {
+        BasicBlock *frontierBlock = *pCurrent;
+        // One of its predecessors is dominated by currentBlock;
+        // need to insert a free in that predecessor
+        for (pred_iterator SI = pred_begin(frontierBlock),
+                           SE = pred_end(frontierBlock);
+                           SI != SE; ++SI) {
+          BasicBlock *predecessorBlock = *SI;
+          if (domTree.dominates (predecessorBlock, currentBlock)) {
+            // Get the terminator
+            Instruction *InsertPt = predecessorBlock->getTerminator();
+            new FreeInst(MI, InsertPt);
+          } 
+        }
       }
-  } else {
-    //There is no dominance frontier, need to insert on all returns;
-    Function *F = MI->getParent()->getParent();
-    std::vector<Instruction*> FreePoints;
-    for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
-      if (isa<ReturnInst>(BB->getTerminator()) ||
-	  isa<UnwindInst>(BB->getTerminator()))
-	FreePoints.push_back(BB->getTerminator());
-    //we have the Free points
-    //now we get
-    //	    Construct the free instructions at each of the points.
-    std::vector<Instruction*>::iterator fpI = FreePoints.begin(), fpE = FreePoints.end();
-    for (; fpI != fpE ; ++ fpI) {
-      Instruction *InsertPt = *fpI;
-      new FreeInst(MI, InsertPt);
+
+      return;
     }
   }
-#endif
+
+  //
+  // There is no dominance frontier; insert frees on all returns;
+  //
+  std::vector<Instruction*> FreePoints;
+  for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
+    if (isa<ReturnInst>(BB->getTerminator()) ||
+        isa<UnwindInst>(BB->getTerminator()))
+      FreePoints.push_back(BB->getTerminator());
+
+  // We have the Free points; now we construct the free instructions at each
+  // of the points.
+  std::vector<Instruction*>::iterator fpI = FreePoints.begin(),
+                                      fpE = FreePoints.end();
+  for (; fpI != fpE ; ++ fpI) {
+    Instruction *InsertPt = *fpI;
+    new FreeInst(MI, InsertPt);
+  }
 }
 
 // Precondition: Enforce that the alloca nodes haven't been already converted
@@ -207,12 +230,12 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
             MI = castTo (CI, AI->getType(), "", AI);
 #endif	    
-	    DSN->setHeapMarker();
-	    AI->replaceAllUsesWith(MI);
-	    SM.erase(SMI++);
-	    AI->getParent()->getInstList().erase(AI);
+            DSN->setHeapMarker();
+            AI->replaceAllUsesWith(MI);
+            SM.erase(SMI++);
+            AI->getParent()->getInstList().erase(AI);
             ++ConvAllocas;
-	    //	    InsertFreesAtEnd(MI);
+	    	    InsertFreesAtEnd(MI);
 #ifndef LLVA_KERNEL	    
             if (stackAllocate) {
               ArrayMallocs.insert(MI);
@@ -266,7 +289,7 @@ void ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & 
 #ifndef LLVA_KERNEL 	    
             MI = new MallocInst(AI->getType()->getElementType(),
                                 AI->getArraySize(), AI->getName(), AI);
-	    InsertFreesAtEnd(MI);
+            InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
@@ -330,6 +353,7 @@ void ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
             MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
                                             AI->getArraySize(), AI->getName(), 
                                             AI);
+	    	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
