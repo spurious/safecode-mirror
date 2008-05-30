@@ -5,6 +5,7 @@
 #include "llvm/Pass.h"
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
+#include "llvm/Analysis/Dominators.h"
 #include "llvm/Target/TargetData.h"
 #include "safecode/Config/config.h"
 
@@ -58,6 +59,8 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
       AU.addRequired<TargetData>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominanceFrontier>();
 
       AU.addPreserved<ArrayBoundsCheck>();
       // Does not preserve the BU or TD graphs
