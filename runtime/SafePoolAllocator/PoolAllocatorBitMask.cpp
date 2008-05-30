@@ -67,6 +67,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
 struct PoolSlab {
   PoolSlab **PrevPtr, *Next;
   bool isSingleArray;   // If this slab is used for exactly one array
+  unsigned allocated; // Number of bytes allocated
 
 private:
   // FirstUnused - First empty node in slab
@@ -82,6 +83,11 @@ private:
   // effects the size of the NodeFlags vector, and indicates the number of nodes
   // which are in the slab.
   unsigned int NumNodesInSlab;
+
+  // Size of Slab - For single array slabs, specifies the size of the slab in
+  //                bytes from beginning to end (including slab header).
+  //
+  unsigned int SizeOfSlab;
 
   // NodeFlagsVector - This array contains two bits for each node in this pool
   // slab.  The first (low address) bit indicates whether this node has been
@@ -224,6 +230,7 @@ PoolSlab::create(PoolTy *Pool) {
   PS->FirstUnused = 0;    // Nothing allocated.
   PS->UsedBegin   = 0;    // Nothing allocated.
   PS->UsedEnd     = 0;    // Nothing allocated.
+  PS->allocated   = 0;    // No bytes allocated.
 
   for (unsigned i = 0; i < PS->getSlabSize(); ++i)
   {
@@ -264,8 +271,10 @@ PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   
   PS->addToList((PoolSlab**)&Pool->LargeArrays);
 
+  PS->allocated   = 0xffffffff;    // No bytes allocated.
   PS->isSingleArray = 1;
   PS->NumNodesInSlab = NodesPerSlab;
+  PS->SizeOfSlab     = (NumPages * PageSize);
   *(unsigned*)&PS->FirstUnused = NumPages;
   return PS->getElementAddress(0, 0);
 }
@@ -304,6 +313,7 @@ PoolSlab::allocateSingle() {
     // Return the entry, increment UsedEnd field.
     ++UsedEnd;
     assertOkay();
+    allocated += 1;
     return UE;
   }
   
@@ -325,6 +335,7 @@ PoolSlab::allocateSingle() {
     FirstUnused = FU;
     
     assertOkay();
+    allocated += 1;
     return Idx;
   }
   
@@ -357,6 +368,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
 
     // Return the entry
     assertOkay();
+    allocated += Size;
     return UE;
   }
 
@@ -399,6 +411,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
       
       // Return the entry
       assertOkay();
+      allocated += Size;
       return Idx;
     }
 
@@ -453,8 +466,7 @@ PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   if (FirstElement <= Ptr) {
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
     if (isSingleArray) {
-      assert (0 && "Must not use NumNodesInSlab!  Calculate size instead\n");
-      if (Delta < NumNodesInSlab) return Delta/ElementSize;
+      if (Delta < SizeOfSlab) return Delta/ElementSize;
     }
     unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
@@ -490,6 +502,7 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
 
   // Mark this element as being free!
   markNodeFree(ElementIdx);
+  --allocated;
 
   // If this slab is not a SingleArray
   assert(isStartOfAllocation(ElementIdx) &&
@@ -508,6 +521,7 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
          !isStartOfAllocation(ElementEndIdx) && 
          isNodeAllocated(ElementEndIdx)) {
     markNodeFree(ElementEndIdx);
+    --allocated;
     ++ElementEndIdx;
   }
   
@@ -539,6 +553,7 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
       UsedEnd = ElementIdx;
     } else {
       UsedEnd = lastNodeAllocated(ElementIdx);
+      if (FirstUnused > UsedEnd) FirstUnused = UsedEnd;
       assert(FirstUnused <= UsedEnd+1 &&
              "FirstUnused field was out of date!");
     }
@@ -596,7 +611,7 @@ ContainsAllocatedNode:
   assert((~(1U << MSB) & Flags) < Flags);// Removing it should make flag smaller
   ScanIdx = CurWord*16 + MSB;
   assert(isNodeAllocated(ScanIdx));
-  return ScanIdx;
+  return (ScanIdx+1);
 }
 
 
@@ -617,7 +632,7 @@ pool_init_runtime (unsigned Dangling) {
   //
   // Install hooks for catching allocations outside the scope of SAFECode
   //
-#if 0
+#if 1
   extern void installAllocHooks(void);
   installAllocHooks();
 #endif
@@ -878,6 +893,20 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   if (logregs) {
     fprintf (stderr, "pooluregister: %x\n", allocaptr);
   }
+}
+
+extern "C" void frag(PoolTy * Pool);
+void
+frag(PoolTy * Pool) {
+  unsigned long totalalloc=0;
+  unsigned long total=0;
+  for (PoolSlab *PS = (PoolSlab*)Pool->Ptr1; PS; PS = PS->Next) {
+    total += PS->getSlabSize();
+    totalalloc += PS->allocated;
+    fprintf (stderr, "%2f\n", (double) PS->allocated * 100 / (double) PS->getSlabSize());
+  }
+  fprintf (stderr, "%d %d %2f\n", totalalloc, total, (double) totalalloc * 100 / (double) total);
+  fflush (stderr);
 }
 
 //Pool->AllocadPool -1 : unused so far
@@ -1578,8 +1607,8 @@ poolfree(PoolTy *Pool, void *Node) {
     unsigned TheIndex;
     PS = SearchForContainingSlab(Pool, globalTemp, TheIndex);
     Idx = TheIndex;
-  }
-  else {
+    PS->freeElement(Idx);
+  } else {
     // Since it is undefined behavior to free a node which has not been
     // allocated, we know that the pointer coming in has to be a valid node
     // pointer in the pool.  Mask off some bits of the address to find the base
