@@ -1652,8 +1652,9 @@ poolfree(PoolTy *Pool, void *Node) {
 
     // If the partially full list has an empty node sitting at the front of the
     // list, insert right after it.
-    if ((*InsertPosPtr)->isEmpty())
-      InsertPosPtr = &(*InsertPosPtr)->Next;
+    if ((*InsertPosPtr))
+      if ((*InsertPosPtr)->isEmpty())
+        InsertPosPtr = &(*InsertPosPtr)->Next;
 
     PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
   }
