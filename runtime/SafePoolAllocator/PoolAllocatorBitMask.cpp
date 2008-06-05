@@ -310,6 +310,9 @@ PoolSlab::allocateSingle() {
       FirstUnused++;
     }
     
+    // Updated the UsedBegin field if necessary
+    if (UsedBegin > UE) UsedBegin = UE;
+
     // Return the entry, increment UsedEnd field.
     ++UsedEnd;
     assertOkay();
@@ -333,7 +336,10 @@ PoolSlab::allocateSingle() {
       ++FU;
     } while ((FU != SlabSize) && (isNodeAllocated(FU)));
     FirstUnused = FU;
-    
+
+    // Updated the UsedBegin field if necessary
+    if (UsedBegin > Idx) UsedBegin = Idx;
+
     assertOkay();
     allocated += 1;
     return Idx;
@@ -362,6 +368,9 @@ PoolSlab::allocateMultiple(unsigned Size) {
     // If we are allocating out the first unused field, bump its index also
     if (FirstUnused == UE)
       FirstUnused += Size;
+
+    // Updated the UsedBegin field if necessary
+    if (UsedBegin > UE) UsedBegin = UE;
 
     // Increment UsedEnd
     UsedEnd += Size;
@@ -409,6 +418,9 @@ PoolSlab::allocateMultiple(unsigned Size) {
           FirstUnused = SlabSize;
       }
       
+      // Updated the UsedBegin field if necessary
+      if (UsedBegin > Idx) UsedBegin = Idx;
+
       // Return the entry
       assertOkay();
       allocated += Size;
@@ -543,17 +555,19 @@ PoolSlab::freeElement(unsigned short ElementIdx) {
     // that all nodes are free in the slab.  If this is the case, simply reset
     // our pointers.
     if (UsedBegin == UE) {
-      //printf(": SLAB EMPTY\n");
       FirstUnused = 0;
       UsedBegin = 0;
       UsedEnd = 0;
+      assertOkay();
     } else if (FirstUnused == ElementIdx) {
       // Freed the last node(s) in this slab.
       FirstUnused = ElementIdx;
       UsedEnd = ElementIdx;
+      assertOkay();
     } else {
       UsedEnd = lastNodeAllocated(ElementIdx);
       if (FirstUnused > UsedEnd) FirstUnused = UsedEnd;
+      assertOkay();
       assert(FirstUnused <= UsedEnd+1 &&
              "FirstUnused field was out of date!");
     }
