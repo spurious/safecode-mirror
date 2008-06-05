@@ -1345,11 +1345,16 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
       }
       adl_splay_insert (&(Pool->OOB), P, 1, Dest);
       return invalidptr;
+    } else {
+      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
+               (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
+         (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+      abort();
     }
   }
 
   if (!Source) {
-    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
+    fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
              (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
        (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
     abort();
