@@ -15,6 +15,12 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/mman.h>
+
+/* Linux and *BSD tend to have these flags named differently. */
+#if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
+# define MAP_ANONYMOUS MAP_ANON
+#endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
 void
 poolcheckfail (const char * msg, int i, void* p)
@@ -47,10 +53,16 @@ poolcheckinfo2 (const char * msg, int a, int b)
   return;
 }
 
+static volatile unsigned pcmsize = 0;
 void *
 poolcheckmalloc (unsigned int power)
 {
-  return malloc (4096 * (1U << power));
+  void * Addr;
+  int fd;
+  Addr = mmap(0, 4096*(1U << power), PROT_READ|PROT_WRITE,
+                                     MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+  if (Addr != (void *)-1) pcmsize += 4096*(1U << power);
+  return (Addr == (void *)(-1)) ? 0 : Addr;
 }
 
 void *
