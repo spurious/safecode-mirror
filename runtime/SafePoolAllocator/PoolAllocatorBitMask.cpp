@@ -1334,13 +1334,18 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // Splay tree of external objects
   extern void * ExternalObjects;
 
+  /*
+   * First, attempt to find the pointer within a valid object.  If the source
+   * pointer is within a valid object but the destination pointer is not, then
+   * rewrite the pointer.
+   */
   void* S = Source;
   unsigned len = 0;
   int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
   if (fs) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
-    } else if (((char *) Dest) == ((char*)S + len)) {
+    } else {
       if (logregs)
         fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
@@ -1351,27 +1356,32 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
         fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
                  Source, Dest, (void*)__builtin_return_address(0));
         fflush (stderr);
-#if 0
         abort();
-#else
-        return Dest;
-#endif
       }
       adl_splay_insert (&(Pool->OOB), P, 1, Dest);
       return invalidptr;
-    } else {
-      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
-               (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-         (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
-      abort();
     }
   }
 
-  if (!Source) {
-    fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
-             (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
-    abort();
+  /*
+   * Allow pointers to the first page in memory provided that they remain
+   * within that page.  Loads and stores using such pointers will fault.  This
+   * allows indexing of NULL pointers without error.
+   */
+  if (Source < (unsigned char *)(4096)) {
+    if (Dest < (unsigned char *)(4096)) {
+      return Dest;
+    } else {
+      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of zero page:\n",
+               (unsigned) Pool, fs);
+      fprintf (stderr, "\tSource: %x, Dest: %x\n",
+               (unsigned) Source, (unsigned) Dest);
+      fprintf (stderr, "\tObject: %x, Len:  %x\n", (unsigned) S, len);
+      fprintf (stderr, "\teip=%x, esp=%x\n",
+               (unsigned)__builtin_return_address(0),
+               (unsigned)__builtin_frame_address(0));
+      abort();
+    }
   }
 
   /*
@@ -1384,9 +1394,15 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
     } else {
-      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n", (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-     (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
-      fflush (stderr);
+      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of external object:\n",
+               (unsigned) Pool, fs);
+      fprintf (stderr, "\tSource: %x, Dest: %x\n",
+               (unsigned) Source, (unsigned) Dest);
+      fprintf (stderr, "\tObject: %x, Len:  %x\n", (unsigned) S, len);
+      fprintf (stderr, "\teip=%x, esp=%x\n",
+               (unsigned)__builtin_return_address(0),
+               (unsigned)__builtin_frame_address(0));
+      abort();
     }
   }
 
