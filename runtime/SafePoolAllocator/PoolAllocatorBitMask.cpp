@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ucontext.h>
+#include <sys/mman.h>
 //#include <sys/ucontext.h>
 #define DEBUG(x) 
 
@@ -40,6 +41,11 @@ static PoolTy dummyPool;
 static unsigned dummyInitialized = 0;
 unsigned poolmemusage = 0;
 
+// Invalid address range
+#if !defined(__linux__)
+unsigned InvalidUpper = 0x00000000;
+unsigned InvalidLower = 0x00000003;
+#endif
 
 /* Set to 1 to log object registrations */
 static /*const*/ unsigned logregs = 0;
@@ -642,6 +648,23 @@ pool_init_runtime (unsigned Dangling) {
   //
   extern ConfigData ConfigData;
   ConfigData.RemapObjects = Dangling;
+
+  //
+  // Allocate a range of memory for rewrite pointers.
+  //
+#if !defined(__linux__)
+  const unsigned invalidsize = 1 * 1024 * 1024 * 1024;
+  void * Addr = mmap (0, invalidsize, 0, MAP_SHARED | MAP_ANON, -1, 0);
+  if (Addr == MAP_FAILED) {
+     perror ("mmap:");
+     fflush (stdout);
+     fflush (stderr);
+     assert(0 && "valloc failed\n");
+  }
+  madvise (Addr, invalidsize, MADV_FREE);
+  InvalidLower = (unsigned int) Addr;
+  InvalidUpper = (unsigned int) Addr + invalidsize;
+#endif
 
   //
   // Install hooks for catching allocations outside the scope of SAFECode
@@ -1297,8 +1320,8 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     ++invalidptr;
     void* P = invalidptr;
     if ((unsigned)P & ~(InvalidUpper - 1)) {
-      fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x, pc=%x\n",
-               Source, Dest, (void*)__builtin_return_address(0));
+      fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x: %x %x, pc=%x\n",
+               Source, Dest, InvalidLower, invalidptr, (void*)__builtin_return_address(0));
       fflush (stderr);
 #if 0
       abort();
@@ -1352,9 +1375,11 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
       if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
       ++invalidptr;
       void* P = invalidptr;
-      if ((unsigned)P & ~(InvalidUpper - 1)) {
+      //if ((unsigned)P & ~(InvalidUpper - 1)) {
+      if ((unsigned) P == InvalidUpper) {
         fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
-                 Source, Dest, (void*)__builtin_return_address(0));
+                 InvalidLower, InvalidUpper, invalidptr);
+                 //Source, Dest, (void*)__builtin_return_address(0));
         fflush (stderr);
         abort();
       }
