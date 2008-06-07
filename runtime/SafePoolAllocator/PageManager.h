@@ -37,9 +37,6 @@
 #if defined(__linux__)
 static const unsigned InvalidUpper = 0xf0000000;
 static const unsigned InvalidLower = 0xc0000000;
-#else
-static const unsigned InvalidUpper = 0x00001000;
-static const unsigned InvalidLower = 0x00000003;
 #endif
 
 //
