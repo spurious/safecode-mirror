@@ -104,7 +104,8 @@ int main(int argc, char **argv) {
 
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
-    Passes.add(new ConvertUnsafeAllocas());
+    if ((DanglingPointerChecks) || (FullPA))
+      Passes.add(new ConvertUnsafeAllocas());
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
