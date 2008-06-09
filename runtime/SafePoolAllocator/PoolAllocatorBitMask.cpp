@@ -47,6 +47,9 @@ unsigned InvalidUpper = 0x00000000;
 unsigned InvalidLower = 0x00000003;
 #endif
 
+// Splay tree of external objects
+extern void * ExternalObjects;
+
 /* Set to 1 to log object registrations */
 static /*const*/ unsigned logregs = 0;
 
@@ -669,7 +672,7 @@ pool_init_runtime (unsigned Dangling) {
   //
   // Install hooks for catching allocations outside the scope of SAFECode
   //
-#if 1
+#if 0
   extern void installAllocHooks(void);
   installAllocHooks();
 #endif
@@ -1254,9 +1257,6 @@ poolcheck(PoolTy *Pool, void *Node) {
 
 void
 poolcheckui (PoolTy *Pool, void *Node) {
-  // Splay tree of external objects
-  extern void * ExternalObjects;
-
   void* S = Node;
   unsigned len = 0;
   if (!Pool) return;
@@ -1354,9 +1354,6 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
 
 void *
 boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
-  // Splay tree of external objects
-  extern void * ExternalObjects;
-
   /*
    * First, attempt to find the pointer within a valid object.  If the source
    * pointer is within a valid object but the destination pointer is not, then
@@ -1419,8 +1416,8 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
     } else {
-      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of external object:\n",
-               (unsigned) Pool, fs);
+      fprintf (stderr, "Boundscheckui failed(%x:%x:%x): Out of external object:\n",
+               (unsigned)(ExternalObjects), (unsigned) Pool, fs);
       fprintf (stderr, "\tSource: %x, Dest: %x\n",
                (unsigned) Source, (unsigned) Dest);
       fprintf (stderr, "\tObject: %x, Len:  %x\n", (unsigned) S, len);
