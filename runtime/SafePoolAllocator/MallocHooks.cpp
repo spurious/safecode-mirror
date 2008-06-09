@@ -20,7 +20,7 @@
 #include "adl_splay.h"
 
 // Splay tree for recording external allocations
-void * ExternalObjects;
+void * ExternalObjects = 0;
 
 #if defined(__APPLE__)
 // The real allocation functions
