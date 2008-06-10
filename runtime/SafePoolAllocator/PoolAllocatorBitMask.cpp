@@ -849,7 +849,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
       //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
       if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapObject\n");}
       //  remap the page to get a shadow page (dangling pointer detection library)
-      PS = (PoolSlab *) RemapObject(globalTemp, Size);
+      PS = (PoolSlab *) RemapObject(globalTemp, Size*Pool->NodeSize);
       if (logregs) {
         fprintf(stderr, " poolallocarray:735: globalTemp = 0x%x\n", (unsigned)globalTemp);
         fprintf(stderr ," poolallocarray:736: PS = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
@@ -887,7 +887,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
   //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
   
   // remap page to get a shadow page (dangling pointer detection library)
-  New = (PoolSlab *) RemapObject(globalTemp, Size);
+  New = (PoolSlab *) RemapObject(globalTemp, Size*Pool->NodeSize);
   offset = (unsigned)globalTemp & (PPageSize - 1);
   if (logregs) {
     fprintf(stderr, " poolallocarray:774: globalTemp = 0x%x\n, offset = 0x%x\n", (unsigned)globalTemp, offset);
