@@ -21,15 +21,10 @@ SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 PA_SO    := $(PROJECT_DIR)/Debug/lib/addchecks.o
 
 # Pool allocator runtime library
-#PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
-#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_splay_rt.o
 PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-#PA_RT_O  := $(PROJECT_DIR)/Profile/lib/poolalloc_safe_rt.o
-#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_splay_rt.bca
-#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
-#PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
-#PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
+PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 
+# Pool System library for interacting with the system
 POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
@@ -47,8 +42,9 @@ OPTZN_PASSES := -std-compile-opts
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(SC_STATS) $< -o $@.sc -f 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.sc -o $@ -f 2>&1    >> $@.out
+	-$(SC_STATS) $< -f -o $@.sc 2>&1 > $@.out
+	-$(LLVMLDPROG) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
