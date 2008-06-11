@@ -16,8 +16,12 @@
 
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
+#else
+#include <stdio.h>
 #endif
 #define DEBUG(x) 
+
+extern void * rewrite_ptr (void * p);
 
 /*
  * Function: exactcheck()
@@ -46,9 +50,8 @@ exactcheck (int a, int b, void * result) {
 
 void *
 exactcheck2 (signed char *base, signed char *result, unsigned size) {
-  if ((result < base) || (result >= base + size )) {
-    poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
-  }
+  if ((result < base) || (result >= (base + size)))
+    return rewrite_ptr (result);
   return result;
 }
 

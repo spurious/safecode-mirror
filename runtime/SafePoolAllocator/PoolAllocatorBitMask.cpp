@@ -1440,6 +1440,26 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   return Dest;
 }
 
+void *
+rewrite_ptr (void * p) {
+  static void * OOBTree;
+
+  if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+  ++invalidptr;
+  void* P = invalidptr;
+  //if ((unsigned)P & ~(InvalidUpper - 1)) {
+  if ((unsigned) P == InvalidUpper) {
+    fprintf (stderr, "rewrite: out of rewrite ptrs: %x %x, pc=%x\n",
+             InvalidLower, InvalidUpper, invalidptr);
+             //Source, Dest, (void*)__builtin_return_address(0));
+    fflush (stderr);
+    abort();
+  }
+
+  adl_splay_insert (&(OOBTree), P, 1, p);
+  return invalidptr;
+}
+
 /*
  * Function: getActualValue()
  *

@@ -81,12 +81,6 @@ typedef struct DebugMetaData {
 typedef DebugMetaData * PDebugMetaData;
 
 extern "C" {
-  static void exactcheck(int a, int b) {
-    if ((0 > a) || (a >= b)) {
-      fprintf(stderr, "exact check failed\n");
-      exit(-1);
-    }
-  }
   void pool_init_runtime(unsigned Dangling);
   void poolinit(PoolTy *Pool, unsigned NodeSize);
   void poolmakeunfreeable(PoolTy *Pool);
@@ -108,6 +102,8 @@ extern "C" {
   void poolstats(void);
   void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
                       unsigned EndOffset);
+
+  void * rewrite_ptr (void * p);
   //void protect_shadowpage();
 }
 
