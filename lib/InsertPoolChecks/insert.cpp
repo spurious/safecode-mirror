@@ -420,7 +420,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
     //
     const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType());
     if ((!WasIndexed) && AT && (AT->getNumElements())) {
-      Value* Size=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(GV->getType()));
+      Value* Size=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AT));
       addExactCheck2 (PointerOperand, GEP, Size, InsertPt);
       return true;
     }
