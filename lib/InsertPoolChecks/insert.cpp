@@ -71,7 +71,597 @@ namespace {
   STATISTIC (SavedRegAllocs,      "Stack registrations avoided");
 }
 
+////////////////////////////////////////////////////////////////////////////
+// Static Functions
+////////////////////////////////////////////////////////////////////////////
+
+//
+// Function: isEligableForExactCheck()
+//
+// Return value:
+//  true  - This value is eligable for an exactcheck.
+//  false - This value is not eligable for an exactcheck.
+//
+static inline bool
+isEligableForExactCheck (Value * Pointer, bool IOOkay) {
+  if ((isa<AllocaInst>(Pointer)) ||
+      (isa<MallocInst>(Pointer)) ||
+      (isa<GlobalVariable>(Pointer)))
+    return true;
+
+  if (CallInst* CI = dyn_cast<CallInst>(Pointer)) {
+    if (CI->getCalledFunction() &&
+        (CI->getCalledFunction()->getName() == "__vmalloc" || 
+         CI->getCalledFunction()->getName() == "malloc" || 
+         CI->getCalledFunction()->getName() == "kmalloc" || 
+         CI->getCalledFunction()->getName() == "kmem_cache_alloc" || 
+         CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
+      return true;
+    }
+
+    if (IOOkay && (CI->getCalledFunction()->getName() == "__ioremap")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+//
+// Function: findSourcePointer()
+//
+// Description:
+//  Given a pointer value, attempt to find a source of the pointer that can
+//  be used in an exactcheck().
+//
+// Outputs:
+//  indexed - Flags whether the data flow went through a indexing operation
+//            (i.e. a GEP).  This value is always written.
+//
+static Value *
+findSourcePointer (Value * PointerOperand, bool & indexed, bool IOOkay = true) {
+  //
+  // Attempt to look for the originally allocated object by scanning the data
+  // flow up.
+  //
+  indexed = false;
+  Value * SourcePointer = PointerOperand;
+  Value * OldSourcePointer = 0;
+  while (!isEligableForExactCheck (SourcePointer, IOOkay)) {
+    assert (OldSourcePointer != SourcePointer);
+    OldSourcePointer = SourcePointer;
+
+    // Check for GEP and cast constant expressions
+    if (ConstantExpr * cExpr = dyn_cast<ConstantExpr>(SourcePointer)) {
+      if ((cExpr->isCast()) ||
+          (cExpr->getOpcode() == Instruction::GetElementPtr)) {
+        if (isa<PointerType>(cExpr->getOperand(0)->getType())) {
+          SourcePointer = cExpr->getOperand(0);
+          continue;
+        }
+      }
+      // We cannot handle this expression; break out of the loop
+      break;
+    }
+
+    // Check for GEP and cast instructions
+    if (GetElementPtrInst * G = dyn_cast<GetElementPtrInst>(SourcePointer)) {
+      SourcePointer = G->getPointerOperand();
+      indexed = true;
+      continue;
+    }
+
+    if (CastInst * CastI = dyn_cast<CastInst>(SourcePointer)) {
+      if (isa<PointerType>(CastI->getOperand(0)->getType())) {
+        SourcePointer = CastI->getOperand(0);
+        continue;
+      }
+      break;
+    }
+
+    // Check for call instructions to exact checks.
+    CallInst * CI1;
+    if ((CI1 = dyn_cast<CallInst>(SourcePointer)) &&
+        (CI1->getCalledFunction()) &&
+        (CI1->getCalledFunction()->getName() == "exactcheck3")) {
+      SourcePointer = CI1->getOperand (2);
+      continue;
+    }
+
+    // We can't scan through any more instructions; give up
+    break;
+  }
+
+  if (isEligableForExactCheck (SourcePointer, IOOkay))
+    PointerOperand = SourcePointer;
+
+  return PointerOperand;
+}
+
+////////////////////////////////////////////////////////////////////////////
+// InsertPoolChecks Methods
+////////////////////////////////////////////////////////////////////////////
+
 namespace llvm {
+//
+// Function: addExactCheck()
+//
+// Description:
+//  Utility routine that inserts a call to exactcheck().  This function can
+//  perform some optimization be determining if the arguments are constant.
+//  If they are, we can forego inserting the call.
+//
+// Inputs:
+//  Index - An LLVM Value representing the index of the access.
+//  Bounds - An LLVM Value representing the bounds of the check.
+//
+void
+InsertPoolChecks::addExactCheck (Value * Pointer,
+                                 Value * Index, Value * Bounds,
+                                 Instruction * InsertPt) {
+#if 0
+  //
+  // Record that this value was checked.
+  //
+  CheckedValues.insert (Pointer);
+#endif
+
+  //
+  // Attempt to determine statically if this check will always pass; if so,
+  // then don't bother doing it at run-time.
+  //
+  ConstantInt * CIndex  = dyn_cast<ConstantInt>(Index);
+  ConstantInt * CBounds = dyn_cast<ConstantInt>(Bounds);
+  if (CIndex && CBounds) {
+    int index  = CIndex->getSExtValue();
+    int bounds = CBounds->getSExtValue();
+    assert ((index >= 0) && "exactcheck: const negative index");
+    assert ((index < bounds) && "exactcheck: const out of range");
+
+    return;
+  }
+
+  //
+  // Second, cast the operands to the correct type.
+  //
+  Value * CastIndex = Index;
+  if (Index->getType() != Type::Int32Ty)
+    CastIndex = castTo (Index, Type::Int32Ty,
+                             Index->getName()+".ec.casted", InsertPt);
+
+  Value * CastBounds = Bounds;
+  if (Bounds->getType() != Type::Int32Ty)
+    CastBounds = castTo (Bounds, Type::Int32Ty,
+                              Bounds->getName()+".ec.casted", InsertPt);
+
+  const Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+  Value * CastResult = Pointer;
+  if (CastResult->getType() != VoidPtrType)
+    CastResult = castTo (CastResult, VoidPtrType,
+                              CastResult->getName()+".ec.casted", InsertPt);
+
+  std::vector<Value *> args(1, CastIndex);
+  args.push_back(CastBounds);
+  args.push_back(CastResult);
+  Instruction * CI = CallInst::Create (ExactCheck, args.begin(), args.end(), "ec", InsertPt);
+
+#if 0
+  //
+  // Replace the old index with the return value of exactcheck(); this
+  // prevents GCC from removing it completely.
+  //
+  Value * CastCI = CI;
+  if (CI->getType() != GEP->getType())
+    CastCI = castTo  (CI, GEP->getType(), GEP->getName(), InsertPt);
+
+  Value::use_iterator UI = GEP->use_begin();
+  for (; UI != GEP->use_end(); ++UI) {
+    if (((*UI) != CI) && ((*UI) != CastResult))
+      UI->replaceUsesOfWith (GEP, CastCI);
+  }
+#endif
+
+  return;
+}
+
+//
+// Function: addExactCheck2()
+//
+// Description:
+//  Utility routine that inserts a call to exactcheck2().
+//
+// Inputs:
+//  BasePointer   - An LLVM Value representing the base of the object to check.
+//  Result        - An LLVM Value representing the pointer to check.
+//  Bounds        - An LLVM Value representing the bounds of the check.
+//  InsertPt      - The instruction before which to insert the check.
+//
+void
+InsertPoolChecks::addExactCheck2 (Value * BasePointer,
+                                  Value * Result,
+                                  Value * Bounds,
+                                  Instruction * InsertPt) {
+  Value * ResultPointer = Result;
+
+  // The LLVM type for a void *
+  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+
+  //
+  // Cast the operands to the correct type.
+  //
+  if (BasePointer->getType() != VoidPtrType)
+    BasePointer = castTo (BasePointer, VoidPtrType,
+                          BasePointer->getName()+".ec2.casted",
+                          InsertPt);
+
+  if (ResultPointer->getType() != VoidPtrType)
+    ResultPointer = castTo (ResultPointer, VoidPtrType,
+                            ResultPointer->getName()+".ec2.casted",
+                            InsertPt);
+
+  Value * CastBounds = Bounds;
+  if (Bounds->getType() != Type::Int32Ty)
+    CastBounds = castTo (Bounds, Type::Int32Ty,
+                         Bounds->getName()+".ec.casted", InsertPt);
+
+  //
+  // Create the call to exactcheck2().
+  //
+  std::vector<Value *> args(1, BasePointer);
+  args.push_back(ResultPointer);
+  args.push_back(CastBounds);
+  Instruction * CI;
+  CI = CallInst::Create (ExactCheck2, args.begin(), args.end(), "", InsertPt);
+
+  //
+  // Record that this value was checked.
+  //
+#if 0
+  CheckedValues.insert (Result);
+#endif
+
+#if 0
+  //
+  // Replace the old pointer with the return value of exactcheck2(); this
+  // prevents GCC from removing it completely.
+  //
+  if (CI->getType() != GEP->getType())
+    CI = castTo (CI, GEP->getType(), GEP->getName(), InsertPt);
+
+  Value::use_iterator UI = GEP->use_begin();
+  for (; UI != GEP->use_end(); ++UI) {
+    if (((*UI) != CI) && ((*UI) != ResultPointer))
+      UI->replaceUsesOfWith (GEP, CI);
+  }
+#endif
+
+  return;
+}
+
+
+//
+// Function: insertExactCheck()
+//
+// Description:
+//  Attepts to insert an efficient, accurate array bounds check for the given
+//  GEP instruction; this check will not use Pools are MetaPools.
+//
+// Return value:
+//  true  - An exactcheck() was successfully added.
+//  false - An exactcheck() could not be added; a more extensive check will be
+//          needed.
+//
+bool
+InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
+  // The GEP instruction casted to the correct type
+  Instruction *Casted = GEP;
+
+  // The pointer operand of the GEP expression
+  Value * PointerOperand = GEP->getPointerOperand();
+
+  //
+  // Get the DSNode for the instruction
+  //
+  Function *F   = GEP->getParent()->getParent();
+  DSGraph & TDG = getDSGraph(*F);
+  DSNode * Node = TDG.getNodeForValue(GEP).getNode();
+  assert (Node && "boundscheck: DSNode is NULL!");
+
+#if 0
+  //
+  // Determine whether an alignment check is needed.  This occurs when a DSNode
+  // is type unknown (collapsed) but has pointers to type known (uncollapsed)
+  // DSNodes.
+  //
+  if (preSCPass->nodeNeedsAlignment (Node)) {
+    ++AlignChecks;
+  }
+#endif
+
+  //
+  // Attempt to find the object which we need to check.
+  //
+  bool WasIndexed = true;
+  PointerOperand = findSourcePointer (PointerOperand, WasIndexed);
+
+  //
+  // Ensure the pointer operand really is a pointer.
+  //
+  if (!isa<PointerType>(PointerOperand->getType()))
+    return false;
+
+  //
+  // Find the insertion point for the run-time check.
+  //
+  //BasicBlock::iterator InsertPt = AI->getParent()->begin();
+  BasicBlock::iterator InsertPt = GEP;
+  ++InsertPt;
+
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(PointerOperand)) {
+    //
+    // Attempt to remove checks on GEPs that only index into structures.
+    // These criteria must be met:
+    //  1) The pool must be Type-Homogoneous.
+    //
+#if 0
+    if ((!(Node->isNodeCompletelyFolded())) &&
+        (indexesStructsOnly (GEP))) {
+      ++StructGEPsRemoved;
+      return true;
+    }
+#endif
+
+    //
+    // Attempt to use a call to exactcheck() to check this value if it is a
+    // global array with a non-zero size.  We do not check zero length arrays
+    // because in C they are often used to declare an external array of unknown
+    // size as follows:
+    //        extern struct foo the_array[];
+    //
+    const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType());
+    if ((!WasIndexed) && AT && (AT->getNumElements())) {
+      Value* Size=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(GV->getType()));
+      addExactCheck2 (PointerOperand, GEP, Size, InsertPt);
+      return true;
+    }
+  }
+
+  //
+  // If the pointer was generated by a dominating alloca instruction, we can
+  // do an exactcheck on it, too.
+  //
+  if (AllocaInst *AI = dyn_cast<AllocaInst>(PointerOperand)) {
+    //
+    // Attempt to remove checks on GEPs that only index into structures.
+    // These criteria must be met:
+    //  1) The pool must be Type-Homogoneous.
+    //
+#if 0
+    if ((!(Node->isNodeCompletelyFolded())) &&
+        (indexesStructsOnly (GEP))) {
+      ++StructGEPsRemoved;
+      return true;
+    }
+#endif
+
+    const Type * AllocaType = AI->getAllocatedType();
+    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AllocaType));
+
+    if (AI->isArrayAllocation())
+      AllocSize = BinaryOperator::create(Instruction::Mul,
+                                         AllocSize,
+                                         AI->getOperand(0), "sizetmp", GEP);
+
+    addExactCheck2 (PointerOperand, GEP, AllocSize, InsertPt);
+    return true;
+  }
+
+  //
+  // If the pointer was an allocation, we should be able to do exact checks
+  //
+  CallInst* CI = dyn_cast<CallInst>(PointerOperand);
+  if (CI && (CI->getCalledFunction())) {
+    if ((CI->getCalledFunction()->getName() == "__vmalloc") || 
+        (CI->getCalledFunction()->getName() == "kmalloc") || 
+        (CI->getCalledFunction()->getName() == "malloc") || 
+        (CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
+      //
+      // Attempt to remove checks on GEPs that only index into structures.
+      // These criteria must be met:
+      //  1) The pool must be Type-Homogoneous.
+      //
+#if 0
+      if ((!(Node->isNodeCompletelyFolded())) &&
+          (indexesStructsOnly (GEP))) {
+        ++StructGEPsRemoved;
+        return true;
+      }
+#endif
+
+      Value* Cast = castTo (CI->getOperand(1), Type::Int32Ty, "", GEP);
+      addExactCheck2(PointerOperand, GEP, Cast, InsertPt);
+      return true;
+    } else if (CI->getCalledFunction()->getName() == "__ioremap") {
+      Value* Cast = castTo (CI->getOperand(2), Type::Int32Ty, "", GEP);
+      addExactCheck2(PointerOperand, GEP, Cast, InsertPt);
+      return true;
+    }
+  }
+
+  //
+  // If the pointer is to a structure, we may be able to perform a simple
+  // exactcheck on it, too, unless the array is at the end of the structure.
+  // Then, we assume it's a variable length array and must be full checked.
+  //
+#if 0
+  if (const PointerType * PT = dyn_cast<PointerType>(PointerOperand->getType()))
+    if (const StructType *ST = dyn_cast<StructType>(PT->getElementType())) {
+      const Type * CurrentType = ST;
+      ConstantInt * C;
+      for (unsigned index = 2; index < GEP->getNumOperands() - 1; ++index) {
+        //
+        // If this GEP operand is a constant, index down into the next type.
+        //
+        if (C = dyn_cast<ConstantInt>(GEP->getOperand(index))) {
+          if (const StructType * ST2 = dyn_cast<StructType>(CurrentType)) {
+            CurrentType = ST2->getElementType(C->getZExtValue());
+            continue;
+          }
+
+          if (const ArrayType * AT = dyn_cast<ArrayType>(CurrentType)) {
+            CurrentType = AT->getElementType();
+            continue;
+          }
+
+          // We don't know how to handle this type of element
+          break;
+        }
+
+        //
+        // If the GEP operand is not constant and points to an array type,
+        // then try to insert an exactcheck().
+        //
+        const ArrayType * AT;
+        if ((AT = dyn_cast<ArrayType>(CurrentType)) && (AT->getNumElements())) {
+          const Type* csiType = Type::getPrimitiveType(Type::Int32Ty);
+          ConstantInt * Bounds = ConstantInt::get(csiType,AT->getNumElements());
+          addExactCheck (GEP, GEP->getOperand (index), Bounds);
+          return true;
+        }
+      }
+    }
+#endif
+
+  /*
+   * We were not able to insert a call to exactcheck().
+   */
+  return false;
+}
+
+//
+// Function: insertExactCheck()
+//
+// Description:
+//  Attepts to insert an efficient, accurate array bounds check for the given
+//  GEP instruction; this check will not use Pools are MetaPools.
+//
+// Inputs:
+//  I        - The instruction for which we are adding the check.
+//  Src      - The pointer that needs to be checked.
+//  Size     - The size, in bytes, that will be read/written by instruction I.
+//  InsertPt - The instruction before which the check should be inserted.
+//
+// Return value:
+//  true  - An exactcheck() was successfully added.
+//  false - An exactcheck() could not be added; a more extensive check will be
+//          needed.
+//
+bool
+InsertPoolChecks::insertExactCheck (Instruction * I,
+                                    Value * Src,
+                                    Value * Size,
+                                    Instruction * InsertPt) {
+  // The pointer operand of the GEP expression
+  Value * PointerOperand = Src;
+
+  //
+  // Get the DSNode for the instruction
+  //
+#if 1
+  Function *F   = I->getParent()->getParent();
+  DSGraph & TDG = getDSGraph(*F);
+  DSNode * Node = TDG.getNodeForValue(I).getNode();
+  if (!Node)
+    return false;
+#endif
+
+  //
+  // Determine whether an alignment check is needed.  This occurs when a DSNode
+  // is type unknown (collapsed) but has pointers to type known (uncollapsed)
+  // DSNodes.
+  //
+#if 0
+  if (preSCPass->nodeNeedsAlignment (Node)) {
+    ++AlignChecks;
+  }
+#endif
+
+  //
+  // Attempt to find the original object for which this check applies.
+  // This involves unpeeling casts, GEPs, etc.
+  //
+  bool WasIndexed = true;
+  PointerOperand = findSourcePointer (PointerOperand, WasIndexed);
+
+  //
+  // Ensure the pointer operand really is a pointer.
+  //
+  if (!isa<PointerType>(PointerOperand->getType()))
+  {
+    return false;
+  }
+
+  //
+  // Attempt to use a call to exactcheck() to check this value if it is a
+  // global array with a non-zero size.  We do not check zero length arrays
+  // because in C they are often used to declare an external array of unknown
+  // size as follows:
+  //        extern struct foo the_array[];
+  //
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(PointerOperand)) {
+    const Type* csiType = Type::Int32Ty;
+    unsigned int arraysize = TD->getABITypeSize(GV->getType()->getElementType());
+    ConstantInt * Bounds = ConstantInt::get(csiType, arraysize);
+    if (WasIndexed)
+      addExactCheck2 (PointerOperand, Src, Bounds, InsertPt);
+    else
+      addExactCheck (Src, Size, Bounds, InsertPt);
+    return true;
+  }
+
+  //
+  // If the pointer was generated by a dominating alloca instruction, we can
+  // do an exactcheck on it, too.
+  //
+  if (AllocaInst *AI = dyn_cast<AllocaInst>(PointerOperand)) {
+    const Type * AllocaType = AI->getAllocatedType();
+    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AllocaType));
+
+    if (AI->isArrayAllocation())
+      AllocSize = BinaryOperator::create(Instruction::Mul,
+                                         AllocSize,
+                                         AI->getOperand(0), "allocsize", InsertPt);
+
+    if (WasIndexed)
+      addExactCheck2 (PointerOperand, Src, AllocSize, InsertPt);
+    else
+      addExactCheck (Src, Size, AllocSize, InsertPt);
+    return true;
+  }
+
+  //
+  // If the pointer was an allocation, we should be able to do exact checks
+  //
+  if(CallInst* CI = dyn_cast<CallInst>(PointerOperand)) {
+    if (CI->getCalledFunction() && (
+                              CI->getCalledFunction()->getName() == "__vmalloc" || 
+                              CI->getCalledFunction()->getName() == "malloc" || 
+                              CI->getCalledFunction()->getName() == "kmalloc")) {
+      Value* Cast = castTo (CI->getOperand(1), Type::Int32Ty, "allocsize", InsertPt);
+      if (WasIndexed)
+        addExactCheck2 (PointerOperand, Src, Cast, InsertPt);
+      else
+        addExactCheck (Src, Size, Cast, InsertPt);
+      return true;
+    }
+  }
+
+  //
+  // We were not able to insert a call to exactcheck().
+  //
+  return false;
+}
+
 bool InsertPoolChecks::runOnModule(Module &M) {
   abcPass = getAnalysisToUpdate<ArrayBoundsCheck>();
   //  budsPass = &getAnalysis<CompleteBUDataStructures>();
@@ -806,7 +1396,8 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 
 #endif
 
-void InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
+void
+InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
   std::set<Instruction *> * UnsafeGetElemPtrs = abcPass->getUnsafeGEPs (BB);
   if (!UnsafeGetElemPtrs)
     return;
@@ -932,6 +1523,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     if (GetElementPtrInst *GEPNew = dyn_cast<GetElementPtrInst>(Casted)) {
       Value *PH = getPoolHandle(GEP, F, *FI);
       if (PH && isa<ConstantPointerNull>(PH)) continue;
+      if (insertExactCheck (GEPNew)) continue;
       if (!PH) {
         Value *PointerOperand = GEPNew->getPointerOperand();
         if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
@@ -1230,6 +1822,12 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   FunctionType *ExactCheckTy = FunctionType::get(Type::VoidTy, FArg2, false);
   ExactCheck = M.getOrInsertFunction("exactcheck", ExactCheckTy);
 
+  std::vector<const Type*> FArg4(1, VoidPtrType); //base
+  FArg4.push_back(VoidPtrType); //result
+  FArg4.push_back(Type::Int32Ty); //size
+  FunctionType *ExactCheck2Ty = FunctionType::get(VoidPtrType, FArg4, false);
+  ExactCheck2  = M.getOrInsertFunction("exactcheck2",  ExactCheck2Ty);
+
   std::vector<const Type *> FArg3(1, Type::Int32Ty);
   FArg3.push_back(VoidPtrType);
   FArg3.push_back(VoidPtrType);
@@ -1245,6 +1843,23 @@ void InsertPoolChecks::addPoolCheckProto(Module &M) {
   FArg6.push_back(VoidPtrType);
   FunctionType *StackFreeTy = FunctionType::get(VoidPtrType, FArg6, false);
   StackFree=M.getOrInsertFunction("poolunregister", StackFreeTy);
+}
+
+//
+// Method: getDSGraph()
+//
+// Description:
+//  Return the DSGraph for the given function.  This method automatically
+//  selects the correct pass to query for the graph based upon whether we're
+//  doing user-space or kernel analysis.
+//
+DSGraph &
+InsertPoolChecks::getDSGraph(Function & F) {
+#ifndef LLVA_KERNEL
+  return paPass->getDSGraph(F);
+#else  
+  return TDPass->getDSGraph(F);
+#endif  
 }
 
 DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {

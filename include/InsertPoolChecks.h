@@ -57,6 +57,7 @@ struct InsertPoolChecks : public ModulePass {
   Constant *PoolCheckArray;
   Constant *PoolCheckArrayUI;
   Constant *ExactCheck;
+  Constant *ExactCheck2;
   Constant *FunctionCheck;
   Constant *GetActualValue;
   Constant *StackFree;
@@ -64,11 +65,16 @@ struct InsertPoolChecks : public ModulePass {
   void addPoolChecks(Module &M);
   void addGetElementPtrChecks(BasicBlock * BB);
   void addGetActualValue(llvm::ICmpInst*, unsigned int);
+  bool insertExactCheck (GetElementPtrInst * GEP);
+  bool insertExactCheck (Instruction * , Value *, Value *, Instruction *);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
   void addLoadStoreChecks(Module &M);
   void registerStackObjects (Module &M);
   void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig);
+  void addExactCheck (Value * P, Value * I, Value * B, Instruction * InsertPt);
+  void addExactCheck2 (Value * B, Value * R, Value * C, Instruction * InsertPt);
+  DSGraph & getDSGraph (Function & F);
 #ifndef LLVA_KERNEL  
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
   Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = false);
