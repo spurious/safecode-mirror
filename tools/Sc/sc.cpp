@@ -20,6 +20,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
@@ -78,6 +79,8 @@ GetFileNameRoot(const std::string &InputFilename) {
 int main(int argc, char **argv) {
   std::string mt;
   std::string & msg = mt;
+  llvm_shutdown_obj ShutdownObject;
+
   try {
     cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
     sys::PrintStackTraceOnErrorSignal();
@@ -202,6 +205,7 @@ int main(int argc, char **argv) {
   } catch (...) {
     std::cerr << argv[0] << ": Unexpected unknown exception occurred.\n";
   }
+  llvm_shutdown();
   return 1;
 }
 
