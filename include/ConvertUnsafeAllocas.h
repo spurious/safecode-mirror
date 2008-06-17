@@ -1,3 +1,19 @@
+//===- convert.h - Promote unsafe alloca instructions to heap allocations ----//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file implements a pass that promotes unsafe stack allocations to heap
+// allocations.  It also updates the pointer analysis results accordingly.
+//
+// This pass relies upon the abcpre, abc, and checkstack safety passes.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef CONVERT_ALLOCA_H
 #define CONVERT_ALLOCA_H
 
@@ -18,8 +34,8 @@ ModulePass *createConvertUnsafeAllocas();
 
 using namespace ABC;
 using namespace CSS;
-struct MallocPass : public FunctionPass
-{
+
+struct MallocPass : public FunctionPass {
   private:
     // Private data
     Constant * memsetF;
@@ -48,7 +64,7 @@ struct MallocPass : public FunctionPass
 
 namespace CUA {
 struct ConvertUnsafeAllocas : public ModulePass {
-    public :
+  public:
     static char ID;
     ConvertUnsafeAllocas () : ModulePass ((intptr_t)(&ID)) {}
     const char *getPassName() const { return "Convert Unsafe Allocas"; }
@@ -63,42 +79,45 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<DominanceFrontier>();
 
       AU.addPreserved<ArrayBoundsCheck>();
+
       // Does not preserve the BU or TD graphs
 #ifdef LLVA_KERNEL       
       AU.setPreservesAll();
-#else
-      //AU.setPreservesAll();
 #endif            
     }
 
-  DSNode * getDSNode(const Value *I, Function *F);
-  DSNode * getTDDSNode(const Value *I, Function *F);
+    DSNode * getDSNode(const Value *I, Function *F);
+    DSNode * getTDDSNode(const Value *I, Function *F);
 
-  std::map<BasicBlock*,std::set<Instruction *>*> & getUnsafeGetElementPtrsFromABC() {
-    assert(abcPass != 0 && "First run the array bounds pass correctly");
-    return abcPass->UnsafeGetElemPtrs;
-  }  
+    std::map<BasicBlock*,std::set<Instruction *>*> &
+    getUnsafeGetElementPtrsFromABC() {
+      assert(abcPass != 0 && "First run the array bounds pass correctly");
+      return abcPass->UnsafeGetElemPtrs;
+    }  
 
-  std::set<Instruction *> * getUnsafeGetElementPtrsFromABC(BasicBlock * BB) {
-    assert(abcPass != 0 && "First run the array bounds pass correctly");
-    return abcPass->getUnsafeGEPs (BB);
-  }  
+    std::set<Instruction *> * getUnsafeGetElementPtrsFromABC(BasicBlock * BB) {
+      assert(abcPass != 0 && "First run the array bounds pass correctly");
+      return abcPass->getUnsafeGEPs (BB);
+    }  
 
-  // The set of Malloc Instructions that are a result of conversion from
-  // alloca's due to static array bounds detection failure
-  std::set<const MallocInst *>  ArrayMallocs;
+    // The set of Malloc Instructions that are a result of conversion from
+    // alloca's due to static array bounds detection failure
+    std::set<const MallocInst *>  ArrayMallocs;
 
-    private :
-      TDDataStructures * tddsPass;
-      BUDataStructures * budsPass;
-      ArrayBoundsCheck * abcPass;
-      checkStackSafety * cssPass;
-  TargetData *TD;
-  
+  private:
+    TDDataStructures * tddsPass;
+    BUDataStructures * budsPass;
+    ArrayBoundsCheck * abcPass;
+    checkStackSafety * cssPass;
+    PoolAllocateGroup * paPass;
+
+    TargetData *TD;
+
 #ifdef LLVA_KERNEL
-Constant *kmalloc;
-Constant *StackPromote;
+    Constant *kmalloc;
+    Constant *StackPromote;
 #endif
+
     std::list<DSNode *> unsafeAllocaNodes;
     std::set<DSNode *> reachableAllocaNodes; 
     bool markReachableAllocas(DSNode *DSN);
@@ -107,10 +126,10 @@ Constant *StackPromote;
     void TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC();
     void TransformCollapsedAllocas(Module &M);
-  void InsertFreesAtEnd(MallocInst *MI);
-
+    void InsertFreesAtEnd(MallocInst *MI);
+    virtual Value * promoteAlloca(AllocaInst * AI);
 };
-}
 
+}
 } 
 #endif
