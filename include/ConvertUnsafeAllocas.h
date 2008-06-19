@@ -25,10 +25,13 @@
 #include "llvm/Target/TargetData.h"
 #include "safecode/Config/config.h"
 
+#ifndef LLVA_KERNEL
+#include "poolalloc/PoolAllocate.h"
+#endif
+
 #include <set>
 
 namespace llvm {
-
 
 ModulePass *createConvertUnsafeAllocas();
 
@@ -66,7 +69,7 @@ namespace CUA {
 struct ConvertUnsafeAllocas : public ModulePass {
   public:
     static char ID;
-    ConvertUnsafeAllocas () : ModulePass ((intptr_t)(&ID)) {}
+    ConvertUnsafeAllocas (intptr_t IDp = (intptr_t) (&ID)) : ModulePass (IDp) {}
     const char *getPassName() const { return "Convert Unsafe Allocas"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -104,12 +107,11 @@ struct ConvertUnsafeAllocas : public ModulePass {
     // alloca's due to static array bounds detection failure
     std::set<const MallocInst *>  ArrayMallocs;
 
-  private:
+  protected:
     TDDataStructures * tddsPass;
     BUDataStructures * budsPass;
     ArrayBoundsCheck * abcPass;
     checkStackSafety * cssPass;
-    PoolAllocateGroup * paPass;
 
     TargetData *TD;
 
@@ -126,8 +128,54 @@ struct ConvertUnsafeAllocas : public ModulePass {
     void TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC();
     void TransformCollapsedAllocas(Module &M);
-    void InsertFreesAtEnd(MallocInst *MI);
-    virtual Value * promoteAlloca(AllocaInst * AI);
+    virtual void InsertFreesAtEnd(MallocInst *MI);
+    virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
+};
+
+//
+// Struct: PAConvertUnsafeAllocas 
+//
+// Description:
+//  This is an LLVM transform pass that is similar to the original
+//  ConvertUnsafeAllocas pass.  However, instead of promoting unsafe stack
+//  allocations to malloc instructions, it will promote them to use special
+//  allocation functions within the pool allocator run-time.
+//
+// Notes:
+//  o) By using the pool allocator run-time, this pass should generate faster
+//     code than the original ConvertUnsafeAllocas pass.
+//  o) This pass requires that a Pool Allocation pass be executed before this
+//     transform is executed.
+//
+struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
+  private:
+    PoolAllocateGroup * paPass;
+
+  protected:
+    virtual void InsertFreesAtEnd(Value * PH, Instruction  *MI);
+    virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
+
+  public:
+    static char ID;
+    PAConvertUnsafeAllocas () : ConvertUnsafeAllocas ((intptr_t)(&ID)) {}
+    virtual bool runOnModule(Module &M);
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<ArrayBoundsCheck>();
+      AU.addRequired<checkStackSafety>();
+      AU.addRequired<CompleteBUDataStructures>();
+      AU.addRequired<TDDataStructures>();
+      AU.addRequired<TargetData>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominanceFrontier>();
+
+      AU.addPreserved<ArrayBoundsCheck>();
+      AU.addPreserved<PoolAllocateGroup>();
+
+      // Does not preserve the BU or TD graphs
+#ifdef LLVA_KERNEL       
+      AU.setPreservesAll();
+#endif            
+    }
 };
 
 }
