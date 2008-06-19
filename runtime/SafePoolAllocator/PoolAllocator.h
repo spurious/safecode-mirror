@@ -28,11 +28,17 @@ typedef struct PoolTy {
   // Splay tree used for object registration
   void * Objects;
   
+  // Splay tree used for out of bound objects
+  void * OOB;
+
   // Splay tree used by dangling pointer runtime
   void * DPTree;
 
-  // Splay tree used for out of bound objects
-  void * OOB;
+  // Linked list of slabs used for stack allocations
+  void * StackSlabs;
+
+  // Linked list of slabs available for stack allocations
+  void * FreeStackSlabs;
 
   // Ptr1, Ptr2 - Implementation specified data pointers.
   void *Ptr1, *Ptr2;
@@ -102,6 +108,10 @@ extern "C" {
   void poolstats(void);
   void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
                       unsigned EndOffset);
+
+  void pool_newstack (PoolTy * Pool);
+  void pool_delstack (PoolTy * Pool);
+  void * pool_alloca (PoolTy * Pool, unsigned int NumBytes);
 
   void * rewrite_ptr (void * p);
   //void protect_shadowpage();

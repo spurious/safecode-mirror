@@ -77,6 +77,7 @@ struct PoolSlab {
   PoolSlab **PrevPtr, *Next;
   bool isSingleArray;   // If this slab is used for exactly one array
   unsigned allocated; // Number of bytes allocated
+  PoolSlab * Canonical; // For stack slabs, the canonical page
 
 private:
   // FirstUnused - First empty node in slab
@@ -640,6 +641,72 @@ ContainsAllocatedNode:
 
 //===----------------------------------------------------------------------===//
 //
+//  StackSlab implementation
+//
+//===----------------------------------------------------------------------===//
+
+//
+// Structure: StackSlab
+//
+// Description:
+//  A stack slab is similar to a pool slab but simple and smaller.  It is used
+//  for stack allocations that have been promoted to the heap.
+struct StackSlab {
+  public:
+    // Pointer to canonical address of stack slab
+    StackSlab * Canonical;
+
+    // Pointers for linking in the stack slab
+    StackSlab **PrevPtr, *Next;
+
+    // Top of stack
+    unsigned int * tos;
+
+    // Data for the stack
+    unsigned int data[1020];
+
+    static StackSlab *create (void * p) {
+      StackSlab *SS = (StackSlab*) p;
+      SS->tos = &(SS->data[0]);
+      return SS;
+    }
+
+    unsigned char * allocate (unsigned int size) {
+      //
+      // We will return a pointer to the current top of stack.
+      //
+      unsigned char * retvalue = (unsigned char *) (tos);
+
+      //
+      // Adjust the top of stack down to the next free object.
+      //
+      size = (size + 3) & (~3u);
+      unsigned int NumberOfInts = size / sizeof (unsigned int);
+      tos += NumberOfInts;
+      assert (tos < &(data[1020]));
+      return retvalue;
+    }
+
+    void clear (void) {
+      tos = data;
+    }
+
+    void addToList(StackSlab **PrevPtrPtr) {
+      StackSlab *InsertBefore = *PrevPtrPtr;
+      *PrevPtrPtr = this;
+      PrevPtr = PrevPtrPtr;
+      Next = InsertBefore;
+      if (InsertBefore) InsertBefore->PrevPtr = &Next;
+    }
+
+    void unlinkFromList() {
+      *PrevPtr = Next;
+      if (Next) Next->PrevPtr = PrevPtr;
+    }
+};
+
+//===----------------------------------------------------------------------===//
+//
 //  Pool allocator library implementation
 //
 //===----------------------------------------------------------------------===//
@@ -696,6 +763,7 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   Pool->DPTree = 0;
   Pool->Ptr1 = Pool->Ptr2 = 0;
   Pool->LargeArrays = 0;
+  Pool->StackSlabs = Pool->FreeStackSlabs = 0;
   // For SAFECode, we set FreeablePool to 0 always
   //  Pool->FreeablePool = 0;
   Pool->AllocadPool = -1;
@@ -1184,6 +1252,136 @@ poolstrdup(PoolTy *Pool, char *Node) {
   return New;
 }
 
+//
+// Function: pool_newstack()
+//
+// Description:
+//  Create a new pool slab for the given function invocation.
+//
+void
+pool_newstack (PoolTy * Pool) {
+  // Pointer to the new pool slab
+  StackSlab * PS;
+
+  //
+  // Get a new stack slab.  Either reuse an old one or create a new one.
+  //
+  assert ((sizeof (StackSlab) <= 4096) && "StackSlab too big!\n");
+  if (Pool->FreeStackSlabs) {
+    PS = (StackSlab *)(Pool->FreeStackSlabs);
+    PS->unlinkFromList();
+  } else {
+    PS = (StackSlab*) valloc (sizeof (StackSlab));
+  }
+
+  //
+  // Ensure we have a pool slab.
+  //
+  assert (PS && "pool_newstack: Can't create new slab\n");
+
+  //
+  // Remap the stack slab into a new virtual address space.
+  //
+  PS->Canonical = PS;
+  PS = (StackSlab *) RemapObject (PS, sizeof (StackSlab));
+
+  //
+  // Initialize it.
+  //
+  PS = StackSlab::create (PS);
+
+  //
+  // Link the shadow slab into the set of stack slabs.
+  //
+  PS->addToList((StackSlab**)&Pool->StackSlabs);
+#if 1
+fprintf (stderr, "\nnewstack: %x %x\n", PS, PS->Canonical);
+fflush (stderr);
+#endif
+  return;
+}
+
+void *
+pool_alloca (PoolTy * Pool, unsigned int NumBytes) {
+  // The address of the allocated object
+  void * retAddress;
+
+  // Ensure that we're always allocating at least 1 byte.
+  if (NumBytes == 0)
+    NumBytes = 1;
+
+  // Allocate memory from the function's single slab.
+  assert (Pool->StackSlabs && "pool_alloca: No call to newstack!\n");
+  globalTemp = ((StackSlab *)(Pool->StackSlabs))->allocate (NumBytes);
+fprintf (stderr, "alloca: %x %x\n", globalTemp, NumBytes);
+fflush (stderr);
+
+  //
+  // Allocate and remap the object.
+  //
+  retAddress = globalTemp;
+
+  //
+  // Record information about this allocation in the global debugging
+  // structure.
+  // FIXME: Need to ensure MetaData is correct for debugging
+  //
+  globalallocID++;
+  PDebugMetaData debugmetadataPtr;
+  debugmetadataPtr = createPtrMetaData (globalallocID,
+                                        globalfreeID,
+                                        __builtin_return_address(0),
+                                        0,
+                                        globalTemp);
+
+  adl_splay_insert (&(dummyPool.DPTree),
+                    retAddress,
+                    NumBytes,
+                    (void *) debugmetadataPtr);
+
+  // Register the object in the splay tree.  Keep track of its debugging data
+  // with the splay node tag so that we can quickly map shadow address back
+  // to the canonical address.
+  //
+  // globalTemp is the canonical page address
+  adl_splay_insert (&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+    
+  assert (retAddress && "pool_alloca(1): Returning NULL!\n");
+  return retAddress;
+}
+
+void
+pool_delstack (PoolTy * Pool) {
+  StackSlab * PS = (StackSlab *)(Pool->StackSlabs);
+
+  //
+  // Get the canonical page corresponding to this slab.
+  //
+#if 1
+fprintf (stderr, "delstack: %x\n", PS);
+fflush (stderr);
+#endif
+
+  //
+  // Remove the slab from the list.
+  //
+  PS->unlinkFromList();
+
+  //
+  // Deallocate all elements and add the slab into the set of free slabs.
+  //
+  PS->Canonical->addToList((StackSlab**)&Pool->FreeStackSlabs);
+
+#if 1
+  //
+  // Make the stack page inaccessible.
+  //
+  ProtectShadowPage (PS, 1);
+#endif
+
+  return;
+}
+
 // SearchForContainingSlab - Do a brute force search through the list of
 // allocated slabs for the node in question.
 //
@@ -1666,6 +1864,7 @@ poolfree(PoolTy *Pool, void *Node) {
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
   
+  assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
   globalTemp = debugmetadataptr->canonAddr;
   
   if (logregs) {
