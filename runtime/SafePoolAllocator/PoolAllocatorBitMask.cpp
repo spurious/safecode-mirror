@@ -97,8 +97,10 @@ private:
   // Size of Slab - For single array slabs, specifies the size of the slab in
   //                bytes from beginning to end (including slab header).
   //
+public:
   unsigned int SizeOfSlab;
 
+private:
   // NodeFlagsVector - This array contains two bits for each node in this pool
   // slab.  The first (low address) bit indicates whether this node has been
   // allocated, and the second (next higher) bit indicates whether this is the
@@ -187,7 +189,7 @@ public:
 
   // isFull - This is a quick check to see if the slab is completely allocated.
   //
-  bool isFull() const { return isSingleArray || FirstUnused == getSlabSize(); }
+  bool isFull() const { return isSingleArray || (FirstUnused == getSlabSize()); }
 
   // allocateSingle - Allocate a single element from this pool, returning -1 if
   // there is no space.
@@ -1873,16 +1875,16 @@ poolfree(PoolTy *Pool, void *Node) {
   }
   updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
 
-  // then we protect the shadow pages
-  ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
-  
-  // then we allow the poolcheck runtime to finish the bookkeping it needs to do.
-  adl_splay_delete(&Pool->Objects, Node);
+  //
+  // Allow the poolcheck runtime to finish the bookkeping it needs to do.
+  //
+  adl_splay_delete (&Pool->Objects, Node);
   
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
     PS = SearchForContainingSlab(Pool, globalTemp, TheIndex);
     Idx = TheIndex;
+    assert (PS && "poolfree: No poolslab found for object!\n");
     PS->freeElement(Idx);
   } else {
     // Since it is undefined behavior to free a node which has not been
@@ -1924,21 +1926,26 @@ poolfree(PoolTy *Pool, void *Node) {
     // the other list!
     PS->unlinkFromList(); // Remove it from the Ptr2 list.
 
-    PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
+    //
+    // Do not re-use single array slabs.
+    //
+    if (!(PS->isSingleArray)) {
+      PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
 
-    // If the partially full list has an empty node sitting at the front of the
-    // list, insert right after it.
-    if ((*InsertPosPtr))
-      if ((*InsertPosPtr)->isEmpty())
-        InsertPosPtr = &(*InsertPosPtr)->Next;
+      // If the partially full list has an empty node sitting at the front of
+      // the list, insert right after it.
+      if ((*InsertPosPtr))
+        if ((*InsertPosPtr)->isEmpty())
+          InsertPosPtr = &(*InsertPosPtr)->Next;
 
-    PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
+      PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
+    }
   }
 
   // Ok, if this slab is empty, we unlink it from the of slabs and either move
   // it to the head of the list, or free it, depending on whether or not there
   // is already an empty slab at the head of the list.
-  if (PS->isEmpty()) {
+  if ((PS->isEmpty()) && (!(PS->isSingleArray))) {
     PS->unlinkFromList();   // Unlink from the list of slabs...
     
     // If we can free this pool, check to see if there are any empty slabs at
@@ -1958,6 +1965,9 @@ poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
  
+  // Protect the shadow pages
+  ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+  
   //
   // An object has been freed.  Set up a signal handler to catch any dangling
   // pointer references.
@@ -1973,6 +1983,7 @@ poolfree(PoolTy *Pool, void *Node) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
+
   return; 
 }
 
