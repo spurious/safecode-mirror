@@ -50,12 +50,12 @@ progtest::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-                   report.html) \
+                   report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
