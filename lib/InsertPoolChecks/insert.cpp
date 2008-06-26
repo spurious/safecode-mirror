@@ -1328,6 +1328,7 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
 
+      CheckedDSNodes.insert (Node);
       if (Node->isIncompleteNode())
         CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
       else
