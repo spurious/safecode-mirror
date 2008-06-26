@@ -69,6 +69,10 @@ namespace {
   // Object registration statistics
   STATISTIC (StackRegisters,      "Stack registrations");
   STATISTIC (SavedRegAllocs,      "Stack registrations avoided");
+  STATISTIC (SavedGlobals,        "Global object registrations avoided");
+
+  // Set of checked DSNodes
+  std::set<DSNode *> CheckedDSNodes;
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -680,15 +684,16 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   TDPass = &getAnalysis<TDDataStructures>();
 #endif
 
-  //add the new poolcheck prototype 
+  // Add the new poolcheck prototype 
   addPoolCheckProto(M);
-#ifndef LLVA_KERNEL  
-  //register global arrays and collapsed nodes with global pools
-  registerGlobalArraysWithGlobalPools(M);
-#endif
 
   // Replace old poolcheck with the new one 
   addPoolChecks(M);
+
+#ifndef LLVA_KERNEL  
+  // Register global arrays and collapsed nodes with global pools
+  registerGlobalArraysWithGlobalPools(M);
+#endif
 
   // Add stack registrations
   registerStackObjects (M);
@@ -781,6 +786,13 @@ InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph &G = paPass->getGlobalsGraph();
         DSNode *DSN  = G.getNodeForValue(GV).getNode();
+
+        // Skip it if there is never a run-time check
+        if (CheckedDSNodes.find(DSN) == CheckedDSNodes.end()) {
+          ++SavedGlobals;
+          continue;
+        }
+
         Value * AllocSize;
         const Type* csiType = Type::Int32Ty;
         const Type * GlobalType = GV->getType()->getElementType();
@@ -1626,6 +1638,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
         // Insert it
         DSNode * Node = getDSNode (GEP, F);
+        CheckedDSNodes.insert (Node);
         if (Node->isIncompleteNode())
           CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
                            "", InsertPt);
