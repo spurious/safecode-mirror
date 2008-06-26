@@ -906,6 +906,16 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
 #endif
 
   //
+  // Determine if we have every done a check on this alloca or a pointer
+  // aliasing this alloca.  If not, then we can forego the check (even if we
+  // can't trace through all the data flow).
+  //
+  if (CheckedDSNodes.find(Node) == CheckedDSNodes.end()) {
+    ++SavedRegAllocs;
+    return;
+  }
+
+  //
   // Determine if any use (direct or indirect) escapes this function.  If not,
   // then none of the checks will consult the MetaPool, and we can forego
   // registering the alloca.
