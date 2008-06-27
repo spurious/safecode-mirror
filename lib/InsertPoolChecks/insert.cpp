@@ -73,6 +73,10 @@ namespace {
 
   // Set of checked DSNodes
   std::set<DSNode *> CheckedDSNodes;
+
+  // The set of values that already have run-time checks
+  std::set<Value *> CheckedValues;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -203,12 +207,10 @@ void
 InsertPoolChecks::addExactCheck (Value * Pointer,
                                  Value * Index, Value * Bounds,
                                  Instruction * InsertPt) {
-#if 0
   //
   // Record that this value was checked.
   //
   CheckedValues.insert (Pointer);
-#endif
 
   //
   // Attempt to determine statically if this check will always pass; if so,
@@ -320,9 +322,7 @@ InsertPoolChecks::addExactCheck2 (Value * BasePointer,
   //
   // Record that this value was checked.
   //
-#if 0
   CheckedValues.insert (Result);
-#endif
 
 #if 0
   //
@@ -1336,6 +1336,20 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
       }
     } else {
+      //
+      // If the pointer used for the load/store check is trivially seen to be
+      // valid (load/store to allocated memory or a global variable), don't
+      // bother doing a check.
+      //
+      if ((isa<AllocationInst>(Vnew)) || (isa<GlobalVariable>(Vnew)))
+        return;
+
+      //
+      // If we've already checked this pointer, don't bother checking it again.
+      //
+      if (CheckedValues.find (Vnew) != CheckedValues.end())
+        return;
+
       bool indexed = true;
       Value * SourcePointer = findSourcePointer (Vnew, indexed, false);
       if (isEligableForExactCheck (SourcePointer, false)) {
@@ -1366,6 +1380,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         args.push_back(CastVI);
 
         CheckedDSNodes.insert (Node);
+        CheckedValues.insert (Vnew);
         if (Node->isIncompleteNode())
           CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
         else
@@ -1678,6 +1693,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         // Insert it
         DSNode * Node = getDSNode (GEP, F);
         CheckedDSNodes.insert (Node);
+        CheckedValues.insert (Casted);
         if (Node->isIncompleteNode())
           CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
                            "", InsertPt);
