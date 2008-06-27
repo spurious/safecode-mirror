@@ -1276,7 +1276,11 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
 //  Instruction - The load or store instruction
 //  F           - The parent function of the instruction
 //
-void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F) {
+void
+InsertPoolChecks::addLSChecks (Value *Vnew,
+                               const Value *V,
+                               Instruction *I,
+                               Function *F) {
 
   PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
   Value *PH = getPoolHandle(V, F, *FI );
@@ -1299,6 +1303,9 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
   //
   if (Node && (Node->isIncompleteNode())) return;
 
+  //
+  // Only check pointers to type-unknown objects.
+  //
   if (Node && Node->isNodeCompletelyFolded()) {
     if (dyn_cast<CallInst>(I)) {
       // Do not perform function checks on incomplete nodes
@@ -1329,20 +1336,41 @@ void InsertPoolChecks::addLSChecks(Value *Vnew, const Value *V, Instruction *I, 
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
       }
     } else {
-      CastInst *CastVI = 
-        CastInst::createPointerCast (Vnew, 
-               PointerType::getUnqual(Type::Int8Ty), "casted", I);
-      CastInst *CastPHI = 
-        CastInst::createPointerCast (PH, 
-               PointerType::getUnqual(Type::Int8Ty), "casted", I);
-      std::vector<Value *> args(1,CastPHI);
-      args.push_back(CastVI);
+      bool indexed = true;
+      Value * SourcePointer = findSourcePointer (Vnew, indexed, false);
+      if (isEligableForExactCheck (SourcePointer, false)) {
+        Value * AllocSize;
+        if (AllocationInst * AI = dyn_cast<AllocationInst>(SourcePointer)) {
+          AllocSize = ConstantInt::get (Type::Int32Ty,
+                                        TD->getABITypeSize(AI->getAllocatedType()));
+          if (AI->isArrayAllocation()) {
+            AllocSize = BinaryOperator::create (Instruction::Mul,
+                                               AllocSize,
+                                               AI->getArraySize(), "sizetmp", I);
+          }
+        } else if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SourcePointer)) {
+          AllocSize = ConstantInt::get (Type::Int32Ty,
+                                        TD->getABITypeSize(GV->getType()->getElementType()));
+        } else {
+          assert (0 && "Cannot handle source pointer!\n");
+        }
+        addExactCheck2 (SourcePointer, Vnew, AllocSize, I);
+      } else {
+        CastInst *CastVI = 
+          CastInst::createPointerCast (Vnew, 
+                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+        CastInst *CastPHI = 
+          CastInst::createPointerCast (PH, 
+                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+        std::vector<Value *> args(1,CastPHI);
+        args.push_back(CastVI);
 
-      CheckedDSNodes.insert (Node);
-      if (Node->isIncompleteNode())
-        CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
-      else
-        CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
+        CheckedDSNodes.insert (Node);
+        if (Node->isIncompleteNode())
+          CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
+        else
+          CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
+      }
     }
   }
 }
