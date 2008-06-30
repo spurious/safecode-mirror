@@ -15,6 +15,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
 #include "SafeDynMemAlloc.h"
+#include "SCUtils.h"
 #include <iostream>
 using namespace llvm;
 #ifndef LLVA_KERNEL
@@ -457,17 +458,20 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	}
 	if (!NewPtr)
 	  continue;
-	for (Value::use_iterator UI = NewPtr->use_begin(), 
-	       UE = NewPtr->use_end(); UI != UE; ++UI) {
+
+  const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+
+	for (Value::use_iterator UI = NewPtr->use_begin(), UE = NewPtr->use_end();
+       UI != UE;
+       ++UI) {
 	  // If the use is the 2nd operand of store, insert a runtime check
 	  if (StoreInst *StI = dyn_cast<StoreInst>(*UI)) {
 	    if (StI->getOperand(1) == NewPtr) {
 	      moduleChanged = true;
-	      CastInst *CastI = 
-		CastInst::createPointerCast(StI->getOperand(1), 
-			     PointerType::getUnqual(Type::Int8Ty), "casted", StI);
+        Value * CastPH = castTo(PAFI->PoolDescriptors[DSN], VoidPtrTy, "", StI);
+	      Value * CastI  = castTo(StI->getOperand(1), VoidPtrTy, "casted", StI);
         std::vector<Value *> args =
-          make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
+          make_vector(CastPH, CastI, 0);
 	      CallInst::Create(PoolCheck, args.begin(), args.end(), "", StI);
 	      std::cerr << " inserted poolcheck for noncollapsed pool\n";
 	    }
@@ -482,11 +486,10 @@ static void printSets(set<Value *> &FuncPoolPtrs,
 	  } else if (LoadInst *LdI = dyn_cast<LoadInst>(*UI)) {
 	    if (LdI->getOperand(0) == NewPtr) {
 	      moduleChanged = true;
-	      CastInst *CastI = 
-		CastInst::createPointerCast(LdI->getOperand(0), 
-			     PointerType::getUnqual(Type::Int8Ty), "casted", LdI);
+	      Value *CastPH = castTo (PAFI->PoolDescriptors[DSN], VoidPtrTy, "", LdI);
+	      Value *CastI  = castTo (LdI->getOperand(0), VoidPtrTy, "casted", LdI);
         std::vector<Value *> args =
-			   make_vector(PAFI->PoolDescriptors[DSN], CastI, 0);
+			   make_vector(CastPH, CastI, 0);
 	      CallInst::Create(PoolCheck, args.begin(), args.end(), "", LdI);
 	      std::cerr << " inserted poolcheck for noncollpased pool\n";
 	    }
@@ -632,7 +635,6 @@ bool EmbeCFreeRemoval::runOnModule(Module &M) {
   CurModule = &M;
   moduleChanged = false;
   hasError = false;
-
   // Insert prototypes in the module
   // NB: This has to be in sync with the types in PoolAllocate.cpp
   const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
