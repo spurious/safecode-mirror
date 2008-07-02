@@ -367,8 +367,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
   // Get the DSNode for the instruction
   //
   Function *F   = GEP->getParent()->getParent();
-  DSGraph & TDG = getDSGraph(*F);
-  DSNode * Node = TDG.getNodeForValue(GEP).getNode();
+  DSNode * Node = getDSNode(GEP, F);
   assert (Node && "boundscheck: DSNode is NULL!");
 
 #if 0
@@ -1932,8 +1931,23 @@ InsertPoolChecks::getDSGraph(Function & F) {
 #endif  
 }
 
-DSNode* InsertPoolChecks::getDSNode(const Value *V, Function *F) {
+DSNode* InsertPoolChecks::getDSNode (const Value *VOrig, Function *F) {
 #ifndef LLVA_KERNEL
+  //
+  // JTC:
+  //  If this function has a clone, then try to grab the original.
+  //
+  Value * Vnew = (Value *)(VOrig);
+  if (!(paPass->getFuncInfo(*F))) {
+    F = paPass->getOrigFunctionFromClone(F);
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    if (!FI->NewToOldValueMap.empty()) {
+      Vnew = FI->MapValueToOriginal (Vnew);
+    }
+    assert (F && "No Function Information from Pool Allocation!\n");
+  }
+
+  const Value * V = (Vnew) ? Vnew : VOrig;
   DSGraph &TDG = paPass->getDSGraph(*F);
 #else  
   DSGraph &TDG = TDPass->getDSGraph(*F);
