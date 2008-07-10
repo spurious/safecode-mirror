@@ -19,6 +19,7 @@
 
 #include "PoolAllocator.h"
 #include "PageManager.h"
+#include "Report.h"
 #include "adl_splay.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -36,7 +37,6 @@ extern unsigned PPageSize;
 static unsigned globalallocID = 0;
 static unsigned globalfreeID = 0;
 static void * globalTemp = 0;
-static unsigned alertNum = 0;
 static PoolTy dummyPool;
 static unsigned dummyInitialized = 0;
 unsigned poolmemusage = 0;
@@ -2036,7 +2036,6 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
   signal(SIGBUS, NULL);
-  alertNum++;
   ucontext_t * mycontext = (ucontext_t *) context;
 
   unsigned len = 0;
@@ -2063,19 +2062,27 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   
   //void* S = info->si_addr;
   // printing reports
-  printf("=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n", alertNum);
-  printf("%04d: Invalid access to memory address 0x%08x \n", alertNum, (unsigned)faultAddr);
+  void * address = 0;
+  unsigned program_counter = 0;
+  unsigned alloc_pc = 0;
+  unsigned free_pc = 0;
+  unsigned allocID = 0;
+  unsigned freeID = 0;
+
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
-  printf("%04d:               at program counter 0x%08x \n", alertNum, (unsigned)mycontext->uc_mcontext->__ss.__eip);
+  program_counter = mycontext->uc_mcontext->__ss.__eip;
 #endif
-  printf("%04d:     Object allocated at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->allocPC - 5);
-  printf("%04d:     Object allocation generation number \t: %d \n", alertNum, debugmetadataptr->allocID);
-  printf("%04d:     Object freed at program counter \t: 0x%08x \n", alertNum, (unsigned)debugmetadataptr->freePC - 5);
-  printf("%04d:     Object free generation number \t: %d \n", alertNum, debugmetadataptr->freeID);
+  alloc_pc = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+  free_pc  = ((unsigned) (debugmetadataptr->freePC)) - 5;
+  allocID  = debugmetadataptr->allocID;
+  freeID   = debugmetadataptr->freeID;
 #endif
-  printf("=======+++++++    end of runtime error report    +++++++=======\n");
   
+  ReportDanglingPointer (address, program_counter,
+                         alloc_pc, allocID,
+                         free_pc, freeID);
+
   // reinstall the signal handler for subsequent faults
   struct sigaction sa;
   sa.sa_sigaction = bus_error_handler;
