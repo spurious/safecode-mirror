@@ -58,7 +58,11 @@ exactcheck2 (signed char *base, signed char *result, unsigned size) {
 void *
 exactcheck2a (signed char *base, signed char *result, unsigned size) {
   if (result >= base + size ) {
-    poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+    ReportExactCheck ((unsigned)0,
+                      (unsigned)result,
+                      (unsigned)__builtin_return_address(0),
+                      (unsigned)base,
+                      (unsigned)size);
   }
   return result;
 }
@@ -66,7 +70,11 @@ exactcheck2a (signed char *base, signed char *result, unsigned size) {
 void *
 exactcheck3(signed char *base, signed char *result, signed char * end) {
   if ((result < base) || (result > end )) {
-    poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+    ReportExactCheck ((unsigned)0,
+                      (unsigned)result,
+                      (unsigned)__builtin_return_address(0),
+                      (unsigned)base,
+                      (unsigned)(end-base));
   }
   return result;
 }
