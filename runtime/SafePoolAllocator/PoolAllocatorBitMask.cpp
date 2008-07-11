@@ -1523,11 +1523,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
       fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x: %x %x, pc=%x\n",
                Source, Dest, InvalidLower, invalidptr, (void*)__builtin_return_address(0));
       fflush (stderr);
-#if 0
-      abort();
-#else
       return Dest;
-#endif
     }
 
     adl_splay_insert (&(Pool->OOB), P, 1, Dest);
@@ -1538,14 +1534,17 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
    * The node is not found or is not within bounds; fail!
    */
   if (fs) {
-    fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
-             (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
-
+    ReportBoundsCheck ((unsigned)Source,
+                       (unsigned)Dest,
+                       (unsigned)__builtin_return_address(0),
+                       (unsigned)S,
+                       (unsigned)len);
   } else {
-    fprintf (stderr, "Boundscheck failed(%x:%x): No object: %x %x %x from %x esp=%x\n",
-             (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-       (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
+    ReportBoundsCheck ((unsigned)Source,
+                       (unsigned)Dest,
+                       (unsigned)__builtin_return_address(0),
+                       (unsigned)0,
+                       (unsigned)0);
   }
   fflush (stderr);
   abort ();
@@ -1594,15 +1593,11 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
     } else {
-      fprintf (stderr, "Boundscheckui failed(%x:%x): Out of zero page:\n",
-               (unsigned) Pool, fs);
-      fprintf (stderr, "\tSource: %x, Dest: %x\n",
-               (unsigned) Source, (unsigned) Dest);
-      fprintf (stderr, "\tObject: %x, Len:  %x\n", (unsigned) S, len);
-      fprintf (stderr, "\teip=%x, esp=%x\n",
-               (unsigned)__builtin_return_address(0),
-               (unsigned)__builtin_frame_address(0));
-      abort();
+      ReportBoundsCheck ((unsigned)Source,
+                         (unsigned)Dest,
+                         (unsigned)__builtin_return_address(0),
+                         (unsigned)0,
+                         (unsigned)4096);
     }
   }
 
@@ -1616,27 +1611,14 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
     } else {
-      fprintf (stderr, "Boundscheckui failed(%x:%x:%x): Out of external object:\n",
-               (unsigned)(ExternalObjects), (unsigned) Pool, fs);
-      fprintf (stderr, "\tSource: %x, Dest: %x\n",
-               (unsigned) Source, (unsigned) Dest);
-      fprintf (stderr, "\tObject: %x, Len:  %x\n", (unsigned) S, len);
-      fprintf (stderr, "\teip=%x, esp=%x\n",
-               (unsigned)__builtin_return_address(0),
-               (unsigned)__builtin_frame_address(0));
-      abort();
+      ReportBoundsCheck ((unsigned)Source,
+                         (unsigned)Dest,
+                         (unsigned)__builtin_return_address(0),
+                         (unsigned)S,
+                         (unsigned)len);
     }
   }
 
-  /*
-   * We cannot find the object.  Print a warning and continue execution.
-   */
-#if 0
-  fprintf (stderr, "Boundscheck failed(%x:%x): Out of object: %x %x %x from %x esp=%x\n",
-           (unsigned)Pool, fs, (unsigned)Source, (unsigned)Dest, len,
-     (unsigned)__builtin_return_address(0), (unsigned)__builtin_frame_address(0));
-  fflush (stderr);
-#endif
   return Dest;
 }
 
