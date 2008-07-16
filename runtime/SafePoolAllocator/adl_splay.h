@@ -7,6 +7,7 @@ extern "C" {
 
   extern int  adl_splay_find(void** tree, void* key);
   extern int  adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag);
+  extern inline int adl_splay_lookup(void** tree, void** key); 
   extern int  adl_splay_size(void** tree);
   extern void* adl_splay_any(void** tree);
   

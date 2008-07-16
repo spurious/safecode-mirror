@@ -142,6 +142,48 @@ static Tree* splay (Tree * t, char* key) {
   return t;
 }
 
+static inline Tree* splay2 (Tree * t, char* key) { 
+//inline version of splay
+  Tree N, *l, *r, *y;
+  if (t == 0) return t;
+  N.left = N.right = 0;
+  l = r = &N;
+  while(1) {
+    if (key_lt(key, t)) {
+      if (t->left == 0) break;
+      if (key_lt(key, t->left)) {
+        y = t->left;                           /* rotate right */
+        t->left = y->right;
+        y->right = t;
+        t = y;
+        if (t->left == 0) break;
+      }
+      r->left = t;                               /* link right */
+      r = t;
+      t = t->left;
+    } else if (key_gt(key, t)) {
+      if (t->right == 0) break;
+      if (key_gt(key, t->right)) {
+        y = t->right;                          /* rotate left */
+        t->right = y->left;
+        y->left = t;
+        t = y;
+        if (t->right == 0) break;
+      }
+      l->right = t;                              /* link left */
+      l = t;
+      t = t->right;
+    } else {
+        break;
+    }
+  }
+  l->right = t->left;                                /* assemble */
+  r->left = t->right;
+  t->left = N.right;
+  t->right = N.left;
+  return t;
+}
+
 /* My version, needs testing */
 static Tree* my_splay(Tree* t, char* key) {
   if (!t) return t;
@@ -217,6 +259,7 @@ static inline Tree* delete(Tree* t, char* key) {
   return t; /* not there */
 }
 
+
 static int count(Tree* t) {
   if (t)
     return 1 + count(t->left) + count(t->right);
@@ -264,6 +307,21 @@ int  adl_splay_find(void** tree, void* key) {
           !key_gt(key, t));
 }
 
+int adl_splay_lookup(void** tree, void** key) {
+  //Inlined version of the splay retrieve function, called from boundscheckui_lookup
+  void* k = *key;
+  Tree* t = splay2(*(Tree**)tree, (char*)k);
+  *(Tree**)tree = t;
+  
+  if (t && !key_lt(k, t) && !key_gt(k, t)) {
+    //The node exists in the splay tree
+    *key = t->key;
+    return (t->end - t->key) + 1;
+  }
+  return 0;
+
+}
+
 int adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag) {
   void* k = *key;
   Tree* t = splay(*(Tree**)tree, (char*)k);
@@ -278,6 +336,7 @@ int adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag) {
   }
   return 0;
 }
+
 
 int  adl_splay_size(void** tree) {
   return (count(*(Tree**)tree));
