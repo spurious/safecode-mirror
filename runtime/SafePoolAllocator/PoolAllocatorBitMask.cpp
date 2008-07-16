@@ -1551,17 +1551,23 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   return Dest;
 }
 
+int
+boundscheckui_lookup (PoolTy * Pool, void * Source ) {
+  //search for object for Source in splay tree, return length 
+  return adl_splay_lookup (&(Pool->Objects), &Source);
+}
+
 void *
-boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
+boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
   /*
    * First, attempt to find the pointer within a valid object.  If the source
    * pointer is within a valid object but the destination pointer is not, then
    * rewrite the pointer.
    */
   void* S = Source;
-  unsigned len = 0;
-  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
-  if (fs) {
+  //unsigned len = 0;
+
+  if (len) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
     } else {
@@ -1584,6 +1590,7 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     }
   }
 
+
   /*
    * Allow pointers to the first page in memory provided that they remain
    * within that page.  Loads and stores using such pointers will fault.  This
@@ -1605,10 +1612,10 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
    * Attempt to look for the object in the external object splay tree.
    */
   S = Source;
-  len = 0;
-  fs = adl_splay_retrieve (&(ExternalObjects), &S, &len, 0);
+  unsigned len_new = 0;
+  int fs = adl_splay_retrieve (&(ExternalObjects), &S, &len_new, 0);
   if (fs) {
-    if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
+    if ((S <= Dest) && (((char*)S + len_new) > (char*)Dest)) {
       return Dest;
     } else {
       ReportBoundsCheck ((unsigned)Source,
@@ -1619,7 +1626,31 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     }
   }
 
-  return Dest;
+  /*
+   * We cannot find the object.  Print a warning and continue execution.
+   */
+  
+ return Dest;
+
+
+}
+
+void *
+boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
+  // This code is inlined at all boundscheckui calls
+
+  //Search the splay for Source and return the bounds of the object
+  int len = boundscheckui_lookup( Pool, Source ) ; 
+  
+  //Check if destination lies in the same object
+  if ( __builtin_expect ( len && ((Source <= Dest) && ((char*)Source + len) > (char*)Dest) 
+   			 ,1) 
+    ) {
+    return Dest;
+  } else 
+    // Valid object not found in splay tree or Dest is not within the valid object
+    return boundscheckui_check( len, Pool, Source, Dest );  
+ 
 }
 
 void *

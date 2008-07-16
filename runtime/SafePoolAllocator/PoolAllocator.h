@@ -72,7 +72,6 @@ typedef struct PoolTy {
 
   short AllocadPool;
   void *allocaptr;
-
   std::map<void *,unsigned> * RegNodes;
 } PoolTy;
 
@@ -103,7 +102,9 @@ extern "C" {
   void poolcheckui(PoolTy *Pool, void *Node);
   void poolcheckoptim(PoolTy *Pool, void *Node);
   void * boundscheck   (PoolTy * Pool, void * Source, void * Dest);
-  void * boundscheckui (PoolTy * Pool, void * Source, void * Dest);
+  int boundscheckui_lookup (PoolTy * Pool, void * Source) __attribute__ ((const, noinline));
+  void * boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) __attribute__ ((noinline));
+  void * boundscheckui (PoolTy * Pool, void * Source, void * Dest) __attribute__ ((always_inline));
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolstats(void);
   void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
