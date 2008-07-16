@@ -13,6 +13,7 @@
 /*===----------------------------------------------------------------------===*/
 
 #include "ExactCheck.h"
+#include "Report.h"
 
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
