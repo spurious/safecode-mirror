@@ -98,17 +98,18 @@ isEligableForExactCheck (Value * Pointer, bool IOOkay) {
     return true;
 
   if (CallInst* CI = dyn_cast<CallInst>(Pointer)) {
-    if (CI->getCalledFunction() &&
-        (CI->getCalledFunction()->getName() == "__vmalloc" || 
-         CI->getCalledFunction()->getName() == "malloc" || 
-         CI->getCalledFunction()->getName() == "kmalloc" || 
-         CI->getCalledFunction()->getName() == "kmem_cache_alloc" || 
-         CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
-      return true;
-    }
+    if (CI->getCalledFunction()) {
+      if ((CI->getCalledFunction()->getName() == "__vmalloc" ||
+           CI->getCalledFunction()->getName() == "malloc" ||
+           CI->getCalledFunction()->getName() == "kmalloc" ||
+           CI->getCalledFunction()->getName() == "kmem_cache_alloc" ||
+           CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
+        return true;
+      }
 
-    if (IOOkay && (CI->getCalledFunction()->getName() == "__ioremap")) {
-      return true;
+      if (IOOkay && (CI->getCalledFunction()->getName() == "__ioremap")) {
+        return true;
+      }
     }
   }
 
@@ -1291,7 +1292,11 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   if (isa<ConstantPointerNull>(PH)) {
     //we have a collapsed/Unknown pool
     Value *PH = getPoolHandle(V, F, *FI, true); 
+#if 0
     assert (PH && "Null pool handle!\n");
+#else
+    if (!PH) return;
+#endif
   }
 
   //
@@ -1975,7 +1980,6 @@ InsertPoolChecks::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
   //
   if (!(paPass->getFuncInfo(*F)))
   {
-std::cerr << "PoolHandle: Getting original Function\n";
     F = paPass->getOrigFunctionFromClone(F);
     assert (F && "No Function Information from Pool Allocation!\n");
   }
