@@ -1987,6 +1987,7 @@ poolfree(PoolTy *Pool, void *Node) {
   //  in poolinit().
   //
   struct sigaction sa;
+  bzero (&sa, sizeof (struct sigaction));
   sa.sa_sigaction = bus_error_handler;
   sa.sa_flags = SA_SIGINFO;
   if (sigaction(SIGBUS, &sa, NULL) == -1) {
