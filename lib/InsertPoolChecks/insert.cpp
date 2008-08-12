@@ -906,7 +906,7 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
 #endif
 
   //
-  // Determine if we have every done a check on this alloca or a pointer
+  // Determine if we have ever done a check on this alloca or a pointer
   // aliasing this alloca.  If not, then we can forego the check (even if we
   // can't trace through all the data flow).
   //
@@ -1024,9 +1024,10 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
 
   // Insert object registration at the end of allocas.
   Instruction *iptI = AI;
-  ++iptI;
+  BasicBlock::iterator InsertPt = AI;
+  iptI = ++InsertPt;
   if (AI->getParent() == (&(AI->getParent()->getParent()->getEntryBlock()))) {
-    BasicBlock::iterator InsertPt = AI->getParent()->begin();
+    InsertPt = AI->getParent()->begin();
     while (&(*(InsertPt)) != AI)
       ++InsertPt;
     while (isa<AllocaInst>(InsertPt))
@@ -1048,9 +1049,12 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
   CallInst::Create (PoolRegister, args.begin(), args.end(), "", iptI);
 
   //
+  // FIXME:
+  //  Need to change the code below to use the dominator (post-dominator?)
+  //  frontier to determine when we can deregister an object.
+  //
   // Insert a call to unregister the object whenever the function can exit.
   //
-#if 1
   CastedPH     = castTo (PH,
                          PointerType::getUnqual(Type::Int8Ty),
                          "allocph",Casted);
@@ -1064,7 +1068,6 @@ InsertPoolChecks::registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig) {
     if (isa<ReturnInst>(iptI) || isa<UnwindInst>(iptI))
       CallInst::Create (StackFree, args.begin(), args.end(), "", iptI);
   }
-#endif
 
   // Update statistics
   ++StackRegisters;
@@ -2032,24 +2035,17 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
 #ifdef DEBUG
         std::cerr << "Collapsed pools \n";
 #endif
-std::cerr << "JTC: PH: Null 2: " << *V << std::endl;
         return Constant::getNullValue(PoolDescPtrTy);
       } else {
         if (Argument * Arg = dyn_cast<Argument>(v))
           if ((Arg->getParent()) != F)
-{
-std::cerr << "JTC: PH: Null 3: " << *V << std::endl;
             return Constant::getNullValue(PoolDescPtrTy);
-}
         return v;
       }
     } else {
       if (Argument * Arg = dyn_cast<Argument>(PH))
         if ((Arg->getParent()) != F)
-{
-std::cerr << "JTC: PH: Null 4: " << *V << std::endl;
           return Constant::getNullValue(PoolDescPtrTy);
-}
       return PH;
     } 
   }
