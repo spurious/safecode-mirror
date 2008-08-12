@@ -117,6 +117,10 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
   if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+#ifndef LLVA_KERNEL
+  TransformAllocasToMallocs(unsafeAllocaNodes);
+  TransformCollapsedAllocas(M);
+#endif
   return true;
 }
 
@@ -645,6 +649,11 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
   if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+#ifndef LLVA_KERNEL
+  TransformAllocasToMallocs(unsafeAllocaNodes);
+  TransformCollapsedAllocas(M);
+#endif
+
   return true;
 }
 
