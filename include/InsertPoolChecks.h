@@ -77,7 +77,7 @@ struct InsertPoolChecks : public ModulePass {
   DSGraph & getDSGraph (Function & F);
 #ifndef LLVA_KERNEL  
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
-  Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = false);
+  Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
   void registerGlobalArraysWithGlobalPools(Module &M);
 #else
   void addLSChecks(Value *V, Instruction *I, Function *F);
