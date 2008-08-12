@@ -1025,10 +1025,7 @@ frag(PoolTy * Pool) {
 void *
 poolalloc(PoolTy *Pool, unsigned NumBytes) {
   void *retAddress = NULL;
-  if (!Pool) {
-    fprintf(stderr, "Null pool pointer passed in to poolalloc!, FAILING\n");
-    exit(-1);
-  }
+  assert(Pool && "Null pool pointer passed into poolalloc!\n");
 
 #if 0
   // Ensure that stack objects and heap objects d not belong to the same pool.
