@@ -1021,14 +1021,11 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           fMap[&F]->addSafetyConstraint(MAI,root);
           fMap[&F]->addMemAccessInst(MAI, reqArgs);
         } else {
-          if (NoStaticChecks) {
-            if (!indexesStructsOnly (MAI))
-              MarkGEPUnsafe (MAI);
-            else
-              ++SafeStructs;
-            ++TotalStructs;
-            continue;
-          }
+          //
+          // FIXME: TODO:
+          //  We need to do some constraint solving for pure struct indexing.
+          //
+          MarkGEPUnsafe (MAI);
         }
       } else {
         std::cerr << "GEP to non-pointer: " << *iLocal << std::endl;
