@@ -16,6 +16,11 @@
 // been allocated from them.
 //
 //===----------------------------------------------------------------------===//
+// NOTE:
+//  1) Some of the bounds checking code may appear strange.  The reason is that
+//     it is manually inlined to squeeze out some more performance.  Please
+//     don't change it.
+//===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
 #include "PageManager.h"
@@ -1528,6 +1533,33 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   }
 
   /*
+   * Allow pointers to the first page in memory provided that they remain
+   * within that page.  Loads and stores using such pointers will fault.  This
+   * allows indexing of NULL pointers without error.
+   */
+  if (Source < (unsigned char *)(4096)) {
+    if (Dest < (unsigned char *)(4096)) {
+      return Dest;
+    } else {
+      if (logregs)
+        fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
+                 S, Source, Dest, len, (void*)__builtin_return_address(0));
+      if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+      ++invalidptr;
+      void* P = invalidptr;
+      if ((unsigned)P & ~(InvalidUpper - 1)) {
+        fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x: %x %x, pc=%x\n",
+                 Source, Dest, InvalidLower, invalidptr, (void*)__builtin_return_address(0));
+        fflush (stderr);
+        return Dest;
+      }
+
+      adl_splay_insert (&(Pool->OOB), P, 1, Dest);
+      return invalidptr;
+    }
+  }
+
+  /*
    * The node is not found or is not within bounds; fail!
    */
   if (fs) {
@@ -1597,11 +1629,22 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
     } else {
-      ReportBoundsCheck ((unsigned)Source,
-                         (unsigned)Dest,
-                         (unsigned)__builtin_return_address(0),
-                         (unsigned)0,
-                         (unsigned)4096);
+      if (logregs)
+        fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
+                 S, Source, Dest, len, (void*)__builtin_return_address(0));
+      if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
+      ++invalidptr;
+      void* P = invalidptr;
+      //if ((unsigned)P & ~(InvalidUpper - 1)) {
+      if ((unsigned) P == InvalidUpper) {
+        fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
+                 InvalidLower, InvalidUpper, invalidptr);
+                 //Source, Dest, (void*)__builtin_return_address(0));
+        fflush (stderr);
+        abort();
+      }
+      adl_splay_insert (&(Pool->OOB), P, 1, Dest);
+      return invalidptr;
     }
   }
 
@@ -1628,26 +1671,27 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
    */
   
  return Dest;
-
-
 }
 
 void *
 boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheckui calls
 
-  //Search the splay for Source and return the bounds of the object
-  int len = boundscheckui_lookup( Pool, Source ) ; 
+  // Search the splay for Source and return the bounds of the object
+  int len = boundscheckui_lookup (Pool, Source); 
   
-  //Check if destination lies in the same object
-  if ( __builtin_expect ( len && ((Source <= Dest) && ((char*)Source + len) > (char*)Dest) 
-   			 ,1) 
-    ) {
+  // Check if destination lies in the same object
+  if (__builtin_expect (len &&
+                        ((Source <= Dest) &&
+                        ((char*)Source + len) > (char*)Dest), 1)) {
     return Dest;
-  } else 
-    // Valid object not found in splay tree or Dest is not within the valid object
+  } else {
+    //
+    // Valid object not found in splay tree or Dest is not within the valid
+    // object
+    //
     return boundscheckui_check( len, Pool, Source, Dest );  
- 
+  }
 }
 
 void *
