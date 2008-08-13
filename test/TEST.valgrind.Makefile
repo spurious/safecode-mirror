@@ -15,7 +15,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
-VALGRIND = valgrind --tool=memcheck -q --log-file=vglog
+VALGRIND = valgrind -q --log-file=vglog
 
 # Pool allocator pass shared object
 #PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
@@ -108,7 +108,7 @@ Output/%.safecode.out-llc: Output/%.safecode
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-llc): \
 Output/%.nonsc.out-llc: Output/%.nonsc
-	-$(RUNSAFELY) $(STDIN_FILENAME) $(VALGRIND) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(VALGRIND) $< $(RUN_OPTIONS)
 
 else
 
