@@ -32,7 +32,11 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden
+   External/SPEC/CINT2000/186.crafty \
+   #External/SPEC/CFP2000/188.ammp \
+   #External/Namd
+   #MultiSource/Applications/ghttpd \
+   #MultiSource/Benchmarks/Olden/bh
    #MultiSource/Benchmarks/Ptrdist
    #MultiSource/Applications \
    #MultiSource/Benchmarks
@@ -92,6 +96,29 @@ progabc::
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+# Run tests comparing SAFECode and Valgrind
+progvg::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html report.csv) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
+                   report.html report.csv) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=valgrind \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=valgrind \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 progperf::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
