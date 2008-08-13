@@ -105,12 +105,10 @@ int main(int argc, char **argv) {
 
     Passes.add(new TargetData(M.get()));
 
-#if 0
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     if ((DanglingPointerChecks) || (FullPA))
       Passes.add(new ConvertUnsafeAllocas());
-#endif
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
@@ -131,8 +129,8 @@ int main(int argc, char **argv) {
       Passes.add(new PoolAllocateSimple());
 
 #if 0
-    // Convert Unsafe alloc instructions first.  This does not rely upon
-    // pool allocation and has problems dealing with cloned functions.
+    // Convert Unsafe alloc instructions first.  This version relies upon
+    // pool allocation,
     if ((DanglingPointerChecks) || (FullPA))
       Passes.add(new PAConvertUnsafeAllocas());
 #endif
