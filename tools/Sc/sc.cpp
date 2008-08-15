@@ -107,8 +107,7 @@ int main(int argc, char **argv) {
 
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
-    if ((DanglingPointerChecks) || (FullPA))
-      Passes.add(new ConvertUnsafeAllocas());
+    Passes.add(new ConvertUnsafeAllocas());
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
@@ -124,15 +123,14 @@ int main(int argc, char **argv) {
     Passes.add(new BottomUpCallGraph());
 
     if (FullPA)
-      Passes.add(new PoolAllocate());
+      Passes.add(new PoolAllocate(true, true));
     else
-      Passes.add(new PoolAllocateSimple());
+      Passes.add(new PoolAllocateSimple(true, true));
 
 #if 0
     // Convert Unsafe alloc instructions first.  This version relies upon
     // pool allocation,
-    if ((DanglingPointerChecks) || (FullPA))
-      Passes.add(new PAConvertUnsafeAllocas());
+    Passes.add(new PAConvertUnsafeAllocas());
 #endif
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
