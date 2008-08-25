@@ -421,12 +421,16 @@ namespace {
                 //handle incomplete callsites or 0-target callsites
                 if(!CTF->isComplete(cs)) {
                     IC_WARN("Call site is not complete, skipping bounds checks");
+#if 0
                     IC_PRINTWARN(cs.getInstruction());
+#endif
                     continue;
                 }
                 else if(CTF->begin(cs) == CTF->end(cs)) {
                     IC_WARN("Callsite has no targets, skipping bounds checks");
+#if 0
                     IC_PRINTWARN(cs.getInstruction());
+#endif
                     continue;
                 }
                 else {
