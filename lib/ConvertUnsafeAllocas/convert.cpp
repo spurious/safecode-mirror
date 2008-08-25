@@ -118,8 +118,10 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   getUnsafeAllocsFromABC();
   if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
+#if 0
   TransformAllocasToMallocs(unsafeAllocaNodes);
   TransformCollapsedAllocas(M);
+#endif
 #endif
   return true;
 }
@@ -412,7 +414,7 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
 void
 ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
   //
-  // Need to check if the following is incomplete becasue we are only looking
+  // Need to check if the following is incomplete because we are only looking
   // at scalars.
   //
   // It may be complete because every instruction actually is a scalar in
@@ -650,8 +652,10 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   getUnsafeAllocsFromABC();
   if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
+#if 0
   TransformAllocasToMallocs(unsafeAllocaNodes);
   TransformCollapsedAllocas(M);
+#endif
 #endif
 
   return true;
