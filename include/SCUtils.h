@@ -70,7 +70,7 @@ castTo (Instruction * I, const Type * Ty, std::string Name,
 
 static inline Value *
 castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
-  castTo (V, Ty, "casted", InsertPt);
+  return castTo (V, Ty, "casted", InsertPt);
 }
 
 
@@ -86,8 +86,8 @@ castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
 //
 static inline bool
 indexesStructsOnly (GetElementPtrInst * GEP) {
-  const Type * PType = GEP->getPointerOperand()->getType();
-  const Type * ElementType;
+//  const Type * PType = GEP->getPointerOperand()->getType();
+//  const Type * ElementType;
   unsigned int index = 1;
   std::vector<Value *> Indices;
 #if 0

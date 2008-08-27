@@ -134,12 +134,13 @@ int main(int argc, char **argv) {
 #endif
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
-    Passes.add(new InsertPoolChecks(DanglingPointerChecks));
+//    Passes.add(new InsertPoolChecks(DanglingPointerChecks));
+    Passes.add(new MonotonicLoopOpt());
     Passes.add(new MallocPass());
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 
-    // Verify the final result
+	// Verify the final result
     Passes.add(createVerifierPass());
 
     // Figure out where we are going to send the output...
