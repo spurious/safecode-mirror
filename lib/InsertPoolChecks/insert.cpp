@@ -1,9 +1,3 @@
-/**
- * $Id: insert.cpp,v 1.81 2008-08-27 05:37:31 mai4 Exp $
- * vim: ts=2 sw=2 
- **/
-
-#include <iostream>
 #include "safecode/Config/config.h"
 #include "SCUtils.h"
 #include "InsertPoolChecks.h"
@@ -11,20 +5,17 @@
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
+#include <iostream>
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 
-#include "vector_list_helper.hpp"
-
 using namespace llvm;
 
 char llvm::InsertPoolChecks::ID = 0;
-char llvm::InsertCheckProtosPass::ID = 0;
 
 extern Value *getRepresentativeMetaPD(Value *);
 RegisterPass<InsertPoolChecks> ipc("safecode", "insert runtime checks");
-RegisterPass<InsertCheckProtosPass> check_proto("check-proto", "insert runtime check protos");
 
 // Options for Enabling/Disabling the Insertion of Various Checks
 cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
@@ -36,6 +27,9 @@ cl::opt<bool> EnableNullChecks  ("enable-nullchecks", cl::Hidden,
                                 cl::desc("Enable Checks on NULL Pools"));
 
 
+cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
+                                cl::init(false),
+                                cl::desc("Disable Load/Store Checks"));
 
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
@@ -77,50 +71,12 @@ namespace {
   STATISTIC (SavedRegAllocs,      "Stack registrations avoided");
   STATISTIC (SavedGlobals,        "Global object registrations avoided");
 
-}
+  // Set of checked DSNodes
+  std::set<DSNode *> CheckedDSNodes;
 
-////////////////////////////////////////////////////////////////////////////
-// InsertPoolChecks Methods
-////////////////////////////////////////////////////////////////////////////
+  // The set of values that already have run-time checks
+  std::set<Value *> CheckedValues;
 
-namespace llvm {
-
-/**
- * Methods of InsertCheckProtosPass
- **/
-
-bool InsertCheckProtosPass::runOnModule(Module & M)
-{
-	// TODO: Refactor to move to an analysis pass?
-	abcPass = getAnalysisToUpdate<ArrayBoundsCheck>();
-	paPass = getAnalysisToUpdate<PoolAllocateGroup>();
-	assert (paPass && "Pool Allocation Transform *must* be run first!");
-	efPass = &getAnalysis<EmbeCFreeRemoval>();
-	TD  = &getAnalysis<TargetData>();
-
-	addCheckProto(M);
-	return true;
-}
-
-void InsertCheckProtosPass::addCheckProto(Module &M) {
-	const Type * VoidTy = Type::VoidTy;
-	const Type * Int32Ty = Type::Int32Ty;
-	const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
-
-#define REG_FUNC(var, ret, name, func_args...)do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(func_args), false)); } while (0);
-
-  REG_FUNC (RuntimeInit,      VoidTy, "pool_init_runtime",  Int32Ty)
-  REG_FUNC (PoolCheck,        VoidTy, "poolcheck",          vpTy, vpTy)
-  REG_FUNC (PoolCheckUI,      VoidTy, "poolcheckui",        vpTy, vpTy)
-  REG_FUNC (PoolCheckArray,   VoidTy, "boundscheck",        vpTy, vpTy, vpTy)
-  REG_FUNC (PoolCheckArrayUI, VoidTy, "boundscheckui",      vpTy, vpTy, vpTy)
-  REG_FUNC (ExactCheck,       VoidTy, "exactcheck",         Int32Ty, Int32Ty)
-  REG_FUNC (ExactCheck2,      VoidTy, "exactcheck",         vpTy, vpTy, Int32Ty)
-  REG_FUNC (FunctionCheck,    VoidTy, "funccheck",          Int32Ty, vpTy, vpTy)
-  REG_FUNC (GetActualValue,   vpTy,   "pchk_getActualValue",vpTy, vpTy)
-  REG_FUNC (StackFree,        vpTy,   "poolunregister",     vpTy, vpTy)
-
-#undef REG_FUNC
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -134,7 +90,8 @@ void InsertCheckProtosPass::addCheckProto(Module &M) {
 //  true  - This value is eligable for an exactcheck.
 //  false - This value is not eligable for an exactcheck.
 //
-bool InsertPoolChecks::isEligableForExactCheck (Value * Pointer, bool IOOkay) {
+static inline bool
+isEligableForExactCheck (Value * Pointer, bool IOOkay) {
   if ((isa<AllocaInst>(Pointer)) ||
       (isa<MallocInst>(Pointer)) ||
       (isa<GlobalVariable>(Pointer)))
@@ -158,6 +115,7 @@ bool InsertPoolChecks::isEligableForExactCheck (Value * Pointer, bool IOOkay) {
 
   return false;
 }
+
 //
 // Function: findSourcePointer()
 //
@@ -169,8 +127,8 @@ bool InsertPoolChecks::isEligableForExactCheck (Value * Pointer, bool IOOkay) {
 //  indexed - Flags whether the data flow went through a indexing operation
 //            (i.e. a GEP).  This value is always written.
 //
-Value *
-InsertPoolChecks::findSourcePointer (Value * PointerOperand, bool & indexed, bool IOOkay /*= true*/) {
+static Value *
+findSourcePointer (Value * PointerOperand, bool & indexed, bool IOOkay = true) {
   //
   // Attempt to look for the originally allocated object by scanning the data
   // flow up.
@@ -229,6 +187,11 @@ InsertPoolChecks::findSourcePointer (Value * PointerOperand, bool & indexed, boo
   return PointerOperand;
 }
 
+////////////////////////////////////////////////////////////////////////////
+// InsertPoolChecks Methods
+////////////////////////////////////////////////////////////////////////////
+
+namespace llvm {
 //
 // Function: addExactCheck()
 //
@@ -706,23 +669,23 @@ InsertPoolChecks::insertExactCheck (Instruction * I,
 }
 
 bool InsertPoolChecks::runOnModule(Module &M) {
-  // FIXME: HACK HERE, SHOULD BE FIXED
-	InsertCheckProtosPass & pass = getAnalysis<InsertCheckProtosPass>();
-	abcPass = pass.abcPass;
-	paPass = pass.paPass;
-	efPass = pass.efPass;
-	TD = pass.TD;
-			
-	RuntimeInit = pass.RuntimeInit;
-	PoolCheck = pass.PoolCheck;
-	PoolCheckUI = pass.PoolCheckUI;
-	PoolCheckArray = pass.PoolCheckArray;
-	PoolCheckArrayUI = pass.PoolCheckArrayUI;
-	ExactCheck = pass.ExactCheck;
-	ExactCheck2 = pass.ExactCheck2;
-	FunctionCheck = pass.FunctionCheck;
-	GetActualValue = pass.GetActualValue;
-	StackFree = pass.StackFree;
+  abcPass = getAnalysisToUpdate<ArrayBoundsCheck>();
+  //  budsPass = &getAnalysis<CompleteBUDataStructures>();
+#ifndef LLVA_KERNEL  
+  paPass = getAnalysisToUpdate<PoolAllocateGroup>();
+#if 0
+  if (!paPass)
+    paPass = getAnalysisToUpdate<PoolAllocateSimple>();
+#endif
+  assert (paPass && "Pool Allocation Transform *must* be run first!");
+  efPass = &getAnalysis<EmbeCFreeRemoval>();
+  TD  = &getAnalysis<TargetData>();
+#else
+  TDPass = &getAnalysis<TDDataStructures>();
+#endif
+
+  // Add the new poolcheck prototype 
+  addPoolCheckProto(M);
 
   // Replace old poolcheck with the new one 
   addPoolChecks(M);
@@ -742,6 +705,164 @@ bool InsertPoolChecks::runOnModule(Module &M) {
   
   return true;
 }
+
+#ifndef LLVA_KERNEL
+void
+InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
+  //
+  // Find the main() function.  For FORTRAN programs converted to C using the
+  // NAG f2c tool, the function is named MAIN__.
+  //
+  Function *MainFunc = M.getFunction("main");
+  if (MainFunc == 0 || MainFunc->isDeclaration()) {
+    MainFunc = M.getFunction("MAIN__");
+    if (MainFunc == 0 || MainFunc->isDeclaration()) {
+      std::cerr << "Cannot do array bounds check for this program"
+          << "no 'main' function yet!\n";
+      abort();
+    }
+  }
+
+  // First register, argc and argv
+  Function::arg_iterator AI = MainFunc->arg_begin(), AE = MainFunc->arg_end();
+  if (AI != AE) {
+    //There is argc and argv
+    Value *Argc = AI;
+    AI++;
+    Value *Argv = AI;
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*MainFunc);
+    Value *PH= getPoolHandle(Argv, MainFunc, *FI);
+    Constant *PoolRegister = paPass->PoolRegister;
+    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+
+    // Insert the registration after all calls to poolinit().  Also skip
+    // cast, alloca, and binary operators.
+    while ((isa<CallInst>(InsertPt))  ||
+            isa<CastInst>(InsertPt)   ||
+            isa<AllocaInst>(InsertPt) ||
+            isa<BinaryOperator>(InsertPt)) {
+      if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+        if (Function * F = CI->getCalledFunction())
+          if (F->getName() == "poolinit")
+            ++InsertPt;
+          else
+            break;
+        else
+          break;
+      else
+        ++InsertPt;
+    }
+
+    if (PH) {
+      Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+      Instruction *GVCasted = CastInst::createPointerCast(Argv,
+					   VoidPtrType, Argv->getName()+"casted",InsertPt);
+      const Type* csiType = Type::Int32Ty;
+      Value *AllocSize = CastInst::createZExtOrBitCast(Argc,
+				      csiType, Argc->getName()+"casted",InsertPt);
+      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+					 ConstantInt::get(csiType, 4), "sizetmp", InsertPt);
+      std::vector<Value *> args;
+      args.push_back (PH);
+      args.push_back (GVCasted);
+      args.push_back (AllocSize);
+      CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+    } else {
+      std::cerr << "argv's pool descriptor is not present. \n";
+      //	abort();
+    }
+  }
+
+  // Now iterate over globals and register all the arrays
+  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+  Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+  Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
+
+  Module::global_iterator GI = M.global_begin(), GE = M.global_end();
+  for ( ; GI != GE; ++GI) {
+    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
+      // Don't register the llvm.used variable
+      if (GV->getName() == "llvm.used") continue;
+      if (GV->getType() != PoolDescPtrTy) {
+        DSGraph &G = paPass->getGlobalsGraph();
+        DSNode *DSN  = G.getNodeForValue(GV).getNode();
+
+        // Skip it if there is never a run-time check
+        if (CheckedDSNodes.find(DSN) == CheckedDSNodes.end()) {
+          ++SavedGlobals;
+          continue;
+        }
+
+        Value * AllocSize;
+        const Type* csiType = Type::Int32Ty;
+        const Type * GlobalType = GV->getType()->getElementType();
+        AllocSize = ConstantInt::get (csiType, TD->getABITypeSize(GlobalType));
+        Constant *PoolRegister = paPass->PoolRegister;
+        BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+        //skip the calls to poolinit
+        while ((isa<CallInst>(InsertPt))  ||
+                isa<CastInst>(InsertPt)   ||
+                isa<AllocaInst>(InsertPt) ||
+                isa<BinaryOperator>(InsertPt)) {
+          if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+            if (Function * F = CI->getCalledFunction())
+              if (F->getName() == "poolinit")
+                ++InsertPt;
+              else
+                break;
+            else
+              break;
+          else
+            ++InsertPt;
+        }
+
+        Value * PH = paPass->getGlobalPool (DSN);
+        if (PH) {
+          Instruction *GVCasted = CastInst::createPointerCast(GV,
+                 VoidPtrType, GV->getName()+"casted",InsertPt);
+          std::vector<Value *> args;
+          args.push_back (PH);
+          args.push_back (GVCasted);
+          args.push_back (AllocSize);
+          CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
+        } else {
+          std::cerr << "pool descriptor not present for " << *GV << std::endl;
+    #if 0
+          abort();
+    #endif
+        }
+      }
+    }
+  }
+
+  //
+  // Initialize the runtime.
+  //
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+
+  // Insert the registration after all calls to poolinit().  Also skip
+  // cast, alloca, and binary operators.
+  while ((isa<CallInst>(InsertPt))  ||
+          isa<CastInst>(InsertPt)   ||
+          isa<AllocaInst>(InsertPt) ||
+          isa<BinaryOperator>(InsertPt)) {
+    if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
+      if (Function * F = CI->getCalledFunction())
+        if (F->getName() == "poolinit")
+          ++InsertPt;
+        else
+          break;
+      else
+        break;
+    else
+      ++InsertPt;
+  }
+
+  std::vector<Value *> args;
+  args.push_back (ConstantInt::get(Type::Int32Ty,DanglingChecks,0));
+  CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
+}
+#endif
 
 void
 InsertPoolChecks::registerStackObjects (Module &M) {
@@ -964,10 +1085,12 @@ void InsertPoolChecks::addPoolChecks(Module &M) {
       }
     }
   }
+  if (!DisableLSChecks)  addLoadStoreChecks(M);
 }
 
 void
 InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
+#if 1
   // We know that the operand is a pointer type 
   Value *op   = SCI->getOperand(operand);
   Function *F = SCI->getParent()->getParent();
@@ -1019,7 +1142,334 @@ InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
       //It shouldn't work if PH is not null
     }
   }
+#endif
 }
+
+
+#ifdef LLVA_KERNEL
+//
+// Method: addLSChecks()
+//
+// Description:
+//  Insert a poolcheck() into the code for a load or store instruction.
+//
+void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
+  DSGraph & TDG = TDPass->getDSGraph(*F);
+  DSNode * Node = TDG.getNodeForValue(V).getNode();
+  
+  if (Node && Node->isNodeCompletelyFolded()) {
+    if (!EnableIncompleteChecks) {
+      if (Node->isIncomplete()) {
+        ++MissedIncompleteChecks;
+        return;
+      }
+    }
+    // Get the pool handle associated with this pointer.  If there is no pool
+    // handle, use a NULL pointer value and let the runtime deal with it.
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    Value *PH = getPoolHandle(V, F, *FI);
+#ifdef DEBUG
+std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
+#endif
+    // FIXME: We cannot handle checks to global or stack positions right now.
+    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
+      ++NullChecks;
+      if (!PH) ++MissedNullChecks;
+      if (Node->isAllocaNode()) ++MissedStackChecks;
+      if (Node->isGlobalNode()) ++MissedGlobalChecks;
+
+      // Don't bother to insert the NULL check unless the user asked
+      if (!EnableNullChecks)
+        return;
+      PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
+    } else {
+      //
+      // Only add the pool check if the pool is a global value or it
+      // belongs to the same basic block.
+      //
+      if (isa<GlobalValue>(PH)) {
+        ++FullChecks;
+      } else if (isa<Instruction>(PH)) {
+        Instruction * IPH = (Instruction *)(PH);
+        if (IPH->getParent() == I->getParent()) {
+          //
+          // If the instructions belong to the same basic block, ensure that
+          // the pool dominates the load/store.
+          //
+          Instruction * IP = IPH;
+          for (IP=IPH; (IP->isTerminator()) || (IP == I); IP=IP->getNext()) {
+            ;
+          }
+          if (IP == I)
+            ++FullChecks;
+          else {
+            ++MissChecks;
+            return;
+          }
+        } else {
+          ++MissChecks;
+          return;
+        }
+      } else {
+        ++MissChecks;
+        return;
+      }
+    }      
+    // Create instructions to cast the checked pointer and the checked pool
+    // into sbyte pointers.
+    CastInst *CastVI = 
+      CastInst::createPointerCast(V, 
+		   PointerType::getUnqual(Type::Int8Ty), "node.lscasted", I);
+    CastInst *CastPHI = 
+      CastInst::createPointerCast(PH, 
+		   PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", I);
+
+    // Create the call to poolcheck
+    std::vector<Value *> args(1,CastPHI);
+    args.push_back(CastVI);
+    CallInst::Create(PoolCheck,args,"", I);
+  }
+}
+
+void InsertPoolChecks::addLoadStoreChecks(Module &M){
+  Module::iterator mI = M.begin(), mE = M.end();
+  for ( ; mI != mE; ++mI) {
+    Function *F = mI;
+    for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
+        Value *P = LI->getPointerOperand();
+        addLSChecks(P, LI, F);
+      } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
+        Value *P = SI->getPointerOperand();
+        addLSChecks(P, SI, F);
+      } else if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
+        switch (CmpI->getPredicate()) {
+          ICmpInst::Predicate::ICMP_EQ:
+          ICmpInst::Predicate::ICMP_NE:
+            // Replace all pointer operands with the getActualValue() call
+            assert ((CmpI->getNumOperands() == 2) &&
+                     "nmber of operands for CmpI different from 2 ");
+            if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
+              // we need to insert a call to getactualvalue
+              // First get the poolhandle for the pointer
+              // TODO: We don't have a working getactualvalue(), so don't waste
+              // time calling it.
+              if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
+                  (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
+                addGetActualValue(CmpI, 0);
+                addGetActualValue(CmpI, 1);
+              }
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
+    }
+  }
+}
+#else
+//
+// Method: addLSChecks()
+//
+// Inputs:
+//  Vnew        - The pointer operand of the load/store instruction.
+//  V           - ?
+//  Instruction - The load or store instruction
+//  F           - The parent function of the instruction
+//
+void
+InsertPoolChecks::addLSChecks (Value *Vnew,
+                               const Value *V,
+                               Instruction *I,
+                               Function *F) {
+
+  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+  Value *PH = getPoolHandle(V, F, *FI );
+  DSNode* Node = getDSNode(V, F);
+  if (!PH) {
+    return;
+  }
+
+  if (isa<ConstantPointerNull>(PH)) {
+    //we have a collapsed/Unknown pool
+    Value *PH = getPoolHandle(V, F, *FI, true); 
+#if 0
+    assert (PH && "Null pool handle!\n");
+#else
+    if (!PH) return;
+#endif
+  }
+
+  //
+  // Do not perform checks on incomplete nodes.  While external heap
+  // allocations can be recorded via hooking functionality in the system's
+  // original allocator routines, external globals and stack allocations remain
+  // invisible.
+  //
+  if (Node && (Node->isIncompleteNode())) return;
+
+  //
+  // Only check pointers to type-unknown objects.
+  //
+  if (Node && Node->isNodeCompletelyFolded()) {
+    if (dyn_cast<CallInst>(I)) {
+      // Do not perform function checks on incomplete nodes
+      if (Node->isIncompleteNode()) return;
+
+      // Get the globals list corresponding to the node
+      std::vector<Function *> FuncList;
+      Node->addFullFunctionList(FuncList);
+      std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
+      unsigned num = FuncList.size();
+      if (flI != flE) {
+        const Type* csiType = Type::Int32Ty;
+        Value *NumArg = ConstantInt::get(csiType, num);	
+               
+        CastInst *CastVI = 
+          CastInst::createPointerCast (Vnew, 
+           PointerType::getUnqual(Type::Int8Ty), "casted", I);
+
+        std::vector<Value *> args(1, NumArg);
+        args.push_back(CastVI);
+        for (; flI != flE ; ++flI) {
+          Function *func = *flI;
+          CastInst *CastfuncI = 
+            CastInst::createPointerCast (func, 
+             PointerType::getUnqual(Type::Int8Ty), "casted", I);
+          args.push_back(CastfuncI);
+        }
+        CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
+      }
+    } else {
+      //
+      // If the pointer used for the load/store check is trivially seen to be
+      // valid (load/store to allocated memory or a global variable), don't
+      // bother doing a check.
+      //
+      if ((isa<AllocationInst>(Vnew)) || (isa<GlobalVariable>(Vnew)))
+        return;
+
+      //
+      // If we've already checked this pointer, don't bother checking it again.
+      //
+      if (CheckedValues.find (Vnew) != CheckedValues.end())
+        return;
+
+      bool indexed = true;
+      Value * SourcePointer = findSourcePointer (Vnew, indexed, false);
+      if (isEligableForExactCheck (SourcePointer, false)) {
+        Value * AllocSize;
+        if (AllocationInst * AI = dyn_cast<AllocationInst>(SourcePointer)) {
+          AllocSize = ConstantInt::get (Type::Int32Ty,
+                                        TD->getABITypeSize(AI->getAllocatedType()));
+          if (AI->isArrayAllocation()) {
+            AllocSize = BinaryOperator::create (Instruction::Mul,
+                                               AllocSize,
+                                               AI->getArraySize(), "sizetmp", I);
+          }
+        } else if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SourcePointer)) {
+          AllocSize = ConstantInt::get (Type::Int32Ty,
+                                        TD->getABITypeSize(GV->getType()->getElementType()));
+        } else {
+          assert (0 && "Cannot handle source pointer!\n");
+        }
+        addExactCheck2 (SourcePointer, Vnew, AllocSize, I);
+      } else {
+        CastInst *CastVI = 
+          CastInst::createPointerCast (Vnew, 
+                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+        CastInst *CastPHI = 
+          CastInst::createPointerCast (PH, 
+                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+        std::vector<Value *> args(1,CastPHI);
+        args.push_back(CastVI);
+
+        CheckedDSNodes.insert (Node);
+        CheckedValues.insert (Vnew);
+        if (Node->isIncompleteNode())
+          CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
+        else
+          CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
+      }
+    }
+  }
+}
+
+void InsertPoolChecks::addLoadStoreChecks(Module &M){
+  Module::iterator mI = M.begin(), mE = M.end();
+  for ( ; mI != mE; ++mI) {
+    Function *F = mI;
+    //here we check that we only do this on original functions
+    //and not the cloned functions, the cloned functions may not have the
+    //DSG
+    bool isClonedFunc = false;
+    if (paPass->getFuncInfo(*F))
+      isClonedFunc = false;
+    else
+      isClonedFunc = true;
+    Function *Forig = F;
+    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    if (isClonedFunc) {
+      Forig = paPass->getOrigFunctionFromClone(F);
+    }
+    //we got the original function
+
+    for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
+        // We need to get the LI from the original function
+        Value *P = LI->getPointerOperand();
+        if (isClonedFunc) {
+          assert (FI && "No FuncInfo for this function\n");
+          assert((FI->MapValueToOriginal(LI)) && " not in the value map \n");
+          const LoadInst *temp = dyn_cast<LoadInst>(FI->MapValueToOriginal(LI));
+          assert(temp && " Instruction  not there in the NewToOldValue map");
+          const Value *Ptr = temp->getPointerOperand();
+          addLSChecks(P, Ptr, LI, Forig);
+        } else {
+          addLSChecks(P, P, LI, Forig);
+        }
+      } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
+        Value *P = SI->getPointerOperand();
+        if (isClonedFunc) {
+          std::cerr << *(SI) << std::endl;
+#if 0
+          assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
+#else
+          assert((FI->MapValueToOriginal(SI)) && " not in the value map \n");
+#endif
+#if 0
+          const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
+#else
+          const StoreInst *temp = dyn_cast<StoreInst>(FI->MapValueToOriginal(SI));
+#endif
+          assert(temp && " Instruction  not there in the NewToOldValue map");
+          const Value *Ptr = temp->getPointerOperand();
+          addLSChecks(P, Ptr, SI, Forig);
+        } else {
+          addLSChecks(P, P, SI, Forig);
+        }
+      } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
+        Value *FunctionOp = CI->getOperand(0);
+        if (!isa<Function>(FunctionOp)) {
+          std::cerr << "JTC: LIC: " << F->getName() << " : " << *(CI->getOperand(0)) << std::endl;
+          if (isClonedFunc) {
+            assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
+            const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
+            assert(temp && " Instruction  not there in the NewToOldValue map");
+            const Value* FunctionOp1 = temp->getOperand(0);
+            addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
+          } else {
+            addLSChecks(FunctionOp, FunctionOp, CI, Forig);
+          }
+        }
+      } 
+    }
+  }
+}
+
+#endif
 
 void
 InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
@@ -1075,7 +1525,7 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
           std::vector<Value *> args(1,CastPHI);
           args.push_back(CastSourcePointer);
           args.push_back(CastCI);
-          CallInst::Create(PoolCheckArray, args.begin(), args.end(),"", InsertPt);
+          CallInst::Create(PoolCheckArray,args.begin(), args.end(),"", InsertPt);
 #if 0
         } else if (Fop->getName() == "memset") {
           Value *PH = getPoolHandle(CI->getOperand(1), F); 
@@ -1131,8 +1581,21 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
 #ifndef LLVA_KERNEL    
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     Instruction *Casted = GEP;
-    
-		if (GetElementPtrInst *GEPNew = dyn_cast<GetElementPtrInst>(Casted)) {
+#if 0
+    //
+    // JTC: Disabled.  I'm not sure why we would look up a cloned value when
+    //                 processing an old value.
+    //
+std::cerr << "Parent: " << GEP->getParent()->getParent()->getName() << std::endl;
+std::cerr << "Ins   : " << *GEP << std::endl;
+    if (!FI->ValueMap.empty()) {
+      assert(FI->ValueMap.count(GEP) && "Instruction not in the value map \n");
+      Instruction *temp = dyn_cast<Instruction>(FI->ValueMap[GEP]);
+      assert(temp && " Instruction  not there in the Value map");
+      Casted  = temp;
+    }
+#endif
+    if (GetElementPtrInst *GEPNew = dyn_cast<GetElementPtrInst>(Casted)) {
       Value *PH = getPoolHandle(GEP, F, *FI);
       if (PH && isa<ConstantPointerNull>(PH)) continue;
       if (insertExactCheck (GEPNew)) continue;
@@ -1213,6 +1676,38 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
               (Casted->getParent()->getParent()))
             return;
         }
+
+        BasicBlock::iterator InsertPt = Casted;
+        ++InsertPt;
+        Casted            = castTo (Casted,
+                                    PointerType::getUnqual(Type::Int8Ty),
+                                    (Casted)->getName()+".pc.casted",
+                                    InsertPt);
+
+        Value * CastedSrc = castTo (GEP->getPointerOperand(),
+                                    PointerType::getUnqual(Type::Int8Ty),
+                                    (Casted)->getName()+".pcsrc.casted",
+                                    InsertPt);
+
+        Value *CastedPH = castTo (PH,
+                                  PointerType::getUnqual(Type::Int8Ty),
+                                  "jtcph",
+                                  InsertPt);
+        std::vector<Value *> args(1, CastedPH);
+        args.push_back(CastedSrc);
+        args.push_back(Casted);
+
+        // Insert it
+        DSNode * Node = getDSNode (GEP, F);
+        CheckedDSNodes.insert (Node);
+        CheckedValues.insert (Casted);
+        if (Node->isIncompleteNode())
+          CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
+                           "", InsertPt);
+        else
+          CallInst::Create(PoolCheckArray, args.begin(), args.end(),
+                           "", InsertPt);
+        DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
 #else
@@ -1372,6 +1867,61 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
   }
 }
 
+void InsertPoolChecks::addPoolCheckProto(Module &M) {
+  const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+  /*
+  const Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
+  //	StructType::get(make_vector<const Type*>(VoidPtrType, VoidPtrType,
+  //                                               Type::Int32Ty, Type::Int32Ty, 0));
+  const Type * PoolDescTypePtr = PointerType::getUnqual(PoolDescType);
+  */  
+
+  RuntimeInit = M.getOrInsertFunction("pool_init_runtime", Type::VoidTy,
+                                                           Type::Int32Ty, 0);
+
+  std::vector<const Type *> Arg(1, VoidPtrType);
+  Arg.push_back(VoidPtrType);
+  FunctionType *PoolCheckTy =
+    FunctionType::get(Type::VoidTy,Arg, false);
+  PoolCheck   = M.getOrInsertFunction("poolcheck", PoolCheckTy);
+  PoolCheckUI = M.getOrInsertFunction("poolcheckui", PoolCheckTy);
+
+  std::vector<const Type *> Arg2(1, VoidPtrType);
+  Arg2.push_back(VoidPtrType);
+  Arg2.push_back(VoidPtrType);
+  FunctionType *PoolCheckArrayTy =
+    FunctionType::get(Type::VoidTy,Arg2, false);
+  PoolCheckArray   = M.getOrInsertFunction("boundscheck",   PoolCheckArrayTy);
+  PoolCheckArrayUI = M.getOrInsertFunction("boundscheckui", PoolCheckArrayTy);
+  
+  std::vector<const Type *> FArg2(1, Type::Int32Ty);
+  FArg2.push_back(Type::Int32Ty);
+  FunctionType *ExactCheckTy = FunctionType::get(Type::VoidTy, FArg2, false);
+  ExactCheck = M.getOrInsertFunction("exactcheck", ExactCheckTy);
+
+  std::vector<const Type*> FArg4(1, VoidPtrType); //base
+  FArg4.push_back(VoidPtrType); //result
+  FArg4.push_back(Type::Int32Ty); //size
+  FunctionType *ExactCheck2Ty = FunctionType::get(VoidPtrType, FArg4, false);
+  ExactCheck2  = M.getOrInsertFunction("exactcheck2",  ExactCheck2Ty);
+
+  std::vector<const Type *> FArg3(1, Type::Int32Ty);
+  FArg3.push_back(VoidPtrType);
+  FArg3.push_back(VoidPtrType);
+  FunctionType *FunctionCheckTy = FunctionType::get(Type::VoidTy, FArg3, true);
+  FunctionCheck = M.getOrInsertFunction("funccheck", FunctionCheckTy);
+
+  std::vector<const Type*> FArg5(1, VoidPtrType);
+  FArg5.push_back(VoidPtrType);
+  FunctionType *GetActualValueTy = FunctionType::get(VoidPtrType, FArg5, false);
+  GetActualValue=M.getOrInsertFunction("pchk_getActualValue", GetActualValueTy);
+
+  std::vector<const Type*> FArg6(1, VoidPtrType);
+  FArg6.push_back(VoidPtrType);
+  FunctionType *StackFreeTy = FunctionType::get(VoidPtrType, FArg6, false);
+  StackFree=M.getOrInsertFunction("poolunregister", StackFreeTy);
+}
+
 //
 // Method: getDSGraph()
 //
@@ -1515,164 +2065,6 @@ Value *InsertPoolChecks::getPoolHandle(const Value *V, Function *F) {
   if ((TDG.getPoolDescriptorsMap()).count(Node)) 
     return (TDG.getPoolDescriptorsMap()[Node]->getMetaPoolValue());
   return 0;
-}
-#endif
-
-#ifndef LLVA_KERNEL
-void
-InsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
-  //
-  // Find the main() function.  For FORTRAN programs converted to C using the
-  // NAG f2c tool, the function is named MAIN__.
-  //
-  Function *MainFunc = M.getFunction("main");
-  if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    MainFunc = M.getFunction("MAIN__");
-    if (MainFunc == 0 || MainFunc->isDeclaration()) {
-      std::cerr << "Cannot do array bounds check for this program"
-          << "no 'main' function yet!\n";
-      abort();
-    }
-  }
-
-  // First register, argc and argv
-  Function::arg_iterator AI = MainFunc->arg_begin(), AE = MainFunc->arg_end();
-  if (AI != AE) {
-    //There is argc and argv
-    Value *Argc = AI;
-    AI++;
-    Value *Argv = AI;
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*MainFunc);
-    Value *PH= getPoolHandle(Argv, MainFunc, *FI);
-    Constant *PoolRegister = paPass->PoolRegister;
-    BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-
-    // Insert the registration after all calls to poolinit().  Also skip
-    // cast, alloca, and binary operators.
-    while ((isa<CallInst>(InsertPt))  ||
-            isa<CastInst>(InsertPt)   ||
-            isa<AllocaInst>(InsertPt) ||
-            isa<BinaryOperator>(InsertPt)) {
-      if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
-        if (Function * F = CI->getCalledFunction())
-          if (F->getName() == "poolinit")
-            ++InsertPt;
-          else
-            break;
-        else
-          break;
-      else
-        ++InsertPt;
-    }
-
-    if (PH) {
-      Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-      Instruction *GVCasted = CastInst::createPointerCast(Argv,
-					   VoidPtrType, Argv->getName()+"casted",InsertPt);
-      const Type* csiType = Type::Int32Ty;
-      Value *AllocSize = CastInst::createZExtOrBitCast(Argc,
-				      csiType, Argc->getName()+"casted",InsertPt);
-      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
-					 ConstantInt::get(csiType, 4), "sizetmp", InsertPt);
-      std::vector<Value *> args;
-      args.push_back (PH);
-      args.push_back (GVCasted);
-      args.push_back (AllocSize);
-      CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
-    } else {
-      std::cerr << "argv's pool descriptor is not present. \n";
-      //	abort();
-    }
-  }
-
-  // Now iterate over globals and register all the arrays
-  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-  Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
-  Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
-
-  Module::global_iterator GI = M.global_begin(), GE = M.global_end();
-  for ( ; GI != GE; ++GI) {
-    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-      // Don't register the llvm.used variable
-      if (GV->getName() == "llvm.used") continue;
-      if (GV->getType() != PoolDescPtrTy) {
-        DSGraph &G = paPass->getGlobalsGraph();
-        DSNode *DSN  = G.getNodeForValue(GV).getNode();
-
-        // Skip it if there is never a run-time check
-        if (CheckedDSNodes.find(DSN) == CheckedDSNodes.end()) {
-          ++SavedGlobals;
-          continue;
-        }
-
-        Value * AllocSize;
-        const Type* csiType = Type::Int32Ty;
-        const Type * GlobalType = GV->getType()->getElementType();
-        AllocSize = ConstantInt::get (csiType, TD->getABITypeSize(GlobalType));
-        Constant *PoolRegister = paPass->PoolRegister;
-        BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-        //skip the calls to poolinit
-        while ((isa<CallInst>(InsertPt))  ||
-                isa<CastInst>(InsertPt)   ||
-                isa<AllocaInst>(InsertPt) ||
-                isa<BinaryOperator>(InsertPt)) {
-          if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
-            if (Function * F = CI->getCalledFunction())
-              if (F->getName() == "poolinit")
-                ++InsertPt;
-              else
-                break;
-            else
-              break;
-          else
-            ++InsertPt;
-        }
-
-        Value * PH = paPass->getGlobalPool (DSN);
-        if (PH) {
-          Instruction *GVCasted = CastInst::createPointerCast(GV,
-                 VoidPtrType, GV->getName()+"casted",InsertPt);
-          std::vector<Value *> args;
-          args.push_back (PH);
-          args.push_back (GVCasted);
-          args.push_back (AllocSize);
-          CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
-        } else {
-          std::cerr << "pool descriptor not present for " << *GV << std::endl;
-    #if 0
-          abort();
-    #endif
-        }
-      }
-    }
-  }
-
-  //
-  // Initialize the runtime.
-  //
-  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-
-  // Insert the registration after all calls to poolinit().  Also skip
-  // cast, alloca, and binary operators.
-  while ((isa<CallInst>(InsertPt))  ||
-          isa<CastInst>(InsertPt)   ||
-          isa<AllocaInst>(InsertPt) ||
-          isa<BinaryOperator>(InsertPt)) {
-    if (CallInst * CI = dyn_cast<CallInst>(InsertPt))
-      if (Function * F = CI->getCalledFunction())
-        if (F->getName() == "poolinit")
-          ++InsertPt;
-        else
-          break;
-      else
-        break;
-    else
-      ++InsertPt;
-  }
-
-  std::vector<Value *> args;
-  args.push_back (ConstantInt::get(Type::Int32Ty,DanglingChecks,0));
-  CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif
 }
