@@ -86,8 +86,10 @@ castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
 //
 static inline bool
 indexesStructsOnly (GetElementPtrInst * GEP) {
-//  const Type * PType = GEP->getPointerOperand()->getType();
-//  const Type * ElementType;
+#if 0
+  const Type * PType = GEP->getPointerOperand()->getType();
+  const Type * ElementType;
+#endif
   unsigned int index = 1;
   std::vector<Value *> Indices;
 #if 0
