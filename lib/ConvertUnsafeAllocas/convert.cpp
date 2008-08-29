@@ -514,7 +514,7 @@ ConvertUnsafeAllocas::getUnsafeAllocsFromABC() { std::map<BasicBlock *,std::set<
 //  that has been promoted to the heap is all deallocated in one fell swoop.
 //
 void
-PAConvertUnsafeAllocas::InsertFreesAtEnd (Value * PH, Instruction * MI) {
+PAConvertUnsafeAllocas::InsertFreesAtEndNew (Value * PH, Instruction * MI) {
   assert (MI && "MI is NULL!\n");
 
   BasicBlock *currentBlock = MI->getParent();
@@ -607,7 +607,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
     std::vector<Value *> args;
     args.push_back (PH);
     CallInst *CI = CallInst::Create (NewStack, args.begin(), args.end(), "", F->begin()->begin());
-    InsertFreesAtEnd (PH, MI);
+    InsertFreesAtEndNew (PH, MI);
     FuncsWithPromotes.insert (F);
   }
   return MI;
