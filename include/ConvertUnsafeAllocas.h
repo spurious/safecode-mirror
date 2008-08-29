@@ -152,7 +152,7 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
     PoolAllocateGroup * paPass;
 
   protected:
-    virtual void InsertFreesAtEndNew(Value * PH, Instruction  *MI);
+    virtual void InsertFreesAtEnd(Value * PH, Instruction  *MI);
     virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
 
   public:
