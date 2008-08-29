@@ -76,9 +76,6 @@ static Constant * DelStack;
 
 static void
 createProtos (Module & M) {
-  // LLVM Void Pointer Type
-  Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-
 #ifdef LLVA_KERNEL
   //
   // Get a reference to the sp_malloc() function (a function in the kernel
@@ -514,7 +511,7 @@ ConvertUnsafeAllocas::getUnsafeAllocsFromABC() { std::map<BasicBlock *,std::set<
 //  that has been promoted to the heap is all deallocated in one fell swoop.
 //
 void
-PAConvertUnsafeAllocas::InsertFreesAtEnd (Value * PH, Instruction * MI) {
+PAConvertUnsafeAllocas::InsertFreesAtEndNew (Value * PH, Instruction * MI) {
   assert (MI && "MI is NULL!\n");
 
   BasicBlock *currentBlock = MI->getParent();
@@ -606,8 +603,8 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   if (FuncsWithPromotes.find (F) == FuncsWithPromotes.end()) {
     std::vector<Value *> args;
     args.push_back (PH);
-    CallInst *CI = CallInst::Create (NewStack, args.begin(), args.end(), "", F->begin()->begin());
-    InsertFreesAtEnd (PH, MI);
+    CallInst::Create (NewStack, args.begin(), args.end(), "", F->begin()->begin());
+    InsertFreesAtEndNew (PH, MI);
     FuncsWithPromotes.insert (F);
   }
   return MI;
