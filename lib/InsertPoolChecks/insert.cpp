@@ -65,6 +65,7 @@ namespace {
   STATISTIC (MissedStackChecks  , "Missed stack checks");
   STATISTIC (MissedGlobalChecks , "Missed global checks");
   STATISTIC (MissedNullChecks   , "Missed PD checks");
+  STATISTIC (MissedVarArgs      , "Missed varargs functions");
 
   // Object registration statistics
   STATISTIC (StackRegisters,      "Stack registrations");
@@ -1078,6 +1079,13 @@ void InsertPoolChecks::addPoolChecks(Module &M) {
     Module::iterator mI = M.begin(), mE = M.end();
     for ( ; mI != mE; ++mI) {
       Function * F = mI;
+
+      // For now, skip vararg functions
+      if (F->isVarArg()) {
+        ++MissedVarArgs;
+        continue;
+      }
+
       Function::iterator fI = F->begin(), fE = F->end();
       for ( ; fI != fE; ++fI) {
         BasicBlock * BB = fI;
@@ -1235,6 +1243,12 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
   Module::iterator mI = M.begin(), mE = M.end();
   for ( ; mI != mE; ++mI) {
     Function *F = mI;
+
+#if 1
+    // Skip vararg functions for now
+    if (F->isVarArg()) continue;
+#endif
+
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
         Value *P = LI->getPointerOperand();
