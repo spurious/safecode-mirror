@@ -1244,11 +1244,6 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
   for ( ; mI != mE; ++mI) {
     Function *F = mI;
 
-#if 1
-    // Skip vararg functions for now
-    if (F->isVarArg()) continue;
-#endif
-
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
         Value *P = LI->getPointerOperand();
@@ -1415,6 +1410,10 @@ void InsertPoolChecks::addLoadStoreChecks(Module &M){
   Module::iterator mI = M.begin(), mE = M.end();
   for ( ; mI != mE; ++mI) {
     Function *F = mI;
+
+    // Skip vararg functions for now
+    if (F->isVarArg()) continue;
+
     //here we check that we only do this on original functions
     //and not the cloned functions, the cloned functions may not have the
     //DSG
