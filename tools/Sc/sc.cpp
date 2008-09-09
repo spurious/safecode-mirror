@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
       } else {
         OutputFilename = GetFileNameRoot(InputFilename);
 
-        OutputFilename += ".abc.bc";
+        OutputFilename += ".sc.bc";
       }
 
       if (!Force && std::ifstream(OutputFilename.c_str())) {
