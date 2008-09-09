@@ -22,7 +22,8 @@ PA_SO    := $(PROJECT_DIR)/Debug/lib/addchecks.o
 
 # Pool allocator runtime library
 PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+#PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+PA_RT_BC :=
 
 # Pool System library for interacting with the system
 POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
@@ -32,7 +33,8 @@ POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
 SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
-OPTZN_PASSES := -std-compile-opts
+#OPTZN_PASSES := -std-compile-opts
+OPTZN_PASSES :=
 
 
 #
@@ -43,7 +45,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LLVMLDPROG) -disable-opt -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
@@ -76,7 +78,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
