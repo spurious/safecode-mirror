@@ -2,6 +2,7 @@
 #define INSERT_BOUNDS_H
 
 #include "safecode/Config/config.h"
+#include "llvm/Analysis/Dominators.h"
 #include "llvm/Pass.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
@@ -37,6 +38,7 @@ struct InsertPoolChecks : public ModulePass {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<EmbeCFreeRemoval>();
       AU.addRequired<TargetData>();
+      AU.addRequired<DominatorTree>();
       AU.addPreserved<PoolAllocateGroup>();
 #else 
       AU.addRequired<TDDataStructures>();
