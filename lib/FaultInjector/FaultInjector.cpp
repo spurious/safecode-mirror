@@ -12,9 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "FaultInjector"
 
 #include "FaultInjector.h"
 #include "dsa/DSGraph.h"
+#include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
@@ -24,6 +26,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <iostream>
+#include <vector>
 
 using namespace llvm;
 
@@ -33,20 +36,23 @@ char llvm::FaultInjector::ID = 0;
 // I know, I know; it's my own darn fault...
 RegisterPass<FaultInjector> MyFault ("faultinjector", "Insert Faults");
 
-namespace {
-  ///////////////////////////////////////////////////////////////////////////
-  // Command line options
-  ///////////////////////////////////////////////////////////////////////////
-#if 0
-  cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Enable Checks on Incomplete Nodes"));
-#endif
+///////////////////////////////////////////////////////////////////////////
+// Command line options
+///////////////////////////////////////////////////////////////////////////
+cl::opt<bool> InjectDPFaults ("inject-dp", cl::Hidden,
+                              cl::init(false),
+                              cl::desc("Inject Dangling Pointer Faults"));
 
+cl::opt<bool> InjectBadSizes ("inject-badsize", cl::Hidden,
+                              cl::init(false),
+                              cl::desc("Inject Wrong malloc-size Faults"));
+
+namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
   ///////////////////////////////////////////////////////////////////////////
   STATISTIC (DPFaults, "Number of Dangling Pointer Faults Injected");
+  STATISTIC (BadSizes, "Number of Bad Allocation Size Faults Injected");
 }
 
 //
@@ -106,6 +112,60 @@ FaultInjector::insertDanglingPointers (Function & F) {
 }
 
 //
+// Method: addBadAllocationSizes()
+//
+// Description:
+//  This method will look for allocations and change their size to be
+//  incorrect.  It does the following:
+//    o) Changes the number of array elements allocated by alloca and malloc.
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was left unmodified.
+//
+bool
+FaultInjector::addBadAllocationSizes  (Function & F) {
+  // Worklist of allocation sites to rewrite
+  std::vector<AllocationInst * > WorkList;
+
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
+      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+        if (AI->isArrayAllocation()) {
+          WorkList.push_back(AI);
+        }
+      }
+    }
+  }
+
+  while (WorkList.size()) {
+    AllocationInst * AI = WorkList.back();
+    WorkList.pop_back();
+
+    Instruction * NewAlloc = 0;
+    if (isa<MallocInst>(AI))
+      NewAlloc =  new MallocInst (AI->getAllocatedType(),
+                                  ConstantInt::get(Type::Int32Ty,0),
+                                  AI->getAlignment(),
+                                  AI->getName(),
+                                  AI);
+    else
+      NewAlloc =  new AllocaInst (AI->getAllocatedType(),
+                                  ConstantInt::get(Type::Int32Ty,0),
+                                  AI->getAlignment(),
+                                  AI->getName(),
+                                  AI);
+
+    AI->replaceAllUsesWith (NewAlloc);
+    AI->eraseFromParent();
+    ++BadSizes;
+  }
+
+  return (BadSizes > 0);
+}
+
+//
 // Method: runOnModule()
 //
 // Description:
@@ -117,13 +177,19 @@ FaultInjector::insertDanglingPointers (Function & F) {
 //
 bool
 FaultInjector::runOnModule(Module &M) {
+  // Track whether anything has been modified
+  bool modified = false;
+
   // Get analysis results from DSA.
   TDPass = &getAnalysis<TDDataStructures>();
 
-  for (Module::iterator mI = M.begin(), mE = M.end(); mI != mE; ++mI) {
+  for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
     // Insert dangling pointer errors
-    insertDanglingPointers(*mI);
+    if (InjectDPFaults) modified |= insertDanglingPointers(*F);
+
+    // Insert bad allocation sizes
+    if (InjectBadSizes) modified |= addBadAllocationSizes (*F);
   }
 
-  return true;
+  return modified;
 }
