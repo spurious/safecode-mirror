@@ -39,6 +39,7 @@ namespace llvm {
 
       // Private methods
       bool insertDanglingPointers (Function & F);
+      bool addBadAllocationSizes  (Function & F);
   };
 }
 #endif
