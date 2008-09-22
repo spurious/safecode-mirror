@@ -24,6 +24,8 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "SCUtils.h"
 
 #include <iostream>
 #include <vector>
@@ -41,11 +43,15 @@ RegisterPass<FaultInjector> MyFault ("faultinjector", "Insert Faults");
 ///////////////////////////////////////////////////////////////////////////
 cl::opt<bool> InjectDPFaults ("inject-dp", cl::Hidden,
                               cl::init(false),
-                              cl::desc("Inject Dangling Pointer Faults"));
+                              cl::desc("Inject Dangling Pointer Dereferences"));
 
 cl::opt<bool> InjectBadSizes ("inject-badsize", cl::Hidden,
                               cl::init(false),
-                              cl::desc("Inject Wrong malloc-size Faults"));
+                              cl::desc("Inject Array Allocations of the Wrong Size"));
+
+cl::opt<bool> InjectBadIndices ("inject-badindices", cl::Hidden,
+                              cl::init(false),
+                              cl::desc("Inject Bad Indices in GEPs"));
 
 namespace {
   ///////////////////////////////////////////////////////////////////////////
@@ -166,6 +172,81 @@ FaultInjector::addBadAllocationSizes  (Function & F) {
 }
 
 //
+// Methods: insertBadIndexing()
+//
+// Description:
+//  This method modifieds GEP indexing expressions so that their indices are
+//  (most likely) above or below the bounds of the object pointed to by the
+//  source pointer.
+bool
+FaultInjector::insertBadIndexing (Function & F) {
+  // Worklist of allocation sites to rewrite
+  std::vector<std::pair< GetElementPtrInst *, User::op_iterator> > WorkList;
+
+  //
+  // Find GEP instructions that index into an array.  Add these to the
+  // worklist.
+  //
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
+      if (GetElementPtrInst * GEP = dyn_cast<GetElementPtrInst>(I)) {
+        const Type * PointerType=GEP->getPointerOperand()->getType();
+        gep_type_iterator TypeIt = gep_type_begin (GEP);
+        User::op_iterator index = GEP->idx_begin();
+        while (TypeIt != gep_type_end(GEP)) {
+          if (isa<ArrayType>(TypeIt.getIndexedType())) {
+            WorkList.push_back(std::make_pair(GEP,index));
+            break;
+          }
+          ++TypeIt;
+          ++index;
+        }
+      }
+    }
+  }
+
+  //
+  // Iterator through the worklist and transform each GEP.
+  //
+  while (WorkList.size()) {
+    std::pair<GetElementPtrInst *, User::op_iterator> ThePair = WorkList.back();
+    GetElementPtrInst * GEP = ThePair.first;
+    User::op_iterator index = ThePair.second;
+
+    // The index arguments to the new GEP
+    std::vector<Value *> args;
+
+    //
+    // Create a copy of the GEP's indices.
+    //
+    Constant * Intrinsic = F.getParent()->getOrInsertFunction ("llvm.readcyclecounter", Type::Int64Ty, 0);
+    for (User::op_iterator i = GEP->idx_begin(); i != GEP->idx_end(); ++i) {
+      if (i == index) {
+        Value * IntrinCall = CallInst::Create (Intrinsic, "", GEP);
+        args.push_back (CastInst::CreateIntegerCast (IntrinCall, Type::Int32Ty, true, "", GEP));
+      } else {
+        args.push_back (*i);
+      }
+    }
+
+    //
+    // Create the new GEP instruction.
+    //
+    Value * Pointer = GEP->getPointerOperand();
+    GetElementPtrInst * NewGEP = GetElementPtrInst::Create (Pointer,
+                                                            args.begin(),
+                                                            args.end(),
+                                                            GEP->getName(),
+                                                            GEP);
+    GEP->replaceAllUsesWith (NewGEP);
+    GEP->eraseFromParent();
+  }
+
+  return true;
+}
+
+//
 // Method: runOnModule()
 //
 // Description:
@@ -189,6 +270,9 @@ FaultInjector::runOnModule(Module &M) {
 
     // Insert bad allocation sizes
     if (InjectBadSizes) modified |= addBadAllocationSizes (*F);
+
+    // Insert incorrect indices in GEPs
+    if (InjectBadIndices) modified |= insertBadIndexing (*F);
   }
 
   return modified;
