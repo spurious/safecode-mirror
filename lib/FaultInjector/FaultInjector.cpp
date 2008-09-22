@@ -27,6 +27,7 @@
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "SCUtils.h"
 
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 
@@ -41,17 +42,27 @@ RegisterPass<FaultInjector> MyFault ("faultinjector", "Insert Faults");
 ///////////////////////////////////////////////////////////////////////////
 // Command line options
 ///////////////////////////////////////////////////////////////////////////
-cl::opt<bool> InjectDPFaults ("inject-dp", cl::Hidden,
-                              cl::init(false),
-                              cl::desc("Inject Dangling Pointer Dereferences"));
+cl::opt<bool> InjectEasyDPFaults ("inject-easydp", cl::Hidden,
+                                  cl::init(false),
+                                  cl::desc("Inject Trivial Dangling Pointer Dereferences"));
+
+cl::opt<bool> InjectHardDPFaults ("inject-harddp", cl::Hidden,
+                                  cl::init(false),
+                                  cl::desc("Inject Non-Trivial Dangling Pointer Dereferences"));
 
 cl::opt<bool> InjectBadSizes ("inject-badsize", cl::Hidden,
                               cl::init(false),
                               cl::desc("Inject Array Allocations of the Wrong Size"));
 
 cl::opt<bool> InjectBadIndices ("inject-badindices", cl::Hidden,
-                              cl::init(false),
-                              cl::desc("Inject Bad Indices in GEPs"));
+                                cl::init(false),
+                                cl::desc("Inject Bad Indices in GEPs"));
+
+cl::opt<int> Seed ("seed", cl::Hidden, cl::init(1),
+                   cl::desc("Seed Value for Random Number Generator"));
+
+cl::opt<int> Frequency ("freq", cl::Hidden, cl::init(100),
+                        cl::desc("Probability of Inserting a Fault"));
 
 namespace {
   ///////////////////////////////////////////////////////////////////////////
@@ -59,20 +70,57 @@ namespace {
   ///////////////////////////////////////////////////////////////////////////
   STATISTIC (DPFaults, "Number of Dangling Pointer Faults Injected");
   STATISTIC (BadSizes, "Number of Bad Allocation Size Faults Injected");
+
+  // Bound by which a fault will be inserted
+  int threshold;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Static Functions
+///////////////////////////////////////////////////////////////////////////
+
+//
+// Function: doFault()
+//
+// Description:
+//  Uses random number generation to determine if a fault should be inserted.
+//
+// Return Value:
+//  true  - A fault should be inserted.
+//  false - A fault should not be inserted.
+//
+// Pre-conditions:
+//  1) The random number generator routines should have been seeded.
+//  2) The threshold variable should have been calculated.
+//
+static inline bool
+doFault () {
+  int randv = rand();
+  std::cerr << "Rand: " << randv << "\tThreshold: " << threshold << std::endl;
+  if (randv < threshold)
+    return true;
+  else
+    return false;
 }
 
 //
-// Method: insertDanglingPointers()
+// Method: insertEasyDanglingPointers()
 //
 // Description:
-//  Insert dangling pointer dereferences into the code.
+//  Insert dangling pointer dereferences into the code.  This is done by
+//  finding load/store instructions and inserting a free on the pointer to
+//  ensure the dereference (and all future dereferences) are illegal.
 //
 // Return value:
 //  true  - The module was modified.
 //  false - The module was left unmodified.
 //
+// Notes:
+//  This code utilizes DSA to ensure that the pointer can pointer to heap
+//  memory (although the pointer is allowed to alias global and stack memory).
+//
 bool
-FaultInjector::insertDanglingPointers (Function & F) {
+FaultInjector::insertEasyDanglingPointers (Function & F) {
   //
   // Ensure that we can get analysis information for this function.
   //
@@ -108,8 +156,76 @@ FaultInjector::insertDanglingPointers (Function & F) {
       //
       DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
       if (Node && (Node->isHeapNode())) {
+        // Skip if we should not insert a fault.
+        if (!doFault()) continue;
+
         new FreeInst (Pointer, I);
         ++DPFaults;
+      }
+    }
+  }
+
+  return (DPFaults > 0);
+}
+
+//
+// Method: insertHardDanglingPointers()
+//
+// Description:
+//  Insert dangling pointer dereferences into the code.  This is done by
+//  finding instructions that store pointers to memory and free'ing those
+//  pointers before the store.  Subsequent loads and uses of the pointer will
+//  cause a dangling pointer dereference.
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was left unmodified.
+//
+// Notes:
+//  This code utilizes DSA to ensure that the pointer can pointer to heap
+//  memory (although the pointer is allowed to alias global and stack memory).
+//
+bool
+FaultInjector::insertHardDanglingPointers (Function & F) {
+  //
+  // Ensure that we can get analysis information for this function.
+  //
+  if (!(TDPass->hasGraph(F)))
+    return false;
+
+  //
+  // Scan through each instruction of the function looking for store
+  // instructions that store a pointer to memory.  Free the pointer right
+  // before the store instruction.
+  //
+  DSGraph & DSG = TDPass->getDSGraph(F);
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator bI = BB.begin(), bE = BB.end(); bI != bE; ++bI) {
+      Instruction * I = bI;
+
+      //
+      // Look to see if there is an instruction that stores a pointer to
+      // memory.  If so, then free the pointer before the store.
+      //
+      if (StoreInst * SI = dyn_cast<StoreInst>(I)) {
+        if (isa<PointerType>(SI->getOperand(0)->getType())) {
+          Value * Pointer = SI->getOperand(0);
+
+          //
+          // Check to ensure that the pointer aliases with the heap.  If so, go
+          // ahead and add the free.  Note that we may introduce an invalid
+          // free, but we're injecting errors, so I think that's okay.
+          //
+          DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
+          if (Node && (Node->isHeapNode())) {
+            // Skip if we should not insert a fault.
+            if (!doFault()) continue;
+
+            new FreeInst (Pointer, I);
+            ++DPFaults;
+          }
+        }
       }
     }
   }
@@ -139,6 +255,9 @@ FaultInjector::addBadAllocationSizes  (Function & F) {
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
       if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
         if (AI->isArrayAllocation()) {
+          // Skip if we should not insert a fault.
+          if (!doFault()) continue;
+
           WorkList.push_back(AI);
         }
       }
@@ -192,6 +311,9 @@ FaultInjector::insertBadIndexing (Function & F) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
       if (GetElementPtrInst * GEP = dyn_cast<GetElementPtrInst>(I)) {
+        // Skip if we should not insert a fault.
+        if (!doFault()) continue;
+
         WorkList.push_back (GEP);
       }
     }
@@ -253,9 +375,17 @@ FaultInjector::runOnModule(Module &M) {
   // Get analysis results from DSA.
   TDPass = &getAnalysis<TDDataStructures>();
 
+  // Initialize the random number generator
+  srand (Seed);
+
+  // Calculate the threshold for when a fault should be inserted
+  threshold = (RAND_MAX / 100 * Frequency);
+
+  // Process each function
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
     // Insert dangling pointer errors
-    if (InjectDPFaults) modified |= insertDanglingPointers(*F);
+    if (InjectEasyDPFaults) modified |= insertEasyDanglingPointers(*F);
+    if (InjectHardDPFaults) modified |= insertHardDanglingPointers(*F);
 
     // Insert bad allocation sizes
     if (InjectBadSizes) modified |= addBadAllocationSizes (*F);

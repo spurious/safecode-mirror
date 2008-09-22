@@ -38,9 +38,10 @@ namespace llvm {
       TDDataStructures * TDPass;
 
       // Private methods
-      bool insertDanglingPointers (Function & F);
-      bool addBadAllocationSizes  (Function & F);
-      bool insertBadIndexing      (Function & F);
+      bool insertEasyDanglingPointers (Function & F);
+      bool insertHardDanglingPointers (Function & F);
+      bool addBadAllocationSizes      (Function & F);
+      bool insertBadIndexing          (Function & F);
   };
 }
 #endif
