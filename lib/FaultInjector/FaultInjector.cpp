@@ -176,12 +176,13 @@ FaultInjector::addBadAllocationSizes  (Function & F) {
 //
 // Description:
 //  This method modifieds GEP indexing expressions so that their indices are
-//  (most likely) above or below the bounds of the object pointed to by the
-//  source pointer.
+//  (most likely) below the bounds of the object pointed to by the source
+//  pointer.  It does this by modifying the first index to be -1.
+//
 bool
 FaultInjector::insertBadIndexing (Function & F) {
   // Worklist of allocation sites to rewrite
-  std::vector<std::pair< GetElementPtrInst *, User::op_iterator> > WorkList;
+  std::vector<GetElementPtrInst *> WorkList;
 
   //
   // Find GEP instructions that index into an array.  Add these to the
@@ -191,17 +192,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
       if (GetElementPtrInst * GEP = dyn_cast<GetElementPtrInst>(I)) {
-        const Type * PointerType=GEP->getPointerOperand()->getType();
-        gep_type_iterator TypeIt = gep_type_begin (GEP);
-        User::op_iterator index = GEP->idx_begin();
-        while (TypeIt != gep_type_end(GEP)) {
-          if (isa<ArrayType>(TypeIt.getIndexedType())) {
-            WorkList.push_back(std::make_pair(GEP,index));
-            break;
-          }
-          ++TypeIt;
-          ++index;
-        }
+        WorkList.push_back (GEP);
       }
     }
   }
@@ -210,9 +201,8 @@ FaultInjector::insertBadIndexing (Function & F) {
   // Iterator through the worklist and transform each GEP.
   //
   while (WorkList.size()) {
-    std::pair<GetElementPtrInst *, User::op_iterator> ThePair = WorkList.back();
-    GetElementPtrInst * GEP = ThePair.first;
-    User::op_iterator index = ThePair.second;
+    GetElementPtrInst * GEP = WorkList.back();
+    WorkList.pop_back();
 
     // The index arguments to the new GEP
     std::vector<Value *> args;
@@ -222,9 +212,8 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     Constant * Intrinsic = F.getParent()->getOrInsertFunction ("llvm.readcyclecounter", Type::Int64Ty, 0);
     for (User::op_iterator i = GEP->idx_begin(); i != GEP->idx_end(); ++i) {
-      if (i == index) {
-        Value * IntrinCall = CallInst::Create (Intrinsic, "", GEP);
-        args.push_back (CastInst::CreateIntegerCast (IntrinCall, Type::Int32Ty, true, "", GEP));
+      if (i == GEP->idx_begin()) {
+        args.push_back (ConstantInt::get (Type::Int32Ty, -1, true));
       } else {
         args.push_back (*i);
       }
