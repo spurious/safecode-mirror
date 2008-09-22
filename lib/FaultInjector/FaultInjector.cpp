@@ -64,6 +64,12 @@ cl::opt<int> Seed ("seed", cl::Hidden, cl::init(1),
 cl::opt<int> Frequency ("freq", cl::Hidden, cl::init(100),
                         cl::desc("Probability of Inserting a Fault"));
 
+cl::list<std::string> Funcs ("funcs",
+                             cl::Hidden,
+                             cl::value_desc("list"),
+                             cl::CommaSeparated,
+                             cl::desc ("List of functions to process"));
+
 namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
@@ -100,6 +106,33 @@ doFault () {
     return true;
   else
     return false;
+}
+
+//
+// Function: getFunctionList()
+//
+// Description:
+//  Determine which functions should be processed.
+//
+void
+getFunctionList (Module & M, std::vector<Function *> & List) {
+  //
+  // If no functions were listed on the command line, then process *all*
+  // functions within the module.  Otherwise, create a list of only those given
+  // on the command line.
+  //
+  if (Funcs.size() == 0) {
+    for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
+      List.push_back (F);
+    }
+  } else {
+    for (unsigned index = 0; index < Funcs.size(); ++index) {
+      if (Function * F = M.getFunction(Funcs[index]))
+        List.push_back (F);
+    }
+  }
+
+  return;
 }
 
 //
@@ -380,8 +413,15 @@ FaultInjector::runOnModule(Module &M) {
   // Calculate the threshold for when a fault should be inserted
   threshold = (RAND_MAX / 100 * Frequency);
 
+  // List of functions to process
+  std::vector<Function *> FunctionList;
+
   // Process each function
-  for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
+  getFunctionList (M, FunctionList);
+  while (FunctionList.size()) {
+    Function * F = FunctionList.back();
+    FunctionList.pop_back();
+
     // Insert dangling pointer errors
     if (InjectEasyDPFaults) modified |= insertEasyDanglingPointers(*F);
     if (InjectHardDPFaults) modified |= insertHardDanglingPointers(*F);
