@@ -95,9 +95,7 @@ namespace {
 //
 static inline bool
 doFault () {
-  int randv = rand();
-  std::cerr << "Rand: " << randv << "\tThreshold: " << threshold << std::endl;
-  if (randv < threshold)
+  if (rand() < threshold)
     return true;
   else
     return false;
