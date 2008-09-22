@@ -68,8 +68,9 @@ namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
   ///////////////////////////////////////////////////////////////////////////
-  STATISTIC (DPFaults, "Number of Dangling Pointer Faults Injected");
-  STATISTIC (BadSizes, "Number of Bad Allocation Size Faults Injected");
+  STATISTIC (DPFaults,   "Number of Dangling Pointer Faults Injected");
+  STATISTIC (BadSizes,   "Number of Bad Allocation Size Faults Injected");
+  STATISTIC (BadIndices, "Number of Bad Indexing Faults Injected");
 
   // Bound by which a fault will be inserted
   int threshold;
@@ -330,7 +331,6 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     // Create a copy of the GEP's indices.
     //
-    Constant * Intrinsic = F.getParent()->getOrInsertFunction ("llvm.readcyclecounter", Type::Int64Ty, 0);
     for (User::op_iterator i = GEP->idx_begin(); i != GEP->idx_end(); ++i) {
       if (i == GEP->idx_begin()) {
         args.push_back (ConstantInt::get (Type::Int32Ty, -1, true));
@@ -350,9 +350,10 @@ FaultInjector::insertBadIndexing (Function & F) {
                                                             GEP);
     GEP->replaceAllUsesWith (NewGEP);
     GEP->eraseFromParent();
+    ++BadIndices;
   }
 
-  return true;
+  return (BadIndices > 0);
 }
 
 //
