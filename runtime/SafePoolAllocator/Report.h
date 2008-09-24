@@ -12,6 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <stdio.h>
+
+FILE * ReportLog;
 static unsigned alertNum = 0;
 
 //
@@ -22,7 +25,7 @@ static unsigned alertNum = 0;
 //
 static unsigned
 printAlertHeader (void) {
-  printf ("=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n",
+  fprintf (ReportLog, "=======+++++++    SAFECODE RUNTIME ALERT #%04d   +++++++=======\n",
           ++alertNum);
   return alertNum;
 }
@@ -51,15 +54,16 @@ ReportDanglingPointer (void * addr,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  printf ("%04d: Dangling pointer access to memory address 0x%08x \n",
+  fprintf (ReportLog, "%04d: Dangling pointer access to memory address 0x%08x \n",
           id,
           (unsigned)addr);
-  printf ("%04d:                        at program counter 0x%08x\n", id, (unsigned)pc);
-  printf ("%04d:\tObject allocated at program counter   : 0x%08x \n", id, (unsigned)allocpc);
-  printf ("%04d:\tObject allocation generation number   : %d \n", id, allocgen);
-  printf ("%04d:\tObject freed at program counter       : 0x%08x \n", id, freepc);
-  printf ("%04d:\tObject free generation number         : %d \n", id, freegen);
-  printf("=======+++++++    end of runtime error report    +++++++=======\n");
+  fprintf (ReportLog, "%04d:                        at program counter 0x%08x\n", id, (unsigned)pc);
+  fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%08x \n", id, (unsigned)allocpc);
+  fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocgen);
+  fprintf (ReportLog, "%04d:\tObject freed at program counter       : 0x%08x \n", id, freepc);
+  fprintf (ReportLog, "%04d:\tObject free generation number         : %d \n", id, freegen);
+  fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
+  fflush (ReportLog);
   return;
 }
 
@@ -89,17 +93,18 @@ ReportBoundsCheck (unsigned src,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  printf ("%04d: Bounds violation to memory address 0x%08x\n", id, dest);
-  printf ("%04d:                 at program counter 0x%08x\n", id, pc);
-  printf ("%04d:\tIndex source pointer : 0x%08x \n", id, src);
-  printf ("%04d:\tIndex result pointer : 0x%08x \n", id, dest);
+  fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%08x\n", id, dest);
+  fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tIndex source pointer : 0x%08x \n", id, src);
+  fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%08x \n", id, dest);
   if (objstart || objlen) {
-    printf ("%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
-    printf ("%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
-    printf("=======+++++++    end of runtime error report    +++++++=======\n");
+    fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
+    fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
+    fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   } else {
-    printf ("%04d:\tNot found within object\n", id);
+    fprintf (ReportLog, "%04d:\tNot found within object\n", id);
   }
+  fflush (ReportLog);
   return;
 }
 
@@ -129,16 +134,17 @@ ReportExactCheck (unsigned src,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  printf ("%04d: Bounds violation to memory address 0x%08x\n", id, dest);
-  printf ("%04d:                 at program counter 0x%08x\n", id, pc);
-  printf ("%04d:\tIndex result pointer : 0x%08x \n", id, dest);
+  fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%08x (ExactCheck)\n", id, dest);
+  fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%08x \n", id, dest);
   if (objstart || objlen) {
-    printf ("%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
-    printf ("%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
-    printf("=======+++++++    end of runtime error report    +++++++=======\n");
+    fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
+    fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
+    fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   } else {
-    printf ("%04d:\tNot found within object\n", id);
+    fprintf (ReportLog, "%04d:\tNot found within object\n", id);
   }
+  fflush (ReportLog);
   return;
 }
 
