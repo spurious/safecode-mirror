@@ -307,8 +307,23 @@ int  adl_splay_find(void** tree, void* key) {
           !key_gt(key, t));
 }
 
-int adl_splay_lookup(void** tree, void** key) {
-  //Inlined version of the splay retrieve function, called from boundscheckui_lookup
+/*
+ * Function: adl_splay_lookup()
+ *
+ * Description:
+ *  This function is an inlined version of the splay retrieve function.  It is
+ *  called from boundscheckui_lookup() and can be inlined by the LLVM inliner.
+ *
+ * Outputs:
+ *  key - The value pointed to by key is updated with the beginning address
+ *        of the object.
+ *
+ * Return value:
+ *  0 - The object was not found in the splay tree.
+ *  Otherwise, the length of the object is returned.
+ */
+int
+adl_splay_lookup (void** tree, void** key) {
   void* k = *key;
   Tree* t = splay2(*(Tree**)tree, (char*)k);
   *(Tree**)tree = t;
@@ -318,8 +333,8 @@ int adl_splay_lookup(void** tree, void** key) {
     *key = t->key;
     return (t->end - t->key) + 1;
   }
-  return 0;
 
+  return 0;
 }
 
 int adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag) {
