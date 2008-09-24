@@ -7,7 +7,6 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/InlineAsm.h"
 #include "llvm/CallingConv.h"
-#include "llvm/ParameterAttributes.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
 
