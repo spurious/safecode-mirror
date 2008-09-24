@@ -744,6 +744,15 @@ pool_init_runtime (unsigned Dangling) {
 #endif
 
   //
+  // Open up an additional file for error reporting.
+  //
+  ReportLog = fopen ("sclogfile", "a");
+  fprintf (ReportLog, "\n");
+  fprintf (ReportLog, "New Run of Program\n");
+  fprintf (ReportLog, "====================================================\n");
+  fflush (ReportLog);
+
+  //
   // Install hooks for catching allocations outside the scope of SAFECode
   //
 #if 0
@@ -1084,8 +1093,8 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     //  logregs = 1;
     
     if (logregs) {
-      fprintf(stderr, " poolalloc:863: retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x\n",
-          (unsigned)retAddress, NumBytes, (unsigned)globalTemp); fflush(stderr);
+      fprintf(stderr, " poolalloc:863: Pool=%x, retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x pc = 0x%08x\n", (unsigned) (Pool),
+          (unsigned)retAddress, NumBytes, (unsigned)globalTemp, __builtin_return_address(0)); fflush(stderr);
     }
     assert (retAddress && "poolalloc(1): Returning NULL!\n");
     return retAddress;
@@ -1122,7 +1131,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       
       adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
       if (logregs) {
-        fprintf(stderr, " poolalloc:900: retAddress = 0x%08x, NumBytes = %d\n", (unsigned)retAddress, NumBytes);
+        fprintf(stderr, " poolalloc:900: Pool=%x, retAddress = 0x%08x, NumBytes = %d\n", (unsigned)(Pool), (unsigned)retAddress, NumBytes);
       }
       assert (retAddress && "poolalloc(2): Returning NULL!\n");
       return retAddress;
@@ -1214,8 +1223,8 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   
   adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
   if (logregs) {
-    fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
-          (unsigned)New, (unsigned)retAddress, NumBytes, offset);
+    fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x pc=0x%08x\n",
+          (unsigned)New, (unsigned)retAddress, NumBytes, offset, __builtin_return_address(0));
   }
   assert (retAddress && "poolalloc(4): Returning NULL!\n");
   return retAddress;
@@ -1559,6 +1568,11 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     }
   }
 
+  if (logregs) {
+    fprintf (stderr, "boundscheck: %x %x %x\n", Pool, Source, Dest);
+    fflush (stderr);
+  }
+
   /*
    * The node is not found or is not within bounds; fail!
    */
@@ -1576,7 +1590,6 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
                        (unsigned)0);
   }
   fflush (stderr);
-  abort ();
   return Dest;
 }
 
@@ -1600,6 +1613,7 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
     if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
       return Dest;
     } else {
+#if 0
       if (logregs)
         fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
@@ -1616,6 +1630,7 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
       }
       adl_splay_insert (&(Pool->OOB), P, 1, Dest);
       return invalidptr;
+#endif
     }
   }
 
@@ -1629,6 +1644,7 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
     } else {
+#if 0
       if (logregs)
         fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
@@ -1645,6 +1661,7 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
       }
       adl_splay_insert (&(Pool->OOB), P, 1, Dest);
       return invalidptr;
+#endif
     }
   }
 
@@ -1658,6 +1675,11 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
     if ((S <= Dest) && (((char*)S + len_new) > (char*)Dest)) {
       return Dest;
     } else {
+      if (logregs) {
+        fprintf (stderr, "boundscheckui: %x %x %x\n", Pool, Source, Dest);
+        fflush (stderr);
+      }
+
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
                          (unsigned)__builtin_return_address(0),
@@ -1673,6 +1695,17 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
  return Dest;
 }
 
+//
+// Function: boundscheckui()
+//
+// Description:
+//  Perform a bounds check (with lookup) on the given pointers.
+//
+// Inputs:
+//  Pool - The pool to which the pointers (Source and Dest) should belong.
+//  Source - The Source pointer of the indexing operation (the GEP).
+//  Dest   - The result of the indexing operation (the GEP).
+//
 void *
 boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheckui calls
@@ -1687,10 +1720,11 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     return Dest;
   } else {
     //
-    // Valid object not found in splay tree or Dest is not within the valid
-    // object
+    // Either:
+    //  1) A valid object was not found in splay tree, or
+    //  2) Dest is not within the valid object that Source was found in
     //
-    return boundscheckui_check( len, Pool, Source, Dest );  
+    return boundscheckui_check (len, Pool, Source, Dest );  
   }
 }
 
@@ -2099,8 +2133,9 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   int fs = 0;
   if (0 == (fs = adl_splay_retrieve(&(dummyPool.DPTree), &faultAddr, &len, (void **) &debugmetadataptr)))
   {
-    fprintf(stderr, "signal handler: retrieving debug meta data failed");
-    fflush(stderr);
+    extern FILE * ReportLog;
+    fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
+    fflush(ReportLog);
     abort();
   }
  
