@@ -22,7 +22,11 @@
 #endif
 #define DEBUG(x) 
 
-extern void * rewrite_ptr (void * p);
+/* Decleare this structure type */
+struct PoolTy;
+
+/* Function to rewriting pointers to Out Of Bounds (OOB) Pointers */
+extern void * rewrite_ptr (struct PoolTy * P, void * p);
 
 /*
  * Function: exactcheck()
@@ -52,14 +56,24 @@ exactcheck (int a, int b, void * result) {
 void *
 exactcheck2 (signed char *base, signed char *result, unsigned size) {
   if ((result < base) || (result >= (base + size)))
-    return rewrite_ptr (result);
+#if 1
+    return rewrite_ptr (0, result);
+#else
+  {
+    ReportExactCheck ((unsigned)0xbeefdeed,
+                      (unsigned)result,
+                      (unsigned)__builtin_return_address(0),
+                      (unsigned)base,
+                      (unsigned)size);
+  }
+#endif
   return result;
 }
 
 void *
 exactcheck2a (signed char *base, signed char *result, unsigned size) {
   if (result >= base + size ) {
-    ReportExactCheck ((unsigned)0,
+    ReportExactCheck ((unsigned)0xbeefdeed,
                       (unsigned)result,
                       (unsigned)__builtin_return_address(0),
                       (unsigned)base,
@@ -71,7 +85,7 @@ exactcheck2a (signed char *base, signed char *result, unsigned size) {
 void *
 exactcheck3(signed char *base, signed char *result, signed char * end) {
   if ((result < base) || (result > end )) {
-    ReportExactCheck ((unsigned)0,
+    ReportExactCheck ((unsigned)0xbeefbeef,
                       (unsigned)result,
                       (unsigned)__builtin_return_address(0),
                       (unsigned)base,
