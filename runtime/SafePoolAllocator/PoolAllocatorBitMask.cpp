@@ -46,6 +46,11 @@ static PoolTy dummyPool;
 static unsigned dummyInitialized = 0;
 unsigned poolmemusage = 0;
 
+FILE * ReportLog;
+
+// Global Configuration Information
+extern ConfigData ConfigData;
+
 // Invalid address range
 #if !defined(__linux__)
 unsigned InvalidUpper = 0x00000000;
@@ -723,7 +728,6 @@ pool_init_runtime (unsigned Dangling) {
   //
   // Configure the allocator.
   //
-  extern ConfigData ConfigData;
   ConfigData.RemapObjects = Dangling;
 
   //
@@ -1523,22 +1527,21 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
    * Handle the case where a pointer is allowed to move just beyond the end of
    * the allocated space.
    */
-  if ((fs) && (((char *) Dest) == ((char*)S + len))) {
-    if (logregs)
-      fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
-               S, Source, Dest, len, (void*)__builtin_return_address(0));
-    if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
-    ++invalidptr;
-    void* P = invalidptr;
-    if ((unsigned)P & ~(InvalidUpper - 1)) {
-      fprintf (stderr, "boundscheck: out of rewrite ptrs: %x %x: %x %x, pc=%x\n",
-               Source, Dest, InvalidLower, invalidptr, (void*)__builtin_return_address(0));
-      fflush (stderr);
+  if (fs) {
+    if ((ConfigData.StrictIndexing == false) ||
+        (((char *) Dest) == ((char*)S + len))) {
+      if (logregs)
+        fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
+                 S, Source, Dest, len, (void*)__builtin_return_address(0));
+      return rewrite_ptr (Pool, Dest);
+    } else {
+      ReportBoundsCheck ((unsigned)Source,
+                         (unsigned)Dest,
+                         (unsigned)__builtin_return_address(0),
+                         (unsigned)S,
+                         (unsigned)len);
       return Dest;
     }
-
-    adl_splay_insert (&(Pool->OOB), P, 1, Dest);
-    return invalidptr;
   }
 
   /*
@@ -1594,81 +1597,83 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
 }
 
 int
-boundscheckui_lookup (PoolTy * Pool, void * Source ) {
+boundscheckui_lookup (PoolTy * Pool, void ** Source ) {
   //search for object for Source in splay tree, return length 
-  return adl_splay_lookup (&(Pool->Objects), &Source);
+  return adl_splay_lookup (&(Pool->Objects), Source);
 }
 
+//
+// Function: boundscheckui_check()
+//
+// Description:
+//  This is the slow patch for a boundcheckui() call.
+//
+// Inputs:
+//  ObjStart - The start of the object.
+//  ObjLen   - The length of the object.
+//  Pool     - The pool in which the pointer belong.
+//  Source   - The source pointer used in the indexing operation (the GEP).
+//  Dest     - The result pointer of the indexing operation (the GEP).
+//
+// Note:
+//  If ObjLen is zero, then the lookup says that Source was not found within
+//  any valid object.
+//
 void *
-boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
-  /*
-   * First, attempt to find the pointer within a valid object.  If the source
-   * pointer is within a valid object but the destination pointer is not, then
-   * rewrite the pointer.
-   */
-  void* S = Source;
-  //unsigned len = 0;
-
-  if (len) {
-    if ((S <= Dest) && (((char*)S + len) > (char*)Dest)) {
-      return Dest;
-    } else {
-#if 0
+boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
+                     void * Source, void * Dest) {
+  //
+  // First, we know that the pointer is out of bounds.  If we indexed off the
+  // beginning or end of a valid object, determine if we can rewrite the
+  // pointer into an OOB pointer.  Whether we can or not depends upon the
+  // SAFECode configuration.
+  //
+  if (ObjLen) {
+    if ((ConfigData.StrictIndexing == false) ||
+        (((char *) Dest) == ((char*)ObjStart + ObjLen))) {
       if (logregs)
-        fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
-                 S, Source, Dest, len, (void*)__builtin_return_address(0));
-      if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
-      ++invalidptr;
-      void* P = invalidptr;
-      //if ((unsigned)P & ~(InvalidUpper - 1)) {
-      if ((unsigned) P == InvalidUpper) {
-        fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
-                 InvalidLower, InvalidUpper, invalidptr);
-                 //Source, Dest, (void*)__builtin_return_address(0));
-        fflush (stderr);
-        abort();
-      }
-      adl_splay_insert (&(Pool->OOB), P, 1, Dest);
-      return invalidptr;
-#endif
+        fprintf (ReportLog, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
+                 ObjStart, Source, Dest, ObjLen, (void*)__builtin_return_address(0));
+        fflush (ReportLog);
+      return rewrite_ptr (Pool, Dest);
+    } else {
+      ReportBoundsCheck ((unsigned)Source,
+                         (unsigned)Dest,
+                         (unsigned)__builtin_return_address(0),
+                         (unsigned)ObjStart,
+                         (unsigned)ObjLen);
+      return Dest;
     }
   }
-
 
   /*
    * Allow pointers to the first page in memory provided that they remain
    * within that page.  Loads and stores using such pointers will fault.  This
    * allows indexing of NULL pointers without error.
    */
+#if 0
   if (Source < (unsigned char *)(4096)) {
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
     } else {
-#if 0
-      if (logregs)
-        fprintf (stderr, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
-                 S, Source, Dest, len, (void*)__builtin_return_address(0));
-      if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
-      ++invalidptr;
-      void* P = invalidptr;
-      //if ((unsigned)P & ~(InvalidUpper - 1)) {
-      if ((unsigned) P == InvalidUpper) {
-        fprintf (stderr, "boundscheckui: out of rewrite ptrs: %x %x, pc=%x\n",
-                 InvalidLower, InvalidUpper, invalidptr);
-                 //Source, Dest, (void*)__builtin_return_address(0));
-        fflush (stderr);
-        abort();
+      if (ConfigData.StrictIndexing == false) {
+        return rewrite_ptr (Pool, Dest);
+      } else {
+        ReportBoundsCheck ((unsigned)Source,
+                           (unsigned)Dest,
+                           (unsigned)__builtin_return_address(0),
+                           (unsigned)0,
+                           (unsigned)4096);
       }
-      adl_splay_insert (&(Pool->OOB), P, 1, Dest);
-      return invalidptr;
-#endif
     }
   }
+#endif
 
   /*
    * Attempt to look for the object in the external object splay tree.
    */
-  S = Source;
+#if 0
+  void * S = Source;
   unsigned len_new = 0;
   int fs = adl_splay_retrieve (&(ExternalObjects), &S, &len_new, 0);
   if (fs) {
@@ -1684,14 +1689,14 @@ boundscheckui_check (int len, PoolTy * Pool, void * Source, void * Dest) {
                          (unsigned)Dest,
                          (unsigned)__builtin_return_address(0),
                          (unsigned)S,
-                         (unsigned)len);
+                         (unsigned)ObjLen);
     }
   }
+#endif
 
-  /*
-   * We cannot find the object.  Print a warning and continue execution.
-   */
-  
+  //
+  // We cannot find the object.  Continue execution.
+  //
  return Dest;
 }
 
@@ -1711,12 +1716,13 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
-  int len = boundscheckui_lookup (Pool, Source); 
-  
+  void * ObjStart = Source;
+  int ObjLen = boundscheckui_lookup (Pool, &ObjStart); 
+
   // Check if destination lies in the same object
-  if (__builtin_expect (len &&
-                        ((Source <= Dest) &&
-                        ((char*)Source + len) > (char*)Dest), 1)) {
+  if (__builtin_expect (ObjLen &&
+                        ((ObjStart <= Dest) &&
+                        ((char*)ObjStart + ObjLen) > (char*)Dest), 1)) {
     return Dest;
   } else {
     //
@@ -1724,27 +1730,33 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object that Source was found in
     //
-    return boundscheckui_check (len, Pool, Source, Dest );  
+    return boundscheckui_check (ObjStart, ObjLen, Pool, Source, Dest);  
   }
 }
 
+/*
+ * Function: rewrite_ptr()
+ *
+ * Description:
+ *  Take the given pointer and rewrite it to an Out Of Bounds (OOB) pointer.
+ */
 void *
-rewrite_ptr (void * p) {
-  static void * OOBTree;
+rewrite_ptr (PoolTy * Pool, void * p) {
+  // Used for exactcheck calls in which no pool is specified.
+  static PoolTy OOBPool;
 
   if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
   ++invalidptr;
   void* P = invalidptr;
-  //if ((unsigned)P & ~(InvalidUpper - 1)) {
   if ((unsigned) P == InvalidUpper) {
     fprintf (stderr, "rewrite: out of rewrite ptrs: %x %x, pc=%x\n",
              InvalidLower, InvalidUpper, invalidptr);
-             //Source, Dest, (void*)__builtin_return_address(0));
     fflush (stderr);
-    abort();
+    return p;
   }
 
-  adl_splay_insert (&(OOBTree), P, 1, p);
+  if (!Pool) Pool = &OOBPool;
+  adl_splay_insert (&(Pool->OOB), P, 1, p);
   return invalidptr;
 }
 
