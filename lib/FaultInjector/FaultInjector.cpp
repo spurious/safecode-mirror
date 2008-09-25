@@ -78,7 +78,7 @@ namespace {
   STATISTIC (BadSizes,   "Number of Bad Allocation Size Faults Injected");
   STATISTIC (BadIndices, "Number of Bad Indexing Faults Injected");
 
-  // Bound by which a fault will be inserted
+  // Threshold for determining whether a fault will be inserted
   int threshold;
 }
 
@@ -330,8 +330,18 @@ FaultInjector::addBadAllocationSizes  (Function & F) {
 //  (most likely) below the bounds of the object pointed to by the source
 //  pointer.  It does this by modifying the first index to be -1.
 //
+// Return value:
+//  true  - One or more changes were made to the program.
+//  false - No changes were made to the program.
+//
 bool
 FaultInjector::insertBadIndexing (Function & F) {
+  //
+  // Ensure that we can get analysis information for this function.
+  //
+  if (!(TDPass->hasGraph(F)))
+    return false;
+
   // Worklist of allocation sites to rewrite
   std::vector<GetElementPtrInst *> WorkList;
 
@@ -352,11 +362,27 @@ FaultInjector::insertBadIndexing (Function & F) {
   }
 
   //
+  // Get the DSGraph for this function.
+  //
+  DSGraph & DSG = TDPass->getDSGraph(F);
+
+  //
   // Iterator through the worklist and transform each GEP.
   //
   while (WorkList.size()) {
     GetElementPtrInst * GEP = WorkList.back();
     WorkList.pop_back();
+
+    //
+    // Determine how much to index into the first pointer to generate a bounds
+    // overflow.  To do this, we'll first consult DSA to see what the largest
+    // object size is for objects to which the source pointer can point.
+    //
+    Value * Pointer = GEP->getPointerOperand();
+    DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
+    if (!Node) continue;
+    unsigned ObjectSize = Node->getSize();
+    unsigned DataTypeSize = TD->getABITypeSize(((PointerType *)(Pointer->getType()))->getElementType());
 
     // The index arguments to the new GEP
     std::vector<Value *> args;
@@ -366,7 +392,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     for (User::op_iterator i = GEP->idx_begin(); i != GEP->idx_end(); ++i) {
       if (i == GEP->idx_begin()) {
-        args.push_back (ConstantInt::get (Type::Int32Ty, -1, true));
+        args.push_back (ConstantInt::get (Type::Int32Ty, (ObjectSize / DataTypeSize) + 2, true));
       } else {
         args.push_back (*i);
       }
@@ -375,7 +401,6 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     // Create the new GEP instruction.
     //
-    Value * Pointer = GEP->getPointerOperand();
     GetElementPtrInst * NewGEP = GetElementPtrInst::Create (Pointer,
                                                             args.begin(),
                                                             args.end(),
@@ -406,6 +431,9 @@ FaultInjector::runOnModule(Module &M) {
 
   // Get analysis results from DSA.
   TDPass = &getAnalysis<TDDataStructures>();
+
+  // Get information on the target architecture for this program
+  TD     = &getAnalysis<TargetData>();
 
   // Initialize the random number generator
   srand (Seed);
