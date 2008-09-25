@@ -114,7 +114,7 @@ extern "C" {
   void pool_delstack (PoolTy * Pool);
   void * pool_alloca (PoolTy * Pool, unsigned int NumBytes);
 
-  void * rewrite_ptr (void * p);
+  void * rewrite_ptr (PoolTy *, void * p);
   //void protect_shadowpage();
 }
 
