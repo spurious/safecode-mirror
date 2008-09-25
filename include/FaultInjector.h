@@ -30,17 +30,19 @@ namespace llvm {
       const char *getPassName() const { return "Fault Injector Pass"; }
       virtual bool runOnModule(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        AU.addRequired<TargetData>();
         AU.addRequired<TDDataStructures>();
       };
 
     private :
       // Private variables
+      TargetData        * TD;
       TDDataStructures * TDPass;
 
       // Private methods
       bool insertEasyDanglingPointers (Function & F);
       bool insertHardDanglingPointers (Function & F);
-      bool addBadAllocationSizes      (Function & F);
+      bool insertBadAllocationSizes      (Function & F);
       bool insertBadIndexing          (Function & F);
   };
 }
