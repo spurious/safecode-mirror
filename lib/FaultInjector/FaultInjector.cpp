@@ -266,7 +266,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
 }
 
 //
-// Method: addBadAllocationSizes()
+// Method: insertBadAllocationSizes()
 //
 // Description:
 //  This method will look for allocations and change their size to be
@@ -278,7 +278,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
 //  false - The module was left unmodified.
 //
 bool
-FaultInjector::addBadAllocationSizes  (Function & F) {
+FaultInjector::insertBadAllocationSizes  (Function & F) {
   // Worklist of allocation sites to rewrite
   std::vector<AllocationInst * > WorkList;
 
@@ -455,7 +455,7 @@ FaultInjector::runOnModule(Module &M) {
     if (InjectHardDPFaults) modified |= insertHardDanglingPointers(*F);
 
     // Insert bad allocation sizes
-    if (InjectBadSizes) modified |= addBadAllocationSizes (*F);
+    if (InjectBadSizes) modified |= insertBadAllocationSizes (*F);
 
     // Insert incorrect indices in GEPs
     if (InjectBadIndices) modified |= insertBadIndexing (*F);
