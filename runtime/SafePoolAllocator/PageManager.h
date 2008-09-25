@@ -91,6 +91,9 @@ extern unsigned PPageSize;
 struct ConfigData {
   // Flags whether objects should be remapped
   bool RemapObjects;
+
+  // Flags whether strict indexing rules should be enforced
+  bool StrictIndexing;
 };
 
 /// AllocatePage - This function returns a chunk of memory with size and
