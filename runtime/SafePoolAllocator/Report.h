@@ -14,7 +14,7 @@
 
 #include <stdio.h>
 
-FILE * ReportLog;
+extern FILE * ReportLog;
 static unsigned alertNum = 0;
 
 //
