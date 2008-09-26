@@ -19,6 +19,7 @@ include $(LEVEL)/Makefile.common
 $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
+                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/speculativechecking.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
@@ -33,6 +34,7 @@ $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
 
 LDFLAGS += $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/speculativechecking.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \

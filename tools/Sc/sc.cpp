@@ -31,6 +31,7 @@
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
+#include "SpeculativeChecking.h"
 
 #include <fstream>
 #include <iostream>
@@ -51,12 +52,21 @@ Force("f", cl::desc("Overwrite output files"));
 static cl::opt<bool>
 FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
 
+/*
 static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
+*/
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
                      cl::desc("Enable fast indirect call checks"));
+
+static cl::opt<bool>
+DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
+
+static cl::opt<bool>
+EnableSpecChecking("spec-checking", cl::init(false), cl::desc("Use speculative checking"));
+
 
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
@@ -133,10 +143,22 @@ int main(int argc, char **argv) {
 #endif
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
-    Passes.add(new InsertPoolChecks(DanglingPointerChecks));
+    Passes.add(new PreInsertPoolChecks());
+    Passes.add(new InsertPoolChecks());
+    Passes.add(new RegisterStackObjPass());
     Passes.add(new MallocPass());
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
+
+
+    Passes.add(createLICMPass());
+    if (!DisableMonotonicLoopOpt)
+      Passes.add(new MonotonicLoopOpt());
+
+    if(EnableSpecChecking) {
+      Passes.add(new SpeculativeCheckingPass());
+      Passes.add(new SpeculativeCheckingInsertSyncPoints());
+    }
 
     // Verify the final result
     Passes.add(createVerifierPass());

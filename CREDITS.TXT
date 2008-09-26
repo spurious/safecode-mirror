@@ -9,35 +9,34 @@ beautification by scripts.  The fields are: name (N), email (E), web-address
 (S).
 
 N: Vikram Adve
+E: vadve@cs.uiuc.edu
 W: http://www.cs.uiuc.edu/~vadve/
 D: Provider of much wisdom and motivator for SAFECode
 
 N: Aman Bhatia
 D: Performance evaluation
 
-N: John Criswell
+N: John T. Criswell
+E: criswell@uiuc.edu
 D: Mac OS X port, Bug fixes
 
 N: Dinakar Dhurjati
 D: Primary architect of SAFECode
 
 N: Sumant Kowshik
+E: kowshik@uiuc.edu
 D:
 
 N: Billy Lau
 D: Dangling pointer detection for Mac OS X
 
 N: Andrew Lenharth
+E: alenhar2@cs.uiuc.edu
 W: http://www.lenharth.org/~andrewl/
 D:
 
-N: Brice Lin
-D: Testing
-
-N: Igor Murashkin
-D: Fast indirect call checks
-
 N: Reid Spencer
+E: rspencer@reidspencer.com
 W: http://reidspencer.com/
 D: Autoconf support (taken from LLVM project samples)
 

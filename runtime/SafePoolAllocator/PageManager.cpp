@@ -25,6 +25,7 @@
 #include <vector>
 #include <map>
 #include <utility>
+#include <string.h>
 
 // this is for dangling pointer detection in Mac OS X
 #if defined(__APPLE__)
@@ -256,7 +257,7 @@ RemapPages (void * va, unsigned length) {
   source_addr = (void *) ((unsigned long)va & ~(PageSize - 1));
   finish_addr = (void *) (((unsigned long)va + length) & ~(PPageSize - 1));
 
-  unsigned int NumPages = ((unsigned)finish_addr - (unsigned)source_addr) / PPageSize;
+  unsigned int NumPages = ((uintptr_t)finish_addr - (uintptr_t)source_addr) / PPageSize;
   if (!NumPages) NumPages = 1;
 
   //
@@ -328,7 +329,7 @@ RemapObject (void * va, unsigned length) {
   page_start     = (unsigned char *)((unsigned long)va & ~(PageSize - 1));
   phy_page_start = (unsigned char *)((unsigned long)va & ~(PPageSize - 1));
 
-  unsigned StartPage = ((unsigned)phy_page_start >> 12) - ((unsigned)page_start >> 12);
+  unsigned StartPage = ((uintptr_t)phy_page_start >> 12) - ((uintptr_t)page_start >> 12);
   //unsigned EndPage   = ((phy_page_start + length - page_start) / PPageSize) + 1;
 
   //

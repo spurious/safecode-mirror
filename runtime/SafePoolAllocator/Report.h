@@ -12,7 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef _REPORT_H_
+#define _REPORT_H_
+
 #include <stdio.h>
+#include <stdint.h>
 
 extern FILE * ReportLog;
 static unsigned alertNum = 0;
@@ -54,16 +58,13 @@ ReportDanglingPointer (void * addr,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Dangling pointer access to memory address 0x%08x \n",
-          id,
-          (unsigned)addr);
+  fprintf (ReportLog, "%04d: Dangling pointer access to memory address 0x%p \n", id, addr);
   fprintf (ReportLog, "%04d:                        at program counter 0x%08x\n", id, (unsigned)pc);
   fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%08x \n", id, (unsigned)allocpc);
   fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocgen);
   fprintf (ReportLog, "%04d:\tObject freed at program counter       : 0x%08x \n", id, freepc);
   fprintf (ReportLog, "%04d:\tObject free generation number         : %d \n", id, freegen);
   fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
-  fflush (ReportLog);
   return;
 }
 
@@ -148,3 +149,4 @@ ReportExactCheck (unsigned src,
   return;
 }
 
+#endif

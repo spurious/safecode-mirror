@@ -6,24 +6,6 @@
 
 using namespace llvm;
 
-//
-// Function: getNextInst()
-//
-// Description:
-//  Get the next instruction following this instruction.
-//
-// Return value:
-//  0 - There is no instruction after this instruction in the Basic Block.
-//  Otherwise, a pointer to the next instruction is returned.
-//
-static inline Instruction *
-getNextInst (Instruction * Inst) {
-  BasicBlock::iterator i(Inst);
-  ++i;
-  if ((i) == Inst->getParent()->getInstList().end())
-    return 0;
-  return i;
-}
 
 //
 // Function: castTo()

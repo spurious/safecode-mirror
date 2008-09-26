@@ -7,14 +7,16 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-CFLAGS = -O2 -fno-strict-aliasing
+CFLAGS = -O2 -fno-strict-aliasing -fno-unroll-loops
 
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
+ifndef SC
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+endif
 
 # Pool allocator pass shared object
 #PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
@@ -30,12 +32,18 @@ POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
-SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
+SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
-#OPTZN_PASSES := -std-compile-opts
-OPTZN_PASSES :=
 
+EXTRA_LOPT_OPTIONS = -loopsimplify -unroll-threshold 0 
+OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+#EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
+LDFLAGS += -lrt -lpthread
+
+# DEBUGGING
+#CFLAGS += -g
+#LLVMLDFLAGS= -disable-opts
 
 #
 # This rule runs SAFECode on the .llvm.bc file to produce a new .bc
@@ -44,8 +52,9 @@ OPTZN_PASSES :=
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(SC_STATS) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) -disable-opt -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $< -f -o $<.opt 2>&1 > $@.out
+	-$(SC_STATS) $<.opt -f -o $@.sc 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
@@ -78,7 +87,7 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) -g $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
