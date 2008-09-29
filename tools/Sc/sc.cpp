@@ -26,7 +26,6 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
-// #include "llvm/Config/config.h"
 
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
@@ -52,10 +51,8 @@ Force("f", cl::desc("Overwrite output files"));
 static cl::opt<bool>
 FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
 
-/*
 static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
-*/
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
