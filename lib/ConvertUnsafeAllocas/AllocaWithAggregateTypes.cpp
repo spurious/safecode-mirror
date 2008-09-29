@@ -51,20 +51,21 @@ static const unsigned meminitvalue = 0x00;
 static const unsigned meminitvalue = 0xcc;
 #endif
 
-  inline bool MallocPass::TypeContainsPointer(const Type *Ty) {
+  inline bool
+  MallocPass::TypeContainsPointer(const Type *Ty) {
     if (Ty->getTypeID() == Type::PointerTyID)
       return true;
     else if (Ty->getTypeID() == Type::StructTyID) {
       const StructType * structTy = cast<StructType>(Ty);
       unsigned numE = structTy->getNumElements();
       for (unsigned index = 0; index < numE; index++) {
-	if (TypeContainsPointer(structTy->getElementType(index)))
-	  return true;
+        if (TypeContainsPointer(structTy->getElementType(index)))
+          return true;
       }
     } else if (Ty->getTypeID() == Type::ArrayTyID) {
       const ArrayType *arrayTy = cast<ArrayType>(Ty);
       if (TypeContainsPointer(arrayTy->getElementType()))
-	return true;
+        return true;
     }
     return false;
   }
@@ -86,8 +87,7 @@ static const unsigned meminitvalue = 0xcc;
   //  alloca is type-known *and* whether it has any links to other DSNodes.
   //
   inline bool
-  MallocPass::changeType (DSGraph & TDG, Instruction * Inst)
-  {
+  MallocPass::changeType (DSGraph & TDG, Instruction * Inst) {
     // Get the DSNode for this instruction
     DSNode *Node = TDG.getNodeForValue((Value *)Inst).getNode();
 
@@ -129,8 +129,7 @@ static const unsigned meminitvalue = 0xcc;
   }
 
   bool
-  MallocPass::runOnFunction (Function &F)
-  {
+  MallocPass::runOnFunction (Function &F) {
     bool modified = false;
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
 
@@ -214,6 +213,6 @@ static const unsigned meminitvalue = 0xcc;
 }
 
 namespace {
-  RegisterPass<MallocPass> Z("convallocai", "converts unsafe allocas to mallocs");
+  RegisterPass<MallocPass> Z("convallocai", "Initialize stack allocations with pointers");
 } // end of namespace
 
