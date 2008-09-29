@@ -37,7 +37,7 @@ SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.i
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 
 EXTRA_LOPT_OPTIONS = -loopsimplify -unroll-threshold 0 
-#OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 ifeq ($(OS),Darwin)
 LDFLAGS += -lpthread
