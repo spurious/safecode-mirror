@@ -1,3 +1,24 @@
+//===- AllocaWithAggregateTypes.cpp - Initialize allocas with pointers -------//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file implements a pass that ensures that uninitialized memory created
+// by alloca instructions is not used to violate memory safety.  It can do this
+// in one of two ways:
+//
+//   o) Promote the allocations from stack to heap.
+//   o) Insert code to initialize the newly allocated memory.
+//
+// The current implementation implements the latter, but code for the former is
+// available but disabled.
+//
+//===----------------------------------------------------------------------===//
+
 #include "safecode/Config/config.h"
 #include "ConvertUnsafeAllocas.h"
 #include "SCUtils.h"
