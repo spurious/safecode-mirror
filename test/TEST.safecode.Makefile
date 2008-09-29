@@ -37,13 +37,20 @@ SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.i
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 
 EXTRA_LOPT_OPTIONS = -loopsimplify -unroll-threshold 0 
-OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+#OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
+ifeq ($(OS),Darwin)
+LDFLAGS += -lpthread
+else
 LDFLAGS += -lrt -lpthread
+endif
 
 # DEBUGGING
-#CFLAGS += -g
-#LLVMLDFLAGS= -disable-opts
+#   o) Don't add -g to CFLAGS, CXXFLAGS, or CPPFLAGS; these are used by the
+#      rules to compile code with llvm-gcc and enable LLVM debug information;
+#      this, in turn, causes test cases to fail unnecessairly.
+#CBECFLAGS += -g
+#LLVMLDFLAGS= -disable-inlining
 
 #
 # This rule runs SAFECode on the .llvm.bc file to produce a new .bc
@@ -87,11 +94,11 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM)
