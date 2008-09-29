@@ -48,7 +48,11 @@ namespace llvm
 #ifdef LLVA_KERNEL
 static const unsigned meminitvalue = 0x00;
 #else
+#if defined(__linux__)
 static const unsigned meminitvalue = 0xcc;
+#else
+static const unsigned meminitvalue = 0x00;
+#endif
 #endif
 
   inline bool
