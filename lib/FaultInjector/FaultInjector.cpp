@@ -156,7 +156,7 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
   //
   // Ensure that we can get analysis information for this function.
   //
-  if (!(TDPass->hasGraph(F)))
+  if (!(TDPass->hasDSGraph(F)))
     return false;
 
   //
@@ -222,7 +222,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
   //
   // Ensure that we can get analysis information for this function.
   //
-  if (!(TDPass->hasGraph(F)))
+  if (!(TDPass->hasDSGraph(F)))
     return false;
 
   //
@@ -319,6 +319,52 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
     ++BadSizes;
   }
 
+  //
+  // Try harder to make bad allocation sizes.
+  //
+  WorkList.clear();
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
+      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+        //
+        // Determine if this is a data type that we can make smaller.
+        //
+        if (((TD->getABITypeSize(AI->getAllocatedType())) > 4) && doFault()) {
+          WorkList.push_back(AI);
+        }
+      }
+    }
+  }
+
+  //
+  // Replace these allocations with an allocation of an integer and cast the
+  // result back into the appropriate type.
+  //
+  while (WorkList.size()) {
+    AllocationInst * AI = WorkList.back();
+    WorkList.pop_back();
+
+    Instruction * NewAlloc = 0;
+    if (isa<MallocInst>(AI))
+      NewAlloc =  new MallocInst (Type::Int32Ty,
+                                  AI->getArraySize(),
+                                  AI->getAlignment(),
+                                  AI->getName(),
+                                  AI);
+    else
+      NewAlloc =  new AllocaInst (Type::Int32Ty,
+                                  AI->getArraySize(),
+                                  AI->getAlignment(),
+                                  AI->getName(),
+                                  AI);
+
+    NewAlloc = castTo (NewAlloc, AI->getType(), "", AI);
+    AI->replaceAllUsesWith (NewAlloc);
+    AI->eraseFromParent();
+    ++BadSizes;
+  }
+
   return (BadSizes > 0);
 }
 
@@ -339,7 +385,7 @@ FaultInjector::insertBadIndexing (Function & F) {
   //
   // Ensure that we can get analysis information for this function.
   //
-  if (!(TDPass->hasGraph(F)))
+  if (!(TDPass->hasDSGraph(F)))
     return false;
 
   // Worklist of allocation sites to rewrite
