@@ -1,3 +1,20 @@
+//===- PreInsertPoolChecks.cpp - Preparation pass for Check Insertion Pass ---//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This pass performs several transforms that must be done at global scope for
+// inserting SAFECode's run-time checks.
+//
+//===----------------------------------------------------------------------===//
+
+
+#define DEBUG_TYPE "pre-insertchecks"
+
 #include <iostream>
 #include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
@@ -31,7 +48,6 @@ PreInsertPoolChecks::runOnModule(Module & M) {
       Type::Int32Ty, NULL); 
   dsnPass = &getAnalysis<DSNodePass>();
 #ifndef LLVA_KERNEL  
-//  paPass = getAnalysisToUpdate<PoolAllocateGroup>();
   paPass = &getAnalysis<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   TD = &getAnalysis<TargetData>();
@@ -193,6 +209,11 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       ++InsertPt;
   }
 
+  //
+  // FIXME:
+  //  Need to get the command line argument for dangling pointer checks and
+  //  use that in the call to initialize the run-time.
+  //
   std::vector<Value *> args;
   args.push_back (ConstantInt::get(Type::Int32Ty,DanglingChecks,0));
   CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
