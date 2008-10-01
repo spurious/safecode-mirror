@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include "safecode/Config/config.h"
 #include "SCUtils.h"
@@ -53,6 +54,7 @@ namespace {
                              "Poolchecks with non-NULL pool descriptor");
 
   STATISTIC (PoolChecks , "Poolchecks Added");
+  STATISTIC (MissedVarArgs , "Vararg functions not processed");
 #ifdef LLVA_KERNEL
   STATISTIC (MissChecks ,
                              "Poolchecks omitted due to bad pool descriptor");
@@ -714,7 +716,15 @@ InsertPoolChecks::runOnFunction(Function &F) {
   TD  = &getAnalysis<TargetData>();
 #endif
   dsnPass = &getAnalysis<DSNodePass>();
-  addPoolChecks(F);
+
+  //
+  // FIXME:
+  //  We need to insert checks for variadic functions, too.
+  //
+  if (F.isVarArg())
+    ++MissedVarArgs;
+  else
+    addPoolChecks(F);
   return true;
 }
 
