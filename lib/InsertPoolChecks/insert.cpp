@@ -1,3 +1,18 @@
+//===- insert.cpp - Insert run-time checks -------------------------------- --//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This pass instruments a program with the necessary run-time checks for
+// SAFECode.
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "safecode"
 
 #include <iostream>
 #include "safecode/Config/config.h"
