@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 #endif
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
-    Passes.add(new PreInsertPoolChecks());
+    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new InsertPoolChecks());
     Passes.add(new RegisterStackObjPass());
     Passes.add(new MallocPass());
