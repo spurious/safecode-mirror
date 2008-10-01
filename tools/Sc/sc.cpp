@@ -28,6 +28,7 @@
 #include "llvm/System/Signals.h"
 
 #include "ABCPreProcess.h"
+#include "FaultInjector.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "SpeculativeChecking.h"
@@ -110,6 +111,14 @@ int main(int argc, char **argv) {
     PassManager Passes;
 
     Passes.add(new TargetData(M.get()));
+
+    // Ensure that all malloc/free calls are changed into LLVM instructions
+    Passes.add(createRaiseAllocationsPass());
+
+    // Inject faults before doing anything.  Note that the options to turn on
+    // fault injection are within the pass; the default options for this pass
+    // make it do nothing.
+    Passes.add(new FaultInjector());
 
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.

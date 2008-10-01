@@ -13,6 +13,7 @@ TOOLNAME=sc
 # Initialize the USEDLIBS so we can add to it
 
 LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
+USEDLIBS        := faultinject
 
 include $(LEVEL)/Makefile.common
 
