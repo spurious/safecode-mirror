@@ -757,12 +757,13 @@ pool_init_runtime (unsigned Dangling) {
   fflush (ReportLog);
 
   //
-  // Install hooks for catching allocations outside the scope of SAFECode
+  // Install hooks for catching allocations outside the scope of SAFECode.
   //
-#if 0
-  extern void installAllocHooks(void);
-  installAllocHooks();
-#endif
+  if (ConfigData.TrackExternalMallocs) {
+    extern void installAllocHooks(void);
+    installAllocHooks();
+  }
+
   return;
 }
 
@@ -1463,10 +1464,7 @@ poolcheck(PoolTy *Pool, void *Node) {
   /*
    * The node is not found or is not within bounds; fail!
    */
-  fprintf (stderr, "Poolcheck failed(%x:%x): %x %x from %x\n", 
-      (unsigned)Pool, fs, (unsigned)Node, len, (unsigned)__builtin_return_address(0));
-  fflush (stderr);
-  abort ();
+  ReportLoadStoreCheck ((unsigned)(Node),(unsigned)__builtin_return_address(0));
   return;
 }
 
@@ -1531,7 +1529,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     if ((ConfigData.StrictIndexing == false) ||
         (((char *) Dest) == ((char*)S + len))) {
       if (logregs)
-        fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
+        fprintf (ReportLog, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
       return rewrite_ptr (Pool, Dest);
     } else {
@@ -1554,7 +1552,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
       return Dest;
     } else {
       if (logregs)
-        fprintf (stderr, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
+        fprintf (ReportLog, "boundscheck  : rewrite: %x %x %x %x, pc=%x\n",
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
       if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
       ++invalidptr;
@@ -1592,6 +1590,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
                        (unsigned)0,
                        (unsigned)0);
   }
+
   fflush (stderr);
   return Dest;
 }
@@ -1631,11 +1630,12 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
   if (ObjLen) {
     if ((ConfigData.StrictIndexing == false) ||
         (((char *) Dest) == ((char*)ObjStart + ObjLen))) {
+      void * ptr = rewrite_ptr (Pool, Dest);
       if (logregs)
-        fprintf (ReportLog, "boundscheckui: rewrite: %x %x %x %x, pc=%x\n",
-                 ObjStart, Source, Dest, ObjLen, (void*)__builtin_return_address(0));
+        fprintf (ReportLog, "boundscheckui: rewrite: %x %x %x %x at pc=%x to %x\n",
+                 ObjStart, ObjLen, Source, Dest, (void*)__builtin_return_address(1), ptr);
         fflush (ReportLog);
-      return rewrite_ptr (Pool, Dest);
+      return ptr;
     } else {
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
@@ -1651,7 +1651,6 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
    * within that page.  Loads and stores using such pointers will fault.  This
    * allows indexing of NULL pointers without error.
    */
-#if 0
   if (Source < (unsigned char *)(4096)) {
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
@@ -1667,32 +1666,31 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
       }
     }
   }
-#endif
 
   /*
    * Attempt to look for the object in the external object splay tree.
    */
-#if 0
-  void * S = Source;
-  unsigned len_new = 0;
-  int fs = adl_splay_retrieve (&(ExternalObjects), &S, &len_new, 0);
-  if (fs) {
-    if ((S <= Dest) && (((char*)S + len_new) > (char*)Dest)) {
-      return Dest;
-    } else {
-      if (logregs) {
-        fprintf (stderr, "boundscheckui: %x %x %x\n", Pool, Source, Dest);
-        fflush (stderr);
-      }
+  if (ConfigData.TrackExternalMallocs) {
+    void * S = Source;
+    unsigned len_new = 0;
+    int fs = adl_splay_retrieve (&(ExternalObjects), &S, &len_new, 0);
+    if (fs) {
+      if ((S <= Dest) && (((char*)S + len_new) > (char*)Dest)) {
+        return Dest;
+      } else {
+        if (logregs) {
+          fprintf (ReportLog, "boundscheckui: %x %x %x\n", Pool, Source, Dest);
+          fflush (ReportLog);
+        }
 
-      ReportBoundsCheck ((unsigned)Source,
-                         (unsigned)Dest,
-                         (unsigned)__builtin_return_address(0),
-                         (unsigned)S,
-                         (unsigned)ObjLen);
+        ReportBoundsCheck ((unsigned)Source,
+                           (unsigned)Dest,
+                           (unsigned)__builtin_return_address(1),
+                           (unsigned)S,
+                           (unsigned)ObjLen);
+      }
     }
   }
-#endif
 
   //
   // We cannot find the object.  Continue execution.
