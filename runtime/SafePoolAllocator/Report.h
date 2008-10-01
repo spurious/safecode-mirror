@@ -69,6 +69,29 @@ ReportDanglingPointer (void * addr,
 }
 
 //
+// Function: ReportLoadStoreCheck()
+//
+// Description:
+//  Report a failure on a load or store check.
+//
+// Inputs:
+//  ptr      - The pointer for the failed load/store operation.
+//  pc       - The program counter of the failed run-time check.
+//
+static void
+ReportLoadStoreCheck (unsigned ptr,
+                      unsigned pc) {
+  // Print the header and get the ID for this report
+  unsigned id = printAlertHeader();
+
+  fprintf (ReportLog, "%04d: Load/Store violation to memory address 0x%08x\n", id, ptr);
+  fprintf (ReportLog, "%04d:                     at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tAddress                : 0x%08x \n", id, ptr);
+  fflush (ReportLog);
+  return;
+}
+
+//
 // Function: ReportBoundsCheck()
 //
 // Description:
