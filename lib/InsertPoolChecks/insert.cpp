@@ -675,7 +675,8 @@ InsertPoolChecks::insertExactCheck (Instruction * I,
   return false;
 }
 
-void InsertPoolChecks::addCheckProto(Module &M) {
+void
+InsertPoolChecks::addCheckProto(Module &M) {
   static const Type * VoidTy = Type::VoidTy;
   static const Type * Int32Ty = Type::Int32Ty;
   static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
@@ -695,29 +696,30 @@ void InsertPoolChecks::addCheckProto(Module &M) {
 
   // Special cases for var args
 
-  }
+}
   
-  bool
-  InsertPoolChecks::doInitialization(Module &M) {
-    addCheckProto(M);
+bool
+InsertPoolChecks::doInitialization(Module &M) {
+  addCheckProto(M);
   return true;
 }
 
-  bool
-  InsertPoolChecks::runOnFunction(Function &F) {
-    abcPass = &getAnalysis<ArrayBoundsCheck>();
+bool
+InsertPoolChecks::runOnFunction(Function &F) {
+  abcPass = &getAnalysis<ArrayBoundsCheck>();
 #ifndef LLVA_KERNEL
   paPass = &getAnalysis<PoolAllocateGroup>();
   // paPass = getAnalysisToUpdate<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
-    TD  = &getAnalysis<TargetData>();
+  TD  = &getAnalysis<TargetData>();
 #endif
-    dsnPass = &getAnalysis<DSNodePass>();
-    addPoolChecks(F);
-    return true;
-  }
+  dsnPass = &getAnalysis<DSNodePass>();
+  addPoolChecks(F);
+  return true;
+}
 
-bool InsertPoolChecks::doFinalization(Module &M) {
+bool
+InsertPoolChecks::doFinalization(Module &M) {
   //
 	// Update the statistics.
   //
@@ -725,14 +727,15 @@ bool InsertPoolChecks::doFinalization(Module &M) {
 	return true;
 }
 
-void InsertPoolChecks::addPoolChecks(Function &F) {
+void
+InsertPoolChecks::addPoolChecks(Function &F) {
   if (!DisableGEPChecks) {
-      Function::iterator fI = F.begin(), fE = F.end();
-      for ( ; fI != fE; ++fI) {
-        BasicBlock * BB = fI;
-        addGetElementPtrChecks (BB);
-      }
+    Function::iterator fI = F.begin(), fE = F.end();
+    for ( ; fI != fE; ++fI) {
+      BasicBlock * BB = fI;
+      addGetElementPtrChecks (BB);
     }
+  }
   if (!DisableLSChecks)  addLoadStoreChecks(F);
 }
 
@@ -879,41 +882,41 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
   }
 }
 
-  void
-  InsertPoolChecks::addLoadStoreChecks(Function &F) {
-      for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-      if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-        Value *P = LI->getPointerOperand();
-        addLSChecks(P, LI, F);
-      } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
-        Value *P = SI->getPointerOperand();
-        addLSChecks(P, SI, F);
-      } else if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
-        switch (CmpI->getPredicate()) {
-          ICmpInst::Predicate::ICMP_EQ:
-          ICmpInst::Predicate::ICMP_NE:
-            // Replace all pointer operands with the getActualValue() call
-            assert ((CmpI->getNumOperands() == 2) &&
-                     "nmber of operands for CmpI different from 2 ");
-            if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
-              // we need to insert a call to getactualvalue
-              // First get the poolhandle for the pointer
-              // TODO: We don't have a working getactualvalue(), so don't waste
-              // time calling it.
-              if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
-                  (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
-                addGetActualValue(CmpI, 0);
-                addGetActualValue(CmpI, 1);
-              }
+void
+InsertPoolChecks::addLoadStoreChecks(Function &F) {
+    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+    if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
+      Value *P = LI->getPointerOperand();
+      addLSChecks(P, LI, F);
+    } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
+      Value *P = SI->getPointerOperand();
+      addLSChecks(P, SI, F);
+    } else if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
+      switch (CmpI->getPredicate()) {
+        ICmpInst::Predicate::ICMP_EQ:
+        ICmpInst::Predicate::ICMP_NE:
+          // Replace all pointer operands with the getActualValue() call
+          assert ((CmpI->getNumOperands() == 2) &&
+                   "nmber of operands for CmpI different from 2 ");
+          if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
+            // we need to insert a call to getactualvalue
+            // First get the poolhandle for the pointer
+            // TODO: We don't have a working getactualvalue(), so don't waste
+            // time calling it.
+            if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
+                (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
+              addGetActualValue(CmpI, 0);
+              addGetActualValue(CmpI, 1);
             }
-            break;
+          }
+          break;
 
-          default:
-            break;
-        }
+        default:
+          break;
       }
     }
   }
+}
 #else
 //
 // Method: addLSChecks()
@@ -1042,73 +1045,73 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   }
 }
 
-  void InsertPoolChecks::addLoadStoreChecks(Function &F){
-    //here we check that we only do this on original functions
-    //and not the cloned functions, the cloned functions may not have the
-    //DSG
-    bool isClonedFunc = false;
-    if (paPass->getFuncInfo(F))
-      isClonedFunc = false;
-    else
-      isClonedFunc = true;
-    Function *Forig = &F;
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(F);
-    if (isClonedFunc) {
-        Forig = paPass->getOrigFunctionFromClone(&F);
-    }
-    //we got the original function
-
-    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-      if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-        // We need to get the LI from the original function
-        Value *P = LI->getPointerOperand();
-        if (isClonedFunc) {
-          assert (FI && "No FuncInfo for this function\n");
-          assert((FI->MapValueToOriginal(LI)) && " not in the value map \n");
-          const LoadInst *temp = dyn_cast<LoadInst>(FI->MapValueToOriginal(LI));
-          assert(temp && " Instruction  not there in the NewToOldValue map");
-          const Value *Ptr = temp->getPointerOperand();
-          addLSChecks(P, Ptr, LI, Forig);
-        } else {
-          addLSChecks(P, P, LI, Forig);
-        }
-      } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
-        Value *P = SI->getPointerOperand();
-        if (isClonedFunc) {
-          std::cerr << *(SI) << std::endl;
-#if 0
-          assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
-#else
-          assert((FI->MapValueToOriginal(SI)) && " not in the value map \n");
-#endif
-#if 0
-          const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
-#else
-          const StoreInst *temp = dyn_cast<StoreInst>(FI->MapValueToOriginal(SI));
-#endif
-          assert(temp && " Instruction  not there in the NewToOldValue map");
-          const Value *Ptr = temp->getPointerOperand();
-          addLSChecks(P, Ptr, SI, Forig);
-        } else {
-          addLSChecks(P, P, SI, Forig);
-        }
-      } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-        Value *FunctionOp = CI->getOperand(0);
-        if (!isa<Function>(FunctionOp)) {
-          std::cerr << "JTC: LIC: " << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
-          if (isClonedFunc) {
-            assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
-            const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
-            assert(temp && " Instruction  not there in the NewToOldValue map");
-            const Value* FunctionOp1 = temp->getOperand(0);
-            addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
-          } else {
-            addLSChecks(FunctionOp, FunctionOp, CI, Forig);
-          }
-        }
-      } 
-    }
+void InsertPoolChecks::addLoadStoreChecks(Function &F){
+  //here we check that we only do this on original functions
+  //and not the cloned functions, the cloned functions may not have the
+  //DSG
+  bool isClonedFunc = false;
+  if (paPass->getFuncInfo(F))
+    isClonedFunc = false;
+  else
+    isClonedFunc = true;
+  Function *Forig = &F;
+  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(F);
+  if (isClonedFunc) {
+      Forig = paPass->getOrigFunctionFromClone(&F);
   }
+  //we got the original function
+
+  for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+    if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
+      // We need to get the LI from the original function
+      Value *P = LI->getPointerOperand();
+      if (isClonedFunc) {
+        assert (FI && "No FuncInfo for this function\n");
+        assert((FI->MapValueToOriginal(LI)) && " not in the value map \n");
+        const LoadInst *temp = dyn_cast<LoadInst>(FI->MapValueToOriginal(LI));
+        assert(temp && " Instruction  not there in the NewToOldValue map");
+        const Value *Ptr = temp->getPointerOperand();
+        addLSChecks(P, Ptr, LI, Forig);
+      } else {
+        addLSChecks(P, P, LI, Forig);
+      }
+    } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
+      Value *P = SI->getPointerOperand();
+      if (isClonedFunc) {
+        std::cerr << *(SI) << std::endl;
+#if 0
+        assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
+#else
+        assert((FI->MapValueToOriginal(SI)) && " not in the value map \n");
+#endif
+#if 0
+        const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
+#else
+        const StoreInst *temp = dyn_cast<StoreInst>(FI->MapValueToOriginal(SI));
+#endif
+        assert(temp && " Instruction  not there in the NewToOldValue map");
+        const Value *Ptr = temp->getPointerOperand();
+        addLSChecks(P, Ptr, SI, Forig);
+      } else {
+        addLSChecks(P, P, SI, Forig);
+      }
+    } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
+      Value *FunctionOp = CI->getOperand(0);
+      if (!isa<Function>(FunctionOp)) {
+        std::cerr << "JTC: LIC: " << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
+        if (isClonedFunc) {
+          assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
+          const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
+          assert(temp && " Instruction  not there in the NewToOldValue map");
+          const Value* FunctionOp1 = temp->getOperand(0);
+          addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
+        } else {
+          addLSChecks(FunctionOp, FunctionOp, CI, Forig);
+        }
+      }
+    } 
+  }
+}
 
 #endif
 
