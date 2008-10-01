@@ -178,9 +178,9 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
           CallInst::Create(PoolRegister, args.begin(), args.end(), "", InsertPt); 
         } else {
           std::cerr << "pool descriptor not present for " << *GV << std::endl;
-    #if 0
+#if 0
           abort();
-    #endif
+#endif
         }
       }
     }
