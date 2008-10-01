@@ -94,6 +94,9 @@ struct ConfigData {
 
   // Flags whether strict indexing rules should be enforced
   bool StrictIndexing;
+
+  // Flags whether we should track external memory allocations
+  bool TrackExternalMallocs;
 };
 
 /// AllocatePage - This function returns a chunk of memory with size and
