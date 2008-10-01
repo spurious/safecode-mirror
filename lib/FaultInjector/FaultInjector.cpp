@@ -412,6 +412,9 @@ FaultInjector::insertBadIndexing (Function & F) {
   //
   DSGraph & DSG = TDPass->getDSGraph(F);
 
+  // Flag whether the program was modified
+  bool modified = (WorkList.size() > 0);
+
   //
   // Iterator through the worklist and transform each GEP.
   //
@@ -436,12 +439,11 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     // Create a copy of the GEP's indices.
     //
-    for (User::op_iterator i = GEP->idx_begin(); i != GEP->idx_end(); ++i) {
-      if (i == GEP->idx_begin()) {
-        args.push_back (ConstantInt::get (Type::Int32Ty, (ObjectSize / DataTypeSize) + 2, true));
-      } else {
-        args.push_back (*i);
-      }
+    User::op_iterator i = GEP->idx_begin();
+    if (i == GEP->idx_end()) continue;
+    args.push_back (ConstantInt::get (Type::Int32Ty, INT_MAX, true));
+    for (++i; i != GEP->idx_end(); ++i) {
+      args.push_back (*i);
     }
 
     //
@@ -457,7 +459,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     ++BadIndices;
   }
 
-  return (BadIndices > 0);
+  return modified;
 }
 
 //
