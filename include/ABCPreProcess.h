@@ -7,6 +7,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "AffineExpressions.h"
+#include "dsa/DSGraph.h"
 #include "poolalloc/PoolAllocate.h"
 
 namespace llvm {
