@@ -382,12 +382,6 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 //
 bool
 FaultInjector::insertBadIndexing (Function & F) {
-  //
-  // Ensure that we can get analysis information for this function.
-  //
-  if (!(TDPass->hasDSGraph(F)))
-    return false;
-
   // Worklist of allocation sites to rewrite
   std::vector<GetElementPtrInst *> WorkList;
 
@@ -407,11 +401,6 @@ FaultInjector::insertBadIndexing (Function & F) {
     }
   }
 
-  //
-  // Get the DSGraph for this function.
-  //
-  DSGraph & DSG = TDPass->getDSGraph(F);
-
   // Flag whether the program was modified
   bool modified = (WorkList.size() > 0);
 
@@ -421,17 +410,6 @@ FaultInjector::insertBadIndexing (Function & F) {
   while (WorkList.size()) {
     GetElementPtrInst * GEP = WorkList.back();
     WorkList.pop_back();
-
-    //
-    // Determine how much to index into the first pointer to generate a bounds
-    // overflow.  To do this, we'll first consult DSA to see what the largest
-    // object size is for objects to which the source pointer can point.
-    //
-    Value * Pointer = GEP->getPointerOperand();
-    DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
-    if (!Node) continue;
-    unsigned ObjectSize = Node->getSize();
-    unsigned DataTypeSize = TD->getABITypeSize(((PointerType *)(Pointer->getType()))->getElementType());
 
     // The index arguments to the new GEP
     std::vector<Value *> args;
@@ -449,6 +427,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     // Create the new GEP instruction.
     //
+    Value * Pointer = GEP->getPointerOperand();
     GetElementPtrInst * NewGEP = GetElementPtrInst::Create (Pointer,
                                                             args.begin(),
                                                             args.end(),
