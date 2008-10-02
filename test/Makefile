@@ -32,8 +32,9 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
+   External/Povray \
    External/SPEC/CINT2000 \
-   #MultiSource/Benchmarks/Olden \
+   MultiSource/Benchmarks/Olden \
    #SingleSource \
    #External/SPEC/CINT2000/186.crafty \
    #External/SPEC/CFP2000/188.ammp \
