@@ -16,6 +16,7 @@
 
 #include "safecode/Config/config.h"
 #include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
