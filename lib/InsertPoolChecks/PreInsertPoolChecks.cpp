@@ -215,7 +215,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   //  use that in the call to initialize the run-time.
   //
   std::vector<Value *> args;
-  args.push_back (ConstantInt::get(Type::Int32Ty,DanglingChecks,0));
+  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks, 0));
   CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif
