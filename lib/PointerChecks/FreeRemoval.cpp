@@ -913,8 +913,15 @@ EmbeCFreeRemoval::runOnModule(Module &M) {
                 if (PDINode->getLink(i).getNode())
                   if (!PDINode->getLink(i).getNode()->isNodeCompletelyFolded()){
                     //Collapsed to non-collapsed, so insert a check
+#if 1
+                    //
+                    // FIXME:
+                    //  We need to ensure that these checks are performed by
+                    //  the check insertion pass.
+                    //
                     insertNonCollapsedChecks (Forig, F,
                                               PDINode->getLink(i).getNode());
+#endif
                     //        abort();
                     break;
                   }
