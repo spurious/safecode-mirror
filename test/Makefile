@@ -32,13 +32,15 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-  SingleSource
-#   External/SPEC/CINT2000/186.crafty \
+   External/SPEC/CINT2000 \
+   #MultiSource/Benchmarks/Olden \
+   #SingleSource \
+   #External/SPEC/CINT2000/186.crafty \
    #External/SPEC/CFP2000/188.ammp \
-   #External/Namd
+   #External/Namd \
    #MultiSource/Applications/ghttpd \
-   #MultiSource/Benchmarks/Olden/bh
-   #MultiSource/Benchmarks/Ptrdist
+   #MultiSource/Benchmarks/Olden/bh \
+   #MultiSource/Benchmarks/Ptrdist \
    #MultiSource/Applications \
    #MultiSource/Benchmarks
 
@@ -52,7 +54,7 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 
 # Program tests for Pool Allocation
 progtest::
-#	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html report.csv) \
@@ -62,7 +64,7 @@ progtest::
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
                    report.html report.csv) \
         done
-#	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=safecode \
                    LARGE_PROBLEM_SIZE=1 report) \
