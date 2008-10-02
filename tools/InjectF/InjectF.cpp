@@ -26,7 +26,6 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
-// #include "llvm/Config/config.h"
 
 #include "FaultInjector.h"
 
