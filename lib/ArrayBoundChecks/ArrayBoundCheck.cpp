@@ -1,10 +1,21 @@
-//===- ArrayBoundCheck.cpp - ArrayBounds Checking (Omega)----------------===//
+//===- ArrayBoundCheck.cpp - Static Array Bounds Checking --------------------//
+// 
+//                          The SAFECode Compiler 
 //
-// Now we use the control dependence, post dominance frontier to generate
-// constraints for 
-//===--------------------------------------------------------------------===//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This pass uses a constraint solver (Omega) to verify that array indexing
+// operations are safe.  This pass uses control dependence and post dominance
+// frontier to generate constraints.
+//
+//===----------------------------------------------------------------------===//
 
 #include <unistd.h>
+
+#define DEBUG_TYPE "static-abc"
 
 #include "dsa/DSGraph.h"
 #include "utils/fdstream.h"
@@ -31,6 +42,13 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 
+// Pathname to the Omega compiler
+#define OMEGA "/home/vadve/dhurjati/bin/oc"
+
+// Pathname to the helper script for running the Omega compiler
+#define OMEGASCRIPT "/home/vadve/dhurjati/bin/omega.pl"
+
+// Pathname of include file generated for input into the Omega compiler
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
 
 using namespace llvm;
@@ -854,7 +872,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
       dup(perl2parent[1]); 
       close(fileno(stdin)); 
       dup(parentR); //this for reading from omega calculator
-       if (execvp("/home/vadve/dhurjati/bin/omega.pl",NULL) == -1) {
+       if (execvp(OMEGASCRIPT,NULL) == -1) {
         perror("execve error \n");
         exit(-1); 
       }
@@ -889,7 +907,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
     dup(childR);
     close(fileno(stdout));
     dup(childW);
-    if (execvp("/home/vadve/dhurjati/bin/oc",NULL) == -1) {
+    if (execvp(OMEGA,NULL) == -1) {
       perror("execve error \n");
       exit(-1);
     }
