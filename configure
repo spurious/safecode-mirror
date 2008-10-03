@@ -789,6 +789,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-kernel         Use SAFECode for use with Linux Kernel (default is
                           NO)
+  --enable-debugtool      Use SAFECode as a debugging tool (default is NO)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -1390,6 +1391,15 @@ if test "${enable_kernel+set}" = set; then
   enableval="$enable_kernel"
   cat >>confdefs.h <<\_ACEOF
 #define LLVA_KERNEL 1
+_ACEOF
+
+fi;
+
+# Check whether --enable-debugtool or --disable-debugtool was given.
+if test "${enable_debugtool+set}" = set; then
+  enableval="$enable_debugtool"
+  cat >>confdefs.h <<\_ACEOF
+#define SC_DEBUGTOOL 1
 _ACEOF
 
 fi;
