@@ -63,11 +63,18 @@ dnl **************************************************************************
 dnl * Enable various compile-time options
 dnl **************************************************************************
 
-dnl --enable-llva-kernel: compile SAFECode for use with LLVA kernels
+dnl --enable-kernel: compile SAFECode for use with kernels compiled to SVA
 AC_ARG_ENABLE(kernel,
   AS_HELP_STRING(--enable-kernel,
                  [Use SAFECode for use with Linux Kernel (default is NO)]),
                   AC_DEFINE(LLVA_KERNEL,[[1]]),
+                  )
+
+dnl --enable-debugtool: compile SAFECode for use as a debugging tool
+AC_ARG_ENABLE(debugtool,
+  AS_HELP_STRING(--enable-debugtool,
+                 [Use SAFECode as a debugging tool (default is NO)]),
+                  AC_DEFINE(SC_DEBUGTOOL,[[1]]),
                   )
 
 dnl **************************************************************************
