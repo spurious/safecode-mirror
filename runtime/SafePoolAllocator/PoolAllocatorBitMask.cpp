@@ -26,6 +26,8 @@
 #include "PageManager.h"
 #include "Report.h"
 #include "adl_splay.h"
+#include "safecode/Config/config.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,7 +36,10 @@
 #include <signal.h>
 #include <ucontext.h>
 #include <sys/mman.h>
-//#include <sys/ucontext.h>
+#if 0
+#include <sys/ucontext.h>
+#endif
+
 #define DEBUG(x) 
 
 // global variable declarations
@@ -1079,9 +1084,11 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     //
     // Record information about this allocation in the global debugging
     // structure.
+#ifdef SC_DEBUGTOOL
     globalallocID++;
     debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
     adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+#endif
     if (logregs) {
       fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");
       fflush (stderr);
@@ -1128,11 +1135,17 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       // remap page to get a shadow page for dangling pointer library
       PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
       retAddress = (void*) ((unsigned)PS + offset);
-      // for the use of dangling pointer runtime
+
+#ifdef SC_DEBUGTOOL
+      //
+      // Record information about the allocation for use in debugging error
+      // messages.
+      //
       globalallocID++;
       debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                           __builtin_return_address(0), 0, globalTemp);
       adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+#endif
       
       adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
       if (logregs) {
@@ -1160,12 +1173,17 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         // remap page to get a shadow page for dangling pointer library
         PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
         retAddress = (void*) ((unsigned)PS + offset);
-        //printf(" returning the address %x",retAddress);
-        // for the use of dangling pointer runtime
+
+#ifdef SC_DEBUGTOOL
+        //
+        // Record information about the allocation for use in debugging error
+        // messages.
+        //
         globalallocID++;
         debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                             __builtin_return_address(0), 0, globalTemp);
         adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+#endif
         
         adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
         if (logregs) {
@@ -1180,6 +1198,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
   // Otherwise we must allocate a new slab and add it to the list
   PoolSlab *New = PoolSlab::create(Pool);
+
   //
   // Ensure that we're always allocating at least 1 byte.
   //
@@ -1218,13 +1237,17 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // remap  page to get a shadow page for dangling pointer library
   New = (PoolSlab *) RemapObject(globalTemp, NumBytes);
   offset = (unsigned)globalTemp & (PPageSize - 1);
-  //printf(" shadow page at 0x%x through remapping\n", (unsigned)New);
   retAddress = (void*) ((unsigned)New + offset);
-  //printf(" returning the address 0x%x\n", (unsigned)retAddress);
-  // for the use of dangling pointer runtime
+
+#ifdef SC_DEBUGTOOL
+  //
+  // Record information about the allocation for use in debugging error
+  // messages.
+  //
   globalallocID++;
   debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
   adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+#endif
   
   adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
   if (logregs) {
@@ -1344,8 +1367,9 @@ fflush (stderr);
   // structure.
   // FIXME: Need to ensure MetaData is correct for debugging
   //
-  globalallocID++;
   PDebugMetaData debugmetadataPtr;
+#ifdef SC_DEBUGTOOL
+  globalallocID++;
   debugmetadataPtr = createPtrMetaData (globalallocID,
                                         globalfreeID,
                                         __builtin_return_address(0),
@@ -1356,6 +1380,7 @@ fflush (stderr);
                     retAddress,
                     NumBytes,
                     (void *) debugmetadataPtr);
+#endif
 
   // Register the object in the splay tree.  Keep track of its debugging data
   // with the splay node tag so that we can quickly map shadow address back
@@ -1919,8 +1944,23 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
   }
 }
 
-
-
+//
+// Function: poolfree()
+//
+// Description:
+//  Mark the object specified by the given pointer as free and available for
+//  allocation for new objects.
+//
+// Inputs:
+//  Pool - The pool to which the pointer should belong.
+//  Node - A pointer to the beginning of the object to free.  For dangling
+//         pointer detection, this is a pointer to the shadow page.
+//
+// Notes:
+//  This routine should be resistent to several types of deallocation errors:
+//    o) Deallocating an object which does not exist within the pool.
+//    o) Deallocating an already-free object.
+//
 void
 poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
@@ -1932,6 +1972,11 @@ poolfree(PoolTy *Pool, void *Node) {
   if (logregs) {
     printf(" poolfree:1368: poolfree to addr 0x%08x\n", (unsigned)Node);
   }
+
+  // Canonical pointer for the pointer we're freeing
+  void * CanonNode = Node;
+
+#ifdef SC_DEBUGTOOL
   // update DebugMetaData
   globalfreeID++;
 
@@ -1943,9 +1988,12 @@ poolfree(PoolTy *Pool, void *Node) {
   PDebugMetaData debugmetadataptr;
   mykey = Node;
   
+  //
   // Retrieve the debug information about the node.  This will include a
   // pointer to the canonical page.
+  //
   adl_splay_retrieve (&(Pool->Objects), &mykey, &len, (void **) &debugmetadataptr);
+  assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
   
   if (logregs) {
     printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
@@ -1959,19 +2007,18 @@ poolfree(PoolTy *Pool, void *Node) {
   //  physical page size. If it is not, then we increment
   //  the number of pages to protect.
   //  FIXME!!!
-
   NumPPage = (len / PPageSize) + 1;
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
-  
-  assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
-  globalTemp = debugmetadataptr->canonAddr;
+
+  CanonNode = debugmetadataptr->canonAddr;
   
   if (logregs) {
     printf(" poolfree:1397: NumPPage = %d\n", NumPPage);
-    printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)globalTemp);
+    printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
   }
   updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
+#endif
 
   //
   // Allow the poolcheck runtime to finish the bookkeping it needs to do.
@@ -1980,7 +2027,7 @@ poolfree(PoolTy *Pool, void *Node) {
   
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
-    PS = SearchForContainingSlab(Pool, globalTemp, TheIndex);
+    PS = SearchForContainingSlab(Pool, CanonNode, TheIndex);
     Idx = TheIndex;
     assert (PS && "poolfree: No poolslab found for object!\n");
     PS->freeElement(Idx);
@@ -2010,11 +2057,19 @@ poolfree(PoolTy *Pool, void *Node) {
     Idx = PS->containsElement(Node, Pool->NodeSize);
     assert((int)Idx != -1 && "Node not contained in slab??");
   }
-  
-  //  return if PS is NULL
-  if (!PS)
-    return;
+
+#ifdef SC_DEBUGTOOL
+  //
+  // Ensure that the pointer is valid; if not, warn the user.
+  //
   assert (PS && "PS is NULL!\n");
+#else
+  //
+  // If we could not find the slab in which the node belongs, then we were
+  // passed an invalid pointer.  Simply ignore it.
+  //
+  if (!PS) return;
+#endif
   
   // If PS was full, it must have been in list #2.  Unlink it and move it to
   // list #1.
@@ -2063,6 +2118,7 @@ poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
  
+#ifdef SC_DEBUGTOOL
   // Protect the shadow pages
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
   
@@ -2082,6 +2138,7 @@ poolfree(PoolTy *Pool, void *Node) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
+#endif
 
   return; 
 }
@@ -2117,6 +2174,7 @@ createPtrMetaData (unsigned paramAllocID,
   return ret;
 }
 
+#ifdef SC_DEBUGTOOL
 static inline void
 updatePtrMetaData (PDebugMetaData debugmetadataptr,
                    unsigned globalfreeID,
@@ -2125,6 +2183,7 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
   debugmetadataptr->freePC = paramFreePC;
   return;
 }
+#endif
 
 //
 // Function: bus_error_handler()
