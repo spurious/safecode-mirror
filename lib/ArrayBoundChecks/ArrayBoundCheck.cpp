@@ -64,6 +64,10 @@ namespace {
                                 cl::init(false),
                                 cl::desc("Disable Static Array Bounds Checks"));
 
+  cl::opt<bool> NoStructChecks ("disable-structchecks", cl::Hidden,
+                                cl::init(true),
+                                cl::desc("Disable Checks on Structure Indices"));
+
   cl::opt<string> OmegaFilename("omegafile",
                                 cl::desc("Specify omega include filename"),
                                 cl::init(OMEGA_TMP_INCLUDE_FILE),
@@ -1043,7 +1047,16 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           // FIXME: TODO:
           //  We need to do some constraint solving for pure struct indexing.
           //
-          MarkGEPUnsafe (MAI);
+          if (NoStructChecks) {
+            if (!indexesStructsOnly (MAI)) {
+              MarkGEPUnsafe (MAI);
+            } else {
+              ++SafeStructs;
+              ++TotalStructs;
+            }
+          } else {
+            MarkGEPUnsafe (MAI);
+          }
         }
       } else {
         std::cerr << "GEP to non-pointer: " << *iLocal << std::endl;
