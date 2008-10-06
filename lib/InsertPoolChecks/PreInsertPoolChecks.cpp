@@ -211,11 +211,6 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       ++InsertPt;
   }
 
-  //
-  // FIXME:
-  //  Need to get the command line argument for dangling pointer checks and
-  //  use that in the call to initialize the run-time.
-  //
   std::vector<Value *> args;
   args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks, 0));
   CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
