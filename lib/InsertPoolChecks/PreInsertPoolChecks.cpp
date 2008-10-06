@@ -138,13 +138,11 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         DSGraph &G = paPass->getGlobalsGraph();
         DSNode *DSN  = G.getNodeForValue(GV).getNode();
 
-#if 0
         // Skip it if there is never a run-time check
         if (dsnPass->CheckedDSNodes.find(DSN) == dsnPass->CheckedDSNodes.end()) {
           ++SavedGlobals;
           continue;
         }
-#endif
 
         Value * AllocSize;
         const Type* csiType = Type::Int32Ty;
