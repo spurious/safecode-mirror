@@ -1,4 +1,30 @@
 //===-- FreeRemoval.cpp - EmbeC transformation that removes frees ------------//
+// 
+//                          The SAFECode Compiler
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// FIXME:
+//  This pass needs to be cleaned up and better understood.  Some of the
+//  functionality seems to be addressed with poolcheckalign() in the Check
+//  Insertion pass; we should ensure that the functionality there is present in
+//  mainline and supercedes what is implemented here.  Also, the checking of
+//  pool operations should be understood and updated/corrected if needed.
+//
+// This pass appears to do two things:
+//
+//  o) It ensures that there are load/store checks on pointers that point to
+//     type-known data but are loaded from type-unknown partitions.
+//
+//  o) It seems to perform some sort of sanity/correctness checking of pool
+//     creation/destruction.
+//
+//===----------------------------------------------------------------------===//
+//
+// Original comment from initial implementation:
+//
 // Implementation of FreeRemoval.h : an EmbeC pass
 // 
 // Some assumptions:
@@ -9,9 +35,11 @@
 // -no phinode takes two pool pointers because then they would be the same pool
 // Result: If we look at pool pointer defs and look for their uses... we check 
 // that their only uses are calls to pool_allocs, pool_frees and pool_destroys.
+//
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "FreeRemoval"
+
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
