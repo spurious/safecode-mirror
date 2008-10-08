@@ -51,6 +51,7 @@ static PoolTy dummyPool;
 static unsigned dummyInitialized = 0;
 unsigned poolmemusage = 0;
 
+/// UNUSED in production version
 FILE * ReportLog;
 
 // Global Configuration Information
@@ -65,8 +66,13 @@ unsigned InvalidLower = 0x00000003;
 // Splay tree of external objects
 extern void * ExternalObjects;
 
+#ifndef SC_DEBUGTOOL
+/// It should be always zero in production version 
+static /*const*/ unsigned logregs = 0;
+#else
 /* Set to 1 to log object registrations */
 static /*const*/ unsigned logregs = 0;
+#endif
 
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);
@@ -752,6 +758,7 @@ pool_init_runtime (unsigned Dangling) {
   InvalidUpper = (unsigned int) Addr + invalidsize;
 #endif
 
+#ifdef SC_DEBUGTOOL
   //
   // Open up an additional file for error reporting.
   //
@@ -760,6 +767,9 @@ pool_init_runtime (unsigned Dangling) {
   fprintf (ReportLog, "New Run of Program\n");
   fprintf (ReportLog, "====================================================\n");
   fflush (ReportLog);
+#else
+  ReportLog = NULL;
+#endif
 
   //
   // Install hooks for catching allocations outside the scope of SAFECode.

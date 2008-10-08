@@ -17,7 +17,9 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "safecode/Config/config.h"
 
+#ifdef SC_DEBUGTOOL
 extern FILE * ReportLog;
 static unsigned alertNum = 0;
 
@@ -171,5 +173,47 @@ ReportExactCheck (unsigned src,
   fflush (ReportLog);
   return;
 }
+#else
 
+// Production code: all reporters are just simple wrappers for abort()
+
+static unsigned printAlertHeader (void) {
+  abort();
+}
+
+static void ReportDanglingPointer (void * addr,
+                       unsigned pc,
+                       unsigned allocpc,
+                       unsigned allocgen,
+                       unsigned freepc,
+                       unsigned freegen) {
+  abort();
+}
+
+static void
+ReportLoadStoreCheck (unsigned ptr,
+                      unsigned pc) {
+  abort();
+}
+
+static void
+ReportBoundsCheck (unsigned src,
+                   unsigned dest,
+                   unsigned pc,
+                   unsigned objstart,
+                   unsigned objlen) {
+  abort();
+}
+
+
+static void
+ReportExactCheck (unsigned src,
+                  unsigned dest,
+                  unsigned pc,
+                  unsigned objstart,
+                  unsigned objlen) {
+  abort();
+}
+
+#endif
 #endif
