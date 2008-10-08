@@ -489,10 +489,10 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
 
     //We need to insert checks to all the uses of this ptr
     if (DSN == GH.getNode()) {
-      if (GH.getOffset()) {
-        if (DSN->isArray()) return; //we are any way checking all arrays
-        assert(!GH.getOffset()  && " we dont handle middle of structs yet \n");
-      }
+      // We are any way checking all arrays
+      if ((GH.getOffset()) && (DSN->isArray())) return;
+      Value * Offset = ConstantInt::get(Type::Int32Ty, GH.getOffset());
+
       Value *NewPtr = SMI->first;
       if (isClonedFunc) {
         NewPtr = PAFI->ValueMap[SMI->first];
@@ -510,7 +510,7 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
             moduleChanged = true;
             Value * CastPH = castTo(PAFI->PoolDescriptors[DSN], VoidPtrTy, "", StI);
             Value * CastI  = castTo(StI->getOperand(1), VoidPtrTy, "casted", StI);
-            std::vector<Value *> args = make_vector(CastPH, CastI, 0);
+            std::vector<Value *> args = make_vector(CastPH, CastI, Offset, 0);
             CallInst::Create(PoolCheck, args.begin(), args.end(), "", StI);
             std::cerr << " inserted poolcheck for noncollapsed pool\n";
           }
@@ -527,7 +527,7 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
             moduleChanged = true;
             Value *CastPH = castTo (PAFI->PoolDescriptors[DSN], VoidPtrTy, "", LdI);
             Value *CastI  = castTo (LdI->getOperand(0), VoidPtrTy, "casted", LdI);
-            std::vector<Value *> args = make_vector(CastPH, CastI, 0);
+            std::vector<Value *> args = make_vector(CastPH, CastI, Offset, 0);
             CallInst::Create(PoolCheck, args.begin(), args.end(), "", LdI);
             std::cerr << " inserted poolcheck for noncollpased pool\n";
           }
@@ -692,13 +692,13 @@ EmbeCFreeRemoval::runOnModule(Module &M) {
 
   FunctionType *PoolCheckTy = 
     FunctionType::get(Type::VoidTy,
-          make_vector<const Type*>(VoidPtrTy, VoidPtrTy, 0),
+          make_vector<const Type*>(VoidPtrTy, VoidPtrTy, Type::Int32Ty, 0),
           false);
   
   PoolMakeUnfreeable = CurModule->getOrInsertFunction("poolmakeunfreeable", 
                   PoolMakeUnfreeableTy);
   
-  PoolCheck = CurModule->getOrInsertFunction("poolcheck", PoolCheckTy);
+  PoolCheck = CurModule->getOrInsertFunction("poolcheckalign", PoolCheckTy);
   
   moduleChanged = true;
 
