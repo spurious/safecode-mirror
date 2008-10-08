@@ -7,9 +7,8 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-CFLAGS = -O2 -fno-strict-aliasing
-#-fno-unroll-loops
-
+ENABLE_LTO :=1
+CFLAGS := -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
@@ -24,12 +23,20 @@ endif
 PA_SO    := $(PROJECT_DIR)/Debug/lib/addchecks.o
 
 # Pool allocator runtime library
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-#PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+PA_RT_O  :=
 PA_RT_BC :=
 
 # Pool System library for interacting with the system
-POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+POOLSYSTEMRT_O :=
+POOLSYSTEMRT_BC :=
+
+ifdef ENABLE_LTO
+PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
+else
+PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
+POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
@@ -63,7 +70,7 @@ Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(LOPT) $(OPTZN_PASSES) $< -f -o $<.opt 2>&1 > $@.out
 	-$(SC_STATS) $<.opt -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
@@ -95,16 +102,16 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 #
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM_RT_O)
+	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
 	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM_RT_O)
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.s
