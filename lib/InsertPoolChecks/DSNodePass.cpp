@@ -26,7 +26,9 @@ DSNodePass::runOnModule(Module & M) {
 #ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
+#if 0
   efPass = &getAnalysis<EmbeCFreeRemoval>();
+#endif
 #endif
   return false;
 }
@@ -48,9 +50,41 @@ DSNodePass::getDSGraph(Function & F) {
 }
 
 #ifndef LLVA_KERNEL
+//
+// Method: getPoolHandle()
+//
+// Description:
+//  Return the pool handle assigned to this value.
+//
+// Inputs:
+//  V         - The value for which we seek the pool handle.
+//  collapsed - Flags whether we are willing to get pool handles for collapsed
+//              pools.
+//
+// Return value:
+//  0 - No pool handle was found.
+//  Otherwise, returns either the pool handle or a pointer to a NULL pool
+//  handle.
+//
+// Note:
+//  Currently, collapsed is always set to true, meaning that we never use
+//  information from the EmbeC pass like in the Olden days (ha ha!).  That
+//  code, therefore, is disabled in order to speed up the revival of SAFECode
+//  with Automatic Pool Allocation.
+//
 Value *
-DSNodePass::getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI,
-                                bool collapsed) {
+DSNodePass::getPoolHandle (const Value *V,
+                           Function *F,
+                           PA::FuncInfo &FI,
+                           bool collapsed) {
+
+  //
+  // Ensure that the caller is okay with collapsed pools.  Code below for
+  // handling the case when we don't want collapsed pools is disabled to
+  // remove dependence on the old EmbeC passes.
+  //
+  assert (collapsed && "For now, we must always handle collapsed pools!\n");
+
 #if 1
   //
   // JTC:
@@ -96,13 +130,16 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
   }
 
   Value * PH = paPass->getPool (Node, *F);
+
+#if 0
   map <Function *, set<Value *> > &
     CollapsedPoolPtrs = efPass->CollapsedPoolPtrs;
+#endif
   
   if (PH) {
     // Check that the node pointed to by V in the TD DS graph is not
     // collapsed
-    
+#if 0
     if (!collapsed && CollapsedPoolPtrs.count(F)) {
       Value *v = PH;
       if (CollapsedPoolPtrs[F].find(PH) != CollapsedPoolPtrs[F].end()) {
@@ -117,6 +154,9 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
         return v;
       }
     } else {
+#else
+    {
+#endif
       if (Argument * Arg = dyn_cast<Argument>(PH))
         if ((Arg->getParent()) != F)
           return Constant::getNullValue(PoolDescPtrTy);

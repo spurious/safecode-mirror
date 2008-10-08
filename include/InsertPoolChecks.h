@@ -146,7 +146,9 @@ struct DSNodePass : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL      
       AU.addRequired<EquivClassGraphs>();
+#if 0
       AU.addRequired<EmbeCFreeRemoval>();
+#endif
       AU.addPreserved<PoolAllocateGroup>();
       AU.addRequired<PoolAllocateGroup>();
 #else 
@@ -157,7 +159,9 @@ struct DSNodePass : public ModulePass {
   // FIXME: Provide better interfaces
 #ifndef  LLVA_KERNEL
   PoolAllocateGroup * paPass;
+#if 0
   EmbeCFreeRemoval *efPass;
+#endif
 #else
   TDDataStructures * TDPass;
 #endif
