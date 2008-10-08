@@ -107,8 +107,7 @@ extern "C" {
   void * boundscheckui (PoolTy * Pool, void * Source, void * Dest);
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolstats(void);
-  void poolcheckalign(PoolTy *Pool, void *Node, unsigned StartOffset, 
-                      unsigned EndOffset);
+  void poolcheckalign(PoolTy *Pool, void *Node, unsigned Offset);
 
   void pool_newstack (PoolTy * Pool);
   void pool_delstack (PoolTy * Pool);

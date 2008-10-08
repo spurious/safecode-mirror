@@ -1809,6 +1809,7 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   return tag;
 }
 
+#if 0
 // Check that Node falls within the pool and within start and (including)
 // end offset
 void
@@ -1943,6 +1944,54 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
     }
   }
 }
+#else
+//
+// Function: poolcheckalign()
+//
+// Description:
+//  Ensure that the given pointer is both within an object in the pool *and*
+//  points to the correct offset within the pool.
+//
+// Inputs:
+//  Pool   - The pool in which the pointer should be found.
+//  Node   - The pointer to check.
+//  Offset - The offset, in bytes, that the pointer should be to the beginning
+//           of objects found in the pool.
+//
+// FIXME:
+//  For now, this does nothing, but it should, in fact, do a run-time check.
+//
+void
+poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
+  //
+  // Let null pointers go if the alignment is zero; such pointers are aligned.
+  //
+  if ((Node == 0) && (Offset == 0))
+    return;
+
+  //
+  // If no pool was specified, return.
+  //
+  if (!Pool) return;
+
+  //
+  // Look for the object in the splay of regular objects.
+  //
+  void* S = Node;
+  unsigned len = 0;
+  void * tag = 0;
+  int t = adl_splay_retrieve(&Pool->Objects, &S, &len, &tag);
+
+  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == Offset)) {
+      return;
+  }
+
+  /*
+   * The object has not been found.  Provide an error.
+   */
+  ReportLoadStoreCheck ((unsigned)(Node),(unsigned)__builtin_return_address(0));
+}
+#endif
 
 //
 // Function: poolfree()
