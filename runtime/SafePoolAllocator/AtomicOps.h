@@ -145,8 +145,8 @@ public:
   unsigned size() const {
     unsigned short read = readidx;
     unsigned short write = writeidx;
-    if (writer > reader) return writer - reader;
-    else return N - (reader - writer);
+    if (write >= read) return write - read;
+    else return N - (read - write);
   }
 
 private:
