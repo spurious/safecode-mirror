@@ -672,6 +672,17 @@ EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
 
 bool
 EmbeCFreeRemoval::runOnModule(Module &M) {
+#if 1
+  //
+  // FIXME:
+  //  Currently, we do not need this pass.  However, removing it from the sc
+  //  tool causes other passes to fail for reasons unknown.  So, for now, leave
+  //  this pass in the sc tool, but don't let it do anything.
+  //
+  std::cerr << "WARNING: EmbeCFreeRemoval Pass Executed, but it does NOTHING!"
+            << std::endl;
+  return false;
+#endif
   CurModule = &M;
   moduleChanged = false;
   hasError = false;
