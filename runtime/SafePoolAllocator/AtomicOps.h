@@ -109,9 +109,13 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 
 template<class T> class LockFreeFifo
 {
+  static const int N = 65536;
 public:
   typedef  T element_t;
-  LockFreeFifo () : readidx(0), writeidx(0) {}
+  LockFreeFifo () : readidx(0), writeidx(0) {
+    for(int x = 0; x < N; ++x)
+      buffer[x].set_free();
+  }
 
   T & front (void) {
     SPIN_AND_YIELD(buffer[readidx].is_free());
@@ -152,7 +156,6 @@ public:
 private:
 
   // Cache alignment suggested by Andrew
-  static const int N = 65536;
   volatile unsigned short __attribute__((aligned(128))) dummy1;
   volatile unsigned short __attribute__((aligned(128))) readidx;
   volatile unsigned short __attribute__((aligned(128))) writeidx;
