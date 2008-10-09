@@ -89,6 +89,8 @@ struct InsertPoolChecks : public FunctionPass {
   DSNodePass * dsnPass;
   Constant *PoolCheck;
   Constant *PoolCheckUI;
+  Constant *PoolCheckAlign;
+  Constant *PoolCheckAlignUI;
   Constant *PoolCheckArray;
   Constant *PoolCheckArrayUI;
   Constant *ExactCheck;
@@ -104,6 +106,7 @@ struct InsertPoolChecks : public FunctionPass {
   void addLoadStoreChecks(Function &F);
   void addExactCheck (Value * P, Value * I, Value * B, Instruction * InsertPt);
   void addExactCheck2 (Value * B, Value * R, Value * C, Instruction * InsertPt);
+  void insertAlignmentCheck (LoadInst * LI);
 #ifndef LLVA_KERNEL  
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
   void registerGlobalArraysWithGlobalPools(Module &M);
