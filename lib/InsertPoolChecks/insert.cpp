@@ -69,6 +69,7 @@ namespace {
                              "Poolchecks with non-NULL pool descriptor");
 
   STATISTIC (PoolChecks , "Poolchecks Added");
+  STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
 #ifdef LLVA_KERNEL
   STATISTIC (MissChecks ,
@@ -700,6 +701,8 @@ InsertPoolChecks::addCheckProto(Module &M) {
 
   REG_FUNC (PoolCheck,        VoidTy, "poolcheck",          vpTy, vpTy)
   REG_FUNC (PoolCheckUI,      VoidTy, "poolcheckui",        vpTy, vpTy)
+  REG_FUNC (PoolCheckAlign,   VoidTy, "poolcheckalign",     vpTy, vpTy, Int32Ty)
+  REG_FUNC (PoolCheckAlignUI, VoidTy, "poolcheckalignui",   vpTy, vpTy, Int32Ty)
   REG_FUNC (PoolCheckArray,   VoidTy, "boundscheck",        vpTy, vpTy, vpTy)
   REG_FUNC (PoolCheckArrayUI, VoidTy, "boundscheckui",      vpTy, vpTy, vpTy)
   REG_FUNC (ExactCheck,       VoidTy, "exactcheck",         Int32Ty, Int32Ty)
@@ -821,6 +824,82 @@ InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
 #endif
 }
 
+//
+// Method: insertAlignmentCheck()
+//
+// Description:
+//  Insert an alignment check for the specified value.
+//
+void
+InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
+  // Get the function containing the load instruction
+  Function * F = LI->getParent()->getParent();
+
+  // Get the DSNode for the result of the load instruction.  If it is type
+  // unknown, then no alignment check is needed.
+  DSNode * LoadResultNode = dsnPass->getDSNode (LI,F);
+  if (!(LoadResultNode && (!(LoadResultNode->isNodeCompletelyFolded())))) {
+    return;
+  }
+
+  //
+  // Get the pool handle for the node.
+  //
+  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+  Value *PH = dsnPass->getPoolHandle(LI, F, *FI);
+  if (!PH) return;
+
+  //
+  // If the node is incomplete or unknown, then only perform the check if
+  // checks to incomplete or unknown are allowed.
+  //
+  Constant * ThePoolCheckFunction = PoolCheckAlign;
+  if ((LoadResultNode->isUnknownNode()) ||
+      (LoadResultNode->isIncompleteNode())) {
+#if 0
+    if (EnableUnknownChecks) {
+      ThePoolCheckFunction = PoolCheckAlignUI;
+    } else {
+      ++MissedIncompleteChecks;
+      return;
+    }
+#else
+    ThePoolCheckFunction = PoolCheckAlignUI;
+    return;
+#endif
+  }
+
+  //
+  // A check is needed.  Scan through the links of the DSNode of the load's
+  // pointer operand; we need to determine the offset for the alignment check.
+  //
+  DSNode * Node = dsnPass->getDSNode (LI->getPointerOperand(), F);
+  if (!Node) return;
+  for (unsigned i = 0 ; i < Node->getNumLinks(); ++i) {
+    DSNodeHandle & LinkNode = Node->getLink(i);
+    if (LinkNode.getNode() == LoadResultNode) {
+      // Insertion point for this check is *after* the load.
+      BasicBlock::iterator InsertPt = LI;
+      ++InsertPt;
+
+      // Create instructions to cast the checked pointer and the checked pool
+      // into sbyte pointers.
+      Value *CastVI  = castTo (LI, PointerType::getUnqual(Type::Int8Ty), InsertPt);
+      Value *CastPHI = castTo (PH, PointerType::getUnqual(Type::Int8Ty), InsertPt);
+
+      // Create the call to poolcheck
+      std::vector<Value *> args(1,CastPHI);
+      args.push_back(CastVI);
+      args.push_back (ConstantInt::get(Type::Int32Ty, LinkNode.getOffset()));
+      CallInst::Create (ThePoolCheckFunction,args.begin(), args.end(), "", InsertPt);
+
+      // Update the statistics
+      ++AlignLSChecks;
+
+      break;
+    }
+  }
+}
 
 #ifdef LLVA_KERNEL
 //
@@ -957,6 +1036,18 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
                                const Value *V,
                                Instruction *I,
                                Function *F) {
+
+  //
+  // This may be a load instruction that loads a pointer that:
+  //  1) Points to a type known pool, and
+  //  2) Loaded from a type unknown pool
+  //
+  // If this is the case, we need to perform an alignment check on the result
+  // of the load.  Do that here.
+  //
+  if (LoadInst * LI = dyn_cast<LoadInst>(I)) {
+    insertAlignmentCheck (LI);
+  }
 
   PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
   Value *PH = dsnPass->getPoolHandle(V, F, *FI );
