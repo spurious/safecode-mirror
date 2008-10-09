@@ -142,6 +142,13 @@ public:
     return readidx == writeidx;
   }
 
+  unsigned size() const {
+    unsigned short read = readidx;
+    unsigned short write = writeidx;
+    if (writer > reader) return writer - reader;
+    else return N - (reader - writer);
+  }
+
 private:
 
   // Cache alignment suggested by Andrew
