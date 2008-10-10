@@ -82,8 +82,12 @@ GetFileNameRoot(const std::string &InputFilename) {
   return outputFilename;
 }
 
-static std::vector<ReplaceFunctionPass::ReplaceFunctionEntry> sgReplaceAllocatorList;
-static void convertToBCAllocator(Module * M, PassManager & Passes);
+#define REG_REPLACE_FUNC(PREFIX, X) do { \
+  sgReplaceFuncList.push_back(ReplaceFunctionPass::ReplaceFunctionEntry(X, PREFIX X)); \
+  } while (0)
+static std::vector<ReplaceFunctionPass::ReplaceFunctionEntry> sgReplaceFuncList;
+static void convertToBCAllocator (void);
+static void convertToParallelChecking (void);
 
 // main - Entry point for the sc compiler.
 //
@@ -165,11 +169,17 @@ int main(int argc, char **argv) {
       Passes.add(new MonotonicLoopOpt());
 
     if(EnableSpecChecking) {
-      Passes.add(new SpeculativeCheckingPass());
+      convertToParallelChecking();
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
     } else {
+#ifndef SC_DEBUGTOOL
       // Use new allocator
-      convertToBCAllocator(M.get(), Passes);
+      convertToBCAllocator();
+#endif
+    }
+  
+    if (sgReplaceFuncList.size() > 0) {
+      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
     }
 
     // Verify the final result
@@ -246,18 +256,19 @@ int main(int argc, char **argv) {
   return 1;
 }
 
-static void convertToBCAllocator (Module * M, PassManager & Passes) {
-#define REG_REPLACE_FUNC(X) do { \
-  sgReplaceAllocatorList.push_back(ReplaceFunctionPass::ReplaceFunctionEntry(X, "__sc_bc_" X)); \
-  } while (0)
+static void convertToBCAllocator (void) {
+  REG_REPLACE_FUNC("__sc_bc_", "poolinit");
+  REG_REPLACE_FUNC("__sc_bc_", "pooldestroy");
+  REG_REPLACE_FUNC("__sc_bc_", "poolalloc");
+  REG_REPLACE_FUNC("__sc_bc_", "poolstrdup");
+  REG_REPLACE_FUNC("__sc_bc_", "poolfree");
+}
 
-  REG_REPLACE_FUNC("poolinit");
-  REG_REPLACE_FUNC("pooldestroy");
-  REG_REPLACE_FUNC("poolalloc");
-  REG_REPLACE_FUNC("poolstrdup");
-  REG_REPLACE_FUNC("poolfree");
+static void convertToParallelChecking (void) {
+  REG_REPLACE_FUNC("__sc_", "poolcheck");
+  REG_REPLACE_FUNC("__sc_", "poolcheckui");
+  REG_REPLACE_FUNC("__sc_", "boundscheck");
+  REG_REPLACE_FUNC("__sc_", "boundscheckui");
+}
 
 #undef REG_REPLACE_FUNC
-
-  Passes.add(new ReplaceFunctionPass(sgReplaceAllocatorList));
-}
