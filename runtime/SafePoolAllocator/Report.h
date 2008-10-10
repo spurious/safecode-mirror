@@ -102,6 +102,8 @@ ReportLoadStoreCheck (unsigned ptr,
 // Inputs:
 //  src      - The source pointer for the failed indexing operation.
 //  dest     - The result pointer for the failed indexing operation.
+//  allocID  - The generation number of the object's allocation.
+//  allocPC  - The program counter at which the object was last allocated.
 //  pc       - The program counter of the failed run-time check.
 //  objstart - The start of the object in which the source pointer was found.
 //  objlen   - The length of the object in which the source pointer was found.
