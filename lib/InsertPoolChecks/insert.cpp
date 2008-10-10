@@ -875,7 +875,7 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   //
   DSNode * Node = dsnPass->getDSNode (LI->getPointerOperand(), F);
   if (!Node) return;
-  for (unsigned i = 0 ; i < Node->getNumLinks(); ++i) {
+  for (unsigned i = 0 ; i < Node->getNumLinks(); i+=4) {
     DSNodeHandle & LinkNode = Node->getLink(i);
     if (LinkNode.getNode() == LoadResultNode) {
       // Insertion point for this check is *after* the load.
