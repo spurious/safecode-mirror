@@ -28,11 +28,11 @@
 #include "llvm/System/Signals.h"
 
 #include "ABCPreProcess.h"
-#include "FaultInjector.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "SpeculativeChecking.h"
 #include "ReplaceFunctionPass.h"
+#include "safecode/FaultInjector.h"
 
 #include <fstream>
 #include <iostream>

@@ -27,7 +27,7 @@
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
 
-#include "FaultInjector.h"
+#include "safecode/FaultInjector.h"
 
 #include <fstream>
 #include <iostream>

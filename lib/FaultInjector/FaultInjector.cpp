@@ -14,7 +14,6 @@
 
 #define DEBUG_TYPE "FaultInjector"
 
-#include "FaultInjector.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
@@ -25,6 +24,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "safecode/FaultInjector.h"
 #include "SCUtils.h"
 
 #include <cstdlib>
