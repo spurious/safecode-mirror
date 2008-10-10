@@ -1568,8 +1568,23 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
                  S, Source, Dest, len, (void*)__builtin_return_address(0));
       return rewrite_ptr (Pool, Dest);
     } else {
+      PDebugMetaData debugmetadataptr;
+      unsigned allocPC = 0;
+      unsigned allocID = 0;
+      unsigned freeID = 0;
+      S = Source;
+      if (fs = adl_splay_retrieve (&(dummyPool.DPTree),
+                                   &S,
+                                   NULL,
+                                   (void **) &debugmetadataptr)) {
+        allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+        allocID  = debugmetadataptr->allocID;
+      }
+
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
+                         (unsigned)allocID,
+                         (unsigned)allocPC,
                          (unsigned)__builtin_return_address(0),
                          (unsigned)S,
                          (unsigned)len);
@@ -1615,12 +1630,16 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   if (fs) {
     ReportBoundsCheck ((unsigned)Source,
                        (unsigned)Dest,
+                       (unsigned)0,
+                       (unsigned)0,
                        (unsigned)__builtin_return_address(0),
                        (unsigned)S,
                        (unsigned)len);
   } else {
     ReportBoundsCheck ((unsigned)Source,
                        (unsigned)Dest,
+                       (unsigned)0,
+                       (unsigned)0,
                        (unsigned)__builtin_return_address(0),
                        (unsigned)0,
                        (unsigned)0);
@@ -1672,8 +1691,23 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
         fflush (ReportLog);
       return ptr;
     } else {
+      PDebugMetaData debugmetadataptr;
+      unsigned allocPC = 0;
+      unsigned allocID = 0;
+      unsigned freeID = 0;
+      void * S = ObjStart;
+      if (adl_splay_retrieve (&(dummyPool.DPTree),
+                              &S,
+                              NULL,
+                              (void **) &debugmetadataptr)) {
+        allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+        allocID  = debugmetadataptr->allocID;
+      }
+
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
+                         (unsigned)allocID,
+                         (unsigned)allocPC,
                          (unsigned)__builtin_return_address(0),
                          (unsigned)ObjStart,
                          (unsigned)ObjLen);
@@ -1695,6 +1729,8 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
       } else {
         ReportBoundsCheck ((unsigned)Source,
                            (unsigned)Dest,
+                           (unsigned)0,
+                           (unsigned)0,
                            (unsigned)__builtin_return_address(0),
                            (unsigned)0,
                            (unsigned)4096);
@@ -1720,6 +1756,8 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
 
         ReportBoundsCheck ((unsigned)Source,
                            (unsigned)Dest,
+                           (unsigned)0,
+                           (unsigned)0,
                            (unsigned)__builtin_return_address(1),
                            (unsigned)S,
                            (unsigned)ObjLen);

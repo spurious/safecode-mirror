@@ -113,6 +113,8 @@ ReportLoadStoreCheck (unsigned ptr,
 static void
 ReportBoundsCheck (unsigned src,
                    unsigned dest,
+                   unsigned allocID,
+                   unsigned allocPC,
                    unsigned pc,
                    unsigned objstart,
                    unsigned objlen) {
@@ -126,6 +128,8 @@ ReportBoundsCheck (unsigned src,
   if (objstart || objlen) {
     fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
     fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
+    fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%08x \n", id, allocPC);
+    fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocID);
     fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   } else {
     fprintf (ReportLog, "%04d:\tNot found within object\n", id);
