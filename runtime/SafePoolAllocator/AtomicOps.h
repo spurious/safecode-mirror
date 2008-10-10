@@ -30,7 +30,7 @@ NAMESPACE_SC_BEGIN
 #define SPIN_AND_YIELD(COND) do { unsigned short counter = 0; \
   while (COND) { if (++counter == 0) {                      \
     sched_yield();                                        \
-    /* fprintf(stderr, "yielding: %s\n", #COND); fflush(stderr); */ }}       \
+    fprintf(stderr, "yielding: %s\n", #COND); fflush(stderr); }}       \
 } while (0)
 
 /// FIXME: These codes are from linux header file, it should be rewritten

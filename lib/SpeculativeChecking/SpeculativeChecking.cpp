@@ -112,7 +112,8 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
 			    );
     const char * safeFuncList[]
       = {
-      "poolinit", "pool_init_runtime", "poolregister", "poolunregister",
+      "poolinit", "pool_init_runtime",
+      // "poolregister", "poolunregister",
       "exactcheck", "exactcheck2"
     };
 

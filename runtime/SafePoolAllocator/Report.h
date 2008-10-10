@@ -203,6 +203,8 @@ ReportLoadStoreCheck (unsigned ptr,
 static void
 ReportBoundsCheck (unsigned src,
                    unsigned dest,
+                   unsigned allocID,
+                   unsigned allocPC,
                    unsigned pc,
                    unsigned objstart,
                    unsigned objlen) {

@@ -115,6 +115,55 @@ extern "C" {
 
   void * rewrite_ptr (PoolTy *, void * p);
   //void protect_shadowpage();
+ 
+  // Barebone allocators, which only do allocations
+  // They should not be used directly.
+
+  void __barebone_poolinit(PoolTy *Pool, unsigned NodeSize);
+  void __barebone_pooldestroy(PoolTy *Pool);
+  void __barebone_poolfree(PoolTy *Pool, void *Node);
+  void * __barebone_poolalloc(PoolTy *Pool, unsigned NumBytes);
+  void * __barebone_pool_alloca(PoolTy * Pool, unsigned int NumBytes);
 }
+
+/// Template class to implement
+/// realloc, calloc, strdup based on a particular implementation 
+/// of a pool allocator 
+template <class AllocatorT>
+class PoolAllocatorFacade {
+  PoolAllocatorFacade();
+  ~PoolAllocatorFacade();
+public:
+  typedef typename AllocatorT::PoolT PoolT;
+  static void * realloc(PoolT * Pool, void * Node, unsigned NumBytes) {
+    if (Node == 0) return AllocatorT::poolalloc(Pool, NumBytes);
+    if (NumBytes == 0) {
+      poolfree(Pool, Node);
+      return 0;
+    }
+
+    void *New = AllocatorT::poolalloc(Pool, NumBytes);
+    memcpy(New, Node, NumBytes);
+    AllocatorT::poolfree(Pool, Node);
+    return New;
+  }
+
+  static void * calloc(PoolT *Pool, unsigned Number, unsigned NumBytes) {
+    void * New = AllocatorT::poolalloc (Pool, Number * NumBytes);
+    if (New) bzero (New, Number * NumBytes);
+    return New;
+  } 
+
+  static void * strdup(PoolT *Pool, char *Node) {
+    if (Node == 0) return 0;
+
+    unsigned int NumBytes = strlen(Node) + 1;
+    void *New = AllocatorT::poolalloc(Pool, NumBytes);
+    if (New) {
+      memcpy(New, Node, NumBytes+1);
+    }
+    return New;
+  } 
+};
 
 #endif

@@ -32,6 +32,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "SpeculativeChecking.h"
+#include "ReplaceFunctionPass.h"
 
 #include <fstream>
 #include <iostream>
@@ -81,6 +82,8 @@ GetFileNameRoot(const std::string &InputFilename) {
   return outputFilename;
 }
 
+static std::vector<ReplaceFunctionPass::ReplaceFunctionEntry> sgReplaceAllocatorList;
+static void convertToBCAllocator(Module * M, PassManager & Passes);
 
 // main - Entry point for the sc compiler.
 //
@@ -164,6 +167,9 @@ int main(int argc, char **argv) {
     if(EnableSpecChecking) {
       Passes.add(new SpeculativeCheckingPass());
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
+    } else {
+      // Use new allocator
+      convertToBCAllocator(M.get(), Passes);
     }
 
     // Verify the final result
@@ -240,3 +246,18 @@ int main(int argc, char **argv) {
   return 1;
 }
 
+static void convertToBCAllocator (Module * M, PassManager & Passes) {
+#define REG_REPLACE_FUNC(X) do { \
+  sgReplaceAllocatorList.push_back(ReplaceFunctionPass::ReplaceFunctionEntry(X, "__sc_bc_" X)); \
+  } while (0)
+
+  REG_REPLACE_FUNC("poolinit");
+  REG_REPLACE_FUNC("pooldestroy");
+  REG_REPLACE_FUNC("poolalloc");
+  REG_REPLACE_FUNC("poolstrdup");
+  REG_REPLACE_FUNC("poolfree");
+
+#undef REG_REPLACE_FUNC
+
+  Passes.add(new ReplaceFunctionPass(sgReplaceAllocatorList));
+}

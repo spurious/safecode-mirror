@@ -1,0 +1,38 @@
+/// The replace function pass replaces all calls to a particular function
+/// to another
+
+#ifndef _REPLACE_FUCNTION_PASS_H_
+#define _REPLACE_FUCNTION_PASS_H_
+
+#include <string>
+#include "llvm/Pass.h"
+#include "llvm/Instructions.h"
+#include "safecode/Config/config.h"
+
+namespace llvm {
+
+  struct ReplaceFunctionPass : public ModulePass {
+  public:
+    class ReplaceFunctionEntry {
+    public:
+      const char * orignalFunctionName;
+      const char * newFunctionName;
+      explicit ReplaceFunctionEntry(const char * origF, const char * newF) :
+      orignalFunctionName(origF), newFunctionName(newF) {}
+    };
+    static char ID;
+  ReplaceFunctionPass(const std::vector<ReplaceFunctionEntry> & replaceList) : 
+    ModulePass((intptr_t) &ID),
+      mReplaceList(replaceList) {};
+    virtual ~ReplaceFunctionPass() {};
+    virtual bool runOnModule(Module & M);
+    virtual const char * getPassName() const { return "Replace all uses of a function to another";}
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {  };
+
+  private:
+    const std::vector<ReplaceFunctionEntry> & mReplaceList;
+  };
+
+}
+
+#endif

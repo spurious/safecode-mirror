@@ -2390,3 +2390,272 @@ poolstats() {
   fprintf (stderr, "pool mem usage %d\n", poolmemusage);
   fflush (stderr);
 }
+
+/// NEW CODES START HERE
+
+static void * __barebone_poolallocarray(PoolTy* Pool, unsigned Size);
+
+/// Barebone pool alloc
+/// Barebone pool alloc only deals with the allocation
+/// it does not handle stuffs like splay trees and remapping
+/// these can be done by wrappers.
+
+void *
+__barebone_poolalloc(PoolTy *Pool, unsigned NumBytes) {
+  void *retAddress = NULL;
+  assert(Pool && "Null pool pointer passed into poolalloc!\n");
+   
+  // Ensure that we're always allocating at least 1 byte.
+  if (NumBytes == 0)
+    NumBytes = 1;
+
+  unsigned NodeSize = Pool->NodeSize;
+  unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
+  unsigned offset = 0;
+  
+  // Call a helper function if we need to allocate more than 1 node.
+  if (NodesToAllocate > 1) {
+    retAddress = __barebone_poolallocarray(Pool, NodesToAllocate);
+    assert (retAddress && "poolalloc(1): Returning NULL!\n");
+    return retAddress;
+  }
+
+  // Special case the most common situation, where a single node is being
+  // allocated.
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+
+  if (__builtin_expect(PS != 0, 1)) {
+    int Element = PS->allocateSingle();
+    if (__builtin_expect(Element != -1, 1)) {
+      // We allocated an element.  Check to see if this slab has been
+      // completely filled up.  If so, move it to the Ptr2 list.
+      if (__builtin_expect(PS->isFull(), false)) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
+      }
+      
+      globalTemp = PS->getElementAddress(Element, NodeSize);
+      assert (globalTemp && "poolalloc(2): Returning NULL!\n");
+      return globalTemp;
+    }
+
+    // Loop through all of the slabs looking for one with an opening
+    for (PS = PS->Next; PS; PS = PS->Next) {
+      int Element = PS->allocateSingle();
+      if (Element != -1) {
+        // We allocated an element.  Check to see if this slab has been
+        // completely filled up.  If so, move it to the Ptr2 list.
+        if (PS->isFull()) {
+          PS->unlinkFromList();
+          PS->addToList((PoolSlab**)&Pool->Ptr2);
+        }
+        
+        globalTemp = PS->getElementAddress(Element, NodeSize);
+        offset = (unsigned)globalTemp & (PPageSize - 1);
+
+        assert (globalTemp && "poolalloc(3): Returning NULL!\n");
+        return globalTemp;
+      }
+    }
+  }
+
+  // Otherwise we must allocate a new slab and add it to the list
+  PoolSlab *New = PoolSlab::create(Pool);
+
+  //
+  // Ensure that we're always allocating at least 1 byte.
+  //
+  if (NumBytes == 0)
+    NumBytes = 1;
+  
+  if (Pool->NumSlabs > AddrArrSize)
+    Pool->Slabs->insert((void *)New);
+  else if (Pool->NumSlabs == AddrArrSize) {
+    // Create the hash_set
+    Pool->Slabs = new hash_set<void *>;
+    Pool->Slabs->insert((void *)New);
+    for (unsigned i = 0; i < AddrArrSize; ++i)
+      Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
+  }
+  else {
+    // Insert it in the array
+    Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
+  }
+  Pool->NumSlabs++;
+
+  int Idx = New->allocateSingle();
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  globalTemp = New->getElementAddress(0, 0);
+  offset = (unsigned)globalTemp & (PPageSize - 1);
+  
+  assert (globalTemp && "poolalloc(4): Returning NULL!\n");
+  return globalTemp;
+}
+
+static void *
+__barebone_poolallocarray(PoolTy* Pool, unsigned Size) {
+  assert(Pool && "Null pool pointer passed into poolallocarray!\n");
+  
+  // check to see if we need to allocate a single large array
+  if (Size > PoolSlab::getSlabSize(Pool)) {
+    globalTemp = (PoolSlab*) PoolSlab::createSingleArray(Pool, Size);
+    return (void*) (globalTemp);
+  }
+ 
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  unsigned offset;
+
+  // Loop through all of the slabs looking for one with an opening
+  for (; PS; PS = PS->Next) {
+    int Element = PS->allocateMultiple(Size);
+    if (Element != -1) {
+    // We allocated an element.  Check to see if this slab has been completely
+    // filled up.  If so, move it to the Ptr2 list.
+      if (PS->isFull()) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
+      }
+      
+      // insert info into adl splay tree for poolcheck runtime
+      //unsigned NodeSize = Pool->NodeSize;
+      globalTemp = PS->getElementAddress(Element, Pool->NodeSize);
+      return (void*) globalTemp;
+    }
+  }
+  
+  PoolSlab *New = PoolSlab::create(Pool);
+  //  printf("new slab created %x \n", New);
+  if (Pool->NumSlabs > AddrArrSize)
+    Pool->Slabs->insert((void *)New);
+  else if (Pool->NumSlabs == AddrArrSize) {
+    // Create the hash_set
+    Pool->Slabs = new hash_set<void *>;
+    Pool->Slabs->insert((void *)New);
+    for (unsigned i = 0; i < AddrArrSize; ++i)
+      Pool->Slabs->insert((void *)Pool->SlabAddressArray[i]);
+  }
+  else {
+    // Insert it in the array
+    Pool->SlabAddressArray[Pool->NumSlabs] = (unsigned) New;
+  }
+  
+  Pool->NumSlabs++;
+  
+  int Idx = New->allocateMultiple(Size);
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  
+  // insert info into adl splay tree for poolcheck runtime
+  //unsigned NodeSize = Pool->NodeSize;
+  globalTemp = New->getElementAddress(0, 0);
+  //adl_splay_insert(&(Pool->Objects), globalTemp, 
+  //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
+ 
+  return (void*) globalTemp;
+}
+
+void *
+__barebone_pool_alloca(PoolTy * Pool, unsigned int NumBytes) {
+  // The address of the allocated object
+  void * retAddress;
+
+  // Ensure that we're always allocating at least 1 byte.
+  if (NumBytes == 0)
+    NumBytes = 1;
+
+  // Allocate memory from the function's single slab.
+  assert (Pool->StackSlabs && "pool_alloca: No call to newstack!\n");
+  globalTemp = ((StackSlab *)(Pool->StackSlabs))->allocate (NumBytes);
+fprintf (stderr, "alloca: %x %x\n", globalTemp, NumBytes);
+fflush (stderr);
+
+  //
+  // Allocate and remap the object.
+  //
+  retAddress = globalTemp;
+
+  assert (retAddress && "pool_alloca(1): Returning NULL!\n");
+  return retAddress;
+}
+
+void
+__barebone_poolfree(PoolTy *Pool, void *Node) {
+  assert(Pool && "Null pool pointer passed in to poolfree!\n");
+  PoolSlab *PS;
+  int Idx;
+
+  // Canonical pointer for the pointer we're freeing
+  void * CanonNode = Node;
+
+  //
+  // Allow the poolcheck runtime to finish the bookkeping it needs to do.
+  //
+  adl_splay_delete (&Pool->Objects, Node);
+  
+  if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
+    unsigned TheIndex;
+    PS = SearchForContainingSlab(Pool, CanonNode, TheIndex);
+    Idx = TheIndex;
+    assert (PS && "poolfree: No poolslab found for object!\n");
+    PS->freeElement(Idx);
+  }
+
+  //
+  // If we could not find the slab in which the node belongs, then we were
+  // passed an invalid pointer.  Simply ignore it.
+  //
+  if (!PS) return;
+  
+  // If PS was full, it must have been in list #2.  Unlink it and move it to
+  // list #1.
+  if (PS->isFull()) {
+    // Now that we found the node, we are about to free an element from it.
+    // This will make the slab no longer completely full, so we must move it to
+    // the other list!
+    PS->unlinkFromList(); // Remove it from the Ptr2 list.
+
+    //
+    // Do not re-use single array slabs.
+    //
+    if (!(PS->isSingleArray)) {
+      PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
+
+      // If the partially full list has an empty node sitting at the front of
+      // the list, insert right after it.
+      if ((*InsertPosPtr))
+        if ((*InsertPosPtr)->isEmpty())
+          InsertPosPtr = &(*InsertPosPtr)->Next;
+
+      PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
+    }
+  }
+
+  // Ok, if this slab is empty, we unlink it from the of slabs and either move
+  // it to the head of the list, or free it, depending on whether or not there
+  // is already an empty slab at the head of the list.
+  if ((PS->isEmpty()) && (!(PS->isSingleArray))) {
+    PS->unlinkFromList();   // Unlink from the list of slabs...
+    
+    // If we can free this pool, check to see if there are any empty slabs at
+    // the start of this list.  If so, delete the FirstSlab!
+    PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
+    if (0 && FirstSlab && FirstSlab->isEmpty()) {
+      // Here we choose to delete FirstSlab instead of the pool we just freed
+      // from because the pool we just freed from is more likely to be in the
+      // processor cache.
+    FirstSlab->unlinkFromList();
+    FirstSlab->destroy();
+    //  Pool->Slabs.erase((void *)FirstSlab);
+    }
+ 
+    // Link our slab onto the head of the list so that allocations will find it
+    // efficiently.    
+    PS->addToList((PoolSlab**)&Pool->Ptr1);
+  }
+  return; 
+}
+
+void
+__barebone_pooldestroy(PoolTy *Pool)  __attribute__ ((weak, alias ("pooldestroy")));
+
+void
+__barebone_poolinit(PoolTy *Pool, unsigned NodeSize) __attribute__ ((weak, alias ("poolinit")));

@@ -16,6 +16,7 @@
 #include "SafeCodeRuntime.h"
 #include "PoolAllocator.h"
 #include "AtomicOps.h"
+#include "Profiler.h"
 
 NAMESPACE_SC_BEGIN
 
@@ -65,6 +66,7 @@ CheckQueueTy gCheckQueue;
 class CheckWrapper {
 public:
   void operator()(CheckRequest & req) const {
+    unsigned long long start_time = rdtsc();
     switch (req.type) {
     case CHECK_POOL_CHECK:
       poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
@@ -85,6 +87,9 @@ public:
     default:
       break;
     }
+    unsigned long long end_time = rdtsc();
+    llvm::safecode::profiler_log(llvm::safecode::PROFILER_CHECK, start_time, end_time, req.type);
+    
   }
 };
 
@@ -149,5 +154,26 @@ void __sc_boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
 }
 
 void __sc_wait_for_completion() {
+  unsigned int size = gCheckQueue.size();
+  unsigned long long start_time = rdtsc();
   SPIN_AND_YIELD(!gCheckQueue.empty());
+  unsigned long long end_time = rdtsc();
+  llvm::safecode::profiler_log(llvm::safecode::PROFILER_MAIN_THR_BLOCK, start_time, end_time, size);
 }
+
+
+/// Allocator wrappers for parallel checkings
+ /* 
+  void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
+  void poolunregister(PoolTy *Pool, void *allocaptr);
+
+void * __sc_poolalloc(PoolTy *Pool, unsigned NumBytes) {
+  void * retAddress = __barebone_poolalloc(Pool, NumBytes);
+  __sc_poolregister(Pool, retAddress, NumBytes);
+}
+
+void * __sc_pool_alloca(PoolTy * Pool, unsigned int NumBytes) {
+  void * retAddress = __barebone_pool_alloca(Pool, NumBytes);
+  __sc_poolregister(Pool, retAddress, NumBytes);
+}
+*/
