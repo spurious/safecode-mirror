@@ -218,7 +218,7 @@ enum WarningType CZeroInfo::checkIfStored(const BasicBlock *BB,
     }
   }
   else {
-    if (!setContains(LocalStoresSoFar, aliases))
+    if (!setContains(LocalStoresSoFar, aliases)) {
       if (!checkPredecessors(BB, PointerVar, visitedBlocks))
 	return UninitPointer;
       else {
@@ -227,6 +227,7 @@ enum WarningType CZeroInfo::checkIfStored(const BasicBlock *BB,
 	for (Siter = aliases.begin(); Siter != aliases.end(); Siter++)
 	  BBPointerLiveInfo[BB][*Siter] = true;
       }
+    }
   }
   return NoWarning;
 }

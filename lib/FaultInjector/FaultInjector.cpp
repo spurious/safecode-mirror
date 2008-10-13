@@ -28,6 +28,7 @@
 #include "SCUtils.h"
 
 #include <cstdlib>
+#include <limits.h>
 #include <iostream>
 #include <vector>
 

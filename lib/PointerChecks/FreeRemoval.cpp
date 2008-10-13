@@ -332,7 +332,7 @@ followsBlock(BasicBlock *BB1, BasicBlock *BB2, Function *F,
              set<BasicBlock *> visitedBlocks) {
   for (succ_iterator BBSI = succ_begin(BB2),
                      BBSE = succ_end(BB2); BBSI != BBSE; ++BBSI) {
-    if (visitedBlocks.find(*BBSI) == visitedBlocks.end())
+    if (visitedBlocks.find(*BBSI) == visitedBlocks.end()) {
       if (*BBSI == BB1) {
         return true;
       } else {
@@ -340,6 +340,7 @@ followsBlock(BasicBlock *BB1, BasicBlock *BB2, Function *F,
         if (followsBlock(BB1, *BBSI, F, visitedBlocks))
           return true;
       }
+    }
   }
 
   return false;
