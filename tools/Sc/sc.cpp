@@ -160,8 +160,10 @@ int main(int argc, char **argv) {
     Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
+#if 0
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
+#endif
 
 
     Passes.add(createLICMPass());
