@@ -1,7 +1,7 @@
 ///
 /// A simple template helper to create Function Type Arguments
 /// 
-/// $Id: VectorListHelper.h,v 1.2 2008-09-26 23:09:49 mai4 Exp $
+/// $Id: VectorListHelper.h,v 1.1 2008-10-13 02:12:30 mai4 Exp $
 ///
 
 #ifndef _VECTOR_LIST_HELPER_H_

@@ -30,8 +30,8 @@
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
-#include "SpeculativeChecking.h"
-#include "ReplaceFunctionPass.h"
+#include "safecode/SpeculativeChecking.h"
+#include "safecode/ReplaceFunctionPass.h"
 #include "safecode/FaultInjector.h"
 
 #include <fstream>
@@ -170,17 +170,16 @@ int main(int argc, char **argv) {
 
     if(EnableSpecChecking) {
       convertToParallelChecking();
+      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
     } else {
 #ifndef SC_DEBUGTOOL
       // Use new allocator
       convertToBCAllocator();
+      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
 #endif
     }
   
-    if (sgReplaceFuncList.size() > 0) {
-      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
-    }
 
     // Verify the final result
     Passes.add(createVerifierPass());
@@ -260,15 +259,27 @@ static void convertToBCAllocator (void) {
   REG_REPLACE_FUNC("__sc_bc_", "poolinit");
   REG_REPLACE_FUNC("__sc_bc_", "pooldestroy");
   REG_REPLACE_FUNC("__sc_bc_", "poolalloc");
+  REG_REPLACE_FUNC("__sc_bc_", "poolrealloc");
+  REG_REPLACE_FUNC("__sc_bc_", "poolcalloc");
   REG_REPLACE_FUNC("__sc_bc_", "poolstrdup");
   REG_REPLACE_FUNC("__sc_bc_", "poolfree");
 }
 
 static void convertToParallelChecking (void) {
-  REG_REPLACE_FUNC("__sc_", "poolcheck");
-  REG_REPLACE_FUNC("__sc_", "poolcheckui");
-  REG_REPLACE_FUNC("__sc_", "boundscheck");
-  REG_REPLACE_FUNC("__sc_", "boundscheckui");
+  REG_REPLACE_FUNC("__sc_par_", "poolinit");
+  REG_REPLACE_FUNC("__sc_par_", "pooldestroy");
+  REG_REPLACE_FUNC("__sc_par_", "poolalloc");
+  REG_REPLACE_FUNC("__sc_par_", "poolstrdup");
+  REG_REPLACE_FUNC("__sc_par_", "poolfree");
+  REG_REPLACE_FUNC("__sc_par_", "poolrealloc");
+  REG_REPLACE_FUNC("__sc_par_", "poolcalloc");
+  REG_REPLACE_FUNC("__sc_par_", "poolregister");
+  REG_REPLACE_FUNC("__sc_par_", "poolunregister");
+
+  REG_REPLACE_FUNC("__sc_par_", "poolcheck");
+  REG_REPLACE_FUNC("__sc_par_", "poolcheckui");
+  REG_REPLACE_FUNC("__sc_par_", "boundscheck");
+  REG_REPLACE_FUNC("__sc_par_", "boundscheckui");
 }
 
 #undef REG_REPLACE_FUNC

@@ -1,6 +1,5 @@
 /// Replace function pass replaces all uses of a function to another
 
-#include "ReplaceFunctionPass.h"
 
 #include <iostream>
 #include <set>
@@ -8,7 +7,8 @@
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "safecode/Config/config.h"
-#include "VectorListHelper.h"
+#include "safecode/VectorListHelper.h"
+#include "safecode/ReplaceFunctionPass.h"
 
 using namespace llvm;
 

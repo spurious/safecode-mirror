@@ -7,6 +7,9 @@
 #include "Config.h"
 #include "rdtsc.h"
 
+// #define PROFILING(X) X
+#define PROFILING(X)
+
 NAMESPACE_SC_BEGIN
 
 typedef enum {

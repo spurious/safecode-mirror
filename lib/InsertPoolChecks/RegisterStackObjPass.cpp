@@ -21,7 +21,7 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
-#include "VectorListHelper.h"
+#include "safecode/VectorListHelper.h"
 
 char llvm::RegisterStackObjPass::ID = 0;
 

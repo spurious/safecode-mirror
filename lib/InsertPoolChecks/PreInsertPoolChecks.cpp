@@ -24,7 +24,7 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
-#include "VectorListHelper.h"
+#include "safecode/VectorListHelper.h"
 
 char llvm::PreInsertPoolChecks::ID = 0;
 

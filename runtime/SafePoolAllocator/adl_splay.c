@@ -4,6 +4,19 @@
 
 #include "safecode/Runtime/PoolSystem.h"
 
+#define DEBUG(FORMAT, ...) do { \
+  pthread_t id = pthread_self(); \
+  fprintf(stderr, "tid:%d " FORMAT, id, __VA_ARGS__); \
+  } while (0);
+#undef DEBUG
+
+#ifdef DEBUG
+#include <stdio.h>
+#include <pthread.h>
+#else
+#define DEBUG
+#endif
+
 typedef struct tree_node Tree;
 struct tree_node {
   Tree* left;
@@ -281,11 +294,13 @@ static Tree* find_tag(Tree* t, void* tag) {
 
 void adl_splay_insert(void** tree, void* key, unsigned len, void* tag)
 {
+  DEBUG("adl_splay_insert:%p/%p/0x%x\n", tree, key, len);
   *(Tree**)tree = insert(*(Tree**)tree, (char*)key, len, tag);
 }
 
 void adl_splay_delete(void** tree, void* key)
 {
+  DEBUG("adl_splay_delete:%p/%p\n", tree, key);
   *(Tree**)tree = delete(*(Tree**)tree, (char*)key);
 }
 
@@ -293,10 +308,20 @@ void adl_splay_delete_tag(void** tree, void* tag) {
   Tree* t = *(Tree**)tree;
   Tree* n = find_tag(t, tag);
   while (n) {
+    DEBUG("adl_splay_delete_tag:%p/%p\n", t, n->key);
     t = delete(t, n->key);
     n = find_tag(t, tag);
   }
   *(Tree**)tree = t;
+}
+
+void adl_splay_clear(void** tree) {
+  DEBUG("adl_splay_clear:%p/%p\n", *tree);
+  Tree * n = adl_splay_any(tree);
+  while(n) {
+    Tree * t = delete(n, n->key);
+    n = adl_splay_any(t);
+  }
 }
 
 int  adl_splay_find(void** tree, void* key) {
@@ -347,8 +372,10 @@ int adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag) {
     *key = t->key;
     if (len) *len = (t->end - t->key) + 1;
     if (tag) *tag = t->tag;
+    DEBUG("adl_splay_retrieve: succ %p/%p/0x%x\n", *tree, *key, *len);
     return 1;
   }
+  DEBUG("adl_splay_retrieve: failed %p/%p/0x%x\n", *tree, *key, *len);
   return 0;
 }
 

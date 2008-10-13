@@ -40,7 +40,15 @@
 #include <sys/ucontext.h>
 #endif
 
-#define DEBUG(x) 
+#include <pthread.h>
+
+#define DEBUG(x)
+
+#ifndef SC_DEBUGTOOL
+#define DISABLED_IN_PRODUCTION_VERSION assert(0 && "Disabled in production version")
+#else
+#define DISABLED_IN_PRODUCTION_VERSION
+#endif
 
 // global variable declarations
 extern unsigned PPageSize;
@@ -854,9 +862,11 @@ poolmakeunfreeable(PoolTy *Pool) {
 //        pooldestroy is called
 void
 pooldestroy(PoolTy *Pool) {
+  DISABLED_IN_PRODUCTION_VERSION ;
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
-  adl_splay_delete_tag(&Pool->Objects, Pool);
-  //adl_splay_delete_tag(&Pool->DPTree, Pool);
+  adl_splay_delete_tag(&Pool->Objects, 0);
+  assert (Pool->Objects == 0);
+
   if (Pool->AllocadPool) return;
 
   // Remove all registered pools
@@ -911,6 +921,7 @@ pooldestroy(PoolTy *Pool) {
 // FIXME: determine whether Size is bytes or number of nodes.
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
+  DISABLED_IN_PRODUCTION_VERSION ;
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
   
   // check to see if we need to allocate a single large array
@@ -1003,6 +1014,7 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 
 void
 poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
+
   // If the pool is NULL, don't do anything.
   if (!Pool) return;
 
@@ -1058,6 +1070,7 @@ frag(PoolTy * Pool) {
 //Pool->AllocadPool >0 : used for only allocas indicating the size 
 void *
 poolalloc(PoolTy *Pool, unsigned NumBytes) {
+  DISABLED_IN_PRODUCTION_VERSION ;
   void *retAddress = NULL;
   assert(Pool && "Null pool pointer passed into poolalloc!\n");
 
@@ -1354,6 +1367,7 @@ fflush (stderr);
 
 void *
 pool_alloca (PoolTy * Pool, unsigned int NumBytes) {
+  DISABLED_IN_PRODUCTION_VERSION ;
   // The address of the allocated object
   void * retAddress;
 
@@ -1572,7 +1586,8 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
       unsigned allocPC = 0;
       unsigned allocID = 0;
       unsigned freeID = 0;
-      S = Source;
+#ifdef SC_DEBUGTOOL
+S = Source;
       if (fs = adl_splay_retrieve (&(dummyPool.DPTree),
                                    &S,
                                    NULL,
@@ -1580,6 +1595,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
         allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
         allocID  = debugmetadataptr->allocID;
       }
+#endif
 
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
@@ -1696,6 +1712,7 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
       unsigned allocID = 0;
       unsigned freeID = 0;
       void * S = ObjStart;
+#ifdef SC_DEBUGTOOL
       if (adl_splay_retrieve (&(dummyPool.DPTree),
                               &S,
                               NULL,
@@ -1703,7 +1720,7 @@ boundscheckui_check (void * ObjStart, int ObjLen, PoolTy * Pool,
         allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
         allocID  = debugmetadataptr->allocID;
       }
-
+#endif
       ReportBoundsCheck ((unsigned)Source,
                          (unsigned)Dest,
                          (unsigned)allocID,
@@ -2060,6 +2077,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 //
 void
 poolfree(PoolTy *Pool, void *Node) {
+  DISABLED_IN_PRODUCTION_VERSION;
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
   PoolSlab *PS;
@@ -2586,11 +2604,6 @@ __barebone_poolfree(PoolTy *Pool, void *Node) {
   // Canonical pointer for the pointer we're freeing
   void * CanonNode = Node;
 
-  //
-  // Allow the poolcheck runtime to finish the bookkeping it needs to do.
-  //
-  adl_splay_delete (&Pool->Objects, Node);
-  
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
     PS = SearchForContainingSlab(Pool, CanonNode, TheIndex);
@@ -2655,7 +2668,45 @@ __barebone_poolfree(PoolTy *Pool, void *Node) {
 }
 
 void
-__barebone_pooldestroy(PoolTy *Pool)  __attribute__ ((weak, alias ("pooldestroy")));
+__barebone_pooldestroy(PoolTy *Pool) { 
+  assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+
+  if (Pool->AllocadPool) return;
+
+  // Remove all registered pools
+#if 0
+  delete Pool->RegNodes;
+#endif
+
+  if (Pool->NumSlabs > AddrArrSize) {
+    Pool->Slabs->clear();
+    delete Pool->Slabs;
+  }
+
+  // Free any partially allocated slabs
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  while (PS) {
+    PoolSlab *Next = PS->Next;
+    PS->destroy();
+    PS = Next;
+  }
+
+  // Free the completely allocated slabs
+  PS = (PoolSlab*)Pool->Ptr2;
+  while (PS) {
+    PoolSlab *Next = PS->Next;
+    PS->destroy();
+    PS = Next;
+  }
+
+  // Free the large arrays
+  PS = (PoolSlab*)Pool->LargeArrays;
+  while (PS) {
+    PoolSlab *Next = PS->Next;
+    PS->destroy();
+    PS = Next;
+  }
+}
 
 void
 __barebone_poolinit(PoolTy *Pool, unsigned NodeSize) __attribute__ ((weak, alias ("poolinit")));

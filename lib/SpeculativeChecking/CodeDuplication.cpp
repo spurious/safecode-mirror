@@ -3,7 +3,7 @@
 
 #include <set>
 #include <iostream>
-#include "CodeDuplication.h"
+#include "safecode/CodeDuplication.h"
 #include "llvm/Function.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 

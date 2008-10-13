@@ -1,9 +1,6 @@
 /// This pool allocator registers objects into splay tree
 /// to perform memory access checking.
 
-#ifndef _BC_POOL_ALLOCATOR_H_
-#define _BC_POOL_ALLOCATOR_H_
-
 #include "PoolAllocator.h"
 #include "adl_splay.h"
 #include <cassert>
@@ -30,6 +27,8 @@ public:
 
   static void pooldestroy(PoolTy *Pool) {
     __barebone_pooldestroy(Pool);
+    adl_splay_clear(&Pool->Objects);
+    assert (Pool->Objects == 0);
   }
   
   static void pool_init_runtime() {
@@ -78,5 +77,4 @@ extern "C" {
   }
 
 }
-#endif
 

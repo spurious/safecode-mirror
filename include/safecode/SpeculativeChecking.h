@@ -9,22 +9,6 @@
 #include "safecode/Config/config.h"
 
 namespace llvm {
-
-  struct SpeculativeCheckingPass : public BasicBlockPass {
-  public:
-    static char ID;
-  SpeculativeCheckingPass() : BasicBlockPass((intptr_t) &ID) {};
-    virtual ~SpeculativeCheckingPass() {};
-    virtual bool doInitialization(Module & M);
-    virtual bool doInitialization(Function &F) { return false; };
-    virtual bool runOnBasicBlock(BasicBlock & BB);
-    virtual const char * getPassName() const { return "Lower checkings to speculative chekings";}
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {  };
-
-  private:
-    bool lowerCall(CallInst * CI);
-  };
-
   struct SpeculativeCheckingInsertSyncPoints : public BasicBlockPass {
   public:
     static char ID;
@@ -40,9 +24,8 @@ namespace llvm {
     bool insertSyncPointsBeforeExternalCall(CallInst * CI);
     bool insertSyncPointsAfterCheckingCall(CallInst * CI);
     bool isSafeFunction(Function * F);
-    bool isCheckingCall(Function * F);
+    bool isCheckingCall(const std::string & FName) const;
   };
-
 }
 
 #endif

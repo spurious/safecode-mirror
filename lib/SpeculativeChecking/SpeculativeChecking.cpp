@@ -7,97 +7,60 @@
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "safecode/Config/config.h"
-#include "SpeculativeChecking.h"
-#include "VectorListHelper.h"
+#include "safecode/SpeculativeChecking.h"
+#include "safecode/VectorListHelper.h"
 
 using namespace llvm;
 
-char SpeculativeCheckingPass::ID = 0;
 char SpeculativeCheckingInsertSyncPoints::ID = 0;
-
-static RegisterPass<SpeculativeCheckingPass> passSpeculativeChecking ("speculative-checking", "Lower checkings to speculative checkings");
-
 
 /// Static Members
 namespace {
-  typedef std::map<Function *, Function *> CheckFuncMapTy;
-  typedef std::set<Function *> CheckFuncSetTy;
+  typedef std::set<std::string> CheckFuncSetTy;
   typedef std::set<std::string> SafeFuncSetTy;
-  CheckFuncMapTy sCheckFuncMap;
   SafeFuncSetTy sSafeFuncSet;
   CheckFuncSetTy sCheckFuncSet;
   Constant * sFuncWaitForSyncToken;
 }
 
+
+// here are the functions are considered as "safe",
+// either we know the semantics of them or they are not handled
+// TODO: add stuffs like strlen / strcpy / strncpy
+static const char * safeFunctions[] = {
+//  "__sc_par_poolinit", "pool_init_runtime",
+  "exactcheck", "exactcheck2",
+  "memset",
+  "llvm.memcpy.i32", "llvm.memcpy.i64",
+  "llvm.memset.i32", "llvm.memset.i64",
+  "llvm.memmove.i32", "llvm.memmove.i64",
+  "memcmp"
+};
+
+// Functions used in checking
+static const char * checkingFunctions[] = {
+  "__sc_par_poolregister", "__sc_par_poolunregister",
+  "__sc_par_poolcheck", "__sc_par_poolcheckui",
+  "__sc_par_boundscheck", "__sc_par_boundscheckui",
+  "__sc_par_poolalloc", "__sc_par_poolrealloc",
+  "__sc_par_poolstrdup", "__sc_par_poolcalloc",
+  "__sc_par_poolfree"
+};
+
+// A simple HACK to remove redudant synchronization points in this cases:
+//
+// call external @foo
+// spam... but does not do any pointer stuffs
+// call external @bar
+// 
+// we only need to insert a sync point before foo
+
+static bool sHaveSeenCheckingCall;
+
 namespace llvm {
 cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
                                       cl::init(false),
                                       cl::desc("Place synchronization points only before external functions"));
-  ////////////////////////////////////////////////////////////////////////////
-  // SpeculativeChecking Methods
-  ////////////////////////////////////////////////////////////////////////////
-
-  bool
-  SpeculativeCheckingPass::doInitialization(Module & M) {
-    static const Type * VoidTy = Type::VoidTy;
-    static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
-
-    #define REG_FUNC(name, ...) do {					\
-	Function * funcOrig = dyn_cast<Function>(M.getOrInsertFunction(name, FunctionType::get(VoidTy, args<const Type*>::list(__VA_ARGS__), false))); \
-	Function * funcSpec = dyn_cast<Function>(M.getOrInsertFunction("__sc_" name, FunctionType::get(VoidTy, args<const Type*>::list(__VA_ARGS__), false))); \
-      sCheckFuncMap[funcOrig] = funcSpec;				\
-      sCheckFuncSet.insert(funcSpec);					\
-    } while (0)
-
-    REG_FUNC ("poolcheck",     vpTy, vpTy);
-    REG_FUNC ("poolcheckui",   vpTy, vpTy);
-    REG_FUNC ("boundscheck",   vpTy, vpTy, vpTy);
-    REG_FUNC ("boundscheckui", vpTy, vpTy, vpTy);
-
-#undef REG_FUNC
-
-    sFuncWaitForSyncToken = M.getOrInsertFunction("__sc_wait_for_completion", FunctionType::get(VoidTy, args<const Type*>::list(), false));
-    return true;
-  }
-
-  bool
-  SpeculativeCheckingPass::runOnBasicBlock(BasicBlock & BB) {
-    bool changed = false;
-    std::set<CallInst *> toBeRemoved;
-    for (BasicBlock::iterator I = BB.begin(); I != BB.end(); ++I) {
-      if (CallInst * CI = dyn_cast<CallInst>(I)) {
-        bool ret = lowerCall(CI);
-	if (ret) {
-	  toBeRemoved.insert(CI);
-	}
-	changed |= ret;
-      }
-    }
-
-    for (std::set<CallInst *>::iterator it = toBeRemoved.begin(), e = toBeRemoved.end(); it != e; ++it) {
-      (*it)->eraseFromParent();
-    }
-
-    return changed;
-  }
-
-  bool
-  SpeculativeCheckingPass::lowerCall(CallInst * CI) {
-    Function *F = CI->getCalledFunction();
-    if (!F) return false;
-    CheckFuncMapTy::iterator it = sCheckFuncMap.find(F);
-    if (it == sCheckFuncMap.end()) return false;
-
-    BasicBlock::iterator ptIns(CI);
-    ++ptIns;
-    std::vector<Value *> args;
-    for (unsigned i = 1; i < CI->getNumOperands(); ++i) {
-      args.push_back(CI->getOperand(i));
-    }
-
-    CallInst::Create(it->second, args.begin(), args.end(), "", ptIns);
-    return true;
-  }
 
   ////////////////////////////////////////////////////////////////////////////
   // SpeculativeCheckingInsertSyncPoints Methods
@@ -105,20 +68,18 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
 
   bool
   SpeculativeCheckingInsertSyncPoints::doInitialization(Module & M) {
-    sFuncWaitForSyncToken = 
-      M.getOrInsertFunction("__sc_wait_for_completion", 
-			    FunctionType::get(Type::VoidTy, 
-				      args<const Type*>::list(), false)
-			    );
-    const char * safeFuncList[]
-      = {
-      "poolinit", "pool_init_runtime",
-      // "poolregister", "poolunregister",
-      "exactcheck", "exactcheck2"
-    };
+    sFuncWaitForSyncToken =
+      M.getOrInsertFunction("__sc_par_wait_for_completion", 
+            FunctionType::get(Type::VoidTy,
+                  std::vector<const Type*>(), false)
+                  );
+    
+    for (size_t i = 0; i < sizeof(checkingFunctions) / sizeof(const char *); ++i) {
+      sCheckFuncSet.insert(checkingFunctions[i]);
+    }
 
-    for (size_t i = 0; i < sizeof(safeFuncList) / sizeof(const char *); ++i) {
-      sSafeFuncSet.insert(safeFuncList[i]);
+    for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
+      sSafeFuncSet.insert(safeFunctions[i]);
     }
     return true;
   }
@@ -126,8 +87,9 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   bool
   SpeculativeCheckingInsertSyncPoints::runOnBasicBlock(BasicBlock & BB) {
     bool changed = false;
+    sHaveSeenCheckingCall = true;
     typedef bool (SpeculativeCheckingInsertSyncPoints::*HandlerTy)(CallInst*);
-    HandlerTy handler = OptimisticSyncPoint ? 
+    static HandlerTy handler = OptimisticSyncPoint ? 
       &SpeculativeCheckingInsertSyncPoints::insertSyncPointsBeforeExternalCall
       : &SpeculativeCheckingInsertSyncPoints::insertSyncPointsAfterCheckingCall;
 
@@ -144,19 +106,31 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   bool
   SpeculativeCheckingInsertSyncPoints::insertSyncPointsBeforeExternalCall(CallInst * CI) {
     Function *F = CI->getCalledFunction();
-    if (F && isSafeFunction(F)) return false;
+    Value * Fop = CI->getOperand(0);
+    const std::string & FName = Fop->getName();
+    bool checkingCall = isCheckingCall(FName);
+    sHaveSeenCheckingCall |= checkingCall; 
+
+    // in the exception list?
+    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(FName);
+    if (it != sSafeFuncSet.end() || checkingCall) return false;
+
     if (F && !(F->isDeclaration())) return false;
+    if (F && isSafeFunction(F)) return false;
 
     // TODO: Skip some intrinsic, like pow / exp
 
-    CallInst::Create(sFuncWaitForSyncToken, "", CI);
+    if (sHaveSeenCheckingCall) {
+      CallInst::Create(sFuncWaitForSyncToken, "", CI);
+      sHaveSeenCheckingCall = false;
+    }
     return true;
   }
 
   bool
   SpeculativeCheckingInsertSyncPoints::insertSyncPointsAfterCheckingCall(CallInst * CI) {
     Function *F = CI->getCalledFunction();
-    if (!F || !isCheckingCall(F)) return false;
+    if (!F || !isCheckingCall(CI->getOperand(0)->getName().c_str())) return false;
     BasicBlock::iterator ptIns(CI);
     ++ptIns;
     CallInst::Create(sFuncWaitForSyncToken, "", ptIns);
@@ -164,8 +138,8 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   }
 
   bool
-  SpeculativeCheckingInsertSyncPoints::isCheckingCall(Function *F) {
-    CheckFuncSetTy::const_iterator it = sCheckFuncSet.find(F);
+  SpeculativeCheckingInsertSyncPoints::isCheckingCall(const std::string & FName) const {
+    CheckFuncSetTy::const_iterator it = sCheckFuncSet.find(FName);
     return it != sCheckFuncSet.end();
   }
 
@@ -175,9 +149,6 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   // function if all actuals are values
   bool 
   SpeculativeCheckingInsertSyncPoints::isSafeFunction(Function * F) {
-    if (isCheckingCall(F)) return true;
-    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(F->getName());
-    if(it != sSafeFuncSet.end()) return true;
 
     bool existsPointerArgs = false;
     for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E && !existsPointerArgs; ++I) {

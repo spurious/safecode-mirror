@@ -2,6 +2,7 @@
 extern "C" {
 #endif
   extern void adl_splay_insert(void** tree, void* key, unsigned len, void* tag);
+  extern void adl_splay_clear(void** tree);
   extern void adl_splay_delete(void** tree, void* key);
   extern void adl_splay_delete_tag(void** tree, void* tag); /*expensive */
 

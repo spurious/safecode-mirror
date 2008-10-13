@@ -17,6 +17,7 @@
 #include "PoolAllocator.h"
 #include "AtomicOps.h"
 #include "Profiler.h"
+#include "ParPoolAllocator.h"
 
 NAMESPACE_SC_BEGIN
 
@@ -31,12 +32,21 @@ struct BoundsCheckRequest {
   void * Dest;
 };
 
+struct PoolRegisterRequest {
+  PoolTy * Pool;
+  void * allocaptr;
+  unsigned NumBytes;
+};
+
 typedef enum {
   CHECK_EMPTY = 0,
   CHECK_POOL_CHECK,
   CHECK_POOL_CHECK_UI,
   CHECK_BOUNDS_CHECK,
   CHECK_BOUNDS_CHECK_UI,
+  CHECK_POOL_REGISTER,
+  CHECK_POOL_UNREGISTER,
+  CHECK_POOL_DESTROY,
   CHECK_REQUEST_COUNT
 } RequestTy;
 
@@ -45,6 +55,9 @@ struct CheckRequest {
   union {
     PoolCheckRequest poolcheck;
     BoundsCheckRequest boundscheck;
+    PoolRegisterRequest poolregister;
+    PoolRegisterRequest poolunregister;
+    PoolRegisterRequest pooldestroy;
   };
   bool is_free() const {
     return type == CHECK_EMPTY;
@@ -66,7 +79,7 @@ CheckQueueTy gCheckQueue;
 class CheckWrapper {
 public:
   void operator()(CheckRequest & req) const {
-    unsigned long long start_time = rdtsc();
+    PROFILING (unsigned long long start_time = rdtsc();)
     switch (req.type) {
     case CHECK_POOL_CHECK:
       poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
@@ -84,12 +97,27 @@ public:
       boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
       break;
 
+      case CHECK_POOL_REGISTER:
+      poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
+      break;
+    
+      case CHECK_POOL_UNREGISTER:
+      poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
+      break;
+
+      case CHECK_POOL_DESTROY:
+      ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
+      break;
+
     default:
+      assert(0 && "Error Type!");
       break;
     }
+    
+    PROFILING (
     unsigned long long end_time = rdtsc();
     llvm::safecode::profiler_log(llvm::safecode::PROFILER_CHECK, start_time, end_time, req.type);
-    
+    ) 
   }
 };
 
@@ -106,7 +134,7 @@ namespace {
 //      req.type = CHECK_REQUEST_COUNT;
 //      gCheckQueue.enqueue(req);
       // Since the whole program stops, just skip the undone checks..
-//      __sc_wait_for_completion();
+//      __sc_par_wait_for_completion();
     }
   private:
     Task<CheckQueueTy, CheckWrapper> mCheckTask;
@@ -119,7 +147,8 @@ NAMESPACE_SC_END
 
 using namespace llvm::safecode;
 
-void __sc_poolcheck(PoolTy *Pool, void *Node) {
+extern "C" {
+void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
   CheckRequest req;
   req.type = CHECK_EMPTY;
   req.poolcheck.Pool = Pool;
@@ -127,7 +156,7 @@ void __sc_poolcheck(PoolTy *Pool, void *Node) {
   gCheckQueue.enqueue(req, CHECK_POOL_CHECK);
 }
 
-void __sc_poolcheckui(PoolTy *Pool, void *Node) {
+void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
   CheckRequest req;
   req.type = CHECK_EMPTY;
   req.poolcheck.Pool = Pool;
@@ -135,7 +164,7 @@ void __sc_poolcheckui(PoolTy *Pool, void *Node) {
   gCheckQueue.enqueue(req, CHECK_POOL_CHECK_UI);
 }
 
-void __sc_boundscheck   (PoolTy * Pool, void * Source, void * Dest) {
+void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
   req.type = CHECK_EMPTY;
   req.boundscheck.Pool = Pool;
@@ -144,7 +173,7 @@ void __sc_boundscheck   (PoolTy * Pool, void * Source, void * Dest) {
   gCheckQueue.enqueue(req, CHECK_BOUNDS_CHECK);
 }
 
-void __sc_boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
+void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
   req.type = CHECK_EMPTY;
   req.boundscheck.Pool = Pool;
@@ -153,27 +182,42 @@ void __sc_boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   gCheckQueue.enqueue(req, CHECK_BOUNDS_CHECK_UI);
 }
 
-void __sc_wait_for_completion() {
+void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
+  CheckRequest req;
+  req.type = CHECK_EMPTY;
+  req.poolregister.Pool = Pool;
+  req.poolregister.allocaptr = allocaptr;
+  req.poolregister.NumBytes = NumBytes;
+  gCheckQueue.enqueue(req, CHECK_POOL_REGISTER);
+}
+
+void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
+  CheckRequest req;
+  req.type = CHECK_EMPTY;
+  req.poolunregister.Pool = Pool;
+  req.poolunregister.allocaptr = allocaptr;
+  gCheckQueue.enqueue(req, CHECK_POOL_UNREGISTER);
+}
+
+void __sc_par_pooldestroy(PoolTy *Pool) {
+  CheckRequest req;
+  req.type = CHECK_EMPTY;
+  req.pooldestroy.Pool = Pool;
+  gCheckQueue.enqueue(req, CHECK_POOL_DESTROY);
+}
+
+void __sc_par_wait_for_completion() {
+  PROFILING(
   unsigned int size = gCheckQueue.size();
   unsigned long long start_time = rdtsc();
+  )
+
   SPIN_AND_YIELD(!gCheckQueue.empty());
+
+  PROFILING(
   unsigned long long end_time = rdtsc();
   llvm::safecode::profiler_log(llvm::safecode::PROFILER_MAIN_THR_BLOCK, start_time, end_time, size);
+  )
 }
 
-
-/// Allocator wrappers for parallel checkings
- /* 
-  void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
-  void poolunregister(PoolTy *Pool, void *allocaptr);
-
-void * __sc_poolalloc(PoolTy *Pool, unsigned NumBytes) {
-  void * retAddress = __barebone_poolalloc(Pool, NumBytes);
-  __sc_poolregister(Pool, retAddress, NumBytes);
 }
-
-void * __sc_pool_alloca(PoolTy * Pool, unsigned int NumBytes) {
-  void * retAddress = __barebone_pool_alloca(Pool, NumBytes);
-  __sc_poolregister(Pool, retAddress, NumBytes);
-}
-*/

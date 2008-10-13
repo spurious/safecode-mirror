@@ -25,7 +25,7 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
-#include "VectorListHelper.h"
+#include "safecode/VectorListHelper.h"
 
 #define REG_FUNC(var, ret, name, ...)do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0);
 

@@ -37,11 +37,11 @@ private:
   
 };
 
-static Profiler p;
+PROFILING (static Profiler p;)
 
 void profiler_log(int type, unsigned long long start_time, unsigned long long end_time, unsigned int tag)
 {
-  p.log(type, start_time, end_time, tag);
+  PROFILING (p.log(type, start_time, end_time, tag);)
 }
 
 NAMESPACE_SC_END

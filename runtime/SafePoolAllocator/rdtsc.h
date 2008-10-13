@@ -1,3 +1,5 @@
+// Codes from: http://www.mcs.anl.gov/~kazutomo/rdtsc.h
+
 #ifndef __RDTSC_H_DEFINED__
 #define __RDTSC_H_DEFINED__
 
@@ -52,7 +54,7 @@ static __inline__ unsigned long long rdtsc(void)
 
 
 /*  $RCSfile: rdtsc.h,v $   $Author: mai4 $
- *  $Revision: 1.1 $  $Date: 2008-10-10 15:32:23 $
+ *  $Revision: 1.2 $  $Date: 2008-10-13 02:12:29 $
  */
 
 #endif
