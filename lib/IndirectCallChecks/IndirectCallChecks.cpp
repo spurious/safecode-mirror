@@ -76,8 +76,7 @@ namespace {
         public:
 
         //declare indirectFunction and register it into the module
-        JumpTableEntry(Function *target) : target(target)  {
-            Module *module = target->getParent();
+      JumpTableEntry(const Function *target, Module* module) : target(target)  {
 
             std::string indirectName = buildName();
 
@@ -102,16 +101,16 @@ namespace {
                 ;
         }
 
-        Function *getIndirectFunction() const {
+      Function *getIndirectFunction() const {
             return indirectFunction;
         }
-        Function *getTarget() const {
+      const Function *getTarget() const {
             return target;
         }
 
         private:
-        Function *indirectFunction;
-        Function *target;
+      Function *indirectFunction;
+      const Function *target;
 
         std::string buildName() const {
             std::stringstream stream;
@@ -126,26 +125,21 @@ namespace {
 
         private:
             typedef std::vector<JumpTableEntry> entries_t;
+      Module* module;
         public:
 
-        JumpTable()  {}
+      JumpTable(Module* m) : module(m) {}
 
         template <class InputIterator>
         JumpTable(InputIterator targetsBegin, InputIterator targetsEnd, int tableId) {
             jumpTableId = tableId;
 
-            Module *M = NULL;
-
             //create the entries
             InputIterator iter = targetsBegin, end = targetsEnd;
             for(; iter != end; ++iter) {
-                Function *target = *iter;
-                M = target->getParent();
-
-                entries.push_back(JumpTableEntry(target));
+              const Function *target = *iter;
+              entries.push_back(JumpTableEntry(target, module));
             }
-
-            assert(M);
 
             std::vector<const Type *> emptyFuncTyArgs;
             FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
@@ -154,14 +148,14 @@ namespace {
                     emptyFuncTy,
                     GlobalValue::ExternalLinkage,
                     getName(),
-                    M
+                    module
                     ));
 
             upperBound = CREATE_LLVM_OBJECT(Function, (
                     emptyFuncTy,
                     GlobalValue::ExternalLinkage,
                     getNameEnd(),
-                    M
+                    module
                     ));
         }
 
@@ -240,9 +234,10 @@ namespace {
             typedef std::vector<JumpTable*> vec_tbl_t;
 
             typedef std::map<const Function *, JumpTable*> map_tbl_t;
+      Module*& module;
 
         public:
-        JumpTableCollection() : counter(0) {}
+      JumpTableCollection(Module*& m) : module(m), counter(0) {}
 
         ~JumpTableCollection() {
             vec_tbl_t::iterator iter, end;
@@ -374,7 +369,7 @@ namespace {
 #endif/*}}}*/
 
 #if LLVM_VERSION >= 20
-        IndirectCall() : ModulePass((intptr_t) &ID)
+      IndirectCall() : ModulePass((intptr_t) &ID), tableCollection(module)
 #else
         IndirectCall()
 #endif
@@ -575,7 +570,7 @@ namespace {
 
                     //replace f with __f
                     if(value == &f) {
-                        user->setOperand(i, indirect);
+                      user->setOperand(i, indirect);
                         changed = true;
                     }
                 }
