@@ -79,13 +79,12 @@ namespace llvm {
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
-#if 0
-      AU.addRequired<EquivClassGraphs>();
-#endif
       AU.addRequired<PoolAllocateGroup>();
 #endif      
+#if 0
       AU.addRequired<CompleteBUDataStructures>();
       AU.addRequired<TDDataStructures>();
+#endif
       AU.addRequired<CallGraph>();
       AU.setPreservesAll();
     }
