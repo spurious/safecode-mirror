@@ -1083,9 +1083,9 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       if (Node->isIncompleteNode()) return;
 
       // Get the globals list corresponding to the node
-      std::vector<Function *> FuncList;
+      std::vector<const Function *> FuncList;
       Node->addFullFunctionList(FuncList);
-      std::vector<Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
+      std::vector<const Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
       unsigned num = FuncList.size();
       if (flI != flE) {
         const Type* csiType = Type::Int32Ty;
@@ -1098,7 +1098,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         std::vector<Value *> args(1, NumArg);
         args.push_back(CastVI);
         for (; flI != flE ; ++flI) {
-          Function *func = *flI;
+          Function *func = (Function *)(*flI);
           CastInst *CastfuncI = 
             CastInst::createPointerCast (func, 
              PointerType::getUnqual(Type::Int8Ty), "casted", I);

@@ -245,7 +245,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
       }
 
       if (SMI->second.getNode() == DSN) {
-        if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
+        if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           //create a new malloc instruction
           if (AI->getParent() != 0) {
 #ifndef LLVA_KERNEL	  
@@ -323,7 +323,7 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAl
     for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
          SMI != SME; ) {
       if (SMI->second.getNode() == DSN) {
-        if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
+        if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           // Create a new malloc instruction
           if (AI->getParent() != 0) { //This check for both stack and array
             MI = promoteAlloca(AI, DSN);
@@ -422,7 +422,7 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
       DSGraph::ScalarMapTy &SM = G.getScalarMap();
       for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
            SMI != SME; ) {
-        if (AllocaInst *AI = dyn_cast<AllocaInst>(SMI->first)) {
+        if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           if (SMI->second.getNode()->isNodeCompletelyFolded()) {
 #ifndef LLVA_KERNEL
             MallocInst *MI = new MallocInst(AI->getType()->getElementType(),

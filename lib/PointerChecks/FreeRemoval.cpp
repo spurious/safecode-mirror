@@ -180,7 +180,7 @@ EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
             PoolInfo->callee_begin(CI), CalleesE = PoolInfo->callee_end(CI);
 
           for (; CalleesI != CalleesE; ++CalleesI) {
-            Function *calledF = CalleesI->second;
+            Function *calledF = (Function *)(*CalleesI);
             
             PoolInfo->getFuncInfoOrClone(*calledF);
             
@@ -300,7 +300,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
           PoolInfo->callee_begin(CI),  CalleesE = PoolInfo->callee_end(CI);
         
         for (; CalleesI != CalleesE; ++CalleesI) {
-          Function *calledF = CalleesI->second;
+          Function *calledF = (Function *)(*CalleesI);
           
           PoolInfo->getFuncInfoOrClone(*calledF);
           
@@ -493,7 +493,7 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
       if ((GH.getOffset()) && (DSN->isArray())) return;
       Value * Offset = ConstantInt::get(Type::Int32Ty, GH.getOffset());
 
-      Value *NewPtr = SMI->first;
+      Value *NewPtr = (Value *)(SMI->first);
       if (isClonedFunc) {
         NewPtr = PAFI->ValueMap[SMI->first];
       }

@@ -79,7 +79,9 @@ namespace llvm {
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
+#if 0
       AU.addRequired<EquivClassGraphs>();
+#endif
       AU.addRequired<PoolAllocateGroup>();
 #endif      
       AU.addRequired<CompleteBUDataStructures>();
@@ -98,7 +100,9 @@ namespace llvm {
     Module *CurModule;
 
     TDDataStructures *TDDS;
+#if 0
     EquivClassGraphs *BUDS;
+#endif
 #ifndef LLVA_KERNEL    
     PoolAllocateGroup *PoolInfo;
 #endif    

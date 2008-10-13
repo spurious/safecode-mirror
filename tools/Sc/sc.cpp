@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
     // before pool allocation.  They don't work after pool allocation has
     // been run, and PassManager schedules them after pool allocation for
     // some reason.
-    Passes.add(new EquivClassGraphs());
+    Passes.add(new TDDataStructures());
     Passes.add(new BottomUpCallGraph());
 
     if (FullPA)

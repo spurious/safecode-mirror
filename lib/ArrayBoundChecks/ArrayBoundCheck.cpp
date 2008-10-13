@@ -306,11 +306,17 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     //    assert((I != E) && "Indirect Call site doesn't have targets ???? ");
     //Actually thats fine, we ignore the return value constraints ;)
     for(; I != E; ++I) {
-      CallSite CS = CallSite::get(I->first);
-      if ((I->second->isDeclaration()) ||
-          (KnownFuncDB.find(I->second->getName()) != KnownFuncDB.end()) ) {
-        ABCExprTree * temp = addConstraintsForKnownFunctions(I->second, CI);
-        addFormalToActual(I->second, CI, &temp);
+      // Get the function called by the indirect function call
+      Function * Target = (Function *)(*I);
+
+      //
+      // If the function is externally declared or if it is a specially
+      // recognized function, then handle it specially.
+      //
+      if ((Target->isDeclaration()) ||
+          (KnownFuncDB.find(Target->getName()) != KnownFuncDB.end()) ) {
+        ABCExprTree * temp = addConstraintsForKnownFunctions(Target, CI);
+        addFormalToActual(Target, CI, &temp);
         if (temproot) {
           // We need to or them 
           temproot = new ABCExprTree(temproot, temp, "||");
@@ -318,12 +324,12 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
           temproot = temp;
         }
       } else {
-        if (buCG->isInSCC(I->second)) {
+        if (buCG->isInSCC(Target)) {
           std::cerr << "Ignoring return values on function in recursion\n";
           return;
         }
-        ABCExprTree * temp = getReturnValueConstraints(I->second);
-        addFormalToActual(I->second, CI, &temp);
+        ABCExprTree * temp = getReturnValueConstraints(Target);
+        addFormalToActual(Target, CI, &temp);
         if (temproot) {
           temproot = new ABCExprTree(temproot, temp, "||");
         } else {
@@ -1255,7 +1261,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
         CompleteBUDataStructures::callee_iterator
           cI = cbudsPass->callee_begin(CI), cE = cbudsPass->callee_end(CI);
         for (; cI != cE; ++cI) { 
-          if ((cI->second->isDeclaration()) || (KnownFuncDB.find(cI->second->getName()) != KnownFuncDB.end())) {
+          Function * Target = (Function *)(*cI);
+          if ((Target->isDeclaration()) || (KnownFuncDB.find(Target->getName()) != KnownFuncDB.end())) {
             assert(1 && " Assumption that indirect fn call doesnt call an externalfails");
           }
         }
