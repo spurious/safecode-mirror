@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     Passes.add(new InsertPoolChecks());
     Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new RegisterStackObjPass());
-    Passes.add(new MallocPass());
+    Passes.add(new InitAllocas());
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 

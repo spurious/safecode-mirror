@@ -67,7 +67,7 @@ namespace {
 
 char CUA::ConvertUnsafeAllocas::ID = 0;
 char CUA::PAConvertUnsafeAllocas::ID = 0;
-char MallocPass::ID = 0;
+char InitAllocas::ID = 0;
 
 // Function pointers
 static Constant * StackAlloc;

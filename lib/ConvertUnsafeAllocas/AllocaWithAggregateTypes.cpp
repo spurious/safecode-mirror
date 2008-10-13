@@ -40,7 +40,7 @@
 using namespace llvm;
 
 namespace {
-  STATISTIC (InitAllocas,"Allocas Initialized");
+  STATISTIC (InitedAllocas, "Allocas Initialized");
 }
 
 namespace llvm
@@ -208,7 +208,7 @@ static const unsigned meminitvalue = 0x00;
           args.push_back (ConstantInt::get(Type::Int32Ty, meminitvalue));
           args.push_back (AllocSize);
           CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
-          ++InitAllocas;
+          ++InitedAllocas;
         }
       }
     }
