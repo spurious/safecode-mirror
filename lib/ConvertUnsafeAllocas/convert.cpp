@@ -476,7 +476,8 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 //  bounds checking pass.
 //
 void
-ConvertUnsafeAllocas::getUnsafeAllocsFromABC() { std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGEPMap= abcPass->UnsafeGetElemPtrs;
+ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
+  std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGEPMap= abcPass->UnsafeGetElemPtrs;
   std::map<BasicBlock *,std::set<Instruction*>*>::const_iterator bCurrent = UnsafeGEPMap.begin(), bEnd = UnsafeGEPMap.end();
   for (; bCurrent != bEnd; ++bCurrent) {
     std::set<Instruction *> * UnsafeGetElemPtrs = bCurrent->second;
