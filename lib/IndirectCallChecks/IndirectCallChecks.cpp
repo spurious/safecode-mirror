@@ -70,529 +70,529 @@ using std::cerr;
 namespace {
 
 #if ENABLE_DSA
-    typedef std::set<Function*> function_set_type;
+  typedef std::set<Function*> function_set_type;
 
-    class JumpTableEntry {
-        public:
+  class JumpTableEntry {
+  public:
 
-        //declare indirectFunction and register it into the module
-      JumpTableEntry(const Function *target, Module* module) : target(target)  {
+    //declare indirectFunction and register it into the module
+    JumpTableEntry(const Function *target, Module* module) : target(target)  {
 
-            std::string indirectName = buildName();
+      std::string indirectName = buildName();
 
-            indirectFunction = CREATE_LLVM_OBJECT(Function, (
-                    target->getFunctionType(), 
-                    GlobalValue::ExternalLinkage,
-                    indirectName, 
-                    module
-            ));  
+      indirectFunction = CREATE_LLVM_OBJECT(Function, (
+                                                       target->getFunctionType(), 
+                                                       GlobalValue::ExternalLinkage,
+                                                       indirectName, 
+                                                       module
+                                                       ));  
+    }
+
+    void writeToStream(std::ostream &out) const {
+      assert(target && indirectFunction);
+
+      const std::string &funcName = indirectFunction->getName();
+
+      IC_DMSG("writeToStream called for " << funcName << " entry" );
+
+      out << ".global " << funcName << "\n"
+          << funcName << ":\n"
+          << "jmp " << target->getName() << "\n"
+        ;
+    }
+
+    Function *getIndirectFunction() const {
+      return indirectFunction;
+    }
+    const Function *getTarget() const {
+      return target;
+    }
+
+  private:
+    Function *indirectFunction;
+    const Function *target;
+
+    std::string buildName() const {
+      std::stringstream stream;
+
+      stream <<  JUMP_TABLE_PREFIX << target->getName();
+
+      return stream.str();
+    }
+  };
+
+  struct JumpTable {
+
+  private:
+    typedef std::vector<JumpTableEntry> entries_t;
+    Module* module;
+  public:
+
+    JumpTable(Module* m) : module(m) {}
+
+    template <class InputIterator>
+    JumpTable(InputIterator targetsBegin, InputIterator targetsEnd, int tableId) {
+      jumpTableId = tableId;
+
+      //create the entries
+      InputIterator iter = targetsBegin, end = targetsEnd;
+      for(; iter != end; ++iter) {
+        const Function *target = *iter;
+        entries.push_back(JumpTableEntry(target, module));
+      }
+
+      std::vector<const Type *> emptyFuncTyArgs;
+      FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
+
+      lowerBound = CREATE_LLVM_OBJECT(Function, (
+                                                 emptyFuncTy,
+                                                 GlobalValue::ExternalLinkage,
+                                                 getName(),
+                                                 module
+                                                 ));
+
+      upperBound = CREATE_LLVM_OBJECT(Function, (
+                                                 emptyFuncTy,
+                                                 GlobalValue::ExternalLinkage,
+                                                 getNameEnd(),
+                                                 module
+                                                 ));
+    }
+
+    //serializes the jump table
+    void writeToStream(std::ostream &out) const {
+
+      IC_DMSG("writeToStream called for " << getName() );
+
+      out << ".text\n"
+          << ".global " << lowerBound->getName() << "\n"
+          << lowerBound->getName() << ":\n"
+        ;
+
+      entries_t::const_iterator iter = entries.begin(), end = entries.end();
+      for(; iter != end; ++iter) {
+        iter->writeToStream(out);
+      }
+
+      out << ".global " << upperBound->getName() << "\n"
+          << upperBound->getName() << ":\n"
+        ;
+    }
+
+    const JumpTableEntry &findEntry(Function *target) const {
+      entries_t::const_iterator iter = entries.begin(), end = entries.end();
+
+      for(; iter != end; ++iter) {
+        if(iter->getTarget() == target) {
+          return *iter;
         }
+      }
 
-        void writeToStream(std::ostream &out) const {
-            assert(target && indirectFunction);
-
-            const std::string &funcName = indirectFunction->getName();
-
-            IC_DMSG("writeToStream called for " << funcName << " entry" );
-
-            out << ".global " << funcName << "\n"
-                << funcName << ":\n"
-                << "jmp " << target->getName() << "\n"
-                ;
-        }
-
-      Function *getIndirectFunction() const {
-            return indirectFunction;
-        }
-      const Function *getTarget() const {
-            return target;
-        }
+      //in the unlikely case we dont find an entry
+      return *(static_cast<JumpTableEntry*>(NULL));
+    }
 
-        private:
-      Function *indirectFunction;
-      const Function *target;
+    Function *getLowerBound() const {
+      return lowerBound;
+    }
 
-        std::string buildName() const {
-            std::stringstream stream;
+    Function *getUpperBound() const {
+      return upperBound;
+    }
 
-            stream <<  JUMP_TABLE_PREFIX << target->getName();
+  private:
+    int jumpTableId; //need this to emit unique begin/end labels
 
-            return stream.str();
-        }
-    };
+    //the entries in this jump table
+    entries_t entries;
 
-    struct JumpTable {
+    Function *lowerBound;
+    Function *upperBound;
 
-        private:
-            typedef std::vector<JumpTableEntry> entries_t;
-      Module* module;
-        public:
+    std::string getName() const {
+      std::stringstream stream;
 
-      JumpTable(Module* m) : module(m) {}
+      stream <<  "" JUMP_TABLE_BEGIN "";
 
-        template <class InputIterator>
-        JumpTable(InputIterator targetsBegin, InputIterator targetsEnd, int tableId) {
-            jumpTableId = tableId;
+      return stream.str();
+    }
 
-            //create the entries
-            InputIterator iter = targetsBegin, end = targetsEnd;
-            for(; iter != end; ++iter) {
-              const Function *target = *iter;
-              entries.push_back(JumpTableEntry(target, module));
-            }
+    std::string getNameEnd() const {
 
-            std::vector<const Type *> emptyFuncTyArgs;
-            FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
+      std::stringstream stream;
 
-            lowerBound = CREATE_LLVM_OBJECT(Function, (
-                    emptyFuncTy,
-                    GlobalValue::ExternalLinkage,
-                    getName(),
-                    module
-                    ));
+      stream <<  "" JUMP_TABLE_END "";
 
-            upperBound = CREATE_LLVM_OBJECT(Function, (
-                    emptyFuncTy,
-                    GlobalValue::ExternalLinkage,
-                    getNameEnd(),
-                    module
-                    ));
-        }
+      return stream.str();
+    }
+  };
 
-        //serializes the jump table
-        void writeToStream(std::ostream &out) const {
+  class JumpTableCollection {
+  private:
+    //typedef hash_map<function_set_type, JumpTable, hashFunctionSet> jt_hash_type;
 
-            IC_DMSG("writeToStream called for " << getName() );
+    typedef std::vector<JumpTable*> vec_tbl_t;
 
-            out << ".text\n"
-                << ".global " << lowerBound->getName() << "\n"
-                << lowerBound->getName() << ":\n"
-                ;
+    typedef std::map<const Function *, JumpTable*> map_tbl_t;
+    Module*& module;
 
-            entries_t::const_iterator iter = entries.begin(), end = entries.end();
-            for(; iter != end; ++iter) {
-                iter->writeToStream(out);
-            }
+  public:
+    JumpTableCollection(Module*& m) : module(m), counter(0) {}
 
-            out << ".global " << upperBound->getName() << "\n"
-                << upperBound->getName() << ":\n"
-                ;
-        }
+    ~JumpTableCollection() {
+      vec_tbl_t::iterator iter, end;
 
-        const JumpTableEntry &findEntry(Function *target) const {
-            entries_t::const_iterator iter = entries.begin(), end = entries.end();
+      for(iter = tables.begin(), end = tables.end(); iter != end; ++iter) {
+        JumpTable *jt = *iter;
 
-            for(; iter != end; ++iter) {
-                if(iter->getTarget() == target) {
-                    return *iter;
-                }
-            }
+        delete jt;
+      }
+    }
 
-            //in the unlikely case we dont find an entry
-            return *(static_cast<JumpTableEntry*>(NULL));
-        }
+    //inserts this table into the collection
+    //note that if the targets set was already in a previous table
+    //then we do nothing
+    //
+    //if the set of targets is fresh, insert into collection
+    //
+    //returns the jump table for these targets
+    template <class InputIterator>
+    JumpTable *createTable(InputIterator targetsBegin, InputIterator targetsEnd) {
 
-        Function *getLowerBound() const {
-            return lowerBound;
-        }
+      InputIterator iter = targetsBegin, end = targetsEnd;
 
-        Function *getUpperBound() const {
-            return upperBound;
-        }
+      assert(iter != end);
 
-        private:
-        int jumpTableId; //need this to emit unique begin/end labels
+      const Function *f = *iter;
 
-        //the entries in this jump table
-        entries_t entries;
+      //already have a jump table for this?
+      map_tbl_t::iterator map_iter = tablesByFunction.find(f);
+      if(map_iter != tablesByFunction.end()) {
+        return map_iter->second;
+      }
 
-        Function *lowerBound;
-        Function *upperBound;
+      //dont have a jump table for this, lets create one
+      JumpTable *jt = new JumpTable(targetsBegin, targetsEnd, counter++);
 
-        std::string getName() const {
-            std::stringstream stream;
+      tables.push_back(jt);
 
-            stream <<  "" JUMP_TABLE_BEGIN "";
+      //register all functions with the new jump table
+      for(; iter != end; ++iter) {
+        f = *iter;
+        tablesByFunction[f] = jt;
+      }
 
-            return stream.str();
-        }
+      return jt;
+    }
 
-        std::string getNameEnd() const {
-
-            std::stringstream stream;
-
-            stream <<  "" JUMP_TABLE_END "";
-
-            return stream.str();
-        }
-    };
-
-    class JumpTableCollection {
-        private:
-            //typedef hash_map<function_set_type, JumpTable, hashFunctionSet> jt_hash_type;
-
-            typedef std::vector<JumpTable*> vec_tbl_t;
-
-            typedef std::map<const Function *, JumpTable*> map_tbl_t;
-      Module*& module;
-
-        public:
-      JumpTableCollection(Module*& m) : module(m), counter(0) {}
-
-        ~JumpTableCollection() {
-            vec_tbl_t::iterator iter, end;
-
-            for(iter = tables.begin(), end = tables.end(); iter != end; ++iter) {
-                JumpTable *jt = *iter;
-
-                delete jt;
-            }
-        }
-
-        //inserts this table into the collection
-        //note that if the targets set was already in a previous table
-        //then we do nothing
-        //
-        //if the set of targets is fresh, insert into collection
-        //
-        //returns the jump table for these targets
-        template <class InputIterator>
-        JumpTable *createTable(InputIterator targetsBegin, InputIterator targetsEnd) {
-
-            InputIterator iter = targetsBegin, end = targetsEnd;
-
-            assert(iter != end);
-
-            const Function *f = *iter;
-
-            //already have a jump table for this?
-            map_tbl_t::iterator map_iter = tablesByFunction.find(f);
-            if(map_iter != tablesByFunction.end()) {
-                return map_iter->second;
-            }
-
-            //dont have a jump table for this, lets create one
-            JumpTable *jt = new JumpTable(targetsBegin, targetsEnd, counter++);
-
-            tables.push_back(jt);
-
-            //register all functions with the new jump table
-            for(; iter != end; ++iter) {
-                f = *iter;
-                tablesByFunction[f] = jt;
-            }
-
-            return jt;
-        }
-
-        //tries to find the Jump Table by the function in it
-        //
-        //return null if this function is not in a jump table
-        JumpTable *findTable(const Function *target) const {
-            map_tbl_t::const_iterator iter = tablesByFunction.find(target);
-
-            if(iter == tablesByFunction.end())
-                return NULL;
-            else
-                return iter->second;
-        }
-
-        //serializes all the jump tables
-        void writeToStream(std::ostream &out) const {
-            vec_tbl_t::const_iterator iter, end;
-
-            IC_DMSG("writeToStream called for collection");
-
-            for(iter = tables.begin(), end = tables.end(); iter != end; ++iter) {
-                const JumpTable *jt = *iter;
-
-                jt->writeToStream(out);
-            }
-        }
-
-        void createInlineAsm(Module &M) const {
-            std::vector<const Type *> emptyFuncTyArgs;
-            FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
-
-            std::stringstream stream;
-            writeToStream(stream);
-
-            InlineAsm *assembly = InlineAsm::get(
-                    emptyFuncTy, 
-                    stream.str(), 
-                    "~{dirflag},~{fpsr},~{flags}",
-                    true
-            );
-
-            Function *F = CREATE_LLVM_OBJECT(Function, (
-                    emptyFuncTy,
-                    GlobalValue::ExternalLinkage,
-                    JUMP_TABLE_COLLECTION,
-                    &M
-                    ));
-            BasicBlock *BB = CREATE_LLVM_OBJECT(BasicBlock, ("entry", F));
-
-            CallInst *callAsm = CREATE_LLVM_OBJECT(CallInst, (assembly, "", BB));
-            callAsm->setCallingConv(CallingConv::C);
-            callAsm->setTailCall(true);
-
-            CREATE_LLVM_OBJECT(ReturnInst, (BB));
-
-        }
-
-        private:
-        int counter;
-
-        vec_tbl_t tables;
-        map_tbl_t tablesByFunction;
-
-    };
+    //tries to find the Jump Table by the function in it
+    //
+    //return null if this function is not in a jump table
+    JumpTable *findTable(const Function *target) const {
+      map_tbl_t::const_iterator iter = tablesByFunction.find(target);
+
+      if(iter == tablesByFunction.end())
+        return NULL;
+      else
+        return iter->second;
+    }
+
+    //serializes all the jump tables
+    void writeToStream(std::ostream &out) const {
+      vec_tbl_t::const_iterator iter, end;
+
+      IC_DMSG("writeToStream called for collection");
+
+      for(iter = tables.begin(), end = tables.end(); iter != end; ++iter) {
+        const JumpTable *jt = *iter;
+
+        jt->writeToStream(out);
+      }
+    }
+
+    void createInlineAsm(Module &M) const {
+      std::vector<const Type *> emptyFuncTyArgs;
+      FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
+
+      std::stringstream stream;
+      writeToStream(stream);
+
+      InlineAsm *assembly = InlineAsm::get(
+                                           emptyFuncTy, 
+                                           stream.str(), 
+                                           "~{dirflag},~{fpsr},~{flags}",
+                                           true
+                                           );
+
+      Function *F = CREATE_LLVM_OBJECT(Function, (
+                                                  emptyFuncTy,
+                                                  GlobalValue::ExternalLinkage,
+                                                  JUMP_TABLE_COLLECTION,
+                                                  &M
+                                                  ));
+      BasicBlock *BB = CREATE_LLVM_OBJECT(BasicBlock, ("entry", F));
+
+      CallInst *callAsm = CREATE_LLVM_OBJECT(CallInst, (assembly, "", BB));
+      callAsm->setCallingConv(CallingConv::C);
+      callAsm->setTailCall(true);
+
+      CREATE_LLVM_OBJECT(ReturnInst, (BB));
+
+    }
+
+  private:
+    int counter;
+
+    vec_tbl_t tables;
+    map_tbl_t tablesByFunction;
+
+  };
 #endif
 
-    struct IndirectCall : public ModulePass {
+  struct IndirectCall : public ModulePass {
 
-        static char ID;
+    static char ID;
 
-        std::ofstream *asmStream;
-        Module *module;
+    std::ofstream *asmStream;
+    Module *module;
 
-        JumpTableCollection tableCollection;
+    JumpTableCollection tableCollection;
 
 #if ENABLE_DSA/*{{{*/
-        typedef std::list<CallSite>::iterator CallSiteIterator;
-        typedef std::vector<Function*>::iterator CalleeIterator;
+    typedef std::list<CallSite>::iterator CallSiteIterator;
+    typedef std::vector<Function*>::iterator CalleeIterator;
 
-        virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-          AU.addRequired<CallTargetFinder>();
-        }
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<CallTargetFinder>();
+    }
 
 #endif/*}}}*/
 
 #if LLVM_VERSION >= 20
-      IndirectCall() : ModulePass((intptr_t) &ID), tableCollection(module)
+    IndirectCall() : ModulePass((intptr_t) &ID), tableCollection(module)
 #else
-        IndirectCall()
+      IndirectCall()
 #endif
-        {
+    {
 #if IC_DEBUG
-            asmStream = new std::ofstream(OUTPUT_ASM_FILE);
+      asmStream = new std::ofstream(OUTPUT_ASM_FILE);
 #endif
-        }
+    }
 
-        ~IndirectCall() {
+    ~IndirectCall() {
 #if IC_DEBUG
-            delete asmStream;
+      delete asmStream;
 #endif
+    }
+
+    virtual bool runOnModule(Module &m) {
+      bool changed = false;
+      module = &m;
+
+      std::vector<Function*> functions;
+      {
+        //get all the functions in advance
+        //otherwise when we declare indirect functions we will get into infinite loop
+        Module::iterator iter, end;
+        for(iter = m.begin(), end = m.end(); iter != end; ++iter) {
+          functions.push_back(iter);
         }
-
-        virtual bool runOnModule(Module &m) {
-            bool changed = false;
-            module = &m;
-
-            std::vector<Function*> functions;
-            {
-                //get all the functions in advance
-                //otherwise when we declare indirect functions we will get into infinite loop
-                Module::iterator iter, end;
-                for(iter = m.begin(), end = m.end(); iter != end; ++iter) {
-                    functions.push_back(iter);
-                }
-            }
+      }
 
 #if !ENABLE_DSA
-            //without DSA we just throw in all functions together
-            tableCollection.createTable(functions.begin(), functions.end());
+      //without DSA we just throw in all functions together
+      tableCollection.createTable(functions.begin(), functions.end());
 #else
-            //create jump tables using DSA
-            CallTargetFinder* CTF = &getAnalysis<CallTargetFinder>();
-            CallSiteIterator cs_iter, cs_end = CTF->cs_end();
-            for(cs_iter = CTF->cs_begin(); cs_iter != cs_end; ++cs_iter) {
-                CallSite cs = *cs_iter;
+      //create jump tables using DSA
+      CallTargetFinder* CTF = &getAnalysis<CallTargetFinder>();
+      CallSiteIterator cs_iter, cs_end = CTF->cs_end();
+      for(cs_iter = CTF->cs_begin(); cs_iter != cs_end; ++cs_iter) {
+        CallSite cs = *cs_iter;
                 
-                if(!isIndirectCall(cs))
-                    continue;
+        if(!isIndirectCall(cs))
+          continue;
 
-                //handle incomplete callsites or 0-target callsites
-                if(!CTF->isComplete(cs)) {
-                    IC_WARN("Call site is not complete, skipping bounds checks");
+        //handle incomplete callsites or 0-target callsites
+        if(!CTF->isComplete(cs)) {
+          IC_WARN("Call site is not complete, skipping bounds checks");
 #if 0
-                    IC_PRINTWARN(cs.getInstruction());
+          IC_PRINTWARN(cs.getInstruction());
 #endif
-                    continue;
-                }
-                else if(CTF->begin(cs) == CTF->end(cs)) {
-                    IC_WARN("Callsite has no targets, skipping bounds checks");
+          continue;
+        }
+        else if(CTF->begin(cs) == CTF->end(cs)) {
+          IC_WARN("Callsite has no targets, skipping bounds checks");
 #if 0
-                    IC_PRINTWARN(cs.getInstruction());
+          IC_PRINTWARN(cs.getInstruction());
 #endif
-                    continue;
-                }
-                else {
-                    IC_DMSG("Currently inspecting callsite: ");
-                    IC_PRINT(cs.getInstruction());
-                }
+          continue;
+        }
+        else {
+          IC_DMSG("Currently inspecting callsite: ");
+          IC_PRINT(cs.getInstruction());
+        }
 
-                JumpTable *jt = tableCollection.createTable(CTF->begin(cs), CTF->end(cs));
-                assert(jt);
+        JumpTable *jt = tableCollection.createTable(CTF->begin(cs), CTF->end(cs));
+        assert(jt);
 
-                insertBoundaryChecks(cs, jt);
-            }
+        insertBoundaryChecks(cs, jt);
+      }
 
 #endif
 
-            //then go to use of a function and update it to a jump table entry
-            std::vector<Function*>::iterator iter, end;
-            for(iter = functions.begin(), end = functions.end(); iter != end; ++iter) {
-                Function *f = *iter;
+      //then go to use of a function and update it to a jump table entry
+      std::vector<Function*>::iterator iter, end;
+      for(iter = functions.begin(), end = functions.end(); iter != end; ++iter) {
+        Function *f = *iter;
 
-                JumpTable *jt = tableCollection.findTable(f);
-                if(!jt) continue; //skip functions that arent ever used indirectly
+        JumpTable *jt = tableCollection.findTable(f);
+        if(!jt) continue; //skip functions that arent ever used indirectly
 
-                const JumpTableEntry &entry = jt->findEntry(f);
-                assert(&entry);
+        const JumpTableEntry &entry = jt->findEntry(f);
+        assert(&entry);
 
-                changed = runOnFunction(*f, entry) || changed;
-            }
+        changed = runOnFunction(*f, entry) || changed;
+      }
 
 #if IC_DEBUG
-            //write to a pass.s file
-            tableCollection.writeToStream(*asmStream);
+      //write to a pass.s file
+      tableCollection.writeToStream(*asmStream);
 #endif
-            tableCollection.createInlineAsm(m);
+      tableCollection.createInlineAsm(m);
 
-            return changed;
-        }
+      return changed;
+    }
 
-        //Split up the BasicBlock of the callsite into two and insert
-        //the boundary checks for the targets of the callsite
-        void insertBoundaryChecks(CallSite cs, JumpTable *jt) {
-            const Type *VoidPtrTy = PointerType::get(Type::Int8Ty, 0);
+    //Split up the BasicBlock of the callsite into two and insert
+    //the boundary checks for the targets of the callsite
+    void insertBoundaryChecks(CallSite cs, JumpTable *jt) {
+      const Type *VoidPtrTy = PointerType::get(Type::Int8Ty, 0);
 
-            Constant *indirectFuncFail = module->getOrInsertFunction (
-                    "bchk_ind_fail",
-                    Type::VoidTy,
-                    VoidPtrTy,
-                    NULL
-            );
+      Constant *indirectFuncFail = module->getOrInsertFunction (
+                                                                "bchk_ind_fail",
+                                                                Type::VoidTy,
+                                                                VoidPtrTy,
+                                                                NULL
+                                                                );
 
-            //%x = call %target (...)
-            Instruction *I = cs.getInstruction();
+      //%x = call %target (...)
+      Instruction *I = cs.getInstruction();
 
-            BasicBlock *topBB = I->getParent();
-            BasicBlock *bottomBB = topBB->splitBasicBlock(I, "do_indirect_call");
+      BasicBlock *topBB = I->getParent();
+      BasicBlock *bottomBB = topBB->splitBasicBlock(I, "do_indirect_call");
 
-            //we have an unconditional branch to bottomBB
-            //but remove it since we'll create a conditional branch later
-            topBB->getTerminator()->eraseFromParent();
+      //we have an unconditional branch to bottomBB
+      //but remove it since we'll create a conditional branch later
+      topBB->getTerminator()->eraseFromParent();
 
-            //if outside of bounds call bchk_ind_fail(target)
-            //then resume execution
+      //if outside of bounds call bchk_ind_fail(target)
+      //then resume execution
 
-            Value *targetPointer = cs.getCalledValue();
+      Value *targetPointer = cs.getCalledValue();
 
-            /* top:
-             *  ...
-             *  if (target <= jumpTableBegin || target >= jumpTableEnd)
-             *      goto failed_ind_check
-             *  else
-             *      goto bottom
-             * failed_ind_check:
-             *      bchk_ind_failed(%target);
-             *      goto bottom
-             * bottom:
-             *     %x = call %target(...)
-             */
+      /* top:
+       *  ...
+       *  if (target <= jumpTableBegin || target >= jumpTableEnd)
+       *      goto failed_ind_check
+       *  else
+       *      goto bottom
+       * failed_ind_check:
+       *      bchk_ind_failed(%target);
+       *      goto bottom
+       * bottom:
+       *     %x = call %target(...)
+       */
 
-            BitCastInst *castTarget = new BitCastInst(
-                    targetPointer, 
-                    VoidPtrTy, 
-                    "",
-                    topBB
-            );
+      BitCastInst *castTarget = new BitCastInst(
+                                                targetPointer, 
+                                                VoidPtrTy, 
+                                                "",
+                                                topBB
+                                                );
 
-            ICmpInst *LT = new ICmpInst(
-                    ICmpInst::ICMP_ULT,
-                    castTarget,
-                    ConstantExpr::getBitCast(jt->getLowerBound(), VoidPtrTy),
-                    "",
-                    topBB
-            );
-            ICmpInst *GT = new ICmpInst(
-                    ICmpInst::ICMP_UGT,
-                    castTarget,
-                    ConstantExpr::getBitCast(jt->getUpperBound(), VoidPtrTy),
-                    "",
-                    topBB
-            );
+      ICmpInst *LT = new ICmpInst(
+                                  ICmpInst::ICMP_ULT,
+                                  castTarget,
+                                  ConstantExpr::getBitCast(jt->getLowerBound(), VoidPtrTy),
+                                  "",
+                                  topBB
+                                  );
+      ICmpInst *GT = new ICmpInst(
+                                  ICmpInst::ICMP_UGT,
+                                  castTarget,
+                                  ConstantExpr::getBitCast(jt->getUpperBound(), VoidPtrTy),
+                                  "",
+                                  topBB
+                                  );
 
-            BinaryOperator *OR = BinaryOperator::createOr(LT, GT, "", topBB);
+      BinaryOperator *OR = BinaryOperator::createOr(LT, GT, "", topBB);
 
             
-            BasicBlock *failedCheckBB = CREATE_LLVM_OBJECT(BasicBlock, (
-                    "failed_ind_check", 
-                    bottomBB->getParent(), 
-                    bottomBB
-            ));
-            CREATE_LLVM_OBJECT(CallInst, (indirectFuncFail, castTarget, "", failedCheckBB));
-            CREATE_LLVM_OBJECT(BranchInst, (bottomBB, failedCheckBB));
+      BasicBlock *failedCheckBB = CREATE_LLVM_OBJECT(BasicBlock, (
+                                                                  "failed_ind_check", 
+                                                                  bottomBB->getParent(), 
+                                                                  bottomBB
+                                                                  ));
+      CREATE_LLVM_OBJECT(CallInst, (indirectFuncFail, castTarget, "", failedCheckBB));
+      CREATE_LLVM_OBJECT(BranchInst, (bottomBB, failedCheckBB));
 
-            CREATE_LLVM_OBJECT(BranchInst, (failedCheckBB, bottomBB, OR, topBB));
+      CREATE_LLVM_OBJECT(BranchInst, (failedCheckBB, bottomBB, OR, topBB));
+    }
+
+    /*
+     * if f's address is ever taken,
+     * replace that use of f with __f
+     *
+     * __f will be inside a jump table 
+     * with value 'jmp f'
+     */
+    bool runOnFunction(Function &f, const JumpTableEntry &entry) {
+
+      bool changed = false;
+
+      cerr << "Function: " << f.getName() << "\n";
+
+      Function::use_iterator iter, end;
+
+      Function *indirect = entry.getIndirectFunction();
+
+      //go through all uses of this function
+      for(iter = f.use_begin(), end = f.use_end(); iter != end; ++iter) {
+        User *user = *iter;
+
+        //dont replace direct calls to this func with indirect calls
+        unsigned low = isa<CallInst>(user) || isa<InvokeInst>(user);
+
+        //replace all address-taken(f) with indirect address
+        unsigned high = user->getNumOperands();
+        for(unsigned i = low; i < high; ++i) {
+          Value *value = user->getOperand(i);
+
+          //replace f with __f
+          if(value == &f) {
+            user->setOperand(i, indirect);
+            changed = true;
+          }
         }
 
-        /*
-         * if f's address is ever taken,
-         * replace that use of f with __f
-         *
-         * __f will be inside a jump table 
-         * with value 'jmp f'
-         */
-        bool runOnFunction(Function &f, const JumpTableEntry &entry) {
+      }
 
-            bool changed = false;
+      return changed;
+    }
 
-            cerr << "Function: " << f.getName() << "\n";
+    //returns true if the callsite is indirect, false if its direct
+    bool isIndirectCall(CallSite &cs) {
+      return !cs.getCalledFunction();
+    }
 
-            Function::use_iterator iter, end;
+  }; //end of struct IndirectCall
 
-            Function *indirect = entry.getIndirectFunction();
-
-            //go through all uses of this function
-            for(iter = f.use_begin(), end = f.use_end(); iter != end; ++iter) {
-                User *user = *iter;
-
-                //dont replace direct calls to this func with indirect calls
-                unsigned low = isa<CallInst>(user) || isa<InvokeInst>(user);
-
-                //replace all address-taken(f) with indirect address
-                unsigned high = user->getNumOperands();
-                for(unsigned i = low; i < high; ++i) {
-                    Value *value = user->getOperand(i);
-
-                    //replace f with __f
-                    if(value == &f) {
-                      user->setOperand(i, indirect);
-                        changed = true;
-                    }
-                }
-
-            }
-
-            return changed;
-        }
-
-        //returns true if the callsite is indirect, false if its direct
-        bool isIndirectCall(CallSite &cs) {
-            return !cs.getCalledFunction();
-        }
-
-    }; //end of struct IndirectCall
-
-    char IndirectCall::ID = 0;
-    RegisterPass<IndirectCall> X("indirect-call", "Indirect Call Pass");
+  char IndirectCall::ID = 0;
+  RegisterPass<IndirectCall> X("indirect-call", "Indirect Call Pass");
 }
 
 namespace llvm {
-    ModulePass *createIndirectCallChecksPass() {
-        return new IndirectCall();
-    }
+  ModulePass *createIndirectCallChecksPass() {
+    return new IndirectCall();
+  }
 }
