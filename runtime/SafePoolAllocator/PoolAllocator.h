@@ -17,6 +17,7 @@
 #include "llvm/ADT/hash_set.h"
 
 #include <stdarg.h>
+#include <string.h>
 
 #include <map>
 #include <utility>
@@ -56,7 +57,7 @@ typedef struct PoolTy {
 
   // The array containing the initial address of slabs (as long as there are
   // fewer than a certain number of them)
-  unsigned SlabAddressArray[AddrArrSize];
+  void* SlabAddressArray[AddrArrSize];
 
   // The number of slabs allocated. Large arrays are not counted
   unsigned NumSlabs;

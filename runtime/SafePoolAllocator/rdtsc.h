@@ -13,13 +13,11 @@ static __inline__ unsigned long long rdtsc(void)
 }
 #elif defined(__x86_64__)
 
-typedef unsigned long long int unsigned long long;
-
-static __inline__ unsigned long long rdtsc(void)
+static __inline__ unsigned long rdtsc(void)
 {
 	unsigned hi, lo;
 	__asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-	return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+	return ( (unsigned long)lo)|( ((unsigned long)hi)<<32 );
 }
 
 #elif defined(__powerpc__)
@@ -53,8 +51,8 @@ static __inline__ unsigned long long rdtsc(void)
 #endif
 
 
-/*  $RCSfile: rdtsc.h,v $   $Author: mai4 $
- *  $Revision: 1.2 $  $Date: 2008-10-13 02:12:29 $
+/*  $RCSfile: rdtsc.h,v $   $Author: alenhar2 $
+ *  $Revision: 1.3 $  $Date: 2008-10-13 22:04:20 $
  */
 
 #endif
