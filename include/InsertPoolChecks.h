@@ -73,10 +73,11 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<TDDataStructures>();
 #endif
       AU.addRequiredTransitive<PoolAllocateGroup>();
-      AU.addPreserved<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
-	  AU.addPreserved<DSNodePass>();
-	  AU.setPreservesCFG();
+
+      AU.addPreserved<PoolAllocateGroup>();
+      AU.addPreserved<DSNodePass>();
+      AU.setPreservesCFG();
     };
     private :
       ArrayBoundsCheck * abcPass;
@@ -153,6 +154,7 @@ struct DSNodePass : public ModulePass {
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
+      AU.setPreservesAll();
     };
   public:
   // FIXME: Provide better interfaces
