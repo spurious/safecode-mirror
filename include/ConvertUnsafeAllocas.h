@@ -38,7 +38,17 @@ ModulePass *createConvertUnsafeAllocas();
 using namespace ABC;
 using namespace CSS;
 
-struct MallocPass : public FunctionPass {
+//
+// Pass: InitAllocas
+//
+// Description:
+//  This pass ensures that uninitialized pointers within stack allocated
+//  (i.e., alloca'ed) memory cannot be dereferenced to cause a memory error.
+//  This can be done either by promoting the stack allocation to a heap
+//  allocation (since the heap allocator must provide similar protection for
+//  heap allocated memory) or be inserting special initialization code.
+//
+struct InitAllocas : public FunctionPass {
   private:
     // Private data
     Constant * memsetF;
@@ -50,7 +60,7 @@ struct MallocPass : public FunctionPass {
 
   public:
     static char ID;
-    MallocPass() : FunctionPass((intptr_t)(&ID)) {}
+    InitAllocas() : FunctionPass((intptr_t)(&ID)) {}
     const char *getPassName() const { return "Malloc Pass"; }
     virtual bool runOnFunction (Function &F);
     virtual bool doInitialization (Module &M);
@@ -66,6 +76,13 @@ struct MallocPass : public FunctionPass {
 };
 
 namespace CUA {
+//
+// Pass: ConvertUnsafeAllocas
+//
+// Description:
+//  This pass promotes stack allocations to heap allocations if necessary to
+//  provide memory safety. 
+//
 struct ConvertUnsafeAllocas : public ModulePass {
   public:
     static char ID;

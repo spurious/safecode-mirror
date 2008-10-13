@@ -56,7 +56,7 @@ static const unsigned meminitvalue = 0x00;
 #endif
 
   inline bool
-  MallocPass::TypeContainsPointer(const Type *Ty) {
+  InitAllocas::TypeContainsPointer(const Type *Ty) {
     if (Ty->getTypeID() == Type::PointerTyID)
       return true;
     else if (Ty->getTypeID() == Type::StructTyID) {
@@ -91,7 +91,7 @@ static const unsigned meminitvalue = 0x00;
   //  alloca is type-known *and* whether it has any links to other DSNodes.
   //
   inline bool
-  MallocPass::changeType (DSGraph & TDG, Instruction * Inst) {
+  InitAllocas::changeType (DSGraph & TDG, Instruction * Inst) {
     // Get the DSNode for this instruction
     DSNode *Node = TDG.getNodeForValue((Value *)Inst).getNode();
 
@@ -122,7 +122,7 @@ static const unsigned meminitvalue = 0x00;
   }
 
   bool
-  MallocPass::doInitialization (Module & M) {
+  InitAllocas::doInitialization (Module & M) {
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
     memsetF = M.getOrInsertFunction ("memset", Type::VoidTy,
                                                VoidPtrType,
@@ -133,7 +133,7 @@ static const unsigned meminitvalue = 0x00;
   }
 
   bool
-  MallocPass::runOnFunction (Function &F) {
+  InitAllocas::runOnFunction (Function &F) {
     bool modified = false;
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
 
@@ -217,6 +217,7 @@ static const unsigned meminitvalue = 0x00;
 }
 
 namespace {
-  RegisterPass<MallocPass> Z("convallocai", "Initialize stack allocations with pointers");
+  RegisterPass<InitAllocas> Z("initallocas",
+                              "Initialize stack allocations with pointers");
 } // end of namespace
 
