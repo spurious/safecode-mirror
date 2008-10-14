@@ -47,6 +47,11 @@ dnl **************************************************************************
 dnl * Check for libraries.
 dnl **************************************************************************
 
+dnl Check if fopen64 is available.
+AC_SEARCH_LIBS(fopen64,c,AC_DEFINE([HAVE_FOPEN64],[1],
+               [Define if fopen64() is available on this platform.]),
+               AC_MSG_WARN([fopen64() not found - Will use fopen() instead]))
+
 dnl **************************************************************************
 dnl * Checks for header files.
 dnl **************************************************************************
