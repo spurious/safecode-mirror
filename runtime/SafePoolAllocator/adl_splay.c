@@ -14,8 +14,10 @@
 #include <stdio.h>
 #include <pthread.h>
 #else
-#define DEBUG
+#define DEBUG(FORMAT, ...) 
 #endif
+
+#define ENABLE_SPLAY_TREE_TAG
 
 typedef struct tree_node Tree;
 struct tree_node {
@@ -23,7 +25,9 @@ struct tree_node {
   Tree* right;
   char* key;
   char* end;
+#ifdef ENABLE_SPLAY_TREE_TAG
   void* tag;
+#endif
 };
 
 /* Memory management functions */
@@ -233,13 +237,17 @@ static inline Tree* insert(Tree* t, char* key, unsigned len, void* tag) {
        the tree */
     t->key =  key;
     t->end = t->key + (len - 1);
+#ifdef ENABLE_SPLAY_TREE_TAG
     t->tag = tag;
+#endif
     return t;
   }
   n = tmalloc();
   n->key = key;
   n->end = key + (len - 1);
+#ifdef ENABLE_SPLAY_TREE_TAG
   n->tag = tag;
+#endif
   n->right = n->left = 0;
   if (t) {
     if (key_lt(key, t)) {
@@ -281,12 +289,14 @@ static int count(Tree* t) {
 
 /* return any node with the matching tag */
 static Tree* find_tag(Tree* t, void* tag) {
+#ifdef ENABLE_SPLAY_TREE_TAG
   if (t) {
     Tree* n = 0;
     if (t->tag == tag) return t;
     if ((n = find_tag(t->left, tag))) return n;
     if ((n = find_tag(t->right, tag))) return n;
   }
+#endif
   return 0;
 }
 
@@ -294,13 +304,13 @@ static Tree* find_tag(Tree* t, void* tag) {
 
 void adl_splay_insert(void** tree, void* key, unsigned len, void* tag)
 {
-  DEBUG("adl_splay_insert:%p/%p/0x%x\n", tree, key, len);
+  DEBUG("adl_splay_insert:%p/%p/0x%x\n", tree, key, len)
   *(Tree**)tree = insert(*(Tree**)tree, (char*)key, len, tag);
 }
 
 void adl_splay_delete(void** tree, void* key)
 {
-  DEBUG("adl_splay_delete:%p/%p\n", tree, key);
+  DEBUG("adl_splay_delete:%p/%p\n", tree, key)
   *(Tree**)tree = delete(*(Tree**)tree, (char*)key);
 }
 
@@ -308,7 +318,7 @@ void adl_splay_delete_tag(void** tree, void* tag) {
   Tree* t = *(Tree**)tree;
   Tree* n = find_tag(t, tag);
   while (n) {
-    DEBUG("adl_splay_delete_tag:%p/%p\n", t, n->key);
+    DEBUG("adl_splay_delete_tag:%p/%p\n", t, n->key)
     t = delete(t, n->key);
     n = find_tag(t, tag);
   }
@@ -316,7 +326,7 @@ void adl_splay_delete_tag(void** tree, void* tag) {
 }
 
 void adl_splay_clear(void** tree) {
-  DEBUG("adl_splay_clear:%p/%p\n", *tree);
+  DEBUG("adl_splay_clear:%p/%p\n", *tree)
   Tree * n = adl_splay_any(tree);
   while(n) {
     Tree * t = delete(n, n->key);
@@ -371,11 +381,13 @@ int adl_splay_retrieve(void** tree, void** key, unsigned* len, void** tag) {
       !key_gt(k, t)) {
     *key = t->key;
     if (len) *len = (t->end - t->key) + 1;
+#ifdef ENABLE_SPLAY_TREE_TAG
     if (tag) *tag = t->tag;
-    DEBUG("adl_splay_retrieve: succ %p/%p/0x%x\n", *tree, *key, *len);
+#endif
+    DEBUG("adl_splay_retrieve: succ %p/%p/0x%x\n", *tree, *key, *len)
     return 1;
   }
-  DEBUG("adl_splay_retrieve: failed %p/%p/0x%x\n", *tree, *key, *len);
+  DEBUG("adl_splay_retrieve: failed %p/%p/0x%x\n", *tree, *key, *len)
   return 0;
 }
 
@@ -405,7 +417,11 @@ void adl_splay_libfini(void (nodefree)(void*) ) {
 void adl_splay_foreach(void** tree, void (f)(void*, unsigned, void*)) {
   Tree* T = *(Tree**)tree;
   if (T) {
+#ifdef ENABLE_SPLAY_TREE_TAG
     f(T->key, (T->end - T->key) + 1, T->tag);
+#else
+    f(T->key, (T->end - T->key) + 1, 0);
+#endif
     adl_splay_foreach(&T->left, f);
     adl_splay_foreach(&T->right, f);
   }

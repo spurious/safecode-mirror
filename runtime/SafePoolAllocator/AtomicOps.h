@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "Config.h"
+#include "Profiler.h"
 
 NAMESPACE_SC_BEGIN
 

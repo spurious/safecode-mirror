@@ -149,11 +149,15 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   // function if all actuals are values
   bool 
   SpeculativeCheckingInsertSyncPoints::isSafeFunction(Function * F) {
-
+    /*
     bool existsPointerArgs = false;
     for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E && !existsPointerArgs; ++I) {
       existsPointerArgs = isa<PointerType>(I->getType());
     }
+    printf("Function %s is %s\n", F->getName().c_str(), existsPointerArgs ? "unsafe" : "safe");
+
     return !existsPointerArgs;
+    */
+    return false;
   }
 }

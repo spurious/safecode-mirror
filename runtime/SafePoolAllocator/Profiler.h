@@ -4,23 +4,28 @@
 #define _SC_PROFILER_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 #include "Config.h"
 #include "rdtsc.h"
+#define ENABLE_PROFILING
+#undef ENABLE_PROFILING
 
-// #define PROFILING(X) X
+#ifdef ENABLE_PROFILING
+#define PROFILING(X) X
+#else
 #define PROFILING(X)
+#endif
 
 NAMESPACE_SC_BEGIN
 
-typedef enum {
-  PROFILER_MAIN_THR_BLOCK,
-  PROFILER_CHECK,
-  PROFILER_QUEUE_SIZE,
-  PROFILER_MSG_TYPE_COUNT
-} profiler_msg_type;
+// Log info for time sync
+void profile_sync_point(unsigned long long start_time, unsigned long long end_time, unsigned int queue_size);
+
+// Log info for enque
+void profile_enqueue(unsigned long long start_time, unsigned long long end_time);
 
 // Print a log to profiler
-void profiler_log(int type, unsigned long long start_time, unsigned long long end_time, unsigned int tag);
+void profile_queue_op(int type, unsigned long long start_time, unsigned long long end_time);
 
 NAMESPACE_SC_END
 

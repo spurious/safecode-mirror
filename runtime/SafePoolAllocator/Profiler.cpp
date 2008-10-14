@@ -3,45 +3,157 @@
 #include "Profiler.h"
 #include <pthread.h>
 #include <stdio.h>
+#include <map>
 
 NAMESPACE_SC_BEGIN
 
-static const char * LOG_FILENAME = "/localhome/mai4/profile.bin";
+static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
+/*
+struct profile_entry {
+  unsigned char type;
+  unsigned char tag;
+  unsigned int duration;
+  unsigned long long start_time;
+} __attribute__ ((packed));
+*/
+
+struct profile_entry_sync_point {
+  unsigned long long start_time;
+  unsigned int duration;
+  unsigned int queue_size;
+};
+
+struct profile_entry_enqueue {
+  unsigned long long start_time;
+  unsigned int duration;
+};
+
+struct profile_entry_queue_op {
+  unsigned int type;
+  unsigned long long start_time;
+  unsigned int duration;
+};
+
+
+#define SEED(X) static unsigned int X = pthread_self()
+#define SAMPLING(RAND_SEED, INTERVAL, CODE) \
+  do { \
+    if (((double)rand_r(&RAND_SEED) * INTERVAL / RAND_MAX) < 1) { \
+      CODE \
+    }} \
+  while (0);
 
 class Profiler {
+private:
+  static const size_t QUEUE_OP_COUNT = 8;
+  static const size_t BUCKET_HISTOGRAM = 1 << 22;
+  unsigned m_queue_op_count[QUEUE_OP_COUNT][BUCKET_HISTOGRAM];
+
+  FILE * h_sync_point;
+  FILE * h_enqueue;
+  FILE * h_queue_op;
 public:
   Profiler() {
-    // There's no pthread_spin_lock in Mac OS X
-    // Probably we need to implement one.
-//    pthread_spin_init(&m_lock, 0);
-    m_log = fopen(LOG_FILENAME, "wb");
+    char buf[1024];
+    snprintf(buf, sizeof(buf), LOG_FN_TMPL, "sync");
+    h_sync_point = fopen64(buf, "wb");
+    snprintf(buf, sizeof(buf), LOG_FN_TMPL, "enqueue");
+    h_enqueue = fopen64(buf, "wb");
+    snprintf(buf, sizeof(buf), LOG_FN_TMPL, "queue_op");
+    h_queue_op = fopen64(buf, "wb");
+    memset(m_queue_op_count, 0, sizeof(m_queue_op_count));
   }
 
   ~Profiler() {
-//    pthread_spin_destroy(&m_lock);
-    fclose(m_log);
+    fclose(h_sync_point);
+    fclose(h_enqueue);
+/*    for (size_t i = 0; i < QUEUE_OP_COUNT; ++i) {
+      struct profile_entry_queue_op e;
+      e.type = i;
+      for(size_t j = 0; j < BUCKET_HISTOGRAM; ++j) {
+        e.duration = j;
+        e.count = m_queue_op_count[i][j];
+        fwrite(&e, sizeof(struct profile_entry_queue_op), 1, h_queue_op);
+      }
+    } */
+    fclose(h_queue_op);
   }
 
   void log(int type, unsigned long long start_time, unsigned long long end_time, unsigned int tag) {
-//    pthread_spin_lock(&m_lock);
-    fwrite(&type, sizeof(int), 1, m_log);
-    fwrite(&start_time, sizeof(unsigned long long), 1, m_log);
-    fwrite(&end_time, sizeof(unsigned long long), 1, m_log);
-    fwrite(&tag, sizeof(unsigned int), 1, m_log);
-//    pthread_spin_unlock(&m_lock);
+/*    pthread_t tid = pthread_self();
+    if (m_log_map.find(tid) == m_log_map.end()) {
+      char buf[1024];
+      snprintf(buf, sizeof(buf), DEFAULT_LOG_FILENAME, pthread_self());
+      m_log_map[tid] = fopen64(buf, "wb");
+      m_buf_map[tid] = new char[BUF_SIZE];
+      setvbuf(m_log_map[tid], m_buf_map[tid], _IOFBF, BUF_SIZE);
+    }
+    FILE * m_log = m_log_map[tid];
+    struct profile_entry e;
+    e.type = type;
+    e.tag = tag;
+    e.start_time = start_time;
+    e.duration = end_time - start_time;
+    fwrite(&e, sizeof(struct profile_entry), 1, m_log); */
   }
-    
-private:
-  FILE * m_log;
-//    pthread_spinlock_t m_lock;
+  void profile_sync_point(unsigned long long start_time, unsigned long long end_time, unsigned int queue_size)
+  {
+    struct profile_entry_sync_point e;
+    e.start_time = start_time;
+    e.duration = end_time - start_time;
+    e.queue_size = queue_size;
+    fwrite(&e, sizeof(struct profile_entry_sync_point), 1, h_sync_point);
+  }
+
+  void profile_enqueue(unsigned long long start_time, unsigned long long end_time) {
+    SEED(seed);
+    SAMPLING(seed, 128, 
+    struct profile_entry_enqueue e;
+    e.start_time = start_time;
+    e.duration = end_time - start_time;
+    fwrite(&e, sizeof(struct profile_entry_enqueue), 1, h_enqueue);
+    )
+  }
   
+  void profile_queue_op(int type, unsigned long long start_time, unsigned long long end_time) {
+    SEED(seed);
+    SAMPLING(seed, 128, 
+    struct profile_entry_queue_op e;
+    e.type = type; 
+    e.start_time = start_time;
+    e.duration = end_time - start_time;
+    fwrite(&e, sizeof(struct profile_entry_queue_op), 1, h_queue_op);
+    )
+/*    unsigned int bucket = (end_time - start_time) >> 10;
+    ++m_queue_op_count[type][bucket];
+*/  
+  }
+
+    
 };
 
-PROFILING (static Profiler p;)
+PROFILING (static Profiler p;
 
 void profiler_log(int type, unsigned long long start_time, unsigned long long end_time, unsigned int tag)
 {
-  PROFILING (p.log(type, start_time, end_time, tag);)
+  p.log(type, start_time, end_time, tag);
 }
 
+// Log info for time sync
+void profile_sync_point(unsigned long long start_time, unsigned long long end_time, unsigned int queue_size)
+{
+  p.profile_sync_point(start_time, end_time, queue_size);
+}
+
+
+// Log info for enque
+void profile_enqueue(unsigned long long start_time, unsigned long long end_time) {
+  p.profile_enqueue(start_time, end_time);
+}
+
+// Print a log to profiler
+void profile_queue_op(int type, unsigned long long start_time, unsigned long long end_time) {
+  p.profile_queue_op(type, start_time, end_time);
+}
+)
 NAMESPACE_SC_END
