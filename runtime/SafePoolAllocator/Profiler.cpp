@@ -1,9 +1,16 @@
 /// Implementation of simple profiler
 
 #include "Profiler.h"
+#include "safecode/Config/config.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <map>
+
+#ifdef HAVE_FOPEN64
+#define FOPEN64 fopen64
+#else
+#define FOPEN64 fopen
+#endif
 
 NAMESPACE_SC_BEGIN
 
@@ -35,7 +42,7 @@ struct profile_entry_queue_op {
 };
 
 
-#define SEED(X) static unsigned int X = pthread_self()
+#define SEED(X) static unsigned int X = (unsigned int) (pthread_self())
 #define SAMPLING(RAND_SEED, INTERVAL, CODE) \
   do { \
     if (((double)rand_r(&RAND_SEED) * INTERVAL / RAND_MAX) < 1) { \
@@ -56,11 +63,11 @@ public:
   Profiler() {
     char buf[1024];
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "sync");
-    h_sync_point = fopen64(buf, "wb");
+    h_sync_point = FOPEN64(buf, "wb");
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "enqueue");
-    h_enqueue = fopen64(buf, "wb");
+    h_enqueue = FOPEN64(buf, "wb");
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "queue_op");
-    h_queue_op = fopen64(buf, "wb");
+    h_queue_op = FOPEN64(buf, "wb");
     memset(m_queue_op_count, 0, sizeof(m_queue_op_count));
   }
 
@@ -84,7 +91,7 @@ public:
     if (m_log_map.find(tid) == m_log_map.end()) {
       char buf[1024];
       snprintf(buf, sizeof(buf), DEFAULT_LOG_FILENAME, pthread_self());
-      m_log_map[tid] = fopen64(buf, "wb");
+      m_log_map[tid] = FOPEN64(buf, "wb");
       m_buf_map[tid] = new char[BUF_SIZE];
       setvbuf(m_log_map[tid], m_buf_map[tid], _IOFBF, BUF_SIZE);
     }
