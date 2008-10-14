@@ -144,7 +144,7 @@ struct DSNodePass : public ModulePass {
 	public :
     static char ID;
     DSNodePass () : ModulePass ((intptr_t) &ID) { }
-	virtual ~DSNodePass() {};
+    virtual ~DSNodePass() {};
     const char *getPassName() const { return "DS Node And Pool Handle Pass"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
