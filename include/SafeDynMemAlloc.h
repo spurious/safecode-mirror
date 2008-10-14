@@ -80,6 +80,7 @@ namespace llvm {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL
       AU.addRequired<PoolAllocateGroup>();
+      AU.addPreserved<PoolAllocateGroup>();
 #endif      
 #if 0
       AU.addRequired<CompleteBUDataStructures>();
