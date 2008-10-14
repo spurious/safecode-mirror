@@ -503,6 +503,9 @@
 /* Define to `unsigned' if <sys/types.h> does not define. */
 #undef size_t
 
+/* Define to 1 if fopen64() is available */
+#undef HAVE_FOPEN64
+
 /* Define to 1 if building for use with the Linux kernel */
 #undef LLVA_KERNEL
 
