@@ -93,7 +93,9 @@ struct ConvertUnsafeAllocas : public ModulePass {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<checkStackSafety>();
       AU.addRequired<CompleteBUDataStructures>();
+#if 0
       AU.addRequired<TDDataStructures>();
+#endif
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
