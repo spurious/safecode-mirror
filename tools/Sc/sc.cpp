@@ -127,11 +127,9 @@ int main(int argc, char **argv) {
     // make it do nothing.
     Passes.add(new FaultInjector());
 
-#if 0
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     Passes.add(new ConvertUnsafeAllocas());
-#endif
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
