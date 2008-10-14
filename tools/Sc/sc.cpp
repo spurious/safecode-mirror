@@ -127,9 +127,11 @@ int main(int argc, char **argv) {
     // make it do nothing.
     Passes.add(new FaultInjector());
 
+#if 0
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     Passes.add(new ConvertUnsafeAllocas());
+#endif
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
@@ -137,11 +139,10 @@ int main(int argc, char **argv) {
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
 
-    // Schedule the Equivalence Class and Bottom-Up call graph analyses
-    // before pool allocation.  They don't work after pool allocation has
-    // been run, and PassManager schedules them after pool allocation for
+    // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
+    // Bottom-Up Call Graph pass doesn't work after pool allocation has
+    // been run, and PassManager schedules it after pool allocation for
     // some reason.
-    Passes.add(new TDDataStructures());
     Passes.add(new BottomUpCallGraph());
 
     if (FullPA)
@@ -160,10 +161,8 @@ int main(int argc, char **argv) {
     Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
-#if 0
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
-#endif
 
 
     Passes.add(createLICMPass());
@@ -181,7 +180,6 @@ int main(int argc, char **argv) {
       Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
 #endif
     }
-  
 
     // Verify the final result
     Passes.add(createVerifierPass());
