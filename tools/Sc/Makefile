@@ -24,6 +24,7 @@ $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
+                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
 	$(Echo) Linking $(BuildMode) executable $(TOOLNAME) $(StripWarnMsg)
@@ -38,6 +39,7 @@ LDFLAGS += $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
 
