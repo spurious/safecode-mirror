@@ -2,11 +2,12 @@ LEVEL = ..
 
 PARALLEL_DIRS = ArrayBoundChecks \
                 ConvertUnsafeAllocas \
-                InsertPoolChecks StackSafety \
+                InsertPoolChecks \
+                StackSafety \
                 PointerChecks \
                 SpeculativeChecking \
                 FaultInjector \
-		IndirectCallChecks
+                IndirectCallChecks
 
 include $(LEVEL)/Makefile.common
 
