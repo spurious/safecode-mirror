@@ -41,6 +41,7 @@ namespace ABC {
       AU.addRequired<DominanceFrontier>();
       AU.addRequired<PostDominanceFrontier>();
 #endif
+      AU.setPreservesAll();
     }
     virtual bool runOnFunction(Function &F);
   };
