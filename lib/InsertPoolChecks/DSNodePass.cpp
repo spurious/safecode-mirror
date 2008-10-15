@@ -22,7 +22,7 @@ static llvm::RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph an
 
 bool
 DSNodePass::runOnModule(Module & M) {
- std::cerr << "Running DSNodePass" << std::endl; 
+  std::cerr << "Running DSNodePass" << std::endl; 
 #ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
