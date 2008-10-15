@@ -213,7 +213,7 @@ namespace llvm {
     
     newGEP->insertBefore(ptIns);
    
-    CastInst * castedNewGEP = CastInst::createPointerCast(newGEP,
+    CastInst * castedNewGEP = CastInst::CreatePointerCast(newGEP,
         PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
         ptIns);
 
@@ -223,7 +223,7 @@ namespace llvm {
     if (info.argSrcPtrPos) {
       // Copy the srcPtr if necessary
       CastInst * newSrcPtr =
-        CastInst::createPointerCast(origGEP->getPointerOperand(),
+        CastInst::CreatePointerCast(origGEP->getPointerOperand(),
         PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
         newGEP);
       checkInst->setOperand(info.argSrcPtrPos, newSrcPtr);

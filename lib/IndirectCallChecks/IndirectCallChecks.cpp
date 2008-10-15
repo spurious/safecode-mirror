@@ -525,7 +525,7 @@ namespace {
                                   topBB
                                   );
 
-      BinaryOperator *OR = BinaryOperator::createOr(LT, GT, "", topBB);
+      BinaryOperator *OR = BinaryOperator::CreateOr(LT, GT, "", topBB);
 
             
       BasicBlock *failedCheckBB = CREATE_LLVM_OBJECT(BasicBlock, (

@@ -106,12 +106,12 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 
     if (PH) {
       Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
-      Instruction *GVCasted = CastInst::createPointerCast(Argv,
+      Instruction *GVCasted = CastInst::CreatePointerCast(Argv,
 					   VoidPtrType, Argv->getName()+"casted",InsertPt);
       const Type* csiType = Type::Int32Ty;
-      Value *AllocSize = CastInst::createZExtOrBitCast(Argc,
+      Value *AllocSize = CastInst::CreateZExtOrBitCast(Argc,
 				      csiType, Argc->getName()+"casted",InsertPt);
-      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+      AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
 					 ConstantInt::get(csiType, 4), "sizetmp", InsertPt);
       std::vector<Value *> args;
       args.push_back (PH);
@@ -169,7 +169,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 
         Value * PH = paPass->getGlobalPool (DSN);
         if (PH) {
-          Instruction *GVCasted = CastInst::createPointerCast(GV,
+          Instruction *GVCasted = CastInst::CreatePointerCast(GV,
                  VoidPtrType, GV->getName()+"casted",InsertPt);
           std::vector<Value *> args;
           args.push_back (PH);

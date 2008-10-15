@@ -479,7 +479,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
     Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AllocaType));
 
     if (AI->isArrayAllocation())
-      AllocSize = BinaryOperator::create(Instruction::Mul,
+      AllocSize = BinaryOperator::Create(Instruction::Mul,
                                          AllocSize,
                                          AI->getOperand(0), "sizetmp", GEP);
 
@@ -659,7 +659,7 @@ InsertPoolChecks::insertExactCheck (Instruction * I,
     Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AllocaType));
 
     if (AI->isArrayAllocation())
-      AllocSize = BinaryOperator::create(Instruction::Mul,
+      AllocSize = BinaryOperator::Create(Instruction::Mul,
                                          AllocSize,
                                          AI->getOperand(0), "allocsize", InsertPt);
 
@@ -973,10 +973,10 @@ std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
     // Create instructions to cast the checked pointer and the checked pool
     // into sbyte pointers.
     CastInst *CastVI = 
-      CastInst::createPointerCast(V, 
+      CastInst::CreatePointerCast(V, 
 		   PointerType::getUnqual(Type::Int8Ty), "node.lscasted", I);
     CastInst *CastPHI = 
-      CastInst::createPointerCast(PH, 
+      CastInst::CreatePointerCast(PH, 
 		   PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", I);
 
     // Create the call to poolcheck
@@ -1092,7 +1092,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         Value *NumArg = ConstantInt::get(csiType, num);	
                
         CastInst *CastVI = 
-          CastInst::createPointerCast (Vnew, 
+          CastInst::CreatePointerCast (Vnew, 
            PointerType::getUnqual(Type::Int8Ty), "casted", I);
 
         std::vector<Value *> args(1, NumArg);
@@ -1100,7 +1100,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         for (; flI != flE ; ++flI) {
           Function *func = (Function *)(*flI);
           CastInst *CastfuncI = 
-            CastInst::createPointerCast (func, 
+            CastInst::CreatePointerCast (func, 
              PointerType::getUnqual(Type::Int8Ty), "casted", I);
           args.push_back(CastfuncI);
         }
@@ -1129,7 +1129,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
           AllocSize = ConstantInt::get (Type::Int32Ty,
                                         TD->getABITypeSize(AI->getAllocatedType()));
           if (AI->isArrayAllocation()) {
-            AllocSize = BinaryOperator::create (Instruction::Mul,
+            AllocSize = BinaryOperator::Create (Instruction::Mul,
                                                AllocSize,
                                                AI->getArraySize(), "sizetmp", I);
           }
@@ -1142,10 +1142,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         addExactCheck2 (SourcePointer, Vnew, AllocSize, I);
       } else {
         CastInst *CastVI = 
-          CastInst::createPointerCast (Vnew, 
+          CastInst::CreatePointerCast (Vnew, 
                  PointerType::getUnqual(Type::Int8Ty), "casted", I);
         CastInst *CastPHI = 
-          CastInst::createPointerCast (PH, 
+          CastInst::CreatePointerCast (PH, 
                  PointerType::getUnqual(Type::Int8Ty), "casted", I);
         std::vector<Value *> args(1,CastPHI);
         args.push_back(CastVI);
@@ -1263,22 +1263,22 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
             PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
-            CastInst::createPointerCast(CI->getOperand(1), Type::Int32Ty, "node.lscasted", InsertPt);
+            CastInst::CreatePointerCast(CI->getOperand(1), Type::Int32Ty, "node.lscasted", InsertPt);
           CastInst *CastCIOp3 = 
-            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
-          Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
+            CastInst::CreateZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
+          Instruction *Bop = BinaryOperator::Create(Instruction::Add, CastCIUint,
                           CastCIOp3, "memcpyadd",InsertPt);
           
           // Create instructions to cast the checked pointer and the checked pool
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
-            CastInst::createPointerCast(CI->getOperand(1), 
+            CastInst::CreatePointerCast(CI->getOperand(1), 
                          PointerType::getUnqual(Type::Int8Ty), "memcpy.1.casted", InsertPt);
           CastInst *CastCI = 
-            CastInst::createPointerCast(Bop, 
+            CastInst::CreatePointerCast(Bop, 
                          PointerType::getUnqual(Type::Int8Ty), "mempcy.2.casted", InsertPt);
           CastInst *CastPHI = 
-            CastInst::createPointerCast(PH, 
+            CastInst::CreatePointerCast(PH, 
                          PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
@@ -1298,22 +1298,22 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
             PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
           }
           CastInst *CastCIUint = 
-            CastInst::createPointerCast(CI, Type::Int32Ty, "node.lscasted", InsertPt);
+            CastInst::CreatePointerCast(CI, Type::Int32Ty, "node.lscasted", InsertPt);
           CastInst *CastCIOp3 = 
-            CastInst::createZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
-          Instruction *Bop = BinaryOperator::create(Instruction::Add, CastCIUint,
+            CastInst::CreateZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
+          Instruction *Bop = BinaryOperator::Create(Instruction::Add, CastCIUint,
                           CastCIOp3, "memsetadd",InsertPt);
           
           // Create instructions to cast the checked pointer and the checked pool
           // into sbyte pointers.
           CastInst *CastSourcePointer = 
-            CastInst::createPointerCast(CI->getOperand(1), 
+            CastInst::CreatePointerCast(CI->getOperand(1), 
                          PointerType::getUnqual(Type::Int8Ty), "memset.1.casted", InsertPt);
           CastInst *CastCI = 
-            CastInst::createPointerCast(Bop, 
+            CastInst::CreatePointerCast(Bop, 
                          PointerType::getUnqual(Type::Int8Ty), "memset.2.casted", InsertPt);
           CastInst *CastPHI = 
-            CastInst::createPointerCast(PH, 
+            CastInst::CreatePointerCast(PH, 
                          PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
           
           // Create the call to poolcheck
@@ -1385,7 +1385,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
             if (GEPNew->getNumOperands() == 2) {
               Value *secOp = GEPNew->getOperand(1);
               if (secOp->getType() != Type::Int32Ty) {
-                secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
+                secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
                                      secOp->getName()+".ec.casted", Casted);
               }
 
@@ -1401,7 +1401,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
                 assert((COP->getZExtValue() == 0) && "non zero array index\n");
                 Value * secOp = GEPNew->getOperand(2);
                 if (secOp->getType() != Type::Int32Ty) {
-                  secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
+                  secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
                                        secOp->getName()+".ec2.casted", Casted);
                 }
                 std::vector<Value *> args(1,secOp);
@@ -1498,7 +1498,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         if (GEPNew->getNumOperands() == 2) {
           Value *secOp = GEPNew->getOperand(1);
           if (secOp->getType() != Type::Int32Ty) {
-            secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
+            secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
                                  secOp->getName()+".ec3.casted", Casted);
           }
           
@@ -1515,7 +1515,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
             assert((COP->getZExtValue() == 0) && "non zero array index\n");
             Value * secOp = GEPNew->getOperand(2);
             if (secOp->getType() != Type::Int32Ty) {
-              secOp = CastInst::createSExtOrBitCast(secOp, Type::Int32Ty,
+              secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
                                    secOp->getName()+".ec4.casted", Casted);
             }
             std::vector<Value *> args(1,secOp);
@@ -1610,13 +1610,13 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     //
     Instruction *InsertPt = Casted->getNext();
     if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
-      Casted = CastInst::createPointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
+      Casted = CastInst::CreatePointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
                             (Casted)->getName()+".pc2.casted",InsertPt);
     }
-    Instruction *CastedPointerOperand = CastInst::createPointerCast(PointerOperand,
+    Instruction *CastedPointerOperand = CastInst::CreatePointerCast(PointerOperand,
                                          PointerType::getUnqual(Type::Int8Ty),
                                          PointerOperand->getName()+".casted",InsertPt);
-    Instruction *CastedPH = CastInst::createPointerCast(PH,
+    Instruction *CastedPH = CastInst::CreatePointerCast(PH,
                                          PointerType::getUnqual(Type::Int8Ty),
                                          "ph",InsertPt);
     std::vector<Value *> args(1, CastedPH);

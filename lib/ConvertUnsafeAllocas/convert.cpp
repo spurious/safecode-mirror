@@ -257,7 +257,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                               TD->getABITypeSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
-              AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+              AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
@@ -378,7 +378,7 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   AllocSize = ConstantInt::get (Type::Int32Ty,
                                 TD->getABITypeSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
-    AllocSize = BinaryOperator::create (Instruction::Mul, AllocSize,
+    AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",
                                         AI);	    
 
@@ -434,7 +434,7 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
             ConstantInt::get(Type::Int32Ty,
                               TD->getABITypeSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
-              AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+              AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
 
@@ -568,7 +568,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   AllocSize = ConstantInt::get (Type::Int32Ty,
                                 TD->getABITypeSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
-    AllocSize = BinaryOperator::create (Instruction::Mul, AllocSize,
+    AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",
                                         AI);	    
 

@@ -217,7 +217,7 @@ namespace llvm {
       ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AI->getAllocatedType()));
     
     if (AI->isArrayAllocation())
-      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+      AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                          AI->getOperand(0), "sizetmp", AI);
 
     // Insert object registration at the end of allocas.

@@ -197,7 +197,7 @@ static const unsigned meminitvalue = 0x00;
                                                TD.getABITypeSize(AllocaType));
 
           if (AllocInst->isArrayAllocation())
-            AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+            AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                AllocInst->getOperand(0),
                                                "sizetmp",
                                                iptI);

@@ -32,7 +32,7 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Otherwise, insert a cast instruction.
   //
-  return CastInst::createZExtOrBitCast (V, Ty, Name, InsertPt);
+  return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
 static inline Instruction *
@@ -47,7 +47,7 @@ castTo (Instruction * I, const Type * Ty, std::string Name,
   //
   // Otherwise, insert a cast instruction.
   //
-  return CastInst::createZExtOrBitCast (I, Ty, Name, InsertPt);
+  return CastInst::CreateZExtOrBitCast (I, Ty, Name, InsertPt);
 }
 
 static inline Value *
