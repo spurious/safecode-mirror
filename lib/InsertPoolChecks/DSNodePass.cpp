@@ -199,6 +199,9 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
     assert (F && "No Function Information from Pool Allocation!\n");
   }
 
+  // Ensure that the function has a DSGraph
+  assert (paPass->hasDSGraph(*F) && "No DSGraph for function!\n");
+
   const Value * V = (Vnew) ? Vnew : VOrig;
   DSGraph &TDG = paPass->getDSGraph(*F);
 #else  
