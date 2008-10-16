@@ -42,6 +42,10 @@
 
 #include <pthread.h>
 
+// FIXME: It should be moved into configure
+
+/* #define SC_ENABLE_OOB */
+
 #define DEBUG(x)
 
 #ifndef SC_DEBUGTOOL
@@ -1780,6 +1784,7 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
  */
 void *
 rewrite_ptr (PoolTy * Pool, void * p) {
+#ifdef SC_ENABLE_OOB
   // Used for exactcheck calls in which no pool is specified.
   static PoolTy OOBPool;
 
@@ -1796,6 +1801,9 @@ rewrite_ptr (PoolTy * Pool, void * p) {
   if (!Pool) Pool = &OOBPool;
   adl_splay_insert (&(Pool->OOB), P, 1, p);
   return invalidptr;
+#else
+  return p;
+#endif
 }
 
 /*
@@ -1806,6 +1814,7 @@ rewrite_ptr (PoolTy * Pool, void * p) {
  */
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
+#if SC_ENABLE_OOB
   if ((uintptr_t)src <= InvalidLower) return src;
 
   void* tag = 0;
@@ -1822,6 +1831,9 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   fflush (stderr);
   abort ();
   return tag;
+#else
+  return src;
+#endif
 }
 
 #if 0
@@ -2658,5 +2670,11 @@ __barebone_pooldestroy(PoolTy *Pool) {
   }
 }
 
+/// it seems that Mac OS doesn't support weak alias very well.
+/// Use call instead, in fact, there is no performance penalty because
+/// of inlining. 
+/// __attribute__ ((weak, alias ("poolinit")));
 void
-__barebone_poolinit(PoolTy *Pool, unsigned NodeSize) __attribute__ ((weak, alias ("poolinit")));
+__barebone_poolinit(PoolTy *Pool, unsigned NodeSize) {
+	poolinit(Pool, NodeSize);
+}
