@@ -22,6 +22,10 @@
 #endif
 #define DEBUG(x) 
 
+// FIXME: It should be moved into configure
+
+/* #define SC_ENABLE_OOB */
+
 /* Decleare this structure type */
 struct PoolTy;
 
@@ -56,7 +60,7 @@ exactcheck (int a, int b, void * result) {
 void *
 exactcheck2 (signed char *base, signed char *result, unsigned size) {
   if ((result < base) || (result >= (base + size)))
-#if 1
+#ifdef SC_ENABLE_OOB
     return rewrite_ptr (0, result);
 #else
   {

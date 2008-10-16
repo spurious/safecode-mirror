@@ -13,9 +13,14 @@
 #define FOPEN64 fopen
 #endif
 
+#define SAMPLING_FACTOR	1
+ 
 NAMESPACE_SC_BEGIN
 
-static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
+// HACK
+// static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
+static const char * LOG_FN_TMPL = "/Users/mai4/work/data/profiler.%s.dat";
+
 /*
 struct profile_entry {
   unsigned char type;
@@ -44,12 +49,19 @@ struct profile_entry_queue_op {
 
 
 #define SEED(X) static unsigned int X = (unsigned int) (pthread_self())
+#if 0
 #define SAMPLING(RAND_SEED, INTERVAL, CODE) \
   do { \
     if (((double)rand_r(&RAND_SEED) * INTERVAL / RAND_MAX) < 1) { \
       CODE \
     }} \
   while (0);
+#else
+#define SAMPLING(RAND_SEED, INTERVAL, CODE) \
+  do { \
+      CODE \
+  } while (0);
+#endif
 
 class Profiler {
 private:
@@ -115,7 +127,7 @@ public:
 
   void profile_enqueue(unsigned long long start_time, unsigned long long end_time) {
     SEED(seed);
-    SAMPLING(seed, 128, 
+    SAMPLING(seed, SAMPLING_FACTOR, 
     struct profile_entry_enqueue e;
     e.start_time = start_time;
     e.duration = end_time - start_time;
@@ -125,7 +137,7 @@ public:
   
   void profile_queue_op(int type, unsigned long long start_time, unsigned long long end_time) {
     SEED(seed);
-    SAMPLING(seed, 128, 
+    SAMPLING(seed, SAMPLING_FACTOR, 
     struct profile_entry_queue_op e;
     e.type = type; 
     e.start_time = start_time;

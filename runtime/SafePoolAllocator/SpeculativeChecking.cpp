@@ -176,6 +176,13 @@ void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
   ENQUEUE_CHECK_REQUEST(req, CHECK_POOL_CHECK_UI);
 }
 
+void
+__sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
+// FIXME: This is another type of check
+// Just do pool check right now
+ __sc_par_poolcheck(Pool, Node);
+}
+
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
   req.type = CHECK_EMPTY;

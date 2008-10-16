@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include "safecode/Config/config.h"
 
+#define ABORT_PROGRAM() *((volatile int*)NULL) 
+
 #ifdef SC_DEBUGTOOL
 extern FILE * ReportLog;
 static unsigned alertNum = 0;
@@ -181,10 +183,10 @@ ReportExactCheck (unsigned src,
 }
 #else
 
-// Production code: all reporters are just simple wrappers for abort()
+// Production code: all reporters are just simple wrappers for ABORT_PROGRAM()
 
 static unsigned printAlertHeader (void) {
-  abort();
+  ABORT_PROGRAM();
 }
 
 static void ReportDanglingPointer (void * addr,
@@ -193,13 +195,13 @@ static void ReportDanglingPointer (void * addr,
                        unsigned allocgen,
                        unsigned freepc,
                        unsigned freegen) {
-  abort();
+  ABORT_PROGRAM();
 }
 
 static void
 ReportLoadStoreCheck (unsigned ptr,
                       unsigned pc) {
-  abort();
+  ABORT_PROGRAM();
 }
 
 static void
@@ -210,7 +212,7 @@ ReportBoundsCheck (unsigned src,
                    unsigned pc,
                    unsigned objstart,
                    unsigned objlen) {
-  abort();
+  ABORT_PROGRAM();
 }
 
 
@@ -220,7 +222,7 @@ ReportExactCheck (unsigned src,
                   unsigned pc,
                   unsigned objstart,
                   unsigned objlen) {
-  abort();
+  ABORT_PROGRAM();
 }
 
 #endif
