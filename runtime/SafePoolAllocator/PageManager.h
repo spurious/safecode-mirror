@@ -31,8 +31,8 @@
 // Here's the breakdown of how it works on various operating systems:
 //  o) Linux           - We use the kernel's reserved address space (which is
 //                       inaccessible from applications).
-//  o) Other platforms - We use the first page of memory which is typically
-//                       unmapped.
+//  o) Other platforms - We allocate a range of memory and disable read and
+//                       write permissions for the pages contained within it.
 //
 #if defined(__linux__)
 static const unsigned InvalidUpper = 0xf0000000;
