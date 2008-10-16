@@ -276,6 +276,7 @@ static void convertToParallelChecking (void) {
 
   REG_REPLACE_FUNC("__sc_par_", "poolcheck");
   REG_REPLACE_FUNC("__sc_par_", "poolcheckui");
+  REG_REPLACE_FUNC("__sc_par_", "poolcheckalign");
   REG_REPLACE_FUNC("__sc_par_", "boundscheck");
   REG_REPLACE_FUNC("__sc_par_", "boundscheckui");
 }
