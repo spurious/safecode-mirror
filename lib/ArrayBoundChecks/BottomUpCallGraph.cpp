@@ -1,3 +1,16 @@
+//===- BottomUpCallGraph.cpp - -----------------------------------------------//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "bucg"
+
 #include "dsa/DSGraph.h"
 #include "dsa/DSNode.h"
 #include "BottomUpCallGraph.h"
