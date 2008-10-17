@@ -33,7 +33,7 @@
 NAMESPACE_SC_BEGIN
 
 // A flag to indicate that the checking thread has done its work
-static unsigned int gCheckingThreadWorking = 0;
+static unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 
 struct PoolCheckRequest {
   PoolTy * Pool;
