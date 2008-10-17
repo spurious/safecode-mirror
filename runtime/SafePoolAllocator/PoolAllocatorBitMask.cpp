@@ -1810,7 +1810,7 @@ rewrite_ptr (PoolTy * Pool, void * p) {
  */
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
-#if SC_ENABLE_OOB
+#ifdef SC_ENABLE_OOB
   if ((uintptr_t)src <= InvalidLower) return src;
 
   void* tag = 0;
