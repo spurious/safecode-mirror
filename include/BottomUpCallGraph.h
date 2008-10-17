@@ -53,7 +53,7 @@ namespace llvm {
       }
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.addRequiredTransitive<CompleteBUDataStructures>();
+        AU.addRequiredTransitive<EQTDDataStructures>();
         AU.setPreservesAll();	
       }
       virtual bool runOnModule(Module&M);

@@ -38,10 +38,10 @@ struct PreInsertPoolChecks : public ModulePass {
       AU.addRequired<TargetData>();
 #endif
       AU.addRequiredTransitive<PoolAllocateGroup>();
-      AU.addRequiredTransitive<CompleteBUDataStructures>();
+      AU.addRequiredTransitive<EQTDDataStructures>();
       AU.addRequired<DSNodePass>();
 
-      AU.addPreserved<CompleteBUDataStructures>();
+      AU.addPreserved<EQTDDataStructures>();
       AU.addPreserved<PoolAllocateGroup>();
       AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
@@ -67,7 +67,7 @@ struct InsertPoolChecks : public FunctionPass {
     virtual bool doFinalization(Module &M);
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-//      AU.addRequired<CompleteBUDataStructures>();
+//      AU.addRequired<EQTDDataStructures>();
 //      AU.addRequired<TDDataStructures>();
 #ifndef LLVA_KERNEL      
       AU.addRequired<ArrayBoundsCheck>();
@@ -78,7 +78,7 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequiredTransitive<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
 
-      AU.addPreserved<CompleteBUDataStructures>();
+      AU.addPreserved<EQTDDataStructures>();
       AU.addPreserved<PoolAllocateGroup>();
       AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
@@ -190,7 +190,7 @@ struct RegisterStackObjPass : public FunctionPass {
   virtual const char * getPassName() const { return "Register stack variables into pool"; }
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequiredTransitive<PoolAllocateGroup>();
-    AU.addRequiredTransitive<CompleteBUDataStructures>();
+    AU.addRequiredTransitive<EQTDDataStructures>();
     AU.addRequiredTransitive<DSNodePass>();
 
     AU.addRequired<DominatorTree>();

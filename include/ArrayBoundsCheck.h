@@ -29,7 +29,7 @@ struct ArrayBoundsCheck : public ModulePass {
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
-      AU.addRequired<CompleteBUDataStructures>();
+      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<PostDominatorTree>();
@@ -46,7 +46,7 @@ struct ArrayBoundsCheck : public ModulePass {
 
   private :
     // Referenced passes
-    CompleteBUDataStructures *cbudsPass;
+    EQTDDataStructures *cbudsPass;
     BottomUpCallGraph *buCG;
 
     typedef std::map<const Function *,FuncLocalInfo*> InfoMap;

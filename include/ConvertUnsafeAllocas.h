@@ -92,10 +92,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<checkStackSafety>();
-      AU.addRequired<CompleteBUDataStructures>();
-#if 0
-      AU.addRequired<TDDataStructures>();
-#endif
+      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
@@ -127,12 +124,10 @@ struct ConvertUnsafeAllocas : public ModulePass {
     std::set<const MallocInst *>  ArrayMallocs;
 
   protected:
-    TDDataStructures * tddsPass;
-    BUDataStructures * budsPass;
-    ArrayBoundsCheck * abcPass;
-    checkStackSafety * cssPass;
-
-    TargetData *TD;
+    TargetData         * TD;
+    EQTDDataStructures * budsPass;
+    ArrayBoundsCheck   * abcPass;
+    checkStackSafety   * cssPass;
 
 #ifdef LLVA_KERNEL
     Constant *kmalloc;
@@ -181,8 +176,7 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheck>();
       AU.addRequired<checkStackSafety>();
-      AU.addRequired<CompleteBUDataStructures>();
-      AU.addRequired<TDDataStructures>();
+      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();

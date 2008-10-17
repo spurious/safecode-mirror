@@ -82,10 +82,6 @@ namespace llvm {
       AU.addRequired<PoolAllocateGroup>();
       AU.addPreserved<PoolAllocateGroup>();
 #endif      
-#if 0
-      AU.addRequired<CompleteBUDataStructures>();
-      AU.addRequired<TDDataStructures>();
-#endif
       AU.addRequired<CallGraph>();
       AU.setPreservesAll();
     }
@@ -100,9 +96,6 @@ namespace llvm {
     Module *CurModule;
 
     TDDataStructures *TDDS;
-#if 0
-    EquivClassGraphs *BUDS;
-#endif
 #ifndef LLVA_KERNEL    
     PoolAllocateGroup *PoolInfo;
 #endif    

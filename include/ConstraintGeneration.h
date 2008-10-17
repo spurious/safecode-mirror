@@ -23,12 +23,12 @@ struct ConstraintGeneration : public ModulePass {
     std::vector<Instruction*> UnsafeGetElemPtrs;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
-      AU.addRequired<CompleteBUDataStructures>();
+      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
       AU.setPreservesAll();
     }
   private :
-  CompleteBUDataStructures *cbudsPass;
+  EQTDDataStructures *cbudsPass;
   BottomUpCallGraph *buCG;
   
   typedef std::map<const Function *,FuncLocalInfo*> InfoMap;
