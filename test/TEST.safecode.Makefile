@@ -7,7 +7,7 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-ENABLE_LTO := 0
+ENABLE_LTO := 1
 CFLAGS := -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
@@ -27,15 +27,24 @@ PA_RT_O  :=
 PA_RT_BC :=
 
 # Pool System library for interacting with the system
-POOLSYSTEMRT_O :=
-POOLSYSTEMRT_BC :=
+POOLSYSTEM_RT_O :=
+POOLSYSTEM_RT_BC :=
+
+#Pre runtime of Pool allocator
+PA_PRE_RT_BC :=
+PA_PRE_RT_O  := 
 
 ifeq ($(ENABLE_LTO),1)
 PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
+# Bits of runtime to improve analysis
+PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 else
 PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
 POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+
+# TODO: Test whether it works
+#PA_PRE_RT_O := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.o
 endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
@@ -67,9 +76,10 @@ endif
 # file
 #
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
-Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT) $(PA_PRE_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LOPT) $(OPTZN_PASSES) $< -f -o $<.opt 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.poolalloc.ld $< $(PA_PRE_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.poolalloc.ld.bc -f -o $<.opt 2>&1 > $@.out
 	-$(SC_STATS) $<.opt -f -o $@.sc 2>&1 > $@.out
 	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out

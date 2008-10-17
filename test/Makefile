@@ -33,11 +33,17 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    External/SPEC/CINT2000/164.gzip \
+#   MultiSource/Benchmarks/Olden \
+#   External/SPEC/CINT2000 \
+#   SingleSource \
+#   External/SPEC/CINT2000/300.twolf \
+#   SingleSource \
+#   MultiSource \
+#   MultiSource/Benchmarks \
+#   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/181.mcf \
 #   External/SPEC/CINT2000/256.bzip2 \
-#   MultiSource/Benchmarks/Olden \
 #   External/Povray \
-   #SingleSource \
    #External/SPEC/CINT2000/186.crafty \
    #External/SPEC/CFP2000/188.ammp \
    #External/Namd \
@@ -65,10 +71,13 @@ progtest::
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-                   report.html report.csv) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+                   report.html report.csv; \
+               mkdir -p /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'`; \
+               mv /localhome/mai4/profiler.*.dat /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'` || true;) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
-            (cd $$dir; \
+            (cd $$dir;  \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=safecode \
                    LARGE_PROBLEM_SIZE=1 report) \
         done
