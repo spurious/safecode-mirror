@@ -28,8 +28,14 @@ namespace llvm {
       // one the DSNode and the corresponding Call Instruction
       typedef hash_multimap<DSNode*, CallSite> CalleeNodeCallSiteMapTy;
       CalleeNodeCallSiteMapTy CalleeNodeCallSiteMap ;
+
+      // Containers used in finding SCCs
       std::vector<Function *> Stack;
       std::set<Function *> Visited;
+
+      // A set of functions involved in SCCs
+      std::set<Function *> SccList;
+
       void figureOutSCCs(Module &M);
       void visit(Function *f);
 
@@ -41,7 +47,6 @@ namespace llvm {
       // This keeps the map of a function and its call sites in all the callers
       // including the indirectly called sites
       std::map<const Function *, std::vector<CallSite> > FuncCallSiteMap;
-      std::set<Function *> SccList; //Fns involved in Sccs
 
       bool isInSCC(Function *f) {
         return (SccList.find(f) != SccList.end());
