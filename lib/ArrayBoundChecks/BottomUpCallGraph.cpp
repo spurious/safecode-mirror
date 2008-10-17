@@ -7,6 +7,16 @@
 // 
 //===----------------------------------------------------------------------===//
 //
+// I believe this pass does two things:
+//  o) It attempts to improve upon the call graph calculated by DSA for those
+//     call sites in which a callee was not found.
+//  o) It finds functions that are part of Strongly Connected Components (SCCs)
+//     in the call graph and marks them being a part of an SCC.
+//
+// FIXME:
+//  I believe the fixup of the call graph is no longer necessary; DSA asserts
+//  if it can't find a callee for a call instruction.
+//
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "bucg"
@@ -25,6 +35,7 @@
 using namespace llvm;
 
 namespace llvm {
+
 char BottomUpCallGraph::ID = 0;
 
 //
@@ -106,34 +117,46 @@ BottomUpCallGraph::runOnModule(Module &M) {
 }
 
 
-void BottomUpCallGraph::visit(Function *f) {
+void
+BottomUpCallGraph::visit (Function *f) {
   if (Visited.find(f) == Visited.end()) {
-    //Have not visited it before
+    // Record that we have now visited this function
     Visited.insert(f);
-    //not visited implies it won't be there on the stack anyways, so push it
-    //on stack
+
+    //
+    // If we have not visited this function before, that implies that the
+    // function won't be on the stack; therefore, push it on stack
+    //
     Stack.push_back(f);
+
+    //
+    // Visit all the functions that can call this function.
+    //
     if (FuncCallSiteMap.count(f)) {
       std::vector<CallSite> & callsitelist = FuncCallSiteMap[f];
       for (unsigned idx = 0, sz = callsitelist.size(); idx != sz; ++idx) {
-	Function *parent = callsitelist[idx].getInstruction()->getParent()->getParent();
-	visit(parent);
+        Function *parent = callsitelist[idx].getInstruction()->getParent()
+                                                             ->getParent();
+        visit(parent);
       }
     }
     Stack.pop_back();
   } else {
-    //Have already visited it, check if it forms SCC
-    std::vector<Function*>::iterator res = std::find(Stack.begin(), Stack.end(), f);
+    // We have already visited this function; check if it forms an SCC
+    std::vector<Function*>::iterator res = std::find (Stack.begin(),
+                                                      Stack.end(),
+                                                      f);
     if (res != Stack.end()) {
-      //Cycle detected.
+      // Cycle detected.
       for (; res != Stack.end() ; ++res) {
-	SccList.insert(*res);
+        SccList.insert(*res);
       }
     }
   }
 }
 
-void BottomUpCallGraph::figureOutSCCs(Module &M) {
+void
+BottomUpCallGraph::figureOutSCCs (Module &M) {
   for (Module::iterator I = M.begin(), E= M.end(); I != E ; ++I) {
     visit(I);
   }
