@@ -7,7 +7,7 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-ENABLE_LTO :=1
+ENABLE_LTO := 0
 CFLAGS := -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
@@ -30,7 +30,7 @@ PA_RT_BC :=
 POOLSYSTEMRT_O :=
 POOLSYSTEMRT_BC :=
 
-ifdef ENABLE_LTO
+ifeq ($(ENABLE_LTO),1)
 PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 else
@@ -47,6 +47,7 @@ SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.i
 EXTRA_LOPT_OPTIONS :=
 #-loopsimplify -unroll-threshold 0 
 OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+#OPTZN_PASSES := -disable-opt
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 ifeq ($(OS),Darwin)
 LDFLAGS += -lpthread
@@ -59,7 +60,7 @@ endif
 #      rules to compile code with llvm-gcc and enable LLVM debug information;
 #      this, in turn, causes test cases to fail unnecessairly.
 #CBECFLAGS += -g
-#LLVMLDFLAGS= -disable-inlining
+#LLVMLDFLAGS= -disable-opt
 
 #
 # This rule runs SAFECode on the .llvm.bc file to produce a new .bc
@@ -184,15 +185,15 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	@echo > $@
 	@-if test -f Output/$*.nonsc.diff-llc; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.out-nat.time >> $@;\
+	  grep "^real" Output/$*.out-nat.time >> $@;\
         fi
 	@-if test -f Output/$*.nonsc.diff-llc; then \
 	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
-	  grep "^program" Output/$*.nonsc.out-llc.time >> $@;\
+	  grep "^real" Output/$*.nonsc.out-llc.time >> $@;\
         fi
 	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "CBE-RUN-TIME-SAFECODE: " >> $@;\
-	  grep "^program" Output/$*.safecode.out-llc.time >> $@;\
+	  grep "^real" Output/$*.safecode.out-llc.time >> $@;\
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
