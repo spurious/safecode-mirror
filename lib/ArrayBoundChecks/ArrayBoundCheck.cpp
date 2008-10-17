@@ -301,7 +301,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
     //Indirect Calls
     ABCExprTree *temproot = 0;
     // Loop over all of the actually called functions...
-    CompleteBUDataStructures::callee_iterator I = cbudsPass->callee_begin(CI),
+    EQTDDataStructures::callee_iterator I = cbudsPass->callee_begin(CI),
                                               E = cbudsPass->callee_end(CI);
     //    assert((I != E) && "Indirect Call site doesn't have targets ???? ");
     //Actually thats fine, we ignore the return value constraints ;)
@@ -931,7 +931,7 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
 }
 
 bool ArrayBoundsCheck::runOnModule(Module &M) {
-  cbudsPass = &getAnalysis<CompleteBUDataStructures>();
+  cbudsPass = &getAnalysis<EQTDDataStructures>();
   buCG      = &getAnalysis<BottomUpCallGraph>();
 
   Mang = new Mangler(M);
@@ -1258,7 +1258,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
         }
             } else {
         //indirect function call doesn't call the known external functions
-        CompleteBUDataStructures::callee_iterator
+        EQTDDataStructures::callee_iterator
           cI = cbudsPass->callee_begin(CI), cE = cbudsPass->callee_end(CI);
         for (; cI != cE; ++cI) { 
           Function * Target = (Function *)(*cI);

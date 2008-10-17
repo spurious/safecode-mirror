@@ -49,8 +49,8 @@ bool checkStackSafety::markReachableAllocasInt(DSNode *DSN, bool start) {
 bool checkStackSafety::runOnModule(Module &M) {
   //  TDDataStructures *TDDS;
   //  TDDS = &getAnalysis<TDDataStructures>();
-  CompleteBUDataStructures *BUDS;
-  BUDS = &getAnalysis<CompleteBUDataStructures>();
+  EQTDDataStructures *BUDS;
+  BUDS = &getAnalysis<EQTDDataStructures>();
   Function *MainFunc = M.getFunction("main") ? M.getFunction("main")
                                              : M.getFunction ("MAIN__");
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {

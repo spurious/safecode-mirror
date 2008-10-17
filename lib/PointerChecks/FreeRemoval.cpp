@@ -176,7 +176,7 @@ EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
             if (CI->getOperand(i) == V)
               operandNo = i;
 
-          CompleteBUDataStructures::callee_iterator CalleesI =
+          EQTDDataStructures::callee_iterator CalleesI =
             PoolInfo->callee_begin(CI), CalleesE = PoolInfo->callee_end(CI);
 
           for (; CalleesI != CalleesE; ++CalleesI) {
@@ -288,7 +288,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
       } else {
         // indirect function call
   
-        //  std::pair<CompleteBUDataStructures::ActualCalleesTy::const_iterator, CompleteBUDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
+        //  std::pair<EQTDDataStructures::ActualCalleesTy::const_iterator, EQTDDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
   
         // Find the formal parameter corresponding to the parameter V
         int operandNo;
@@ -296,7 +296,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
           if (CI->getOperand(i) == V)
             operandNo = i;
         
-        CompleteBUDataStructures::callee_iterator CalleesI =
+        EQTDDataStructures::callee_iterator CalleesI =
           PoolInfo->callee_begin(CI),  CalleesE = PoolInfo->callee_end(CI);
         
         for (; CalleesI != CalleesE; ++CalleesI) {
@@ -732,7 +732,7 @@ EmbeCFreeRemoval::runOnModule(Module &M) {
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
 #endif  
   CallGraph &CG = getAnalysis<CallGraph>();
-  //  BUDS = &getAnalysis<CompleteBUDataStructures>();
+  //  BUDS = &getAnalysis<EQTDDataStructures>();
   //  BUDS = PoolInfo->getDataStructures();
   //  TDDS = &getAnalysis<TDDataStructures>();
   // For each function, all its pool SSA variables including its arguments

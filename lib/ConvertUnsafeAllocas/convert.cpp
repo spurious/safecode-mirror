@@ -98,12 +98,9 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   //
   // Retrieve all pre-requisite analysis results from other passes.
   //
-  budsPass = &getAnalysis<CompleteBUDataStructures>();
+  budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass = &getAnalysis<checkStackSafety>();
   abcPass = &getAnalysis<ArrayBoundsCheck>();
-#if 0
-  tddsPass = &getAnalysis<TDDataStructures>();
-#endif
   TD = &getAnalysis<TargetData>();
 
   //
@@ -618,7 +615,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   // Retrieve all pre-requisite analysis results from other passes.
   //
   TD       = &getAnalysis<TargetData>();
-  budsPass = &getAnalysis<CompleteBUDataStructures>();
+  budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass  = &getAnalysis<checkStackSafety>();
   abcPass  = &getAnalysis<ArrayBoundsCheck>();
   paPass   =  getAnalysisToUpdate<PoolAllocateGroup>();

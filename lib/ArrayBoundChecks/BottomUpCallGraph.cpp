@@ -47,13 +47,13 @@ char BottomUpCallGraph::ID = 0;
 //
 bool
 BottomUpCallGraph::runOnModule(Module &M) {
-  CompleteBUDataStructures &CBU = getAnalysis<CompleteBUDataStructures>();
+  EQTDDataStructures &CBU = getAnalysis<EQTDDataStructures>();
 
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     for (inst_iterator I = inst_begin(MI), E = inst_end(MI); I != E; ++I) {
       if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-        CompleteBUDataStructures::callee_iterator cI = CBU.callee_begin(CI),
-                                                  cE = CBU.callee_end(CI);
+        EQTDDataStructures::callee_iterator cI = CBU.callee_begin(CI),
+                                            cE = CBU.callee_end(CI);
         if (cI == cE) {
           // This call site is not included in the cbuds
           // so we need to extra stuff.
@@ -85,7 +85,7 @@ BottomUpCallGraph::runOnModule(Module &M) {
   std::vector<const Instruction *>::iterator I, E;
   for (I = Instructions.begin(), E = Instructions.end(); I != E; ++I) {
     Instruction * CI = (Instruction *)*I;
-    CompleteBUDataStructures::callee_iterator i, e;
+    EQTDDataStructures::callee_iterator i, e;
     for (i = CBU.callee_begin (CI), e = CBU.callee_end(CI); i != e; ++i) {
       const Function * Target = *i;
       CallSite CS = CallSite::get(CI);

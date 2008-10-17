@@ -193,7 +193,7 @@ void ConstraintGeneration::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **r
     //Indirect Calls
     ABCExprTree *temproot = 0;
     // Loop over all of the actually called functions...
-    CompleteBUDataStructures::callee_iterator I = cbudsPass->callee_begin(CI),
+    EQTDDataStructures::callee_iterator I = cbudsPass->callee_begin(CI),
                                               E = cbudsPass->callee_end(CI);
     //assert((I != E) && "Indirect Call site doesn't have targets ???? ");
     //Actually thats fine, we ignore the return value constraints ;)
@@ -654,7 +654,7 @@ ABCExprTree *ConstraintGeneration::getArgumentConstraints(Function & F) {
 
 
 bool ConstraintGeneration::runOnModule(Module &M) {
-  cbudsPass = &getAnalysis<CompleteBUDataStructures>();
+  cbudsPass = &getAnalysis<EQTDDataStructures>();
   buCG = &getAnalysis<BottomUpCallGraph>();
   Mang = new Mangler(M);
   
