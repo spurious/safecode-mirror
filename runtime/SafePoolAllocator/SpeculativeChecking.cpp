@@ -32,6 +32,9 @@
 
 NAMESPACE_SC_BEGIN
 
+// A flag to indicate that the checking thread has done its work
+static unsigned int gCheckingThreadWorking = 0;
+
 struct PoolCheckRequest {
   PoolTy * Pool;
   void * Node;
@@ -58,6 +61,7 @@ typedef enum {
   CHECK_POOL_REGISTER,
   CHECK_POOL_UNREGISTER,
   CHECK_POOL_DESTROY,
+  CHECK_SYNC,
   CHECK_REQUEST_COUNT
 } RequestTy;
 
@@ -92,45 +96,49 @@ class CheckWrapper {
 public:
   void operator()(CheckRequest & req) const {
     PROFILING (unsigned long long start_time = rdtsc();)
-    switch (req.type) {
-    case CHECK_POOL_CHECK:
-      poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
-      break;
+      switch (req.type) {
+      case CHECK_POOL_CHECK:
+	poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
+	break;
 
-    case CHECK_POOL_CHECK_UI:
-      poolcheckui(req.poolcheck.Pool, req.poolcheck.Node);
-      break;
+      case CHECK_POOL_CHECK_UI:
+	poolcheckui(req.poolcheck.Pool, req.poolcheck.Node);
+	break;
 
-    case CHECK_BOUNDS_CHECK:
-      boundscheck(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
-      break;
+      case CHECK_BOUNDS_CHECK:
+	boundscheck(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+	break;
 
-    case CHECK_BOUNDS_CHECK_UI:
-      boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
-      break;
+      case CHECK_BOUNDS_CHECK_UI:
+	boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+	break;
 
       case CHECK_POOL_REGISTER:
-      poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
-      break;
+	poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
+	break;
     
       case CHECK_POOL_UNREGISTER:
-      poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
-      break;
+	poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
+	break;
 
       case CHECK_POOL_DESTROY:
-      ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
-      break;
+	ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
+	break;
 
-    default:
-      assert(0 && "Error Type!");
-      break;
-    }
+      case CHECK_SYNC:
+	gCheckingThreadWorking = false;
+	break;
+
+      default:
+	assert(0 && "Error Type!");
+	break;
+      }
     
     PROFILING (
-    unsigned long long end_time = rdtsc();
-    llvm::safecode::profile_queue_op(req.type, start_time, end_time);
-    ) 
-  }
+	       unsigned long long end_time = rdtsc();
+	       llvm::safecode::profile_queue_op(req.type, start_time, end_time);
+	       ) 
+      }
 };
 
 
@@ -228,13 +236,21 @@ void __sc_par_pooldestroy(PoolTy *Pool) {
 void __sc_par_wait_for_completion() {
   PROFILING(
   unsigned int size = gCheckQueue.size();
-  unsigned long long start_time = rdtsc();
+  unsigned long long start_sync_time = rdtsc();
   )
 
-  SPIN_AND_YIELD(!gCheckQueue.empty());
+  //  SPIN_AND_YIELD(!gCheckQueue.empty());
+
+  gCheckingThreadWorking = true;
+  
+  CheckRequest req;
+  req.type = CHECK_EMPTY;
+  ENQUEUE_CHECK_REQUEST(req, CHECK_SYNC);
+
+  SPIN_AND_YIELD(gCheckingThreadWorking);
 
   PROFILING(
-  unsigned long long end_time = rdtsc();
+  unsigned long long end_sync_time = rdtsc();
   llvm::safecode::profile_sync_point(start_time, end_time, size);
   )
 }

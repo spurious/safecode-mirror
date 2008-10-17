@@ -14,6 +14,7 @@
 
 #include "ExactCheck.h"
 #include "Report.h"
+#include "safecode/Config/config.h"
 
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
@@ -22,9 +23,6 @@
 #endif
 #define DEBUG(x) 
 
-// FIXME: It should be moved into configure
-
-/* #define SC_ENABLE_OOB */
 
 /* Decleare this structure type */
 struct PoolTy;

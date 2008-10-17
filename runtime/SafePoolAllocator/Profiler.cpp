@@ -18,8 +18,8 @@
 NAMESPACE_SC_BEGIN
 
 // HACK
-// static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
-static const char * LOG_FN_TMPL = "/Users/mai4/work/data/profiler.%s.dat";
+static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
+// static const char * LOG_FN_TMPL = "/Users/mai4/work/data/profiler.%s.dat";
 
 /*
 struct profile_entry {
@@ -48,7 +48,12 @@ struct profile_entry_queue_op {
 };
 
 
+#ifdef ENABLE_PROFILING
 #define SEED(X) static unsigned int X = (unsigned int) (pthread_self())
+#else
+#define SEED(X)
+#endif
+
 #if 0
 #define SAMPLING(RAND_SEED, INTERVAL, CODE) \
   do { \

@@ -42,10 +42,6 @@
 
 #include <pthread.h>
 
-// FIXME: It should be moved into configure
-
-/* #define SC_ENABLE_OOB */
-
 #define DEBUG(x)
 
 #ifndef SC_DEBUGTOOL
