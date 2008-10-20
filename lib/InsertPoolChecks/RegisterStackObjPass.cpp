@@ -108,10 +108,18 @@ namespace llvm {
     // aliasing this alloca.  If not, then we can forego the check (even if we
     // can't trace through all the data flow).
     //
+    // FIXME:
+    //  This implementation is incorrect.  A node in the DSGraph will have
+    //  different DSNodes in different functions (because each function has its
+    //  own copy of the DSGraph).  We will need to find another way to do this
+    //  optimization.
+    //
+#if 0
     if (dsnPass->CheckedDSNodes.find(Node) == dsnPass->CheckedDSNodes.end()) {
       ++SavedRegAllocs;
       return;
     }
+#endif
 
     //
     // Determine if any use (direct or indirect) escapes this function.  If
