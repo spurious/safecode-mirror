@@ -341,8 +341,8 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAl
 }
 
 DSNode * ConvertUnsafeAllocas::getDSNode(const Value *V, Function *F) {
-  DSGraph &TDG = budsPass->getDSGraph(*F);
-  DSNode *DSN = TDG.getNodeForValue((Value *)V).getNode();
+  DSGraph * TDG = budsPass->getDSGraph(*F);
+  DSNode *DSN = TDG->getNodeForValue((Value *)V).getNode();
   return DSN;
 }
 
@@ -415,8 +415,8 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
   // LLVM?!
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     if (!MI->isDeclaration()) {
-      DSGraph &G = budsPass->getDSGraph(*MI);
-      DSGraph::ScalarMapTy &SM = G.getScalarMap();
+      DSGraph *G = budsPass->getDSGraph(*MI);
+      DSGraph::ScalarMapTy &SM = G->getScalarMap();
       for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
            SMI != SME; ) {
         if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
@@ -482,8 +482,8 @@ ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
     for (; iCurrent != iEnd; ++iCurrent) {
       if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(*iCurrent)) {
         Value *pointerOperand = GEP->getPointerOperand();
-        DSGraph &TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
-        DSNode *DSN = TDG.getNodeForValue(pointerOperand).getNode();
+        DSGraph * TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
+        DSNode *DSN = TDG->getNodeForValue(pointerOperand).getNode();
         //FIXME DO we really need this ?	    markReachableAllocas(DSN);
         if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
           unsafeAllocaNodes.push_back(DSN);

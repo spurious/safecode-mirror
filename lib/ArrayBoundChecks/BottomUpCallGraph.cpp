@@ -64,7 +64,7 @@ BottomUpCallGraph::runOnModule(Module &M) {
           } else {
             // Here comes the ugly part
             Function *parenFunc = CI->getParent()->getParent();
-            DSNode *calleeNode = CBU.getDSGraph(*parenFunc).getNodeForValue(CS.getCalledValue()).getNode();
+            DSNode *calleeNode = CBU.getDSGraph(*parenFunc)->getNodeForValue(CS.getCalledValue()).getNode();
             CalleeNodeCallSiteMap.insert(std::make_pair(calleeNode, CS));
           }
         }
@@ -100,7 +100,7 @@ BottomUpCallGraph::runOnModule(Module &M) {
       // function.
       Function *parenFunc = CI->getParent()->getParent();
       DSNode *calleeNode = CBU.getDSGraph(*parenFunc)
-                              .getNodeForValue(CS.getCalledValue()).getNode();
+                             ->getNodeForValue(CS.getCalledValue()).getNode();
       CalleeNodeCallSiteMapTy::const_iterator cI, cE;
       tie(cI, cE) = CalleeNodeCallSiteMap.equal_range(calleeNode);
       for (; cI != cE; ++cI) {

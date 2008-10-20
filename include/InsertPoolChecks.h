@@ -166,7 +166,7 @@ struct DSNodePass : public ModulePass {
 #else
   TDDataStructures * TDPass;
 #endif
-  DSGraph & getDSGraph (Function & F);
+  DSGraph * getDSGraph (Function & F);
   DSNode* getDSNode(const Value *V, Function *F);
   unsigned getDSNodeOffset(const Value *V, Function *F);
 #ifndef LLVA_KERNEL  

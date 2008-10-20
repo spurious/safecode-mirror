@@ -164,7 +164,7 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
   // Scan through each instruction of the function looking for load and store
   // instructions.  Free the pointer right before.
   //
-  DSGraph & DSG = TDPass->getDSGraph(F);
+  DSGraph * DSG = TDPass->getDSGraph(F);
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator bI = BB.begin(), bE = BB.end(); bI != bE; ++bI) {
@@ -187,7 +187,7 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
       // ahead and add the free.  Note that we may introduce an invalid free,
       // but we're injecting errors, so I think that's okay.
       //
-      DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
+      DSNode * Node = DSG->getNodeForValue(Pointer).getNode();
       if (Node && (Node->isHeapNode())) {
         // Skip if we should not insert a fault.
         if (!doFault()) continue;
@@ -231,7 +231,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
   // instructions that store a pointer to memory.  Free the pointer right
   // before the store instruction.
   //
-  DSGraph & DSG = TDPass->getDSGraph(F);
+  DSGraph * DSG = TDPass->getDSGraph(F);
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator bI = BB.begin(), bE = BB.end(); bI != bE; ++bI) {
@@ -250,7 +250,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
           // ahead and add the free.  Note that we may introduce an invalid
           // free, but we're injecting errors, so I think that's okay.
           //
-          DSNode * Node = DSG.getNodeForValue(Pointer).getNode();
+          DSNode * Node = DSG->getNodeForValue(Pointer).getNode();
           if (Node && (Node->isHeapNode())) {
             // Skip if we should not insert a fault.
             if (!doFault()) continue;

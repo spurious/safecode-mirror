@@ -55,7 +55,7 @@ struct InitAllocas : public FunctionPass {
     DominatorTree * domTree;
 
     // Private methods
-    inline bool changeType (DSGraph & TDG, Instruction * Inst);
+    inline bool changeType (DSGraph * TDG, Instruction * Inst);
     inline bool TypeContainsPointer(const Type *Ty);
 
   public:

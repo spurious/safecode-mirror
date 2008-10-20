@@ -91,9 +91,9 @@ static const unsigned meminitvalue = 0x00;
   //  alloca is type-known *and* whether it has any links to other DSNodes.
   //
   inline bool
-  InitAllocas::changeType (DSGraph & TDG, Instruction * Inst) {
+  InitAllocas::changeType (DSGraph * TDG, Instruction * Inst) {
     // Get the DSNode for this instruction
-    DSNode *Node = TDG.getNodeForValue((Value *)Inst).getNode();
+    DSNode *Node = TDG->getNodeForValue((Value *)Inst).getNode();
 
     //
     // Do not bother to change this allocation if the type is unknown;
@@ -146,7 +146,7 @@ static const unsigned meminitvalue = 0x00;
     TDDataStructures & TDPass = getAnalysis<TDDataStructures>();
 
     // Get the DSGraph for this function
-    DSGraph & TDG = TDPass.getDSGraph(F);
+    DSGraph * TDG = TDPass.getDSGraph(F);
 
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I) {
       for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
