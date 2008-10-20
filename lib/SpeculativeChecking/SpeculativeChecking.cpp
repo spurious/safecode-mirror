@@ -30,11 +30,14 @@ namespace {
 static const char * safeFunctions[] = {
 //  "__sc_par_poolinit", "pool_init_runtime",
   "exactcheck", "exactcheck2",
-  "memset",
+  "memset", "memcmp"
   "llvm.memcpy.i32", "llvm.memcpy.i64",
   "llvm.memset.i32", "llvm.memset.i64",
   "llvm.memmove.i32", "llvm.memmove.i64",
-  "memcmp"
+  "llvm.sqrt.f64",
+  // These functions are not marked as "readonly"
+  // So we have to add them to the list explicitly
+  "atoi", "srand", "fabs", "random", "srandom"
 };
 
 // Functions used in checking
@@ -149,6 +152,7 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   // function if all actuals are values
   bool 
   SpeculativeCheckingInsertSyncPoints::isSafeFunction(Function * F) {
+    return F->onlyReadsMemory();
     /*
     bool existsPointerArgs = false;
     for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E && !existsPointerArgs; ++I) {
@@ -158,6 +162,34 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
 
     return !existsPointerArgs;
     */
-    return false;
+//    return false;
+  }
+
+  ///
+  /// SpeculativeCheckStoreCheckPass methods
+  ///
+  char SpeculativeCheckStoreCheckPass::ID = 0;
+  static Constant * funcStoreCheck;
+
+  bool SpeculativeCheckStoreCheckPass::doInitialization(Module & M) {
+    std::vector<const Type *> args;
+    args.push_back(PointerType::getUnqual(Type::Int8Ty));
+    FunctionType * funcStoreCheckTy = FunctionType::get(Type::VoidTy, args, false);
+    funcStoreCheck = M.getOrInsertFunction("__sc_par_store_check", funcStoreCheckTy);
+    return true;
+  }
+
+  // TODO: Handle volatile instructions
+  bool SpeculativeCheckStoreCheckPass::runOnBasicBlock(BasicBlock & BB) {
+    bool changed = false;    
+    for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
+      if (StoreInst * SI = dyn_cast<StoreInst>(I)) {
+	Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), PointerType::getUnqual(Type::Int8Ty), "", SI);
+	
+	CallInst::Create(funcStoreCheck, CastedPointer, "", SI);
+	changed = true;
+      }
+    }
+    return changed;
   }
 }

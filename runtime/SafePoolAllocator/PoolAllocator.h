@@ -15,6 +15,8 @@
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 #include "llvm/ADT/hash_set.h"
+#include "safecode/Config/config.h"
+#include "poolalloc_runtime/Support/SplayTree.h"
 
 #include <stdarg.h>
 #include <string.h>
@@ -25,15 +27,30 @@
 #define AddrArrSize 2
 extern unsigned poolmemusage;
 //unsigned PCheckPassed = 1;
+
+typedef struct DebugMetaData {
+  unsigned allocID;
+  unsigned freeID;
+  void * allocPC;
+  void * freePC;
+  void * canonAddr;
+} DebugMetaData;
+
+typedef DebugMetaData * PDebugMetaData;
+
 typedef struct PoolTy {
   // Splay tree used for object registration
-  void * Objects;
-  
+  RangeSplaySet<> Objects;
+#if SC_ENABLE_OOB 
   // Splay tree used for out of bound objects
-  void * OOB;
+  RangeSplayTreeMap<PDebugMetaData> OOB;
+#endif
 
+// FIXME: should be dangling pointer macro
+#if SC_DEBUGTOOL
   // Splay tree used by dangling pointer runtime
   void * DPTree;
+#endif
 
   // Linked list of slabs used for stack allocations
   void * StackSlabs;
@@ -73,18 +90,10 @@ typedef struct PoolTy {
 
   short AllocadPool;
   void *allocaptr;
+#if 0
   std::map<void *,unsigned> * RegNodes;
+#endif
 } PoolTy;
-
-typedef struct DebugMetaData {
-  unsigned allocID;
-  unsigned freeID;
-  void * allocPC;
-  void * freePC;
-  void * canonAddr;
-} DebugMetaData;
-
-typedef DebugMetaData * PDebugMetaData;
 
 extern "C" {
   void pool_init_runtime(unsigned Dangling);

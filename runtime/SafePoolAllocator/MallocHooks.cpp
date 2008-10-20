@@ -17,10 +17,11 @@
 #include <malloc/malloc.h>
 #endif
 
-#include "adl_splay.h"
+#include "poolalloc_runtime/Support/SplayTree.h"
+
 
 // Splay tree for recording external allocations
-void * ExternalObjects = 0;
+RangeSplaySet<> ExternalObjects;
 
 #if defined(__APPLE__)
 // The real allocation functions
@@ -62,68 +63,68 @@ installAllocHooks (void) {
 static void *
 track_malloc (malloc_zone_t * zone, size_t size) {
   // Pointer to the allocated object
-  void * objp;
+  char * objp;
 
   //
   // Perform the allocation.
   //
-  objp = real_malloc (zone, size);
+  objp = (char*) real_malloc (zone, size);
 
   //
   // Record the allocation and return to the caller.
   //
-  adl_splay_insert (&(ExternalObjects), objp, size, 0);
+  ExternalObjects.insert(objp, objp + size);
   return objp;
 }
 
 static void *
 track_valloc (malloc_zone_t * zone, size_t size) {
   // Pointer to the allocated object
-  void * objp;
+  char * objp;
 
   //
   // Perform the allocation.
   //
-  objp = real_valloc (zone, size);
+  objp = (char*) real_valloc (zone, size);
 
   //
   // Record the allocation and return to the caller.
   //
-  adl_splay_insert (&(ExternalObjects), objp, size, 0);
+  ExternalObjects.insert(objp, objp + size);
   return objp;
 }
 
 static void *
 track_calloc (malloc_zone_t * zone, size_t num, size_t size) {
   // Pointer to the allocated object
-  void * objp;
+  char * objp;
 
   //
   // Perform the allocation.
   //
-  objp = real_calloc (zone, num, size);
+  objp = (char*) real_calloc (zone, num, size);
 
   //
   // Record the allocation and return to the caller.
   //
-  adl_splay_insert (&(ExternalObjects), objp, num*size, 0);
+  ExternalObjects.insert(objp, objp + num * size);
   return objp;
 }
 
 static void *
 track_realloc (malloc_zone_t * zone, void * oldp, size_t size) {
   // Pointer to the allocated object
-  void * objp;
+  char * objp;
 
   //
   // Perform the allocation.
   //
-  objp = real_realloc (zone, oldp, size);
+  objp = (char*) real_realloc (zone, oldp, size);
 
   //
   // Record the allocation and return to the caller.
   //
-  adl_splay_insert (&(ExternalObjects), objp, size, 0);
+  ExternalObjects.insert(objp, objp + size);
   return objp;
 }
 
@@ -137,7 +138,7 @@ track_free (malloc_zone_t * zone, void * p) {
   //
   // Record the allocation and return to the caller.
   //
-  adl_splay_delete (&(ExternalObjects), p);
+  ExternalObjects.remove(p);
   return;
 }
 #else

@@ -17,7 +17,7 @@
 #define DEBUG(FORMAT, ...) 
 #endif
 
-#define ENABLE_SPLAY_TREE_TAG
+// #define ENABLE_SPLAY_TREE_TAG
 
 typedef struct tree_node Tree;
 struct tree_node {

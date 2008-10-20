@@ -27,7 +27,7 @@ public:
 
   static void pooldestroy(PoolTy *Pool) {
     __barebone_pooldestroy(Pool);
-    adl_splay_clear(&Pool->Objects);
+    Pool->Objects.clear();
     // FIXME: SPEC 300.twolf failed in the below assertion,
     // to see why. 
     // assert (Pool->Objects == 0);

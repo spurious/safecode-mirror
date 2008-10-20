@@ -32,6 +32,9 @@
 
 NAMESPACE_SC_BEGIN
 
+static unsigned int gDataStart;
+static unsigned int gDataEnd;
+
 // A flag to indicate that the checking thread has done its work
 static unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 
@@ -251,8 +254,14 @@ void __sc_par_wait_for_completion() {
 
   PROFILING(
   unsigned long long end_sync_time = rdtsc();
-  llvm::safecode::profile_sync_point(start_time, end_time, size);
+  llvm::safecode::profile_sync_point(start_sync_time, end_sync_time, size);
   )
 }
+
+void __sc_par_store_check(void * ptr) {
+  if (&gDataStart <= ptr && ptr <= &gDataEnd) {
+     *((volatile int*)0);
+  }
+} 
 
 }

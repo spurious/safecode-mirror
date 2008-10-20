@@ -7,8 +7,15 @@
 #include <stdlib.h>
 #include "Config.h"
 #include "rdtsc.h"
-#define ENABLE_PROFILING
+#define ENABLE_PROFILING 1
 #undef ENABLE_PROFILING
+
+// HACK
+#ifdef __linux__
+#define LOG_FN_TMPL "/localhome/mai4/profiler.%s.dat"
+#else
+#define LOG_FN_TMPL "/Users/mai4/work/data/profiler.%s.dat"
+#endif
 
 #ifdef ENABLE_PROFILING
 #define PROFILING(X) X

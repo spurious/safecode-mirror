@@ -26,6 +26,10 @@ public:
   typedef PoolTy PoolT;
   static void * poolalloc(PoolTy *Pool, unsigned NumBytes) {
     void * ret = __barebone_poolalloc(Pool, NumBytes);
+#if 0
+    fprintf(stderr, "Alloc Pool=%p ret=%p/%08x\n", Pool, ret, NumBytes);
+    fflush(stderr);
+#endif
     __sc_par_poolregister(Pool, ret, NumBytes);
     return ret;
   }
@@ -43,9 +47,11 @@ public:
 
   static void pooldestroy(PoolTy *Pool) {
     __barebone_pooldestroy(Pool);
-    adl_splay_clear(&Pool->Objects);
-//    adl_splay_delete_tag(&Pool->Objects, 0);
-    assert (Pool->Objects == 0);
+#if 0
+    fprintf(stderr, "Destr Pool=%p\n", Pool);
+    fflush(stderr);
+#endif
+    Pool->Objects.clear();
   }
   
   static void pool_init_runtime() {
@@ -55,6 +61,10 @@ public:
 
   static void poolfree(PoolTy *Pool, void *Node) {
     __barebone_poolfree(Pool, Node);
+#if 0
+    fprintf(stderr, "Free Pool=%p ret=%p\n", Pool, Node);
+    fflush(stderr);
+#endif
     __sc_par_poolunregister(Pool, Node);
   }
 };

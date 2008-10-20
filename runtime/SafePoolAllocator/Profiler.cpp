@@ -13,13 +13,10 @@
 #define FOPEN64 fopen
 #endif
 
-#define SAMPLING_FACTOR	1
+#define SAMPLING_FACTOR	32
  
 NAMESPACE_SC_BEGIN
 
-// HACK
-static const char * LOG_FN_TMPL = "/localhome/mai4/profiler.%s.dat";
-// static const char * LOG_FN_TMPL = "/Users/mai4/work/data/profiler.%s.dat";
 
 /*
 struct profile_entry {
@@ -54,7 +51,7 @@ struct profile_entry_queue_op {
 #define SEED(X)
 #endif
 
-#if 0
+#if ENABLE_PROFILING && ENABLE_SAMPLING
 #define SAMPLING(RAND_SEED, INTERVAL, CODE) \
   do { \
     if (((double)rand_r(&RAND_SEED) * INTERVAL / RAND_MAX) < 1) { \

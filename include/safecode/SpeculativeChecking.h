@@ -26,6 +26,18 @@ namespace llvm {
     bool isSafeFunction(Function * F);
     bool isCheckingCall(const std::string & FName) const;
   };
+
+  // A pass instruments store instructions to protect the queue
+  struct SpeculativeCheckStoreCheckPass : public BasicBlockPass {
+  public:
+    static char ID;
+  SpeculativeCheckStoreCheckPass() : BasicBlockPass((uintptr_t)&ID) {};
+    virtual ~SpeculativeCheckStoreCheckPass() {}
+    virtual bool doInitialization(Module & M);
+    virtual bool doInitialization(Function &F) { return false; };
+    virtual const char * getPassName() const { return "Instrument store instructions to protect the metadata of parallel checking"; }
+    virtual bool runOnBasicBlock(BasicBlock & BB);
+  };
 }
 
 #endif

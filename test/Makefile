@@ -23,6 +23,12 @@ else
 LARGESIZE :=
 endif
 
+ifdef ENABLE_OPTIMIZED
+OPTIMIZED := ENABLE_OPTIMIZED=1
+else
+OPTIMIZED :=
+endif
+
 
 LARGE_PROBLEM_SIZE_DIRS :=
 
@@ -32,9 +38,10 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   External/SPEC/CINT2000/164.gzip \
-#   MultiSource/Benchmarks/Olden \
+   MultiSource/Benchmarks/Olden \
+#   MultiSource/Benchmarks/Ptrdist \
 #   External/SPEC/CINT2000 \
+#   External/SPEC/CINT2000/164.gzip \
 #   SingleSource \
 #   External/SPEC/CINT2000/300.twolf \
 #   SingleSource \
@@ -60,6 +67,9 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 ##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
+               
+#mkdir -p /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'`; \
+#mv /localhome/mai4/profiler.*.dat /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'` || true;) \
 
 # Program tests for Pool Allocation
 progtest::
@@ -71,10 +81,8 @@ progtest::
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
-                   report.html report.csv; \
-               mkdir -p /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'`; \
-               mv /localhome/mai4/profiler.*.dat /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'` || true;) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) $(OPTIMIZED) \
+                   report.html report.csv; ) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \

@@ -14,9 +14,7 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-ifndef SC
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
-endif
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/Debug/bin/sc
 
 # Pool allocator pass shared object
 #PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
@@ -87,7 +85,8 @@ Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT) $(PA_PRE_RT_BC)
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
 Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LOPT) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.poolalloc.ld $< $(PA_PRE_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.poolalloc.ld.bc -o $@ -f 2>&1 > $@.out
 
 #
 # These rules compile the new .bc file into a .c file using llc

@@ -25,8 +25,6 @@
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "Report.h"
-#include "adl_splay.h"
-#include "safecode/Config/config.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -52,11 +50,18 @@
 
 // global variable declarations
 extern unsigned PPageSize;
+#if SC_DEBUGTOOL
 static unsigned globalallocID = 0;
 static unsigned globalfreeID = 0;
-static void * globalTemp = 0;
 static PoolTy dummyPool;
 static unsigned dummyInitialized = 0;
+#endif
+
+#if SC_ENABLE_OOB
+static unsigned char * invalidptr = 0;
+#endif
+
+static void * globalTemp = 0;
 unsigned poolmemusage = 0;
 
 /// UNUSED in production version
@@ -72,7 +77,7 @@ unsigned InvalidLower = 0x00000003;
 #endif
 
 // Splay tree of external objects
-extern void * ExternalObjects;
+extern RangeSplaySet<> ExternalObjects;
 
 #ifndef SC_DEBUGTOOL
 /// It should be always zero in production version 
@@ -82,6 +87,7 @@ static /*const*/ unsigned logregs = 0;
 static /*const*/ unsigned logregs = 0;
 #endif
 
+#if SC_DEBUGTOOL
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);
 
@@ -92,7 +98,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
                                          void *,
                                          void *,
                                          void *);
-
+#endif
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -766,7 +772,7 @@ pool_init_runtime (unsigned Dangling) {
   InvalidUpper = (unsigned int) Addr + invalidsize;
 #endif
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
   //
   // Open up an additional file for error reporting.
   //
@@ -803,8 +809,6 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
   // Initialize the splay tree
-  Pool->Objects = Pool->OOB = Pool->DPTree = 0;
-  Pool->DPTree = 0;
   Pool->Ptr1 = Pool->Ptr2 = 0;
   Pool->LargeArrays = 0;
   Pool->StackSlabs = Pool->FreeStackSlabs = 0;
@@ -823,13 +827,12 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
 #if 0
   Pool->RegNodes = new std::map<void*,unsigned>;
 #endif
-  
+
+#if SC_DEBUGTOOL  
   if (dummyInitialized == 1)
     return;
   
   dummyPool.NodeSize = NodeSize ? NodeSize : 1;
-  // Initialize the splay tree
-  dummyPool.Objects = dummyPool.OOB = dummyPool.DPTree = 0;
   dummyPool.Ptr1 = dummyPool.Ptr2 = 0;
   dummyPool.LargeArrays = 0;
   // For SAFECode, we set FreeablePool to 0 always
@@ -848,6 +851,7 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   dummyPool.RegNodes = new std::map<void*,unsigned>;
 #endif
   dummyInitialized = 1;
+#endif
 }
 
 void
@@ -864,8 +868,7 @@ void
 pooldestroy(PoolTy *Pool) {
   DISABLED_IN_PRODUCTION_VERSION ;
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
-  adl_splay_delete_tag(&Pool->Objects, 0);
-  assert (Pool->Objects == 0);
+  Pool->Objects.clear();
 
   if (Pool->AllocadPool) return;
 
@@ -935,8 +938,8 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
     void * retAddress = (void *)((uintptr_t)(globalTemp) & ~(PPageSize - 1));
 
     if (logregs) {
-      fprintf(stderr, " poolallocarray:704: globalTemp = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
-              (void*)globalTemp, offset, (void*)retAddress);
+      fprintf(stderr, " poolallocarray:704: globalTemp = 0x%p, offset = 0x%08lx, retAddress = 0x%p\n",
+              globalTemp, offset, retAddress);
       fflush(stderr);
     }
     return (void*) ((char*)retAddress + offset);
@@ -966,8 +969,8 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
       //  remap the page to get a shadow page (dangling pointer detection library)
       PS = (PoolSlab *) RemapObject(globalTemp, Size*Pool->NodeSize);
       if (logregs) {
-        fprintf(stderr, " poolallocarray:735: globalTemp = 0x%x\n", (void*)globalTemp);
-        fprintf(stderr ," poolallocarray:736: PS = 0x%08x, offset = 0x%08x, retAddress = 0x%08x\n",
+        fprintf(stderr, " poolallocarray:735: globalTemp = 0x%p\n", globalTemp);
+        fprintf(stderr ," poolallocarray:736: PS = 0x%p, offset = 0x%08x, retAddress = 0x%p\n",
               (void*)PS, offset, (char*)PS + offset);
       }
       return (void*) ((char*)PS + offset);
@@ -1005,8 +1008,8 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
   New = (PoolSlab *) RemapObject(globalTemp, Size*Pool->NodeSize);
   offset = (uintptr_t)globalTemp & (PPageSize - 1);
   if (logregs) {
-    fprintf(stderr, " poolallocarray:774: globalTemp = 0x%x\n, offset = 0x%x\n", (void*)globalTemp, offset);
-    fprintf(stderr, " poolallocarray:775: New = 0x%08x, Size = %d, retAddress = 0x%08x\n",
+    fprintf(stderr, " poolallocarray:774: globalTemp = 0x%p\n, offset = 0x%x\n", (void*)globalTemp, offset);
+    fprintf(stderr, " poolallocarray:775: New = 0x%p, Size = %d, retAddress = 0x%p\n",
         (void*)New, Size, (char*)New + offset);
   }
   return (void*) ((char*)New + offset);
@@ -1035,9 +1038,10 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 #if 0
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
 #endif
-  adl_splay_insert(&(Pool->Objects), allocaptr, NumBytes, 0);
+  assert (NumBytes > 0);
+  Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
   if (logregs) {
-    fprintf (stderr, "poolregister: %x %d\n", (void*)allocaptr, NumBytes);
+    fprintf (stderr, "poolregister: %p %d\n", (void*)allocaptr, NumBytes);
   }
 #endif
 }
@@ -1045,9 +1049,9 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 void
 poolunregister(PoolTy *Pool, void * allocaptr) {
   if (!Pool) return;
-  adl_splay_delete(&Pool->Objects, allocaptr);
+  Pool->Objects.remove(allocaptr);
   if (logregs) {
-    fprintf (stderr, "pooluregister: %x\n", allocaptr);
+    fprintf (stderr, "pooluregister: %p\n", allocaptr);
   }
 }
 
@@ -1061,7 +1065,7 @@ frag(PoolTy * Pool) {
     totalalloc += PS->allocated;
     fprintf (stderr, "%2f\n", (double) PS->allocated * 100 / (double) PS->getSlabSize());
   }
-  fprintf (stderr, "%d %d %2f\n", totalalloc, total, (double) totalalloc * 100 / (double) total);
+  fprintf (stderr, "%lu %lu %2f\n", totalalloc, total, (double) totalalloc * 100 / (double) total);
   fflush (stderr);
 }
 
@@ -1095,7 +1099,6 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   unsigned NodeSize = Pool->NodeSize;
   unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
   unsigned offset = 0;
-  PDebugMetaData debugmetadataPtr;
   
   // Call a helper function if we need to allocate more than 1 node.
   if (NodesToAllocate > 1) {
@@ -1107,10 +1110,11 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     //
     // Record information about this allocation in the global debugging
     // structure.
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
+    PDebugMetaData debugmetadataPtr;
     globalallocID++;
     debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-    adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+    dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
 #endif
     if (logregs) {
       fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");
@@ -1122,13 +1126,13 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     // to the canonical address.
     //
     // globalTemp is the canonical page address
-    adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+    Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
     
     //if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
     //  logregs = 1;
     
     if (logregs) {
-      fprintf(stderr, " poolalloc:863: Pool=%x, retAddress = 0x%08x NumBytes = %d globalTemp = 0x%08x pc = 0x%08x\n", (void*) (Pool),
+      fprintf(stderr, " poolalloc:863: Pool=%p, retAddress = 0x%p NumBytes = %d globalTemp = 0x%p pc = 0x%p\n", (void*) (Pool),
           (void*)retAddress, NumBytes, (void*)globalTemp, __builtin_return_address(0)); fflush(stderr);
     }
     assert (retAddress && "poolalloc(1): Returning NULL!\n");
@@ -1151,7 +1155,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       globalTemp = PS->getElementAddress(Element, NodeSize);
       offset = (uintptr_t)globalTemp & (PPageSize - 1);
       if (logregs) {
-        fprintf(stderr, " poolalloc:885: canonical page = 0x%08x offset = 0x%08x\n", (void*)globalTemp, offset);
+        fprintf(stderr, " poolalloc:885: canonical page = 0x%p offset = 0x%08x\n", (void*)globalTemp, offset);
       }
       //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
       
@@ -1159,7 +1163,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
       retAddress = (void*) ((char*)PS + offset);
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
       //
       // Record information about the allocation for use in debugging error
       // messages.
@@ -1167,12 +1171,12 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       globalallocID++;
       debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                           __builtin_return_address(0), 0, globalTemp);
-      adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+      dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
 #endif
       
-      adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+      Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
       if (logregs) {
-        fprintf(stderr, " poolalloc:900: Pool=%x, retAddress = 0x%08x, NumBytes = %d\n", (void*)(Pool), (void*)retAddress, NumBytes);
+        fprintf(stderr, " poolalloc:900: Pool=%p, retAddress = 0x%p, NumBytes = %d\n", (void*)(Pool), (void*)retAddress, NumBytes);
       }
       assert (retAddress && "poolalloc(2): Returning NULL!\n");
       return retAddress;
@@ -1197,7 +1201,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
         retAddress = (void*) ((char*)PS + offset);
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
         //
         // Record information about the allocation for use in debugging error
         // messages.
@@ -1205,12 +1209,12 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         globalallocID++;
         debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                             __builtin_return_address(0), 0, globalTemp);
-        adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, debugmetadataPtr);
+        dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
 #endif
         
-        adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+        Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
         if (logregs) {
-          fprintf (stderr, " poolalloc:932: PS = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x\n",
+          fprintf (stderr, " poolalloc:932: PS = 0x%p, retAddress = 0x%p, NumBytes = %d, offset = 0x%08x\n",
                 (void*)PS, (void*)retAddress, NumBytes, offset);
         }
         assert (retAddress && "poolalloc(3): Returning NULL!\n");
@@ -1247,13 +1251,13 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   int Idx = New->allocateSingle();
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
   if (logregs) {
-    fprintf(stderr, " poolalloc:967: canonical page at 0x%08x from underlying allocator\n", (void*)New);
+    fprintf(stderr, " poolalloc:967: canonical page at 0x%p from underlying allocator\n", (void*)New);
   }
   globalTemp = New->getElementAddress(0, 0);
   offset = (uintptr_t)globalTemp & (PPageSize - 1);
   
   if (logregs) {
-    fprintf(stderr, " poolalloc:973: element at 0x%08x, offset=0x%08x\n", (void*)globalTemp, offset);
+    fprintf(stderr, " poolalloc:973: element at 0x%p, offset=0x%08x\n", (void*)globalTemp, offset);
   }
   //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
   
@@ -1262,19 +1266,19 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   offset = (uintptr_t)globalTemp & (PPageSize - 1);
   retAddress = (void*) ((char*)New + offset);
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
   //
   // Record information about the allocation for use in debugging error
   // messages.
   //
   globalallocID++;
   debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-  adl_splay_insert(&(dummyPool.DPTree), retAddress, NumBytes, (void *) debugmetadataPtr);
+  dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
 #endif
   
-  adl_splay_insert(&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+  Pool->Objects.insert(retAddress, (char*)retAddress + NumBytes - 1);
   if (logregs) {
-    fprintf (stderr, " poolalloc:990: New = 0x%08x, retAddress = 0x%08x, NumBytes = %d, offset = 0x%08x pc=0x%08x\n",
+    fprintf (stderr, " poolalloc:990: New = 0x%p, retAddress = 0x%p, NumBytes = %d, offset = 0x%08x pc=0x%p\n",
           (void*)New, (void*)retAddress, NumBytes, offset, __builtin_return_address(0));
   }
   assert (retAddress && "poolalloc(4): Returning NULL!\n");
@@ -1359,7 +1363,7 @@ pool_newstack (PoolTy * Pool) {
   //
   PS->addToList((StackSlab**)&Pool->StackSlabs);
 #if 1
-fprintf (stderr, "\nnewstack: %x %x\n", PS, PS->Canonical);
+fprintf (stderr, "\nnewstack: %p %p\n", (void*)PS, (void*)PS->Canonical);
 fflush (stderr);
 #endif
   return;
@@ -1401,8 +1405,8 @@ pool_alloca (PoolTy * Pool, unsigned int NumBytes) {
   // structure.
   // FIXME: Need to ensure MetaData is correct for debugging
   //
+#if SC_DEBUGTOOL
   PDebugMetaData debugmetadataPtr;
-#ifdef SC_DEBUGTOOL
   globalallocID++;
   debugmetadataPtr = createPtrMetaData (globalallocID,
                                         globalfreeID,
@@ -1410,10 +1414,8 @@ pool_alloca (PoolTy * Pool, unsigned int NumBytes) {
                                         0,
                                         globalTemp);
 
-  adl_splay_insert (&(dummyPool.DPTree),
-                    retAddress,
-                    NumBytes,
-                    (void *) debugmetadataPtr);
+  dummyPool.DPTree.insert( retAddress, (char*) retAddress + NumBytes - 1,
+                     debugmetadataPtr);
 #endif
 
   // Register the object in the splay tree.  Keep track of its debugging data
@@ -1421,7 +1423,7 @@ pool_alloca (PoolTy * Pool, unsigned int NumBytes) {
   // to the canonical address.
   //
   // globalTemp is the canonical page address
-  adl_splay_insert (&(Pool->Objects), retAddress, NumBytes, debugmetadataPtr);
+  Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
     
   assert (retAddress && "pool_alloca(1): Returning NULL!\n");
   return retAddress;
@@ -1435,7 +1437,7 @@ pool_delstack (PoolTy * Pool) {
   // Get the canonical page corresponding to this slab.
   //
 #if 1
-fprintf (stderr, "delstack: %x\n", PS);
+fprintf (stderr, "delstack: %p\n", (void*)PS);
 fflush (stderr);
 #endif
 
@@ -1512,11 +1514,10 @@ SearchForContainingSlab(PoolTy *Pool, void *Node, unsigned &TheIndex) {
 
 void
 poolcheck(PoolTy *Pool, void *Node) {
-  void* S = Node;
-  unsigned len = 0;
+  void * S, * end;
   if (!Pool) return;
-  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
-  if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
+  bool fs = Pool->Objects.find(Node, S, end);
+  if ((fs) && (S <= Node) && (Node <= end)) {
     return;
   }
 
@@ -1529,39 +1530,37 @@ poolcheck(PoolTy *Pool, void *Node) {
 
 void
 poolcheckui (PoolTy *Pool, void *Node) {
-  void* S = Node;
-  unsigned len = 0;
+  void * S, *end;
   if (!Pool) return;
 
   /*
    * Look for the object within the pool's splay tree.
    */
-  int fs = adl_splay_retrieve(&(Pool->Objects), &S, &len, 0);
-  if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
+  bool fs = Pool->Objects.find(Node, S, end);
+  if ((fs) && (S <= Node) && (Node <= end)) {
     return;
   }
 
   /*
    * Look for the object within the splay tree of external objects.
    */
-  S = Node;
-  len = 0;
-  fs = adl_splay_retrieve (&(ExternalObjects), &S, &len, 0);
-  if ((fs) && (S <= Node) && (((char*)S + len) > (char*)Node)) {
-    return;
-  }
+	if (ConfigData.TrackExternalMallocs) {
+		S = Node;
+		fs = ExternalObjects.find(Node, S, end);
+		if ((fs) && (S <= Node) && (Node <= end)) {
+			return;
+		}
+	}
 
   /*
    * The node is not found or is not within bounds.  Report a warning but keep
    * going.
    */
-  fprintf (stderr, "PoolcheckUI failed(%x:%x): %x %x from %x\n", 
-      (uintptr_t)Pool, fs, (uintptr_t)Node, len, (uintptr_t)__builtin_return_address(0));
+  fprintf (stderr, "PoolcheckUI failed(%p:%x): %p %p from %p\n", 
+      (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
   fflush (stderr);
   return;
 }
-
-static unsigned char * invalidptr = 0;
 
 //
 // Function: boundscheck_lookup()
@@ -1570,13 +1569,12 @@ static unsigned char * invalidptr = 0;
 //  Perform the lookup for a bounds check.
 //
 // Return value:
-//  Returns the length of the object if the object is found.
-//  Otherwise, returns 0.
+//  Returns true if the object is found.
 //
-int
-boundscheck_lookup (PoolTy * Pool, void ** Source ) {
+bool 
+boundscheck_lookup (PoolTy * Pool, void * & Source, void * & End ) {
   // Search for object for Source in splay tree, return length 
-  return adl_splay_lookup (&(Pool->Objects), Source);
+  return Pool->Objects.find(Source, Source, End);
 }
 
 //
@@ -1598,7 +1596,7 @@ boundscheck_lookup (PoolTy * Pool, void ** Source ) {
 //  any valid object.
 //
 void *
-boundscheck_check (void * ObjStart, int ObjLen, PoolTy * Pool,
+boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                    void * Source, void * Dest, bool CanFail) {
   //
   // First, we know that the pointer is out of bounds.  If we indexed off the
@@ -1606,26 +1604,23 @@ boundscheck_check (void * ObjStart, int ObjLen, PoolTy * Pool,
   // pointer into an OOB pointer.  Whether we can or not depends upon the
   // SAFECode configuration.
   //
-  if (ObjLen) {
+  if (found) {
     if ((ConfigData.StrictIndexing == false) ||
-        (((char *) Dest) == ((char*)ObjStart + ObjLen))) {
+        (((char *) Dest) == ObjEnd)) {
       void * ptr = rewrite_ptr (Pool, Dest);
       if (logregs)
-        fprintf (ReportLog, "boundscheckui: rewrite: %x %x %x %x at pc=%x to %x\n",
-                 ObjStart, ObjLen, Source, Dest, (void*)__builtin_return_address(1), ptr);
+        fprintf (ReportLog, "boundscheckui: rewrite: %p %p %p %p at pc=%p to %p\n",
+                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr);
         fflush (ReportLog);
       return ptr;
     } else {
-      PDebugMetaData debugmetadataptr;
       unsigned allocPC = 0;
       unsigned allocID = 0;
+#if SC_DEBUGTOOL
+      PDebugMetaData debugmetadataptr;
       unsigned freeID = 0;
-      void * S = ObjStart;
-#ifdef SC_DEBUGTOOL
-      if (adl_splay_retrieve (&(dummyPool.DPTree),
-                              &S,
-                              NULL,
-                              (void **) &debugmetadataptr)) {
+      void * S , * end;
+      if (dummyPool.DPTree.find(ObjStart, S, end, debugmetadataptr)) {
         allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
         allocID  = debugmetadataptr->allocID;
       }
@@ -1636,7 +1631,7 @@ boundscheck_check (void * ObjStart, int ObjLen, PoolTy * Pool,
                          (unsigned)allocPC,
                          (uintptr_t)__builtin_return_address(0),
                          (uintptr_t)ObjStart,
-                         (unsigned)ObjLen);
+                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)));
       return Dest;
     }
   }
@@ -1668,15 +1663,14 @@ boundscheck_check (void * ObjStart, int ObjLen, PoolTy * Pool,
    * Attempt to look for the object in the external object splay tree.
    */
   if (ConfigData.TrackExternalMallocs) {
-    void * S = Source;
-    unsigned len_new = 0;
-    int fs = adl_splay_retrieve (&(ExternalObjects), &S, &len_new, 0);
+    void * S, * end;
+    bool fs = ExternalObjects.find(Source, S, end);
     if (fs) {
-      if ((S <= Dest) && (((char*)S + len_new) > (char*)Dest)) {
+      if ((S <= Dest) && (Dest <= end)) {
         return Dest;
       } else {
         if (logregs) {
-          fprintf (ReportLog, "boundscheckui: %x %x %x\n", Pool, Source, Dest);
+          fprintf (ReportLog, "boundscheckui: %p %p %p\n", (void*)Pool, Source, Dest);
           fflush (ReportLog);
         }
 
@@ -1686,7 +1680,7 @@ boundscheck_check (void * ObjStart, int ObjLen, PoolTy * Pool,
                            (unsigned)0,
                            (uintptr_t)__builtin_return_address(1),
                            (uintptr_t)S,
-                           (unsigned)ObjLen);
+                           (unsigned)((char*) ObjEnd - (char*)(ObjStart)));
       }
     }
   }
@@ -1720,13 +1714,12 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheck() calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source;
-  int ObjLen = boundscheck_lookup (Pool, &ObjStart); 
+  void * ObjStart, * ObjEnd;
+  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object
-  if (__builtin_expect (ObjLen &&
-                        ((ObjStart <= Dest) &&
-                        ((char*)ObjStart + ObjLen) > (char*)Dest), 1)) {
+  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
+                        ((Dest <= ObjEnd))), 1)) {
     return Dest;
   } else {
     //
@@ -1734,7 +1727,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object in which Source was found
     //
-    return boundscheck_check (ObjStart, ObjLen, Pool, Source, Dest, true);  
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true);  
   }
 }
 
@@ -1754,13 +1747,12 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source;
-  int ObjLen = boundscheck_lookup (Pool, &ObjStart); 
+  void * ObjStart, * ObjEnd;
+  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object
-  if (__builtin_expect (ObjLen &&
-                        ((ObjStart <= Dest) &&
-                        ((char*)ObjStart + ObjLen) > (char*)Dest), 1)) {
+  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
+                        ((Dest <= ObjEnd))), 1)) {
     return Dest;
   } else {
     //
@@ -1768,7 +1760,7 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object in which Source was found
     //
-    return boundscheck_check (ObjStart, ObjLen, Pool, Source, Dest, false);
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false);
   }
 }
 
@@ -1780,7 +1772,7 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
  */
 void *
 rewrite_ptr (PoolTy * Pool, void * p) {
-#ifdef SC_ENABLE_OOB
+#if SC_ENABLE_OOB
   // Used for exactcheck calls in which no pool is specified.
   static PoolTy OOBPool;
 
@@ -1795,7 +1787,7 @@ rewrite_ptr (PoolTy * Pool, void * p) {
   }
 
   if (!Pool) Pool = &OOBPool;
-  adl_splay_insert (&(Pool->OOB), P, 1, p);
+  Pool->OOB.insert(P, P, p);
   return invalidptr;
 #else
   return p;
@@ -1810,14 +1802,14 @@ rewrite_ptr (PoolTy * Pool, void * p) {
  */
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
-#ifdef SC_ENABLE_OOB
+#if SC_ENABLE_OOB
   if ((uintptr_t)src <= InvalidLower) return src;
 
   void* tag = 0;
-
+  void * end;
   /* outside rewrite zone */
   if ((uintptr_t)src & ~(InvalidUpper - 1)) return src;
-  if (adl_splay_retrieve(&(Pool->OOB), &src, 0, &tag)) {
+  if (Pool->OOB.find(src, src, end, tag)) {
     return tag;
   }
 
@@ -2000,12 +1992,10 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
   //
   // Look for the object in the splay of regular objects.
   //
-  void* S = Node;
-  unsigned len = 0;
-  void * tag = 0;
-  int t = adl_splay_retrieve(&Pool->Objects, &S, &len, &tag);
+  void * S, * end;
+  bool t = Pool->Objects.find(Node, S, end);
 
-  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == Offset)) {
+  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == (int)Offset)) {
       return;
   }
 
@@ -2043,29 +2033,29 @@ poolfree(PoolTy *Pool, void *Node) {
   
   
   if (logregs) {
-    printf(" poolfree:1368: poolfree to addr 0x%08x\n", (uintptr_t)Node);
+    printf(" poolfree:1368: poolfree to addr 0x%p\n", Node);
   }
 
   // Canonical pointer for the pointer we're freeing
   void * CanonNode = Node;
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
   // update DebugMetaData
   globalfreeID++;
 
   // FIXME: figure what mykey, NumPPAge and len are for
-  void * mykey;
+  void * mykey, * end;
   unsigned len = 1;
   unsigned NumPPage = 0;
   unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
   PDebugMetaData debugmetadataptr;
-  mykey = Node;
   
   //
   // Retrieve the debug information about the node.  This will include a
   // pointer to the canonical page.
   //
-  adl_splay_retrieve (&(Pool->Objects), &mykey, &len, (void **) &debugmetadataptr);
+  // Haohui: redirect the query from the pool to the dummy pool
+  dummyPool.DPTree.find(node, mykey, end, debugmetadataptr);
   assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
   
   if (logregs) {
@@ -2096,7 +2086,7 @@ poolfree(PoolTy *Pool, void *Node) {
   //
   // Allow the poolcheck runtime to finish the bookkeping it needs to do.
   //
-  adl_splay_delete (&Pool->Objects, Node);
+  Pool->Objects.remove(Node);
   
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
@@ -2114,16 +2104,17 @@ poolfree(PoolTy *Pool, void *Node) {
 
     if (PS->isSingleArray) {
       PS->unlinkFromList();
-      
+#if SC_DEBUGTOOL
       // works done to update the DebugMetaData struct for
       //  dangling pointer runtime
       globalfreeID++;
-      void * mykey;
-      unsigned len = 0;
+      void * mykey, *end;
       PDebugMetaData debugmetadataptr;
       mykey = Node;
-      adl_splay_retrieve(&(Pool->DPTree), &mykey, &len, (void **) &debugmetadataptr);
-      updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));      
+      // Haohui: redirect the query from Pool->DPTree to dummyPool  
+      Pool->DPTree.find(Node, mykey, end, debugmetadataptr);
+      updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));     
+#endif 
       return;
     }
 
@@ -2131,7 +2122,7 @@ poolfree(PoolTy *Pool, void *Node) {
     assert((int)Idx != -1 && "Node not contained in slab??");
   }
 
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
   //
   // Ensure that the pointer is valid; if not, warn the user.
   //
@@ -2191,7 +2182,7 @@ poolfree(PoolTy *Pool, void *Node) {
     PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
  
-#ifdef SC_DEBUGTOOL
+#if SC_DEBUGTOOL
   // Protect the shadow pages
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
   
@@ -2228,6 +2219,7 @@ poolfree(PoolTy *Pool, void *Node) {
 //  fields so to keep a record of the pointer's meta data
 //
 extern "C" { void * internal_malloc (unsigned int size);}
+#if SC_DEBUGTOOL
 static PDebugMetaData
 createPtrMetaData (unsigned paramAllocID,
                    unsigned paramFreeID,
@@ -2247,7 +2239,6 @@ createPtrMetaData (unsigned paramAllocID,
   return ret;
 }
 
-#ifdef SC_DEBUGTOOL
 static inline void
 updatePtrMetaData (PDebugMetaData debugmetadataptr,
                    unsigned globalfreeID,
@@ -2257,6 +2248,8 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
   return;
 }
 #endif
+
+#if SC_DEBUGTOOL
 
 //
 // Function: bus_error_handler()
@@ -2269,17 +2262,19 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   signal(SIGBUS, NULL);
   ucontext_t * mycontext = (ucontext_t *) context;
 
-  unsigned len = 0;
-  void * faultAddr = info->si_addr;
+  void * faultAddr = info->si_addr, *end;
   PDebugMetaData debugmetadataptr;
   int fs = 0;
-  if (0 == (fs = adl_splay_retrieve(&(dummyPool.DPTree), &faultAddr, &len, (void **) &debugmetadataptr)))
+
+#if SC_DEBUGTOOL
+  if (0 == (fs = dummyPool.DPTree.find(info->si_addr, faultAddr, &end, debugmetadataptr)))
   {
     extern FILE * ReportLog;
     fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
     fflush(ReportLog);
     abort();
   }
+#endif
  
   // FIXME: Correct the semantics for calculating NumPPage 
   unsigned NumPPage;
@@ -2325,6 +2320,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   return;
 }
 
+#endif
  
 
 //
@@ -2355,7 +2351,7 @@ funccheck (unsigned num, void *f, void *g, ...) {
     }
   }
   if (logregs) {
-  fprintf(stderr, "funccheck failed(num=%d): %x %x\n", num, f, g);
+  fprintf(stderr, "funccheck failed(num=%d): %p %p\n", num, f, g);
   fflush(stderr);
   }
   abort();
@@ -2479,7 +2475,6 @@ __barebone_poolallocarray(PoolTy* Pool, unsigned Size) {
   }
  
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  uintptr_t offset;
 
   // Loop through all of the slabs looking for one with an opening
   for (; PS; PS = PS->Next) {
@@ -2541,8 +2536,6 @@ __barebone_pool_alloca(PoolTy * Pool, unsigned int NumBytes) {
   // Allocate memory from the function's single slab.
   assert (Pool->StackSlabs && "pool_alloca: No call to newstack!\n");
   globalTemp = ((StackSlab *)(Pool->StackSlabs))->allocate (NumBytes);
-fprintf (stderr, "alloca: %x %x\n", globalTemp, NumBytes);
-fflush (stderr);
 
   //
   // Allocate and remap the object.

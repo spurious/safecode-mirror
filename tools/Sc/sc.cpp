@@ -66,6 +66,8 @@ DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc(
 static cl::opt<bool>
 EnableSpecChecking("spec-checking", cl::init(false), cl::desc("Use speculative checking"));
 
+static cl::opt<bool>
+EnableProtectingMetaData("protect-metadata", cl::init(false), cl::desc("Instrument store instructions to protect the meta data"));
 
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
@@ -171,6 +173,9 @@ int main(int argc, char **argv) {
       convertToParallelChecking();
       Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
+      if (EnableProtectingMetaData) {
+        Passes.add(new SpeculativeCheckStoreCheckPass());
+      }
     } else {
 #ifndef SC_DEBUGTOOL
       // Use new allocator
