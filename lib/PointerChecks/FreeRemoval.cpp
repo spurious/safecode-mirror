@@ -437,7 +437,7 @@ EmbeCFreeRemoval::guessDSNode (Value *v, DSGraph &G, PA::FuncInfo *PAFI) {
 // Disabled guessPoolPtrAndInsertCheck(); no one seems to use it right now.
 //
 #if 0
-  void EmbeCFreeRemoval::guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph &oldG) {
+  void EmbeCFreeRemoval::guessPoolPtrAndInsertCheck(PA::FuncInfo *PAFI, Value *oldI, Instruction  *I, Value *pOpI, DSGraph *oldG) {
     Visited.clear();
     //follow up v through the ssa def0use chains
     DSNode *DSN = guessDSNode(oldI, oldG, PAFI);
@@ -481,11 +481,11 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
   else
     isClonedFunc = true;
   
-  DSGraph& oldG = PoolInfo->getDSGraph(*Forig);
+  DSGraph* oldG = PoolInfo->getDSGraph(*Forig);
   
   // For each scalar pointer in the original function
-  for (DSGraph::ScalarMapTy::iterator SMI = oldG.getScalarMap().begin(), 
-   SME = oldG.getScalarMap().end(); SMI != SME; ++SMI) {
+  for (DSGraph::ScalarMapTy::iterator SMI = oldG->getScalarMap().begin(), 
+   SME = oldG->getScalarMap().end(); SMI != SME; ++SMI) {
     DSNodeHandle &GH = SMI->second;
 
     //We need to insert checks to all the uses of this ptr
@@ -554,8 +554,8 @@ EmbeCFreeRemoval::addRuntimeChecks(Function *F, Function *Forig) {
   
   if (!PAFI->PoolDescriptors.empty()) {
   // For each scalar pointer in the original function
-    for (DSGraph::ScalarMapTy::iterator SMI = oldG.getScalarMap().begin(), 
-     SME = oldG.getScalarMap().end(); SMI != SME; ++SMI) {
+    for (DSGraph::ScalarMapTy::iterator SMI = oldG->getScalarMap().begin(), 
+     SME = oldG->getScalarMap().end(); SMI != SME; ++SMI) {
       DSNodeHandle &GH = SMI->second;
       DSNode *DSN = GH.getNode();
       if (!DSN) 

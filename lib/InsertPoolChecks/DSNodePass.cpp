@@ -40,7 +40,7 @@ DSNodePass::runOnModule(Module & M) {
 //  selects the correct pass to query for the graph based upon whether we're
 //  doing user-space or kernel analysis.
 //
-DSGraph &
+DSGraph *
 DSNodePass::getDSGraph(Function & F) {
 #ifndef LLVA_KERNEL
   return paPass->getDSGraph(F);
@@ -203,20 +203,20 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   assert (paPass->hasDSGraph(*F) && "No DSGraph for function!\n");
 
   const Value * V = (Vnew) ? Vnew : VOrig;
-  DSGraph &TDG = paPass->getDSGraph(*F);
+  DSGraph * TDG = paPass->getDSGraph(*F);
 #else  
-  DSGraph &TDG = TDPass->getDSGraph(*F);
+  DSGraph * TDG = TDPass->getDSGraph(*F);
 #endif  
-  DSNode *DSN = TDG.getNodeForValue((Value *)V).getNode();
+  DSNode *DSN = TDG->getNodeForValue((Value *)V).getNode();
   return DSN;
 }
 
 unsigned DSNodePass::getDSNodeOffset(const Value *V, Function *F) {
 #ifndef LLVA_KERNEL
-  DSGraph &TDG = paPass->getDSGraph(*F);
+  DSGraph *TDG = paPass->getDSGraph(*F);
 #else  
-  DSGraph &TDG = TDPass->getDSGraph(*F);
+  DSGraph *TDG = TDPass->getDSGraph(*F);
 #endif  
-  return TDG.getNodeForValue((Value *)V).getOffset();
+  return TDG->getNodeForValue((Value *)V).getOffset();
 }
 }

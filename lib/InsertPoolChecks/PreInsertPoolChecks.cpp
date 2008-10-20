@@ -135,8 +135,8 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       // Don't register the llvm.used variable
       if (GV->getName() == "llvm.used") continue;
       if (GV->getType() != PoolDescPtrTy) {
-        DSGraph &G = paPass->getGlobalsGraph();
-        DSNode *DSN  = G.getNodeForValue(GV).getNode();
+        DSGraph *G = paPass->getGlobalsGraph();
+        DSNode *DSN  = G->getNodeForValue(GV).getNode();
 
         // Skip it if there is never a run-time check
         if (dsnPass->CheckedDSNodes.find(DSN) == dsnPass->CheckedDSNodes.end()) {

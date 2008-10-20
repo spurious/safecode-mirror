@@ -57,7 +57,7 @@ bool checkStackSafety::runOnModule(Module &M) {
     Function &F = *MI;
     if (&F != MainFunc) {
       if (!F.isDeclaration()) {
-        DSGraph &BUG = BUDS->getDSGraph(F);
+        DSGraph * BUG = BUDS->getDSGraph(F);
 	
         // check if return value is a  pointers
         if (isa<PointerType>(F.getReturnType())) {
@@ -66,7 +66,7 @@ bool checkStackSafety::runOnModule(Module &M) {
                              ii != ie;
                              ++ii) {
             if (ReturnInst *RI = dyn_cast<ReturnInst>(&*ii)) {
-              DSNode *DSN = BUG.getNodeForValue(RI).getNode();
+              DSNode *DSN = BUG->getNodeForValue(RI).getNode();
               if (DSN && markReachableAllocas(DSN)) {
                 std::cerr << "Instruction : \n" << RI
                           << "points to a stack location\n";
@@ -80,7 +80,7 @@ bool checkStackSafety::runOnModule(Module &M) {
         Function::arg_iterator AI = F.arg_begin(), AE = F.arg_end();
         for (; AI != AE; ++AI) {
           if (isa<PointerType>(AI->getType())) {
-            DSNode *DSN = BUG.getNodeForValue(AI).getNode();
+            DSNode *DSN = BUG->getNodeForValue(AI).getNode();
             if (markReachableAllocas(DSN,true)) {
               std::cerr << "Instruction : \n" << AI
                         << "points to a stack location\n";
@@ -90,7 +90,7 @@ bool checkStackSafety::runOnModule(Module &M) {
         }
 	
         // Also, mark allocas pointed to by globals
-        DSGraph::node_iterator DSNI = BUG.node_begin(), DSNE = BUG.node_end();
+        DSGraph::node_iterator DSNI = BUG->node_begin(), DSNE = BUG->node_end();
 	
         for (; DSNI != DSNE; ++DSNI) {
           if (DSNI->isGlobalNode()) {

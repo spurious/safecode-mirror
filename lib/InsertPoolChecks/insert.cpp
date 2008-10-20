@@ -600,8 +600,8 @@ InsertPoolChecks::insertExactCheck (Instruction * I,
   //
 #if 1
   Function *F   = I->getParent()->getParent();
-  DSGraph & TDG = dsnPass->getDSGraph(*F);
-  DSNode * Node = TDG.getNodeForValue(I).getNode();
+  DSGraph * TDG = dsnPass->getDSGraph(*F);
+  DSNode * Node = TDG->getNodeForValue(I).getNode();
   if (!Node)
     return false;
 #endif
@@ -909,8 +909,8 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
 //  Insert a poolcheck() into the code for a load or store instruction.
 //
 void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
-  DSGraph & TDG = TDPass->getDSGraph(*F);
-  DSNode * Node = TDG.getNodeForValue(V).getNode();
+  DSGraph * TDG = TDPass->getDSGraph(*F);
+  DSNode * Node = TDG->getNodeForValue(V).getNode();
   
   if (Node && Node->isNodeCompletelyFolded()) {
     if (!EnableIncompleteChecks) {
@@ -1478,8 +1478,8 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     GetElementPtrInst *GEPNew = GEP;
     Instruction *Casted = GEP;
 
-    DSGraph & TDG = TDPass->getDSGraph(*F);
-    DSNode * Node = TDG.getNodeForValue(GEP).getNode();
+    DSGraph * TDG = TDPass->getDSGraph(*F);
+    DSNode * Node = TDG->getNodeForValue(GEP).getNode();
 
     DEBUG(std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node ");
     DEBUG(std::cerr << Node << std::endl);
