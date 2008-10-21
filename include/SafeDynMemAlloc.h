@@ -4,6 +4,28 @@
 // dynamic memory
 // 
 //===----------------------------------------------------------------------===//
+//
+// FIXME:
+//  This pass is currently disabled and a subset of its functinality moved to
+//  the Check Insertion Pass.  However, removing it from the sc tool seems to
+//  cause the other SAFECode passes grief.  Therefore, this pass is left in
+//  place, but it does nothing.
+//
+// FIXME:
+//  Note that this pass preserves all other passes.  This must be left intact;
+//  otherwise, it will invalidate the pool allocation results and cause
+//  SAFECode to erronously re-execute the pool allocation pass.
+//
+// This file defines the interface to the EmbeCFreeRemoval pass.  This pass
+// appears to do two things:
+//
+//  o) It ensures that there are load/store checks on pointers that point to
+//     type-known data but are loaded from type-unknown partitions.
+//
+//  o) It seems to perform some sort of sanity/correctness checking of pool
+//     creation/destruction.
+//
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_EMBEC_H
 #define LLVM_EMBEC_H
@@ -78,14 +100,12 @@ namespace llvm {
     void addRuntimeChecks(Function *F, Function *Forig);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-/*
 #ifndef LLVA_KERNEL
       AU.addRequired<PoolAllocateGroup>();
       AU.addPreserved<PoolAllocateGroup>();
 #endif      
       AU.addRequired<CallGraph>();
       AU.setPreservesAll();
-*/
     }
 
     // Maps from a function to a set of Pool pointers and DSNodes from the 
