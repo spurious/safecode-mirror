@@ -1113,8 +1113,14 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
 #if SC_DEBUGTOOL
     PDebugMetaData debugmetadataPtr;
     globalallocID++;
-    debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-    dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
+    debugmetadataPtr = createPtrMetaData (globalallocID,
+                                          globalfreeID,
+                                          __builtin_return_address(0),
+                                          0,
+                                          globalTemp);
+    dummyPool.DPTree.insert (retAddress,
+                             (char*) retAddress + NumBytes - 1,
+                             debugmetadataPtr);
 #endif
     if (logregs) {
       fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");
@@ -1169,6 +1175,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       // messages.
       //
       globalallocID++;
+      PDebugMetaData debugmetadataPtr;
       debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                           __builtin_return_address(0), 0, globalTemp);
       dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
@@ -1207,6 +1214,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         // messages.
         //
         globalallocID++;
+        PDebugMetaData debugmetadataPtr;
         debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
                             __builtin_return_address(0), 0, globalTemp);
         dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
@@ -1272,6 +1280,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // messages.
   //
   globalallocID++;
+  PDebugMetaData debugmetadataPtr;
   debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
   dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
 #endif
@@ -1283,6 +1292,41 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   }
   assert (retAddress && "poolalloc(4): Returning NULL!\n");
   return retAddress;
+}
+
+//
+// Function: poolalloc_debug()
+//
+// Description:
+//  This function is just like poolalloc() except that it associates a source
+//  file and line number with the allocation.
+//
+void *
+poolalloc_debug (PoolTy *Pool,
+                 unsigned NumBytes,
+                 void * SourceFilep,
+                 unsigned lineno) {
+  // Do some initial casting for type goodness
+  unsigned char * SourceFile = (unsigned char *)(SourceFilep);
+
+  // Perform the allocation and determine its offset within the physical page.
+  void * canonptr = __barebone_poolalloc(Pool, NumBytes);
+  unsigned offset = (((unsigned)(canonptr)) & (PageSize-1));
+
+#if 0
+  // Remap the object if necessary.
+  void * shadowpage = RemapObject (canonptr, NumBytes);
+  void * shadowptr = (unsigned char *)(shadowpage) + offset;
+
+  // Register the object in the splay tree.
+  poolregister (Pool, shadowptr, NumBytes);
+
+  // Return the shadow pointer.
+  return shadowptr;
+#else
+  poolregister (Pool, canonptr, NumBytes);
+  return canonptr;
+#endif
 }
 
 void *
@@ -1696,6 +1740,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                        (uintptr_t)__builtin_return_address(0),
                        (uintptr_t)0,
                        (unsigned)0);
+    abort();
   }
 
   return Dest;
@@ -2055,7 +2100,7 @@ poolfree(PoolTy *Pool, void *Node) {
   // pointer to the canonical page.
   //
   // Haohui: redirect the query from the pool to the dummy pool
-  dummyPool.DPTree.find(node, mykey, end, debugmetadataptr);
+  dummyPool.DPTree.find (Node, mykey, end, debugmetadataptr);
   assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
   
   if (logregs) {
@@ -2218,7 +2263,6 @@ poolfree(PoolTy *Pool, void *Node) {
 //  Allocates memory for a DebugMetaData struct and fills up the appropriate
 //  fields so to keep a record of the pointer's meta data
 //
-extern "C" { void * internal_malloc (unsigned int size);}
 #if SC_DEBUGTOOL
 static PDebugMetaData
 createPtrMetaData (unsigned paramAllocID,
@@ -2227,9 +2271,10 @@ createPtrMetaData (unsigned paramAllocID,
                    void * paramFreePC,
                    void * paramCanon) {
   // FIXME:
-  //  This only works because DebugMetaData and a splay tree node are of
-  //  identical size.
-  PDebugMetaData ret = (PDebugMetaData) internal_malloc(sizeof(DebugMetaData));
+  //  This will cause an allocation that is registered as an external
+  //  allocation.  We need to use some internal allocation routine.
+  //
+  PDebugMetaData ret = (PDebugMetaData) malloc (sizeof(DebugMetaData));
   ret->allocID = paramAllocID;
   ret->freeID = paramFreeID;
   ret->allocPC = paramAllocPC;
@@ -2267,7 +2312,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   int fs = 0;
 
 #if SC_DEBUGTOOL
-  if (0 == (fs = dummyPool.DPTree.find(info->si_addr, faultAddr, &end, debugmetadataptr)))
+  if (0 == (fs = dummyPool.DPTree.find (info->si_addr, faultAddr, end, debugmetadataptr)))
   {
     extern FILE * ReportLog;
     fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
@@ -2279,6 +2324,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // FIXME: Correct the semantics for calculating NumPPage 
   unsigned NumPPage;
   unsigned offset = (unsigned) ((long)info->si_addr & (PPageSize - 1) );
+  unsigned int len = (unsigned char *)(end) - (unsigned char *)(faultAddr) + 1;
   NumPPage = (len / PPageSize) + 1;
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
