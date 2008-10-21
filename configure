@@ -2859,7 +2859,7 @@ if test "${with_poolalloc_srcdir+set}" = set; then
   withval=$with_poolalloc_srcdir; poolallocsrcdir="$withval"
 
 else
-  poolallocsrcdir="$LLVM_SRC_ROOT/projects/llvm-poolalloc"
+  poolallocsrcdir="$LLVM_SRC_ROOT/projects/poolalloc"
 
 
 fi
@@ -2871,7 +2871,7 @@ if test "${with_poolalloc_objdir+set}" = set; then
   withval=$with_poolalloc_objdir; poolallocobjdir="$withval"
 
 else
-  poolallocobjdir="$LLVM_OBJ_ROOT/projects/llvm-poolalloc"
+  poolallocobjdir="$LLVM_OBJ_ROOT/projects/poolalloc"
 
 
 fi

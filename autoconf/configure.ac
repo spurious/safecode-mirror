@@ -102,14 +102,14 @@ AC_ARG_WITH(poolalloc-srcdir,
   AS_HELP_STRING([--with-poolalloc-srcdir],
     [Specify location of Pool Allocation source code]),
     AC_SUBST(poolallocsrcdir,"$withval"),
-    AC_SUBST(poolallocsrcdir,"$LLVM_SRC_ROOT/projects/llvm-poolalloc"
+    AC_SUBST(poolallocsrcdir,"$LLVM_SRC_ROOT/projects/poolalloc"
     ))
 
 AC_ARG_WITH(poolalloc-objdir,
   AS_HELP_STRING([--with-poolalloc-objdir],
     [Specify location of Pool Allocation object code]),
     AC_SUBST(poolallocobjdir,"$withval"),
-    AC_SUBST(poolallocobjdir,"$LLVM_OBJ_ROOT/projects/llvm-poolalloc"
+    AC_SUBST(poolallocobjdir,"$LLVM_OBJ_ROOT/projects/poolalloc"
     ))
 
 dnl **************************************************************************
