@@ -78,12 +78,14 @@ namespace llvm {
     void addRuntimeChecks(Function *F, Function *Forig);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+/*
 #ifndef LLVA_KERNEL
       AU.addRequired<PoolAllocateGroup>();
       AU.addPreserved<PoolAllocateGroup>();
 #endif      
       AU.addRequired<CallGraph>();
       AU.setPreservesAll();
+*/
     }
 
     // Maps from a function to a set of Pool pointers and DSNodes from the 

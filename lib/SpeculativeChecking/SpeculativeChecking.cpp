@@ -92,7 +92,7 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   bool
   SpeculativeCheckingInsertSyncPoints::runOnBasicBlock(BasicBlock & BB) {
 #ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
-    CTF = &getAnalysis<CallTargetFinder>();
+    dsnodePass = &getAnalysis<DSNodePass>();
 #endif
     bool changed = false;
     sHaveSeenCheckingCall = true;
@@ -161,17 +161,17 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
     return false;
   } 
 
-  bool SpeculativeCheckingInsertSyncPoints::isSafeIndirectCall(CallInst * CI) const {
-     CallSite CS = CallSite::get(CI);
-     if (!CTF->isComplete(CS)) return false;
+  bool
+  SpeculativeCheckingInsertSyncPoints::isSafeIndirectCall(CallInst * CI) const {
+    // FIXME: Determine whether the call site is complete
 
-     typedef std::vector<const Function*>::iterator iter_t;
-     for (iter_t it = CTF->begin(CS), end = CTF->end(CS); it != end; ++it) {
-       if (!isSafeDirectCall(*it)) {
-          return false;
-       }
-     }
-     return true;
+    typedef DataStructures::callee_iterator iter_t;
+    for (iter_t it = dsnodePass->paPass->callee_begin(CI), end = dsnodePass->paPass->callee_end(CI); it != end; ++it) {
+      if (!isSafeDirectCall(*it)) {
+	return false;
+      }
+    }
+    return true;
   }
 
   ///

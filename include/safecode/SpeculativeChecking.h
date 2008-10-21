@@ -12,6 +12,7 @@
 /* #define PAR_CHECKING_ENABLE_INDIRECTCALL_OPT */
 
 namespace llvm {
+  struct DSNodePass;
   struct SpeculativeCheckingInsertSyncPoints : public BasicBlockPass {
   public:
     static char ID;
@@ -23,7 +24,7 @@ namespace llvm {
     virtual const char * getPassName() const { return "Insert synchronization points between checking threads and application threads"; };
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
-       AU.addRequired<CallTargetFinder>();
+       AU.addRequired<DSNodePass>();
 #endif
        AU.setPreservesAll();
     };
@@ -34,7 +35,7 @@ namespace llvm {
     bool isSafeDirectCall(const Function *F)const;
     bool isSafeIndirectCall(CallInst * CI) const;
     bool isCheckingCall(const std::string & FName) const;
-    CallTargetFinder * CTF;
+    DSNodePass * dsnodePass;
   };
 
   // A pass instruments store instructions to protect the queue
