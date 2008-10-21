@@ -14,6 +14,7 @@
 
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
+
 #include "llvm/ADT/hash_set.h"
 #include "safecode/Config/config.h"
 #include "poolalloc_runtime/Support/SplayTree.h"
@@ -41,15 +42,16 @@ typedef DebugMetaData * PDebugMetaData;
 typedef struct PoolTy {
   // Splay tree used for object registration
   RangeSplaySet<> Objects;
+
 #if SC_ENABLE_OOB 
   // Splay tree used for out of bound objects
-  RangeSplayTreeMap<PDebugMetaData> OOB;
+  RangeSplayMap<PDebugMetaData> OOB;
 #endif
 
-// FIXME: should be dangling pointer macro
+  // FIXME: should be dangling pointer macro
 #if SC_DEBUGTOOL
   // Splay tree used by dangling pointer runtime
-  void * DPTree;
+  RangeSplayMap<PDebugMetaData> DPTree;
 #endif
 
   // Linked list of slabs used for stack allocations
@@ -124,6 +126,8 @@ extern "C" {
   void * pool_alloca (PoolTy * Pool, unsigned int NumBytes);
 
   void * rewrite_ptr (PoolTy *, void * p);
+
+  void * poolalloc_debug (PoolTy *P, unsigned Size, void * SrcFle, unsigned no);
   //void protect_shadowpage();
  
   // Barebone allocators, which only do allocations
