@@ -29,6 +29,8 @@ else
 OPTIMIZED :=
 endif
 
+PROFILING_DAT_DIR := /Users/mai4/work/data
+PROFILING_RESULT_DIR := /Users/mai4/work/data/profiling
 
 LARGE_PROBLEM_SIZE_DIRS :=
 
@@ -39,6 +41,16 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/Olden \
+#  MultiSource/Benchmarks/Olden/bh \
+  MultiSource/Benchmarks/Olden/bisort \
+  MultiSource/Benchmarks/Olden/em3d \
+  MultiSource/Benchmarks/Olden/health \
+  MultiSource/Benchmarks/Olden/mst \
+  MultiSource/Benchmarks/Olden/perimeter \
+  MultiSource/Benchmarks/Olden/power \
+  MultiSource/Benchmarks/Olden/treeadd \
+  MultiSource/Benchmarks/Olden/tsp \
+  MultiSource/Benchmarks/Olden/voronoi \
 #   MultiSource/Benchmarks/Ptrdist \
 #   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/164.gzip \
@@ -68,8 +80,8 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 # Targets for gathering statistics for programs for papers
 ##############################################################################
                
-#mkdir -p /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'`; \
-#mv /localhome/mai4/profiler.*.dat /localhome/mai4/`echo -n $$dir|sed -e 's/home\/vadve\/mai4\/work\/llvm\/projects\/llvm-test\/External\/SPEC\/CINT2000\///g'` || true;) \
+#mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
+#mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
 
 # Program tests for Pool Allocation
 progtest::
@@ -81,8 +93,9 @@ progtest::
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) $(OPTIMIZED) \
-                   report.html report.csv; ) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
+                   report.html report.csv; )\
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \

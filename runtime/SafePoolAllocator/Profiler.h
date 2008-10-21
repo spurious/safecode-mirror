@@ -8,6 +8,8 @@
 #include "Config.h"
 #include "rdtsc.h"
 #define ENABLE_PROFILING 1
+#define SAMPLING_FACTOR	32
+#define ENABLE_SAMPLING 1
 #undef ENABLE_PROFILING
 
 // HACK

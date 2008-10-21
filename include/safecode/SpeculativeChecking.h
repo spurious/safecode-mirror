@@ -6,7 +6,10 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
+#include "dsa/CallTargets.h"
 #include "safecode/Config/config.h"
+
+/* #define PAR_CHECKING_ENABLE_INDIRECTCALL_OPT */
 
 namespace llvm {
   struct SpeculativeCheckingInsertSyncPoints : public BasicBlockPass {
@@ -18,13 +21,20 @@ namespace llvm {
     virtual bool doInitialization(Function &F) { return false; };
     virtual bool runOnBasicBlock(BasicBlock & BB);
     virtual const char * getPassName() const { return "Insert synchronization points between checking threads and application threads"; };
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {  };
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+#ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
+       AU.addRequired<CallTargetFinder>();
+#endif
+       AU.setPreservesAll();
+    };
 
   private:
     bool insertSyncPointsBeforeExternalCall(CallInst * CI);
     bool insertSyncPointsAfterCheckingCall(CallInst * CI);
-    bool isSafeFunction(Function * F);
+    bool isSafeDirectCall(const Function *F)const;
+    bool isSafeIndirectCall(CallInst * CI) const;
     bool isCheckingCall(const std::string & FName) const;
+    CallTargetFinder * CTF;
   };
 
   // A pass instruments store instructions to protect the queue

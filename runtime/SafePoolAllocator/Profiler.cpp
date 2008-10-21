@@ -12,8 +12,6 @@
 #else
 #define FOPEN64 fopen
 #endif
-
-#define SAMPLING_FACTOR	32
  
 NAMESPACE_SC_BEGIN
 
@@ -45,7 +43,7 @@ struct profile_entry_queue_op {
 };
 
 
-#ifdef ENABLE_PROFILING
+#if ENABLE_PROFILING
 #define SEED(X) static unsigned int X = (unsigned int) (pthread_self())
 #else
 #define SEED(X)
@@ -67,23 +65,23 @@ struct profile_entry_queue_op {
 
 class Profiler {
 private:
-  static const size_t QUEUE_OP_COUNT = 8;
+/*  static const size_t QUEUE_OP_COUNT = 8;
   static const size_t BUCKET_HISTOGRAM = 1 << 22;
   unsigned m_queue_op_count[QUEUE_OP_COUNT][BUCKET_HISTOGRAM];
-
+*/
   FILE * h_sync_point;
   FILE * h_enqueue;
   FILE * h_queue_op;
 public:
   Profiler() {
-    char buf[1024];
+    char buf[512];
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "sync");
     h_sync_point = FOPEN64(buf, "wb");
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "enqueue");
     h_enqueue = FOPEN64(buf, "wb");
     snprintf(buf, sizeof(buf), LOG_FN_TMPL, "queue_op");
     h_queue_op = FOPEN64(buf, "wb");
-    memset(m_queue_op_count, 0, sizeof(m_queue_op_count));
+//    memset(m_queue_op_count, 0, sizeof(m_queue_op_count));
   }
 
   ~Profiler() {

@@ -9,6 +9,7 @@
 #include "safecode/Config/config.h"
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/VectorListHelper.h"
+#include "InsertPoolChecks.h"
 
 using namespace llvm;
 
@@ -29,7 +30,6 @@ namespace {
 // TODO: add stuffs like strlen / strcpy / strncpy
 static const char * safeFunctions[] = {
 //  "__sc_par_poolinit", "pool_init_runtime",
-  "exactcheck", "exactcheck2",
   "memset", "memcmp"
   "llvm.memcpy.i32", "llvm.memcpy.i64",
   "llvm.memset.i32", "llvm.memset.i64",
@@ -37,11 +37,13 @@ static const char * safeFunctions[] = {
   "llvm.sqrt.f64",
   // These functions are not marked as "readonly"
   // So we have to add them to the list explicitly
-  "atoi", "srand", "fabs", "random", "srandom"
+  "atoi", "srand", "fabs", "random", "srandom", "drand48"
+
 };
 
 // Functions used in checking
 static const char * checkingFunctions[] = {
+  "exactcheck", "exactcheck2", "funccheck",
   "__sc_par_poolregister", "__sc_par_poolunregister",
   "__sc_par_poolcheck", "__sc_par_poolcheckui",
   "__sc_par_boundscheck", "__sc_par_boundscheckui",
@@ -89,6 +91,9 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
 
   bool
   SpeculativeCheckingInsertSyncPoints::runOnBasicBlock(BasicBlock & BB) {
+#ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
+    CTF = &getAnalysis<CallTargetFinder>();
+#endif
     bool changed = false;
     sHaveSeenCheckingCall = true;
     typedef bool (SpeculativeCheckingInsertSyncPoints::*HandlerTy)(CallInst*);
@@ -104,8 +109,6 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
     return changed;
   }
 
-  // FIXME: Handle the indirect call cases.
-
   bool
   SpeculativeCheckingInsertSyncPoints::insertSyncPointsBeforeExternalCall(CallInst * CI) {
     Function *F = CI->getCalledFunction();
@@ -113,15 +116,14 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
     const std::string & FName = Fop->getName();
     bool checkingCall = isCheckingCall(FName);
     sHaveSeenCheckingCall |= checkingCall; 
+    
+    if (isSafeDirectCall(F)) return false;
 
-    // in the exception list?
-    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(FName);
-    if (it != sSafeFuncSet.end() || checkingCall) return false;
-
-    if (F && !(F->isDeclaration())) return false;
-    if (F && isSafeFunction(F)) return false;
-
+#ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
+    // indirect function call 
+    if (!F && isSafeIndirectCall(CI)) return false; 
     // TODO: Skip some intrinsic, like pow / exp
+#endif
 
     if (sHaveSeenCheckingCall) {
       CallInst::Create(sFuncWaitForSyncToken, "", CI);
@@ -146,23 +148,30 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
     return it != sCheckFuncSet.end();
   }
 
-  /// A "Safe" function means that we don't have to insert
-  /// synchronization points before the functions
-  // TODO: we might omit the synchronization points of a var-arg 
-  // function if all actuals are values
-  bool 
-  SpeculativeCheckingInsertSyncPoints::isSafeFunction(Function * F) {
-    return F->onlyReadsMemory();
-    /*
-    bool existsPointerArgs = false;
-    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E && !existsPointerArgs; ++I) {
-      existsPointerArgs = isa<PointerType>(I->getType());
-    }
-    printf("Function %s is %s\n", F->getName().c_str(), existsPointerArgs ? "unsafe" : "safe");
+  bool SpeculativeCheckingInsertSyncPoints::isSafeDirectCall(const Function * F) const {
+    if (!F) return false;
+    const std::string & FName = F->getName();
+    
+    // in the exception list?
+    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(FName);
+    if (it != sSafeFuncSet.end() || isCheckingCall(FName)) return true;
+    
+    if (!F->isDeclaration()) return true;
+    if (F->onlyReadsMemory()) return true;
+    return false;
+  } 
 
-    return !existsPointerArgs;
-    */
-//    return false;
+  bool SpeculativeCheckingInsertSyncPoints::isSafeIndirectCall(CallInst * CI) const {
+     CallSite CS = CallSite::get(CI);
+     if (!CTF->isComplete(CS)) return false;
+
+     typedef std::vector<const Function*>::iterator iter_t;
+     for (iter_t it = CTF->begin(CS), end = CTF->end(CS); it != end; ++it) {
+       if (!isSafeDirectCall(*it)) {
+          return false;
+       }
+     }
+     return true;
   }
 
   ///
@@ -192,4 +201,5 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
     }
     return changed;
   }
+
 }

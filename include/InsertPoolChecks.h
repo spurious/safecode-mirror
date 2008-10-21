@@ -149,7 +149,7 @@ struct DSNodePass : public ModulePass {
     static char ID;
     DSNodePass () : ModulePass ((intptr_t) &ID) { }
     virtual ~DSNodePass() {};
-    const char *getPassName() const { return "DS Node And Pool Handle Pass"; }
+    const char *getPassName() const { return "DS Node And Pool Allocation Handle Pass"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifndef LLVA_KERNEL      
