@@ -2,14 +2,18 @@
 /// to perform memory access checking.
 
 #include "PoolAllocator.h"
-#include "adl_splay.h"
 #include <cassert>
+/* #define DEBUG_OUTPUT */
 
 class BCPoolAllocator {
 public:
   typedef PoolTy PoolT;
   static void * poolalloc(PoolTy *Pool, unsigned NumBytes) {
     void * ret = __barebone_poolalloc(Pool, NumBytes);
+#if DEBUG_OUTPUT
+    fprintf(stderr, "Alloc Pool=%p ret=%p/%08x\n", Pool, ret, NumBytes);
+    fflush(stderr);
+#endif
     poolregister(Pool, ret, NumBytes);
     return ret;
   }
@@ -27,10 +31,11 @@ public:
 
   static void pooldestroy(PoolTy *Pool) {
     __barebone_pooldestroy(Pool);
+#if DEBUG_OUTPUT
+    fprintf(stderr, "Destr Pool=%p\n", Pool);
+    fflush(stderr);
+#endif
     Pool->Objects.clear();
-    // FIXME: SPEC 300.twolf failed in the below assertion,
-    // to see why. 
-    // assert (Pool->Objects == 0);
   }
   
   static void pool_init_runtime() {
@@ -40,6 +45,10 @@ public:
 
   static void poolfree(PoolTy *Pool, void *Node) {
     __barebone_poolfree(Pool, Node);
+#if DEBUG_OUTPUT
+    fprintf(stderr, "Free Pool=%p ret=%p\n", Pool, Node);
+    fflush(stderr);
+#endif
     poolunregister(Pool, Node);
   }
 };
@@ -51,10 +60,18 @@ extern "C" {
   }
 
   void __sc_bc_poolinit(PoolTy *Pool, unsigned NodeSize) {
+#if DEBUG_OUTPUT
+    fprintf(stderr, "Init Pool=%p\n", Pool);
+    fflush(stderr);
+#endif
     BCPoolAllocator::poolinit(Pool, NodeSize);
   }
 
   void __sc_bc_pooldestroy(PoolTy *Pool) {
+#if DEBUG_OUTPUT
+    fprintf(stderr, "Destroy Pool=%p\n", Pool);
+    fflush(stderr);
+#endif
     BCPoolAllocator::pooldestroy(Pool);
   }
 

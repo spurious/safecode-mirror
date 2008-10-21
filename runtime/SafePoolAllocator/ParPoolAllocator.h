@@ -6,8 +6,8 @@
 #define _PAR_POOL_ALLOCATOR_H_
 
 #include "PoolAllocator.h"
-#include "adl_splay.h"
 #include <cassert>
+/* #define DEBUG_OUTPUT */
 
 extern "C" {
   void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
@@ -26,7 +26,7 @@ public:
   typedef PoolTy PoolT;
   static void * poolalloc(PoolTy *Pool, unsigned NumBytes) {
     void * ret = __barebone_poolalloc(Pool, NumBytes);
-#if 0
+#if DEBUG_OUTPUT
     fprintf(stderr, "Alloc Pool=%p ret=%p/%08x\n", Pool, ret, NumBytes);
     fflush(stderr);
 #endif
@@ -47,7 +47,7 @@ public:
 
   static void pooldestroy(PoolTy *Pool) {
     __barebone_pooldestroy(Pool);
-#if 0
+#if DEBUG_OUTPUT
     fprintf(stderr, "Destr Pool=%p\n", Pool);
     fflush(stderr);
 #endif
@@ -61,7 +61,7 @@ public:
 
   static void poolfree(PoolTy *Pool, void *Node) {
     __barebone_poolfree(Pool, Node);
-#if 0
+#if DEBUG_OUTPUT
     fprintf(stderr, "Free Pool=%p ret=%p\n", Pool, Node);
     fflush(stderr);
 #endif

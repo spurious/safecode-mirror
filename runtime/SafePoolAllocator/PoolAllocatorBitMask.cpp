@@ -1714,7 +1714,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheck() calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart, * ObjEnd;
+  void * ObjStart = Source, * ObjEnd;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object
