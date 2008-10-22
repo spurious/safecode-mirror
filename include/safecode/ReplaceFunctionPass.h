@@ -4,10 +4,15 @@
 #ifndef _REPLACE_FUCNTION_PASS_H_
 #define _REPLACE_FUCNTION_PASS_H_
 
-#include <string>
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
+
+#include "poolalloc/PoolAllocate.h"
+
+#include "InsertPoolChecks.h"
 #include "safecode/Config/config.h"
+
+#include <string>
 
 namespace llvm {
 
@@ -33,6 +38,9 @@ namespace llvm {
     virtual bool runOnModule(Module & M);
     virtual const char * getPassName() const { return "Replace all uses of a function to another";}
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addPreserved<EQTDDataStructures>();
+      AU.addPreserved<PoolAllocateGroup>();
+      AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
     };
 
