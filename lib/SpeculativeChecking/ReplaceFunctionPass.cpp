@@ -12,11 +12,13 @@
 
 using namespace llvm;
 
+std::vector<ReplaceFunctionPass::ReplaceFunctionEntry> ReplaceFunctionPass::sReplaceList;
+
 char ReplaceFunctionPass::ID = 0;
-/*
+
 static RegisterPass<ReplaceFunctionPass> passReplaceFunction 
-("replace-function", "Replace all uses of a function to another");
-*/
+("replace-function-use", "Replace all uses of a function to another");
+
 namespace llvm {
 
   ////////////////////////////////////////////////////////////////////////////

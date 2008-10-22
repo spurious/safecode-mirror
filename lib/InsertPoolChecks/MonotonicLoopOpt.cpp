@@ -10,6 +10,8 @@
 #include "llvm/ADT/Statistic.h"
 
 namespace {
+  RegisterPass<llvm::MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
+
   STATISTIC (MonotonicLoopOptPoolCheck,
       "Number of monotonic loop optimization performed for poolcheck");
   STATISTIC (MonotonicLoopOptPoolCheckUI,

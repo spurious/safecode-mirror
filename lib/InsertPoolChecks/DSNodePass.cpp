@@ -18,7 +18,7 @@
 namespace llvm {
 
 char DSNodePass::ID = 0; 
-static llvm::RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false);
+static llvm::RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false, true);
 
 bool
 DSNodePass::runOnModule(Module & M) {

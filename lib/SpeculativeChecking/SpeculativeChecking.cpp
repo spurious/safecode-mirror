@@ -15,13 +15,16 @@ using namespace llvm;
 
 char SpeculativeCheckingInsertSyncPoints::ID = 0;
 
+
 /// Static Members
 namespace {
   typedef std::set<std::string> CheckFuncSetTy;
   typedef std::set<std::string> SafeFuncSetTy;
   SafeFuncSetTy sSafeFuncSet;
   CheckFuncSetTy sCheckFuncSet;
-  Constant * sFuncWaitForSyncToken;
+  Function * sFuncWaitForSyncToken;
+  llvm::RegisterPass<ParCheckingCallAnalysis> callAnalysisPass("par-check-call-analysis", "Determine which calls are safe to not inserting sync points before them", true, true);
+  llvm::RegisterPass<SpeculativeCheckingInsertSyncPoints> X("par-check-sync-points", "Insert sync points before external functions");
 }
 
 
@@ -52,40 +55,59 @@ static const char * checkingFunctions[] = {
   "__sc_par_poolfree"
 };
 
-// A simple HACK to remove redudant synchronization points in this cases:
-//
-// call external @foo
-// spam... but does not do any pointer stuffs
-// call external @bar
-// 
-// we only need to insert a sync point before foo
+// Helper functions
+namespace {
+  static bool
+  isCheckingCall(const Function * F) {
+    if (!F) return false;
+    std::string FName = F->getName();
+    CheckFuncSetTy::const_iterator it = sCheckFuncSet.find(FName);
+    return it != sCheckFuncSet.end();
+  }
 
-static bool sHaveSeenCheckingCall;
+  static bool
+  isSafeDirectCall(const Function * F) {
+    if (!F) return false;
+    const std::string & FName = F->getName();
+  
+    // in the exception list?
+    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(FName);
+    if (it != sSafeFuncSet.end() || isCheckingCall(F)) return true;
+    
+    if (!F->isDeclaration()) return true;
+    if (F->onlyReadsMemory()) return true;
+    return false;
+  }
+
+  class InitializeFunctionList {
+  public:
+    InitializeFunctionList() {
+      for (size_t i = 0; i < sizeof(checkingFunctions) / sizeof(const char *); ++i) {
+	sCheckFuncSet.insert(checkingFunctions[i]);
+      }
+
+      for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
+	sSafeFuncSet.insert(safeFunctions[i]);
+      }
+    };
+  }; 
+  static InitializeFunctionList initializer;
+}
+
 
 namespace llvm {
-cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
-                                      cl::init(false),
-                                      cl::desc("Place synchronization points only before external functions"));
-
   ////////////////////////////////////////////////////////////////////////////
   // SpeculativeCheckingInsertSyncPoints Methods
   ////////////////////////////////////////////////////////////////////////////
 
   bool
   SpeculativeCheckingInsertSyncPoints::doInitialization(Module & M) {
-    sFuncWaitForSyncToken =
-      M.getOrInsertFunction("__sc_par_wait_for_completion", 
-            FunctionType::get(Type::VoidTy,
-                  std::vector<const Type*>(), false)
-                  );
-    
-    for (size_t i = 0; i < sizeof(checkingFunctions) / sizeof(const char *); ++i) {
-      sCheckFuncSet.insert(checkingFunctions[i]);
-    }
-
-    for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
-      sSafeFuncSet.insert(safeFunctions[i]);
-    }
+    sFuncWaitForSyncToken = Function::Create
+      (FunctionType::get
+       (Type::VoidTy, std::vector<const Type*>(), false),
+       GlobalValue::ExternalLinkage,
+       "__sc_par_wait_for_completion", 
+       &M);
     return true;
   }
 
@@ -93,85 +115,75 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
   SpeculativeCheckingInsertSyncPoints::runOnBasicBlock(BasicBlock & BB) {
 #ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
     dsnodePass = &getAnalysis<DSNodePass>();
+    callSafetyAnalysis = &getAnalysis<ParCheckingCallAnalysis>();
 #endif
     bool changed = false;
-    sHaveSeenCheckingCall = true;
-    typedef bool (SpeculativeCheckingInsertSyncPoints::*HandlerTy)(CallInst*);
-    static HandlerTy handler = OptimisticSyncPoint ? 
-      &SpeculativeCheckingInsertSyncPoints::insertSyncPointsBeforeExternalCall
-      : &SpeculativeCheckingInsertSyncPoints::insertSyncPointsAfterCheckingCall;
 
     for (BasicBlock::iterator I = BB.begin(); I != BB.end(); ++I) {
       if (CallInst * CI = dyn_cast<CallInst>(I)) {
-        changed  |= (this->*handler)(CI);
+	Function * F = CI->getCalledFunction();
+	if (isSafeDirectCall(F)) continue;
+        changed |= insertSyncPointsBeforeExternalCall(CI);
       }
     }
+    removeRedundantSyncPoints(BB);
     return changed;
   }
 
   bool
   SpeculativeCheckingInsertSyncPoints::insertSyncPointsBeforeExternalCall(CallInst * CI) {
-    Function *F = CI->getCalledFunction();
-    Value * Fop = CI->getOperand(0);
-    const std::string & FName = Fop->getName();
-    bool checkingCall = isCheckingCall(FName);
-    sHaveSeenCheckingCall |= checkingCall; 
-    
-    if (isSafeDirectCall(F)) return false;
-
-#ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
-    // indirect function call 
-    if (!F && isSafeIndirectCall(CI)) return false; 
-    // TODO: Skip some intrinsic, like pow / exp
-#endif
-
-    if (sHaveSeenCheckingCall) {
+    CallInst * origCI = getOriginalCallInst(CI);
+    if (callSafetyAnalysis->isSafe(origCI)) {
+      return false;
+    } else {
       CallInst::Create(sFuncWaitForSyncToken, "", CI);
-      sHaveSeenCheckingCall = false;
+      return true;
     }
-    return true;
   }
 
-  bool
-  SpeculativeCheckingInsertSyncPoints::insertSyncPointsAfterCheckingCall(CallInst * CI) {
-    Function *F = CI->getCalledFunction();
-    if (!F || !isCheckingCall(CI->getOperand(0)->getName().c_str())) return false;
-    BasicBlock::iterator ptIns(CI);
-    ++ptIns;
-    CallInst::Create(sFuncWaitForSyncToken, "", ptIns);
-    return true;
+  CallInst *
+  SpeculativeCheckingInsertSyncPoints::getOriginalCallInst(CallInst * CI) {
+    Function * F = CI->getParent()->getParent();
+    PA::FuncInfo *FI = dsnodePass->paPass->getFuncInfo(*F);
+    if (!FI) {
+      F = dsnodePass->paPass->getOrigFunctionFromClone(F);
+      if (!F) return CI;
+      FI = dsnodePass->paPass->getFuncInfo(*F);
+      if (!FI) return CI;      
+    }
+    Value * origVal = FI->MapValueToOriginal(CI);
+    if (!origVal) return CI;
+    CallInst * origCI = dyn_cast<CallInst>(origVal);
+    return origCI ? origCI : CI;
   }
 
-  bool
-  SpeculativeCheckingInsertSyncPoints::isCheckingCall(const std::string & FName) const {
-    CheckFuncSetTy::const_iterator it = sCheckFuncSet.find(FName);
-    return it != sCheckFuncSet.end();
-  }
-
-  bool SpeculativeCheckingInsertSyncPoints::isSafeDirectCall(const Function * F) const {
-    if (!F) return false;
-    const std::string & FName = F->getName();
-    
-    // in the exception list?
-    SafeFuncSetTy::const_iterator it = sSafeFuncSet.find(FName);
-    if (it != sSafeFuncSet.end() || isCheckingCall(FName)) return true;
-    
-    if (!F->isDeclaration()) return true;
-    if (F->onlyReadsMemory()) return true;
-    return false;
-  } 
-
-  bool
-  SpeculativeCheckingInsertSyncPoints::isSafeIndirectCall(CallInst * CI) const {
-    // FIXME: Determine whether the call site is complete
-
-    typedef DataStructures::callee_iterator iter_t;
-    for (iter_t it = dsnodePass->paPass->callee_begin(CI), end = dsnodePass->paPass->callee_end(CI); it != end; ++it) {
-      if (!isSafeDirectCall(*it)) {
-	return false;
+  // A simple HACK to remove redudant synchronization points in this cases:
+  //
+  // call external @foo
+  // spam... but does not do any pointer stuffs
+  // call external @bar
+  // 
+  // we only need to insert a sync point before foo
+  void
+  SpeculativeCheckingInsertSyncPoints::removeRedundantSyncPoints(BasicBlock & BB) {
+    std::vector<CallInst *> toBeRemoved;
+    bool haveSeenCheckingCall = true;    
+    for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
+      if (CallInst * CI = dyn_cast<CallInst>(I)) { 
+	Function * F = CI->getCalledFunction();
+	bool checkingCall = isCheckingCall(F);
+	haveSeenCheckingCall |= checkingCall; 
+	if (F != sFuncWaitForSyncToken) continue;
+	if (!haveSeenCheckingCall) {
+	  toBeRemoved.push_back(CI);
+	}
+    	// Reset the flag
+	haveSeenCheckingCall = false;
       }
     }
-    return true;
+    for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
+      (*it)->eraseFromParent();
+    }
   }
 
   ///
@@ -200,6 +212,72 @@ cl::opt<bool> OptimisticSyncPoint ("optimistic-sync-point",
       }
     }
     return changed;
+  }
+
+
+  /// ParCheckingCallAnalysis Methods
+  ///
+
+  char ParCheckingCallAnalysis::ID = 0;
+
+  bool
+  ParCheckingCallAnalysis::isSafe(CallSite CS) const {
+    std::set<CallSite>::const_iterator it = CallSafetySet.find(CS);
+    if (it == CallSafetySet.end()) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  bool
+  ParCheckingCallAnalysis::runOnModule(Module & M) {
+    bool changed = false;
+    for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
+      for (Function::iterator I = FI->begin(), E = FI->end(); I != E; ++I) {
+	changed |= runOnBasicBlock(*I);
+      }
+    }
+    return changed;
+  }
+
+  bool
+  ParCheckingCallAnalysis::runOnBasicBlock(BasicBlock & BB) {
+    CTF = &getAnalysis<CallTargetFinder>();
+
+    for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
+      CallSite CS(CallSite::get(I));
+      if (CS.getInstruction() && isSafeCallSite(CS)) {
+	CallSafetySet.insert(CS);
+      }
+    }
+    return false;
+  }
+
+  bool
+  ParCheckingCallAnalysis::isSafeCallSite(CallSite CS) const {
+    Function * F = CS.getCalledFunction();
+    
+    if (isSafeDirectCall(F)) return true;
+
+    if (!F && isSafeIndirectCall(CS)) return true; 
+
+    return false;
+  }
+
+  bool
+  ParCheckingCallAnalysis::isSafeIndirectCall(CallSite CS) const {
+    typedef std::vector<const Function*>::iterator iter_t;
+    if (!CTF->isComplete(CS)) 
+      return false;
+
+    for (iter_t I = CTF->begin(CS), E = CTF->end(CS); I != E; ++I) {
+      if (!isSafeDirectCall(*I)) {
+	return false;
+      }      
+    }
+
+    return true;
   }
 
 }

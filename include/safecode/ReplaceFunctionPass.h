@@ -21,17 +21,25 @@ namespace llvm {
       orignalFunctionName(origF), newFunctionName(newF) {}
     };
     static char ID;
+    static std::vector<ReplaceFunctionEntry> sReplaceList;
+
   ReplaceFunctionPass(const std::vector<ReplaceFunctionEntry> & replaceList) : 
     ModulePass((intptr_t) &ID),
       mReplaceList(replaceList) {};
+  ReplaceFunctionPass() :
+    ModulePass((intptr_t) &ID),
+      mReplaceList(sReplaceList) {};
     virtual ~ReplaceFunctionPass() {};
     virtual bool runOnModule(Module & M);
     virtual const char * getPassName() const { return "Replace all uses of a function to another";}
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {  };
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesCFG();
+    };
 
   private:
     const std::vector<ReplaceFunctionEntry> & mReplaceList;
   };
+
 
 }
 

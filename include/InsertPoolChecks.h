@@ -131,7 +131,11 @@ struct MonotonicLoopOpt : public LoopPass {
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LoopInfo>();
     AU.addRequired<ScalarEvolution>();
-}
+    AU.addPreserved<EQTDDataStructures>();
+    AU.addPreserved<PoolAllocateGroup>();
+    AU.addPreserved<DSNodePass>();
+    AU.setPreservesCFG();
+  }
   private:
   LoopInfo * LI;
   ScalarEvolution * scevPass;

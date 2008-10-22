@@ -64,7 +64,7 @@ static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
 static cl::opt<bool>
-EnableSpecChecking("spec-checking", cl::init(false), cl::desc("Use speculative checking"));
+EnableSpecChecking("par-checking", cl::init(false), cl::desc("Use speculative checking"));
 
 static cl::opt<bool>
 EnableProtectingMetaData("protect-metadata", cl::init(false), cl::desc("Instrument store instructions to protect the meta data"));
@@ -145,10 +145,13 @@ int main(int argc, char **argv) {
     // some reason.
     Passes.add(new BottomUpCallGraph());
 
+    Passes.add(new ParCheckingCallAnalysis());
+ 
     if (FullPA)
       Passes.add(new PoolAllocate(true, true));
     else
       Passes.add(new PoolAllocateSimple(true, true));
+
 
 #if 0
     // Convert Unsafe alloc instructions first.  This version relies upon
@@ -160,12 +163,10 @@ int main(int argc, char **argv) {
     Passes.add(new InsertPoolChecks());
     Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new RegisterStackObjPass());
-    Passes.add(new InitAllocas());
+
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 
-
-    Passes.add(createLICMPass());
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());
 
@@ -183,6 +184,8 @@ int main(int argc, char **argv) {
       Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
 #endif
     }
+    
+    Passes.add(new InitAllocas());
 
     // Verify the final result
     Passes.add(createVerifierPass());
