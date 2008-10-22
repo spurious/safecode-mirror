@@ -1108,6 +1108,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       }
     } else {
       //
+      // FIXME:
+      //  The next two lines should ensure that the allocation size is large
+      //  enough for whatever value is being loaded/stored.
+      //
       // If the pointer used for the load/store check is trivially seen to be
       // valid (load/store to allocated memory or a global variable), don't
       // bother doing a check.
@@ -1116,10 +1120,17 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         return;
 
       //
+      //
+      // FIXME:
+      //  This optimization is not safe.  We need to ensure that the memory is
+      //  not freed between the previous check and this check.
+      //
       // If we've already checked this pointer, don't bother checking it again.
       //
+#if 0
       if (dsnPass->CheckedValues.find (Vnew) != dsnPass->CheckedValues.end())
         return;
+#endif
 
       bool indexed = true;
       Value * SourcePointer = findSourcePointer (Vnew, indexed, false);
@@ -1139,6 +1150,11 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         } else {
           assert (0 && "Cannot handle source pointer!\n");
         }
+
+        //
+        // FIXME:
+        //  We can add the pointer to the list of checked pointers.
+        //
         addExactCheck2 (SourcePointer, Vnew, AllocSize, I);
       } else {
         CastInst *CastVI = 
