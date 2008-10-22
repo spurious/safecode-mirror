@@ -125,15 +125,13 @@ getNextInst (Instruction * Inst) {
 //
 static inline bool
 isEligableForExactCheck (Value * Pointer, bool IOOkay) {
-  if ((isa<AllocaInst>(Pointer)) ||
-      (isa<MallocInst>(Pointer)) ||
-      (isa<GlobalVariable>(Pointer)))
+  if ((isa<AllocationInst>(Pointer)) || (isa<GlobalVariable>(Pointer)))
     return true;
 
   if (CallInst* CI = dyn_cast<CallInst>(Pointer)) {
     if (CI->getCalledFunction()) {
+#ifdef LLVA_KERNEL
       if ((CI->getCalledFunction()->getName() == "__vmalloc" ||
-           CI->getCalledFunction()->getName() == "malloc" ||
            CI->getCalledFunction()->getName() == "kmalloc" ||
            CI->getCalledFunction()->getName() == "kmem_cache_alloc" ||
            CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
@@ -141,6 +139,14 @@ isEligableForExactCheck (Value * Pointer, bool IOOkay) {
       }
 
       if (IOOkay && (CI->getCalledFunction()->getName() == "__ioremap")) {
+        return true;
+      }
+#else
+      if (CI->getCalledFunction()->getName() == "poolalloc") {
+        return true;
+      }
+#endif
+      if (CI->getCalledFunction()->getName() == "malloc") {
         return true;
       }
     }
@@ -1145,6 +1151,13 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         } else if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SourcePointer)) {
           AllocSize = ConstantInt::get (Type::Int32Ty,
                                         TD->getABITypeSize(GV->getType()->getElementType()));
+        } else if (CallInst * CI = dyn_cast<CallInst>(SourcePointer)) {
+          assert (CI->getCalledFunction() && "Indirect call!\n");
+          if (CI->getCalledFunction()->getName() == "poolalloc") {
+            AllocSize = CI->getOperand(2);
+          } else {
+            assert (0 && "Cannot recognize allocator for source pointer!\n");
+          }
         } else {
           assert (0 && "Cannot handle source pointer!\n");
         }
