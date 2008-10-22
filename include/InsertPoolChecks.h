@@ -191,13 +191,18 @@ struct DSNodePass : public ModulePass {
   unsigned getDSNodeOffset(const Value *V, Function *F);
 #ifndef LLVA_KERNEL  
   Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
+#endif
 
+  void addCheckedDSNode(const DSNode * node);
+  void addCheckedValue(const Value * value);
+  bool isDSNodeChecked(const DSNode * node) const;
+  bool isValueChecked(const Value * val) const;
+private:
   // Set of checked DSNodes
-  std::set<DSNode *> CheckedDSNodes;
+  std::set<const DSNode *> CheckedDSNodes;
 
   // The set of values that already have run-time checks
-  std::set<Value *> CheckedValues;
-#endif  
+  std::set<const Value *> CheckedValues;
 };
 
 struct RegisterStackObjPass : public FunctionPass {

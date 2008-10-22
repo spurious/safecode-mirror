@@ -27,7 +27,7 @@
 #include "llvm/Support/Debug.h"
 #include "safecode/VectorListHelper.h"
 
-#define REG_FUNC(var, ret, name, ...)do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0);
+#define REG_FUNC(var, ret, name, ...) do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0);
 
 char llvm::InsertPoolChecks::ID = 0;
 
@@ -239,7 +239,7 @@ InsertPoolChecks::addExactCheck (Value * Pointer,
   //
   // Record that this value was checked.
   //
-  dsnPass->CheckedValues.insert (Pointer);
+  dsnPass->addCheckedValue(Pointer);
 
   //
   // Attempt to determine statically if this check will always pass; if so,
@@ -351,7 +351,7 @@ InsertPoolChecks::addExactCheck2 (Value * BasePointer,
   //
   // Record that this value was checked.
   //
-  dsnPass->CheckedValues.insert (Result);
+  dsnPass->addCheckedValue(Result);
 
 #if 0
   //
@@ -1127,10 +1127,8 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       //
       // If we've already checked this pointer, don't bother checking it again.
       //
-#if 0
-      if (dsnPass->CheckedValues.find (Vnew) != dsnPass->CheckedValues.end())
+      if (dsnPass->isValueChecked (Vnew))
         return;
-#endif
 
       bool indexed = true;
       Value * SourcePointer = findSourcePointer (Vnew, indexed, false);
@@ -1166,8 +1164,8 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         std::vector<Value *> args(1,CastPHI);
         args.push_back(CastVI);
 
-        dsnPass->CheckedDSNodes.insert (Node);
-        dsnPass->CheckedValues.insert (Vnew);
+        dsnPass->addCheckedDSNode(Node);
+        dsnPass->addCheckedValue(Vnew);
         if (Node->isIncompleteNode())
           CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
         else
@@ -1475,8 +1473,8 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
         // Insert it
         DSNode * Node = dsnPass->getDSNode (GEP, F);
-        dsnPass->CheckedDSNodes.insert (Node);
-        dsnPass->CheckedValues.insert (Casted);
+        dsnPass->addCheckedDSNode(Node);
+        dsnPass->addCheckedValue(Casted);
         if (Node->isIncompleteNode())
           CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
                            "", InsertPt);

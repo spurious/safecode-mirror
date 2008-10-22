@@ -40,17 +40,18 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden \
+  MultiSource/Benchmarks/Olden/mst \
 #  MultiSource/Benchmarks/Olden/bh \
   MultiSource/Benchmarks/Olden/bisort \
-  MultiSource/Benchmarks/Olden/em3d \
   MultiSource/Benchmarks/Olden/health \
   MultiSource/Benchmarks/Olden/mst \
   MultiSource/Benchmarks/Olden/perimeter \
   MultiSource/Benchmarks/Olden/power \
   MultiSource/Benchmarks/Olden/treeadd \
   MultiSource/Benchmarks/Olden/tsp \
-  MultiSource/Benchmarks/Olden/voronoi \
+#  MultiSource/Benchmarks/Olden/em3d \
+#  MultiSource/Benchmarks/Olden/voronoi \
+#   MultiSource/Benchmarks/Olden \
 #   MultiSource/Benchmarks/Ptrdist \
 #   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/164.gzip \
@@ -80,8 +81,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 # Targets for gathering statistics for programs for papers
 ##############################################################################
                
-#mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
-#mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
 
 # Program tests for Pool Allocation
 progtest::
@@ -95,7 +94,9 @@ progtest::
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
-                   report.html report.csv; )\
+                   report.html report.csv; \
+mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
+mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \

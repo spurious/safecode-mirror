@@ -14,11 +14,15 @@
 #include <iostream>
 #include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace llvm {
 
 char DSNodePass::ID = 0; 
-static llvm::RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false, true);
+static RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false, true);
+
+cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
+  cl::desc("Check every use of GEP"));
 
 bool
 DSNodePass::runOnModule(Module & M) {
@@ -219,4 +223,31 @@ unsigned DSNodePass::getDSNodeOffset(const Value *V, Function *F) {
 #endif  
   return TDG->getNodeForValue((Value *)V).getOffset();
 }
+
+/// We don't need to maintian the checked DS nodes and
+/// checked values when we check every use of GEP.
+void
+DSNodePass::addCheckedDSNode(const DSNode * node) {
+  if (!CheckEveryGEPUse) {
+    CheckedDSNodes.insert(node);
+  }
+}
+
+void
+DSNodePass::addCheckedValue(const Value * value) {
+  if (!CheckEveryGEPUse) {
+   CheckedValues.insert(value);
+  }
+}
+
+bool
+DSNodePass::isDSNodeChecked(const DSNode * node) const {
+  return CheckedDSNodes.find(node) != CheckedDSNodes.end();
+}
+
+bool
+DSNodePass::isValueChecked(const Value * val) const {
+  return CheckedValues.find(val) != CheckedValues.end();
+}
+
 }

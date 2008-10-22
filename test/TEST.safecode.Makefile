@@ -53,7 +53,7 @@ SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.i
 
 EXTRA_LOPT_OPTIONS :=
 #-loopsimplify -unroll-threshold 0 
-OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+OPTZN_PASSES := -std-compile-opts -instcombine $(EXTRA_LOPT_OPTIONS)
 #OPTZN_PASSES := -disable-opt
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 ifeq ($(OS),Darwin)
@@ -61,6 +61,8 @@ LDFLAGS += -lpthread
 else
 LDFLAGS += -lrt -lpthread
 endif
+
+LLVMLDFLAGS= -licm
 
 # DEBUGGING
 #   o) Don't add -g to CFLAGS, CXXFLAGS, or CPPFLAGS; these are used by the

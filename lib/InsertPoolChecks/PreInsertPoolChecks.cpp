@@ -139,7 +139,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         DSNode *DSN  = G->getNodeForValue(GV).getNode();
 
         // Skip it if there is never a run-time check
-        if (dsnPass->CheckedDSNodes.find(DSN) == dsnPass->CheckedDSNodes.end()) {
+        if (dsnPass->isDSNodeChecked(DSN)) {
           ++SavedGlobals;
           continue;
         }
