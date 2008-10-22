@@ -1,4 +1,20 @@
-#define INSERT_BOUNDS_H
+//===- InsertPoolChecks.h - Insert run-time checks for SAFECode --------------//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file implements several passes that insert run-time checks to enforce
+// SAFECode's memory safety guarantees as well as several other passes that
+// help to optimize the instrumentation.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef INSERTPOOLCHECKS_H
+#define INSERTPOOLCHECKS_H
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -211,3 +227,4 @@ struct RegisterStackObjPass : public FunctionPass {
     void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig, DomTreeNode * DTN);
  };
 }
+#endif
