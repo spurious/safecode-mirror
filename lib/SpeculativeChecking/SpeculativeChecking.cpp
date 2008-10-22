@@ -83,11 +83,11 @@ namespace {
   public:
     InitializeFunctionList() {
       for (size_t i = 0; i < sizeof(checkingFunctions) / sizeof(const char *); ++i) {
-	sCheckFuncSet.insert(checkingFunctions[i]);
+        sCheckFuncSet.insert(checkingFunctions[i]);
       }
 
       for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
-	sSafeFuncSet.insert(safeFunctions[i]);
+        sSafeFuncSet.insert(safeFunctions[i]);
       }
     };
   }; 
@@ -121,8 +121,8 @@ namespace llvm {
 
     for (BasicBlock::iterator I = BB.begin(); I != BB.end(); ++I) {
       if (CallInst * CI = dyn_cast<CallInst>(I)) {
-	Function * F = CI->getCalledFunction();
-	if (isSafeDirectCall(F)) continue;
+        Function * F = CI->getCalledFunction();
+        if (isSafeDirectCall(F)) continue;
         changed |= insertSyncPointsBeforeExternalCall(CI);
       }
     }
@@ -170,15 +170,15 @@ namespace llvm {
     bool haveSeenCheckingCall = true;    
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       if (CallInst * CI = dyn_cast<CallInst>(I)) { 
-	Function * F = CI->getCalledFunction();
-	bool checkingCall = isCheckingCall(F);
-	haveSeenCheckingCall |= checkingCall; 
-	if (F != sFuncWaitForSyncToken) continue;
-	if (!haveSeenCheckingCall) {
-	  toBeRemoved.push_back(CI);
-	}
-    	// Reset the flag
-	haveSeenCheckingCall = false;
+        Function * F = CI->getCalledFunction();
+        bool checkingCall = isCheckingCall(F);
+        haveSeenCheckingCall |= checkingCall; 
+        if (F != sFuncWaitForSyncToken) continue;
+        if (!haveSeenCheckingCall) {
+          toBeRemoved.push_back(CI);
+        }
+        // Reset the flag
+        haveSeenCheckingCall = false;
       }
     }
     for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
@@ -205,10 +205,10 @@ namespace llvm {
     bool changed = false;    
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       if (StoreInst * SI = dyn_cast<StoreInst>(I)) {
-	Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), PointerType::getUnqual(Type::Int8Ty), "", SI);
-	
-	CallInst::Create(funcStoreCheck, CastedPointer, "", SI);
-	changed = true;
+        Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), PointerType::getUnqual(Type::Int8Ty), "", SI);
+  
+        CallInst::Create(funcStoreCheck, CastedPointer, "", SI);
+        changed = true;
       }
     }
     return changed;
@@ -235,7 +235,7 @@ namespace llvm {
     bool changed = false;
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
       for (Function::iterator I = FI->begin(), E = FI->end(); I != E; ++I) {
-	changed |= runOnBasicBlock(*I);
+        changed |= runOnBasicBlock(*I);
       }
     }
     return changed;
@@ -248,7 +248,7 @@ namespace llvm {
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       CallSite CS(CallSite::get(I));
       if (CS.getInstruction() && isSafeCallSite(CS)) {
-	CallSafetySet.insert(CS);
+        CallSafetySet.insert(CS);
       }
     }
     return false;
@@ -273,7 +273,7 @@ namespace llvm {
 
     for (iter_t I = CTF->begin(CS), E = CTF->end(CS); I != E; ++I) {
       if (!isSafeDirectCall(*I)) {
-	return false;
+        return false;
       }      
     }
 
