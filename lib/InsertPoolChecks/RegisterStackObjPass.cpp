@@ -114,12 +114,10 @@ namespace llvm {
     //  own copy of the DSGraph).  We will need to find another way to do this
     //  optimization.
     //
-#if 0
-    if (dsnPass->CheckedDSNodes.find(Node) == dsnPass->CheckedDSNodes.end()) {
+    if (dsnPass->isDSNodeChecked(Node)) {
       ++SavedRegAllocs;
       return;
     }
-#endif
 
     //
     // Determine if any use (direct or indirect) escapes this function.  If
