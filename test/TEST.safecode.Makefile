@@ -47,13 +47,21 @@ endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
-SC_STATS = $(SC) $(SCFLAGS) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
+SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
+
+SC_NONSC_FLAGS = $(SC_COMMON_FLAGS) -runtime=RUNTIME_PA
+
+
+# Pre processing library for DSA
+ASSIST_SO := $(POOLALLOC_OBJDIR)/Debug/lib/libAssistDS$(SHLIBEXT)
+
+PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
 
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 
 EXTRA_LOPT_OPTIONS :=
 #-loopsimplify -unroll-threshold 0 
-OPTZN_PASSES := -std-compile-opts -instcombine $(EXTRA_LOPT_OPTIONS)
+OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 #OPTZN_PASSES := -disable-opt
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 ifeq ($(OS),Darwin)
@@ -61,8 +69,6 @@ LDFLAGS += -lpthread
 else
 LDFLAGS += -lrt -lpthread
 endif
-
-LLVMLDFLAGS= -licm
 
 # DEBUGGING
 #   o) Don't add -g to CFLAGS, CXXFLAGS, or CPPFLAGS; these are used by the
@@ -75,20 +81,26 @@ LLVMLDFLAGS= -licm
 # This rule runs SAFECode on the .llvm.bc file to produce a new .bc
 # file
 #
-$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
-Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT) $(PA_PRE_RT_BC)
+
+$(PROGRAMS_TO_TEST:%=Output/%.presc.bc): \
+Output/%.presc.bc: Output/%.llvm.bc $(LOPT) $(PA_PRE_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.poolalloc.ld $< $(PA_PRE_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.poolalloc.ld.bc -f -o $<.opt 2>&1 > $@.out
-	-$(SC_STATS) $<.opt -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@ 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \
-Output/%.nonsc.bc: Output/%.llvm.bc $(LOPT)
+Output/%.nonsc.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.poolalloc.ld $< $(PA_PRE_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.poolalloc.ld.bc -o $@ -f 2>&1 > $@.out
+	-$(SC_STATS) $(SC_NONSC_FLAGS) $< -f -o $@.nonsc 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.nonsc.ld $@.nonsc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.nonsc.ld.bc -o $@ -f 2>&1    >> $@.out
+
+$(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
+Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+	-@rm -f $(CURDIR)/$@.info
+	-$(SC_STATS) $(SC_SAFECODE_FLAGS) $< -f -o $@.sc 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # These rules compile the new .bc file into a .c file using llc
@@ -127,7 +139,7 @@ Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM_RT_O)
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
 endif
 
 ##############################################################################

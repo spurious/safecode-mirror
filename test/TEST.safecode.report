@@ -44,7 +44,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  [],
 # Times
  ["GCC",            'GCC-RUN-TIME: real\s*([.0-9m:]+)', \&FormatTime],
- ["NonPATime",      'CBE-RUN-TIME-NORMAL: real\s*([.0-9m:]+)', \&FormatTime],
+ ["NonSCTime",      'CBE-RUN-TIME-NORMAL: real\s*([.0-9m:]+)', \&FormatTime],
  [],
  ["SC Time",        'CBE-RUN-TIME-SAFECODE: real\s*([.0-9m:]+)', \&FormatTime],
 # ["NumPools",       '([0-9]+).*Number of pools allocated'],
