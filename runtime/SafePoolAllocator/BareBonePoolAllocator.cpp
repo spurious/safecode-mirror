@@ -78,8 +78,10 @@ extern "C" {
 
   void __sc_no_op_poolcheck(PoolTy *, void *) {}
   void __sc_no_op_poolcheckalign (PoolTy *, void *, unsigned Offset) {}
-  void * __sc_no_op_boundscheck (PoolTy * , void * , void *) { return NULL; }
+  void * __sc_no_op_boundscheck (PoolTy * , void * , void * dest) { return dest; }
   void __sc_no_op_poolregister(PoolTy *, void *, unsigned) {}
   void __sc_no_op_poolunregister(PoolTy *, void*) {}
+  void * __sc_no_op_exactcheck(int, int, void * dest) { return dest; }
+  void * __sc_no_op_exactcheck2 (signed char *, signed char * dest, unsigned ) { return dest; }
 }
 
