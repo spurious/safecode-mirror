@@ -60,9 +60,10 @@ namespace llvm {
     virtual const char * getPassName() const { return "Insert synchronization points between checking threads and application threads"; };
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 #ifdef PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
-      AU.addRequired<EQTDDataStructures>();
+/*      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<PoolAllocateGroup>();
-      AU.addRequired<DSNodePass>();
+*/      AU.addRequired<DSNodePass>();
+
       AU.addRequired<ParCheckingCallAnalysis>();
 #endif
        AU.setPreservesAll();

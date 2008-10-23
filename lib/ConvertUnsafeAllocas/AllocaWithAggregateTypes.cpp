@@ -143,7 +143,7 @@ static const unsigned meminitvalue = 0x00;
 
     // Get references to previous analysis passes
     TargetData &TD = getAnalysis<TargetData>();
-    TDDataStructures & TDPass = getAnalysis<TDDataStructures>();
+    EQTDDataStructures & TDPass = getAnalysis<EQTDDataStructures>();
 
     // Get the DSGraph for this function
     DSGraph * TDG = TDPass.getDSGraph(F);

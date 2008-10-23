@@ -66,7 +66,8 @@ struct InitAllocas : public FunctionPass {
     virtual bool doInitialization (Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
-      AU.addRequired<TDDataStructures>();
+      AU.addRequired<EQTDDataStructures>();
+      AU.setPreservesCFG();
 #ifdef LLVA_KERNEL
       AU.setPreservesAll();
 #else

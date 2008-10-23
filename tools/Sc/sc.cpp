@@ -128,7 +128,8 @@ int main(int argc, char **argv) {
     PassManager Passes;
 
     Passes.add(new TargetData(M.get()));
-
+    Passes.add(new InitAllocas());
+    
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
 
@@ -184,13 +185,14 @@ int main(int argc, char **argv) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
       }
     }
-    
-    Passes.add(new InitAllocas());
 
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
-
+/*
+    Passes.add(new EQTDDataStructures());
+    Passes.add(new InitAllocas());
+ */   
     // Verify the final result
     Passes.add(createVerifierPass());
 
