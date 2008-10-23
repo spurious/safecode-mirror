@@ -32,7 +32,7 @@ namespace {
 // either we know the semantics of them or they are not handled
 // TODO: add stuffs like strlen / strcpy / strncpy
 static const char * safeFunctions[] = {
-//  "__sc_par_poolinit", "pool_init_runtime",
+//  "poolinit", "pool_init_runtime",
   "memset", "memcmp"
   "llvm.memcpy.i32", "llvm.memcpy.i64",
   "llvm.memset.i32", "llvm.memset.i64",
@@ -47,12 +47,12 @@ static const char * safeFunctions[] = {
 // Functions used in checking
 static const char * checkingFunctions[] = {
   "exactcheck", "exactcheck2", "funccheck",
-  "__sc_par_poolregister", "__sc_par_poolunregister",
-  "__sc_par_poolcheck", "__sc_par_poolcheckui",
-  "__sc_par_boundscheck", "__sc_par_boundscheckui",
-  "__sc_par_poolalloc", "__sc_par_poolrealloc",
-  "__sc_par_poolstrdup", "__sc_par_poolcalloc",
-  "__sc_par_poolfree"
+  "poolregister", "poolunregister",
+  "poolcheck", "poolcheckui",
+  "boundscheck", "boundscheckui",
+  "poolalloc", "poolrealloc",
+  "poolstrdup", "poolcalloc",
+  "poolfree"
 };
 
 // Helper functions
