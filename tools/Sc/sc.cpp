@@ -31,7 +31,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "safecode/SpeculativeChecking.h"
-#include "safecode/ReplaceFunctionPass.h"
+#include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/FaultInjector.h"
 
 #include <fstream>
@@ -63,11 +63,26 @@ EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
 static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
-static cl::opt<bool>
-EnableSpecChecking("par-checking", cl::init(false), cl::desc("Use speculative checking"));
+enum CheckingRuntimeType {
+  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL 
+};
+
+static cl::opt<enum CheckingRuntimeType>
+CheckingRuntime("runtime", cl::init(RUNTIME_SINGLETHREAD),
+                  cl::desc("The runtime API used by the program"),
+                  cl::values(
+  clEnumVal(RUNTIME_PA,           "Pool Allocation runtime  no checks)"),
+  clEnumVal(RUNTIME_DEBUG,        "Debugging Tool runtime"),
+  clEnumVal(RUNTIME_SINGLETHREAD, "Single Thread runtime (Production version)"),
+  clEnumVal(RUNTIME_PARALLEL,     "Parallel Checking runtime (Production version)"),
+  clEnumValEnd));
 
 static cl::opt<bool>
-EnableProtectingMetaData("protect-metadata", cl::init(false), cl::desc("Instrument store instructions to protect the meta data"));
+EnableProtectingMetaData("protect-metadata", cl::init(false),
+			 cl::desc("Instrument store instructions to protect the meta data"));
+
+
+static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
 
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
@@ -83,13 +98,6 @@ GetFileNameRoot(const std::string &InputFilename) {
   }
   return outputFilename;
 }
-
-#define REG_REPLACE_FUNC(PREFIX, X) do { \
-  sgReplaceFuncList.push_back(ReplaceFunctionPass::ReplaceFunctionEntry(X, PREFIX X)); \
-  } while (0)
-static std::vector<ReplaceFunctionPass::ReplaceFunctionEntry> sgReplaceFuncList;
-static void convertToBCAllocator (void);
-static void convertToParallelChecking (void);
 
 // main - Entry point for the sc compiler.
 //
@@ -170,22 +178,18 @@ int main(int argc, char **argv) {
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());
 
-    if(EnableSpecChecking) {
-      convertToParallelChecking();
-      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
+    if(CheckingRuntime == RUNTIME_PARALLEL) {
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
       if (EnableProtectingMetaData) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
       }
-    } else {
-#ifndef SC_DEBUGTOOL
-      // Use new allocator
-      convertToBCAllocator();
-      Passes.add(new ReplaceFunctionPass(sgReplaceFuncList));
-#endif
     }
     
     Passes.add(new InitAllocas());
+
+    // Lower the checking intrinsics into appropriate runtime function calls.
+    // It should be the last pass
+    addLowerIntrinsicPass(Passes, CheckingRuntime);
 
     // Verify the final result
     Passes.add(createVerifierPass());
@@ -261,32 +265,83 @@ int main(int argc, char **argv) {
   return 1;
 }
 
-static void convertToBCAllocator (void) {
-  REG_REPLACE_FUNC("__sc_bc_", "poolinit");
-  REG_REPLACE_FUNC("__sc_bc_", "pooldestroy");
-  REG_REPLACE_FUNC("__sc_bc_", "poolalloc");
-  REG_REPLACE_FUNC("__sc_bc_", "poolrealloc");
-  REG_REPLACE_FUNC("__sc_bc_", "poolcalloc");
-  REG_REPLACE_FUNC("__sc_bc_", "poolstrdup");
-  REG_REPLACE_FUNC("__sc_bc_", "poolfree");
+static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
+  /// Mapping between check intrinsics and implementation
+
+  typedef LowerSafecodeIntrinsic::IntrinsicMappingEntry IntrinsicMappingEntry;
+  static IntrinsicMappingEntry RuntimePA[] = 
+    { {"poolcheck",         "__sc_no_op_poolcheck" },
+      {"poolcheckui",       "__sc_no_op_poolcheck" },
+      {"poolcheckalign",    "__sc_no_op_poolcheckalign" },
+      {"boundscheck",       "__sc_no_op_boundscheck" },
+      {"boundscheckui",     "__sc_no_op_boundscheck" },
+      {"exactcheck",       "__sc_no_op_exactcheck" },
+      {"exactcheck2",     "__sc_no_op_exactcheck2" },
+      {"poolregister",      "__sc_no_op_poolregister" },
+      {"poolunregister",    "__sc_no_op_poolunregister" },
+      {"poolalloc",         "__sc_barebone_poolalloc"},
+      {"poolfree",          "__sc_barebone_poolfree"},
+      {"pooldestroy",       "__sc_barebone_pooldestroy"},
+      {"pool_init_runtime", "__sc_barebone_pool_init_runtime"},
+      {"poolinit",          "__sc_barebone_poolinit"},
+      {"poolrealloc",       "__sc_barebone_poolrealloc"},
+      {"poolcalloc",        "__sc_barebone_poolcalloc"},
+      {"poolstrdup",        "__sc_barebone_poolstrdup"},
+    };
+
+  static IntrinsicMappingEntry RuntimeSingleThread[] = 
+    { {"poolcheck",         "poolcheck" },
+      {"poolcheckui",       "poolcheckui" },
+      {"poolcheckalign",    "poolcheckalign" },
+      {"boundscheck",       "boundscheck" },
+      {"boundscheckui",     "boundscheckui" },
+      {"poolregister",      "poolregister" },
+      {"poolunregister",    "poolunregister" },
+      {"poolalloc",         "__sc_bc_poolalloc"},
+      {"poolfree",          "__sc_bc_poolfree"},
+      {"pooldestroy",       "__sc_bc_pooldestroy"},
+      {"pool_init_runtime", "__sc_bc_pool_init_runtime"},
+      {"poolinit",          "__sc_bc_poolinit"},
+      {"poolrealloc",       "__sc_bc_poolrealloc"},
+      {"poolcalloc",        "__sc_bc_poolcalloc"},
+      {"poolstrdup",        "__sc_bc_poolstrdup"},
+    };
+
+  static IntrinsicMappingEntry RuntimeParallel[] = 
+    { {"poolcheck",         "__sc_par_poolcheck" },
+      {"poolcheckui",       "__sc_no_op_poolcheck" },
+      {"poolcheckalign",    "__sc_par_poolcheck" },
+      {"boundscheck",       "__sc_par_boundscheck" },
+      {"boundscheckui",     "__sc_par_boundscheckui" },
+      {"poolregister",      "__sc_par_poolregister" },
+      {"poolunregister",    "__sc_par_poolunregister" },
+      {"poolalloc",         "__sc_par_poolalloc"},
+      {"poolfree",          "__sc_par_poolfree"},
+      {"pooldestroy",       "__sc_par_pooldestroy"},
+      {"pool_init_runtime", "__sc_par_pool_init_runtime"},
+      {"poolinit",          "__sc_par_poolinit"},
+      {"poolrealloc",       "__sc_par_poolrealloc"},
+      {"poolcalloc",        "__sc_par_poolcalloc"},
+      {"poolstrdup",        "__sc_par_poolstrdup"},
+    };
+
+  switch (type) {
+  case RUNTIME_PA:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimePA, RuntimePA + sizeof(RuntimePA) / sizeof(IntrinsicMappingEntry)));
+    break;
+    
+  case RUNTIME_DEBUG:
+  // DO NOTHING, no replacement needed
+    break;
+
+  case RUNTIME_SINGLETHREAD:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeSingleThread, RuntimeSingleThread + sizeof(RuntimeSingleThread) / sizeof(IntrinsicMappingEntry)));
+    break;
+
+  case RUNTIME_PARALLEL:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeParallel, RuntimeParallel + sizeof(RuntimeParallel) / sizeof(IntrinsicMappingEntry)));
+    break;
+  }
 }
 
-static void convertToParallelChecking (void) {
-  REG_REPLACE_FUNC("__sc_par_", "poolinit");
-  REG_REPLACE_FUNC("__sc_par_", "pooldestroy");
-  REG_REPLACE_FUNC("__sc_par_", "poolalloc");
-  REG_REPLACE_FUNC("__sc_par_", "poolstrdup");
-  REG_REPLACE_FUNC("__sc_par_", "poolfree");
-  REG_REPLACE_FUNC("__sc_par_", "poolrealloc");
-  REG_REPLACE_FUNC("__sc_par_", "poolcalloc");
-  REG_REPLACE_FUNC("__sc_par_", "poolregister");
-  REG_REPLACE_FUNC("__sc_par_", "poolunregister");
-
-  REG_REPLACE_FUNC("__sc_par_", "poolcheck");
-  REG_REPLACE_FUNC("__sc_par_", "poolcheckui");
-  REG_REPLACE_FUNC("__sc_par_", "poolcheckalign");
-  REG_REPLACE_FUNC("__sc_par_", "boundscheck");
-  REG_REPLACE_FUNC("__sc_par_", "boundscheckui");
-}
-
-#undef REG_REPLACE_FUNC
+     
