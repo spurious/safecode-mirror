@@ -7,7 +7,10 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
+ifndef ENABLE_LTO
 ENABLE_LTO := 1
+endif
+
 CFLAGS := -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
@@ -139,7 +142,7 @@ Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM_RT_O)
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
 endif
 
 ##############################################################################
