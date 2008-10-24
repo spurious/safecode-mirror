@@ -149,7 +149,6 @@ namespace {
   class SpeculativeCheckingGuard {
   public:
     SpeculativeCheckingGuard() : mCheckTask(gCheckQueue) {
-      mCheckTask.activate();
     }
     ~SpeculativeCheckingGuard() {
       mCheckTask.stop();
@@ -159,10 +158,14 @@ namespace {
       // Since the whole program stops, just skip the undone checks..
 //      __sc_par_wait_for_completion();
     }
+
+    void activate(void) {
+      mCheckTask.activate();
+    }
+
   private:
     Task<CheckQueueTy, CheckWrapper> mCheckTask;
   };
-  SpeculativeCheckingGuard g;
 }
 
 
@@ -263,5 +266,10 @@ void __sc_par_store_check(void * ptr) {
      *((volatile int*)0);
   }
 } 
+
+void __sc_par_init_runtime(void) {
+  static SpeculativeCheckingGuard g;
+  g.activate();
+}
 
 }
