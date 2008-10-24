@@ -41,6 +41,7 @@ static unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 struct PoolCheckRequest {
   PoolTy * Pool;
   void * Node;
+  void * dummy;
 };
 
 struct BoundsCheckRequest {
@@ -179,6 +180,7 @@ void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
   req.type = CHECK_EMPTY;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
+  req.poolcheck.dummy = 0;
   ENQUEUE_CHECK_REQUEST(req, CHECK_POOL_CHECK);
 }
 
@@ -187,6 +189,7 @@ void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
   req.type = CHECK_EMPTY;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
+  req.poolcheck.dummy = 0;
   ENQUEUE_CHECK_REQUEST(req, CHECK_POOL_CHECK_UI);
 }
 

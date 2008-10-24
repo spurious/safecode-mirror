@@ -118,8 +118,13 @@ public:
       buffer[x].set_free();
   }
 
+  void __attribute__((noinline)) spin_while_empty(void) {
+    SPIN_AND_YIELD(buffer[readidx].is_free());    
+  }
+
   T & front (void) {
-    SPIN_AND_YIELD(buffer[readidx].is_free());
+    if (buffer[readidx].is_free())
+      spin_while_empty();
     return buffer[readidx];
   }
 
@@ -133,10 +138,15 @@ public:
     //    asm volatile (LOCK_PREFIX "incb %0" : "+m" (readidx));
   }
 
-  template <class U>
-  void enqueue (T & datum, U type)
-  {
+  void __attribute__((noinline)) spin_while_full(void) {
     SPIN_AND_YIELD(!buffer[writeidx].is_free());
+  }
+
+  template <class U>
+  void enqueue (T datum, U type)
+  {
+    if (!buffer[writeidx].is_free())
+      spin_while_full();
     buffer[writeidx] = datum;
     mb();
     buffer[writeidx].set_type(type);
