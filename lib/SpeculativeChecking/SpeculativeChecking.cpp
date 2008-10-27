@@ -41,7 +41,8 @@ static const char * safeFunctions[] = {
   "llvm.sqrt.f64",
   // These functions are not marked as "readonly"
   // So we have to add them to the list explicitly
-  "atoi", "srand", "fabs", "random", "srandom", "drand48"
+  "atoi", "srand", "fabs", "random", "srandom", "drand48",
+  "pow", "sqrt"
 
 };
 
