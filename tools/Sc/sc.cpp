@@ -128,8 +128,7 @@ int main(int argc, char **argv) {
     PassManager Passes;
 
     Passes.add(new TargetData(M.get()));
-    Passes.add(new InitAllocas());
-    
+
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
 
@@ -172,6 +171,7 @@ int main(int argc, char **argv) {
     Passes.add(new InsertPoolChecks());
     Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
     Passes.add(new RegisterStackObjPass());
+    Passes.add(new InitAllocas());
 
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());

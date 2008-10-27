@@ -45,13 +45,26 @@ namespace {
 
 namespace llvm
 {
+  //
+  // Constant: meminitvalue
+  //
+  // Description:
+  //  This is the byte value that is used to initialize newly allocated memory.
+  //  Pointers will be initialized to this value concatenated 4 times
+  //  e.g., 0xcccccccc.
+  //
+  //  On Linux, we use 0xcccccccc because it is an address within the kernel
+  //  address space that is inaccessible by user-space programs.  In all other
+  //  circumstances, we use 0x00000000 (which is unmapped in most kernels and
+  //  operating systems).
+  //
 #ifdef LLVA_KERNEL
-static const unsigned meminitvalue = 0x00;
+  static const unsigned meminitvalue = 0x00;
 #else
 #if defined(__linux__)
-static const unsigned meminitvalue = 0xcc;
+  static const unsigned meminitvalue = 0xcc;
 #else
-static const unsigned meminitvalue = 0x00;
+  static const unsigned meminitvalue = 0x00;
 #endif
 #endif
 
@@ -91,9 +104,9 @@ static const unsigned meminitvalue = 0x00;
   //  alloca is type-known *and* whether it has any links to other DSNodes.
   //
   inline bool
-  InitAllocas::changeType (DSGraph * TDG, Instruction * Inst) {
+  InitAllocas::changeType (Instruction * Inst) {
     // Get the DSNode for this instruction
-    DSNode *Node = TDG->getNodeForValue((Value *)Inst).getNode();
+    DSNode *Node = dsnPass->getDSNode(Inst, Inst->getParent()->getParent());
 
     //
     // Do not bother to change this allocation if the type is unknown;
@@ -143,10 +156,7 @@ static const unsigned meminitvalue = 0x00;
 
     // Get references to previous analysis passes
     TargetData &TD = getAnalysis<TargetData>();
-    EQTDDataStructures & TDPass = getAnalysis<EQTDDataStructures>();
-
-    // Get the DSGraph for this function
-    DSGraph * TDG = TDPass.getDSGraph(F);
+    dsnPass = &getAnalysis<DSNodePass>();
 
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I) {
       for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
@@ -155,7 +165,7 @@ static const unsigned meminitvalue = 0x00;
         //
         // Determine if the instruction needs to be changed.
         //
-        if (changeType (TDG, IAddrBegin)) {
+        if (changeType (IAddrBegin)) {
           AllocationInst * AllocInst = cast<AllocationInst>(IAddrBegin);
 #if 0
           //

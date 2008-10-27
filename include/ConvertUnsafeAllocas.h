@@ -24,6 +24,7 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Target/TargetData.h"
 #include "safecode/Config/config.h"
+#include "safecode/PoolHandles.h"
 
 #ifndef LLVA_KERNEL
 #include "poolalloc/PoolAllocate.h"
@@ -53,9 +54,10 @@ struct InitAllocas : public FunctionPass {
     // Private data
     Constant * memsetF;
     DominatorTree * domTree;
+    DSNodePass * dsnPass;
 
     // Private methods
-    inline bool changeType (DSGraph * TDG, Instruction * Inst);
+    inline bool changeType (Instruction * Inst);
     inline bool TypeContainsPointer(const Type *Ty);
 
   public:
@@ -67,11 +69,13 @@ struct InitAllocas : public FunctionPass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
       AU.addRequired<EQTDDataStructures>();
+      AU.addRequired<PoolAllocateGroup>();
+      AU.addRequired<DSNodePass>();
       AU.setPreservesCFG();
 #ifdef LLVA_KERNEL
       AU.setPreservesAll();
 #else
-      //AU.setPreservesAll();
+      AU.setPreservesAll();
 #endif     
     }
 };
