@@ -21,6 +21,7 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "safecode/Config/config.h"
+#include "safecode/PoolHandles.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
 
@@ -32,8 +33,6 @@
 namespace llvm {
 
 using namespace CUA;
-
-struct DSNodePass;
 
 struct PreInsertPoolChecks : public ModulePass {
     friend struct InsertPoolChecks;
@@ -161,48 +160,6 @@ struct MonotonicLoopOpt : public LoopPass {
   ptIns, int type);
   bool optimizeCheck(Loop *L);
   bool isEligibleForOptimization(const Loop * L);
-};
-
-/// Passes that holds DSNode and Pool Handle information
-struct DSNodePass : public ModulePass {
-	public :
-    static char ID;
-    DSNodePass () : ModulePass ((intptr_t) &ID) { }
-    virtual ~DSNodePass() {};
-    const char *getPassName() const { return "DS Node And Pool Allocation Handle Pass"; }
-    virtual bool runOnModule(Module &M);
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifndef LLVA_KERNEL      
-      AU.addRequiredTransitive<PoolAllocateGroup>();
-#else 
-      AU.addRequired<TDDataStructures>();
-#endif
-      AU.setPreservesAll();
-    };
-  public:
-  // FIXME: Provide better interfaces
-#ifndef  LLVA_KERNEL
-  PoolAllocateGroup * paPass;
-#else
-  TDDataStructures * TDPass;
-#endif
-  DSGraph * getDSGraph (Function & F);
-  DSNode* getDSNode(const Value *V, Function *F);
-  unsigned getDSNodeOffset(const Value *V, Function *F);
-#ifndef LLVA_KERNEL  
-  Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
-#endif
-
-  void addCheckedDSNode(const DSNode * node);
-  void addCheckedValue(const Value * value);
-  bool isDSNodeChecked(const DSNode * node) const;
-  bool isValueChecked(const Value * val) const;
-private:
-  // Set of checked DSNodes
-  std::set<const DSNode *> CheckedDSNodes;
-
-  // The set of values that already have run-time checks
-  std::set<const Value *> CheckedValues;
 };
 
 struct RegisterStackObjPass : public FunctionPass {
