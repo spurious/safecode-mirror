@@ -87,7 +87,7 @@ struct CheckRequest {
 typedef LockFreeFifo<CheckRequest> CheckQueueTy;
 CheckQueueTy gCheckQueue;
 
-static void enqueueCheckRequest(const CheckRequest req, RequestTy type) {
+static inline void enqueueCheckRequest(const CheckRequest req, RequestTy type) {
   PROFILING(unsigned long long start_time = rdtsc();)
 
   gCheckQueue.enqueue(req, type);
@@ -97,49 +97,54 @@ static void enqueueCheckRequest(const CheckRequest req, RequestTy type) {
   	llvm::safecode::profile_enqueue(start_time, end_time)
 		)
 }
-  
+
+static void __stub_poolcheck(CheckRequest & req) {
+	poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
+}
+
+static void __stub_poolcheckui(CheckRequest & req) {
+	poolcheckui(req.poolcheck.Pool, req.poolcheck.Node);
+}
+
+static void __stub_boundscheck(CheckRequest & req) {
+	boundscheck(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+}
+
+static void __stub_boundscheckui(CheckRequest & req) {
+	boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+}
+
+static void __stub_poolregister(CheckRequest & req) {
+	poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
+}
+
+static void __stub_poolunregister(CheckRequest & req) {
+	poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
+}
+
+static void __stub_pooldestroy(CheckRequest & req) {
+	ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
+}
+
+static void __stub_sync(CheckRequest &) {
+	gCheckingThreadWorking = false;
+}
+
 class CheckWrapper {
 public:
   void operator()(CheckRequest & req) const {
+    typedef void (*handler_ptr)(CheckRequest &);
+    static handler_ptr handlers[] =
+      { NULL,
+	__stub_poolcheck, __stub_poolcheckui,
+	__stub_boundscheck, __stub_boundscheckui,
+	__stub_poolregister, __stub_poolunregister,
+	__stub_pooldestroy, __stub_sync,
+	NULL
+      };
+
     PROFILING (unsigned long long start_time = rdtsc();)
-      switch (req.type) {
-      case CHECK_POOL_CHECK:
-	poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
-	break;
-
-      case CHECK_POOL_CHECK_UI:
-	poolcheckui(req.poolcheck.Pool, req.poolcheck.Node);
-	break;
-
-      case CHECK_BOUNDS_CHECK:
-	boundscheck(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
-	break;
-
-      case CHECK_BOUNDS_CHECK_UI:
-	boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
-	break;
-
-      case CHECK_POOL_REGISTER:
-	poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
-	break;
-    
-      case CHECK_POOL_UNREGISTER:
-	poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
-	break;
-
-      case CHECK_POOL_DESTROY:
-	ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
-	break;
-
-      case CHECK_SYNC:
-	gCheckingThreadWorking = false;
-	break;
-
-      default:
-	assert(0 && "Error Type!");
-	break;
-      }
-    
+    handlers[req.type](req);    
     PROFILING (
 	       unsigned long long end_time = rdtsc();
 	       llvm::safecode::profile_queue_op(req.type, start_time, end_time);

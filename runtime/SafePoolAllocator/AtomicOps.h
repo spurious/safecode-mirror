@@ -110,70 +110,62 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 
 template<class T> class LockFreeFifo
 {
-  static const int N = 65536;
+  static const size_t N = 65536;
 public:
   typedef  T element_t;
-  LockFreeFifo () : readidx(0), writeidx(0) {
-    for(int x = 0; x < N; ++x)
+  LockFreeFifo () {
+    readidx.val = writeidx.val = 0;
+	for(size_t x = 0; x < N; ++x)
       buffer[x].set_free();
   }
 
-  void __attribute__((noinline)) spin_while_empty(void) {
-    SPIN_AND_YIELD(buffer[readidx].is_free());    
-  }
-
   T & front (void) {
-    if (buffer[readidx].is_free())
+    if (buffer[readidx.val].is_free())
       spin_while_empty();
-    return buffer[readidx];
+    return buffer[readidx.val];
   }
 
   void dequeue (void)
   {
     // CAUTION: always supposes the queue is not empty.
-    //    SPIN_AND_YIELD(empty());
-    buffer[readidx].set_free();
-    // Use overflow to wrap the queue
-    ++readidx;
-    //    asm volatile (LOCK_PREFIX "incb %0" : "+m" (readidx));
-  }
-
-  void __attribute__((noinline)) spin_while_full(void) {
-    SPIN_AND_YIELD(!buffer[writeidx].is_free());
+    buffer[readidx.val].set_free();
+    readidx.val = (readidx.val + 1) % N;
   }
 
   template <class U>
   void enqueue (T datum, U type)
   {
-    if (!buffer[writeidx].is_free())
+    if (!buffer[writeidx.val].is_free())
       spin_while_full();
-    buffer[writeidx] = datum;
+    buffer[writeidx.val] = datum;
     mb();
-    buffer[writeidx].set_type(type);
-    ++writeidx;
+    buffer[writeidx.val].set_type(type);
+    writeidx.val = (writeidx.val + 1) % N;
   }
 
   bool empty() const {
-    return readidx == writeidx;
+    return readidx.val == writeidx.val;
   }
 
   unsigned size() const {
-    unsigned short read = readidx;
-    unsigned short write = writeidx;
+    unsigned short read = readidx.val;
+    unsigned short write = writeidx.val;
     if (write >= read) return write - read;
     else return N - (read - write);
   }
 
 private:
-
-  // Cache alignment suggested by Andrew
-  volatile unsigned short __attribute__((aligned(128))) dummy1;
-  volatile unsigned short __attribute__((aligned(128))) readidx;
-  volatile unsigned short __attribute__((aligned(128))) writeidx;
-  volatile unsigned short __attribute__((aligned(128))) dummy2; 
+  volatile struct { unsigned int val; char dummy[129 - sizeof(unsigned int)]; } __attribute__((aligned(128))) readidx;
+  volatile struct { unsigned int val; char dummy[129 - sizeof(unsigned int)]; } __attribute__((aligned(128))) writeidx;
   T buffer[N];
+  
+  void __attribute__((noinline)) spin_while_empty(void) {
+    SPIN_AND_YIELD(buffer[readidx.val].is_free());    
+  }
 
-
+  void __attribute__((noinline)) spin_while_full(void) {
+    SPIN_AND_YIELD(!buffer[writeidx.val].is_free());
+  }
 };
 
 template <class QueueTy, class FuncTy>
