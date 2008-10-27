@@ -188,5 +188,38 @@ struct RegisterStackObjPass : public FunctionPass {
 	DominatorTree * DT;
     void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig, DomTreeNode * DTN);
  };
+
+  //
+  // Pass: ClearCheckAttributes
+  //
+  // Description:
+  //  Remove special attributes from the run-time checking functions.
+  //
+  struct ClearCheckAttributes : public ModulePass {
+    public:
+      static char ID;
+      ClearCheckAttributes() : ModulePass((intptr_t) &ID) {};
+      virtual ~ClearCheckAttributes() {};
+      virtual bool runOnModule (Module & M) {
+        Funcs.push_back ("poolcheck");
+        Funcs.push_back ("poolcheckui");
+
+        for (unsigned index = 0; index < Funcs.size(); ++index) {
+          Function * F = M.getFunction (Funcs[index]);
+          if (F) F->setOnlyReadsMemory (false);
+        }
+      }
+      virtual const char * getPassName() const {
+        return "Clear attributes on run-time functions";
+      }
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        AU.setPreservesAll();
+      };
+
+    private:
+      std::vector<std::string> Funcs;
+ };
+
 }
 #endif
