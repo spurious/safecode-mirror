@@ -30,6 +30,7 @@
 #define REG_FUNC(var, ret, name, ...) do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0);
 
 char llvm::InsertPoolChecks::ID = 0;
+char llvm::ClearCheckAttributes::ID = 0;
 
 static llvm::RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
 
@@ -720,8 +721,15 @@ InsertPoolChecks::addCheckProto(Module &M) {
   FunctionCheck = M.getOrInsertFunction("funccheck", FunctionCheckTy);
   REG_FUNC (GetActualValue,   vpTy,   "pchk_getActualValue",vpTy, vpTy)
 
-  // Special cases for var args
+  //
+  // Mark poolcheck() as only reading memory.
+  //
+  if (Function * F = dyn_cast<Function>(PoolCheck))
+    F->setOnlyReadsMemory();
+  if (Function * F = dyn_cast<Function>(PoolCheckUI))
+    F->setOnlyReadsMemory();
 
+  // Special cases for var args
 }
   
 bool
@@ -1179,10 +1187,9 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 
         dsnPass->addCheckedDSNode(Node);
         dsnPass->addCheckedValue(Vnew);
-        if (Node->isIncompleteNode())
-          CallInst::Create(PoolCheckUI,args.begin(), args.end(), "", I);
-        else
-          CallInst::Create(PoolCheck,args.begin(), args.end(), "", I);
+        Constant * PoolCheckFunc = (Node->isIncompleteNode()) ? PoolCheckUI
+                                                              : PoolCheck;
+        CallInst::Create (PoolCheckFunc, args.begin(), args.end(), "", I);
       }
     }
   }

@@ -24,6 +24,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
 
@@ -186,6 +187,17 @@ int main(int argc, char **argv) {
       }
     }
 
+    //
+    // Run the LICM pass to hoist checks out of loops.
+    //
+    Passes.add (createLICMPass());
+
+    //
+    // Remove special attributes for loop hoisting that were added by previous
+    // SAFECode passes.
+    //
+    Passes.add (new ClearCheckAttributes());
+
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
@@ -242,7 +254,7 @@ int main(int argc, char **argv) {
       // SIGINT
       sys::RemoveFileOnSignal(sys::Path(OutputFilename));
     }
-    
+
     // Add the writing of the output file to the list of passes
     Passes.add (CreateBitcodeWriterPass(*Out));
 
