@@ -25,82 +25,6 @@
 
 NAMESPACE_SC_BEGIN
 
-#define LOCK_PREFIX "lock "
-#define ADDR "+m" (*(volatile long *) addr)
-
-#define SPIN_AND_YIELD(COND) do { unsigned short counter = 0; \
-  while (COND) { if (++counter == 0) {                      \
-    sched_yield();                                        \
-/*    fprintf(stderr, "yielding: %s\n", #COND); fflush(stderr); */}}       \
-} while (0)
-
-/// FIXME: These codes are from linux header file, it should be rewritten
-/// to avoid license issues.
-/// JUST FOR EXPERIMENTAL USE!!!
-
-static inline void clear_bit(int nr, volatile void *addr)
-{
-  asm volatile(LOCK_PREFIX "btr %1,%0"
-	       : ADDR
-	       : "Ir" (nr));
-}
-static inline void set_bit(int nr, volatile void *addr)
-{
-  asm volatile(LOCK_PREFIX "bts %1,%0"
-	       : ADDR
-	       : "Ir" (nr) : "memory");
-}
-/**
-
-* __ffs - find first bit in word.
-* @word: The word to search
-*
-* Undefined if no bit exists, so code should check against 0 first.
-*/
-static inline unsigned long __ffs(unsigned long word)
-{
-  __asm__( "bsfl %1,%0"
-	  :"=r" (word)
-	  :"rm" (word));
-  return word;
-}
-
-struct __xchg_dummy {
-	unsigned long a[100];
-};
-
-#define __xg(x) ((struct __xchg_dummy *)(x))
-
-
-static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
-				      unsigned long newval, int size)
-{
-	unsigned long prev;
-	switch (size) {
-	case 1:
-		asm volatile(LOCK_PREFIX "cmpxchgb %b1,%2"
-			     : "=a"(prev)
-			     : "q"(newval), "m"(*__xg(ptr)), "0"(old)
-			     : "memory");
-		return prev;
-	case 2:
-		asm volatile(LOCK_PREFIX "cmpxchgw %w1,%2"
-			     : "=a"(prev)
-			     : "r"(newval), "m"(*__xg(ptr)), "0"(old)
-			     : "memory");
-		return prev;
-	case 4:
-		asm volatile(LOCK_PREFIX "cmpxchgl %1,%2"
-			     : "=a"(prev)
-			     : "r"(newval), "m"(*__xg(ptr)), "0"(old)
-			     : "memory");
-		return prev;
-	}
-	return old;
-}
-
-/* Copied from include/asm-x86_64 for use by userspace. */
-//#define mb()    asm volatile("mfence":::"memory")
 #define mb()  asm volatile ("" ::: "memory")
 
 /// A very simple allocator works on single-reader / single-writer cases
@@ -108,64 +32,64 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 /// http://www.talkaboutprogramming.com/group/comp.programming.threads/messages/40308.html
 /// Only for single-reader, single-writer cases.
 
+#define INLINE1 inline
+#define INLINE2 __attribute__((always_inline))
+//#define INLINE1
+//#define INLINE2
+
 template<class T> class LockFreeFifo
 {
   static const size_t N = 65536;
 public:
   typedef  T element_t;
   LockFreeFifo () {
-    readidx.val = writeidx.val = 0;
-	for(size_t x = 0; x < N; ++x)
+    readidx = writeidx = 0;
+    for(size_t x = 0; x < N; ++x)
       buffer[x].set_free();
   }
 
-  T & front (void) {
-    if (buffer[readidx.val].is_free())
-      spin_while_empty();
-    return buffer[readidx.val];
+  INLINE1 T & INLINE2 front (void) {
+    unsigned val = readidx;
+    while (buffer[val].is_free()) {mb();}
+    return buffer[val];
   }
 
-  void dequeue (void)
+  INLINE1 void INLINE2 dequeue (void)
   {
     // CAUTION: always supposes the queue is not empty.
-    buffer[readidx.val].set_free();
-    readidx.val = (readidx.val + 1) % N;
+    unsigned val = readidx;
+    buffer[val].set_free();
+    mb();
+    readidx = (val + 1) % N;
   }
 
   template <class U>
-  void enqueue (T datum, U type)
+  INLINE1 void INLINE2 enqueue (T datum, U type)
   {
-    if (!buffer[writeidx.val].is_free())
-      spin_while_full();
-    buffer[writeidx.val] = datum;
+    unsigned val = writeidx;
+    while (!buffer[val].is_free()) {mb();}
+    buffer[val] = datum;
     mb();
-    buffer[writeidx.val].set_type(type);
-    writeidx.val = (writeidx.val + 1) % N;
+    buffer[val].set_type(type);
+    mb();
+    writeidx = (val + 1) % N;
   }
 
-  bool empty() const {
-    return readidx.val == writeidx.val;
+  inline bool empty() const {
+    return readidx == writeidx;
   }
 
-  unsigned size() const {
-    unsigned short read = readidx.val;
-    unsigned short write = writeidx.val;
+  inline unsigned size() const {
+    unsigned read = readidx;
+    unsigned write = writeidx;
     if (write >= read) return write - read;
     else return N - (read - write);
   }
 
 private:
-  volatile struct { unsigned int val; char dummy[129 - sizeof(unsigned int)]; } __attribute__((aligned(128))) readidx;
-  volatile struct { unsigned int val; char dummy[129 - sizeof(unsigned int)]; } __attribute__((aligned(128))) writeidx;
-  T buffer[N];
-  
-  void __attribute__((noinline)) spin_while_empty(void) {
-    SPIN_AND_YIELD(buffer[readidx.val].is_free());    
-  }
-
-  void __attribute__((noinline)) spin_while_full(void) {
-    SPIN_AND_YIELD(!buffer[writeidx.val].is_free());
-  }
+  volatile unsigned __attribute__((aligned(128))) readidx;
+  volatile unsigned __attribute__((aligned(128))) writeidx;
+  T __attribute__((aligned(128))) buffer[N];
 };
 
 template <class QueueTy, class FuncTy>

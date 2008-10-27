@@ -26,7 +26,7 @@ static unsigned int gDataStart;
 static unsigned int gDataEnd;
 
 // A flag to indicate that the checking thread has done its work
-static unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
+static volatile unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 
 struct PoolCheckRequest {
   PoolTy * Pool;
@@ -60,7 +60,7 @@ typedef enum {
 } RequestTy;
 
 struct CheckRequest {
-  RequestTy type;
+  void (*op)(CheckRequest&);
   union {
     PoolCheckRequest poolcheck;
     BoundsCheckRequest boundscheck;
@@ -70,13 +70,13 @@ struct CheckRequest {
   };
 
   bool is_free() const {
-    return type == CHECK_EMPTY;
+    return op == 0;
   }
-  void set_type(RequestTy t) {
-    type = t;
+  void set_type(void (*t)(CheckRequest&)) {
+    op = t;
   }
   void set_free() {
-    type = CHECK_EMPTY;
+    op = 0;
   }
 } __attribute__((packed)); 
 
@@ -87,10 +87,10 @@ struct CheckRequest {
 typedef LockFreeFifo<CheckRequest> CheckQueueTy;
 CheckQueueTy gCheckQueue;
 
-static inline void enqueueCheckRequest(const CheckRequest req, RequestTy type) {
+static inline void enqueueCheckRequest(const CheckRequest req, void (*op)(CheckRequest&)) {
   PROFILING(unsigned long long start_time = rdtsc();)
 
-  gCheckQueue.enqueue(req, type);
+  gCheckQueue.enqueue(req, op);
 
   PROFILING(
   	unsigned long long end_time = rdtsc();
@@ -133,18 +133,8 @@ static void __stub_sync(CheckRequest &) {
 class CheckWrapper {
 public:
   void operator()(CheckRequest & req) const {
-    typedef void (*handler_ptr)(CheckRequest &);
-    static handler_ptr handlers[] =
-      { NULL,
-	__stub_poolcheck, __stub_poolcheckui,
-	__stub_boundscheck, __stub_boundscheckui,
-	__stub_poolregister, __stub_poolunregister,
-	__stub_pooldestroy, __stub_sync,
-	NULL
-      };
-
     PROFILING (unsigned long long start_time = rdtsc();)
-    handlers[req.type](req);    
+      req.op(req);
     PROFILING (
 	       unsigned long long end_time = rdtsc();
 	       llvm::safecode::profile_queue_op(req.type, start_time, end_time);
@@ -184,20 +174,19 @@ using namespace llvm::safecode;
 extern "C" {
 void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
-  req.poolcheck.dummy = NULL;
-  enqueueCheckRequest(req, CHECK_POOL_CHECK);
+  enqueueCheckRequest(req, __stub_poolcheck);
 }
 
 void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
-  req.poolcheck.dummy = NULL;
-  enqueueCheckRequest(req, CHECK_POOL_CHECK_UI);
+  //  req.poolcheck.dummy = NULL;
+  enqueueCheckRequest(req, __stub_poolcheckui);
 }
 
 void
@@ -209,44 +198,44 @@ __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.boundscheck.Pool = Pool;
   req.boundscheck.Source = Source;
   req.boundscheck.Dest = Dest;
-  enqueueCheckRequest(req, CHECK_BOUNDS_CHECK);
+  enqueueCheckRequest(req, __stub_boundscheck);
 }
 
 void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.boundscheck.Pool = Pool;
   req.boundscheck.Source = Source;
   req.boundscheck.Dest = Dest;
-  enqueueCheckRequest(req, CHECK_BOUNDS_CHECK_UI);
+  enqueueCheckRequest(req, __stub_boundscheckui);
 }
 
 void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.poolregister.Pool = Pool;
   req.poolregister.allocaptr = allocaptr;
   req.poolregister.NumBytes = NumBytes;
-  enqueueCheckRequest(req, CHECK_POOL_REGISTER);
+  enqueueCheckRequest(req, __stub_poolregister);
 }
 
 void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.poolunregister.Pool = Pool;
   req.poolunregister.allocaptr = allocaptr;
-  enqueueCheckRequest(req, CHECK_POOL_UNREGISTER);
+  enqueueCheckRequest(req, __stub_poolregister);
 }
 
 void __sc_par_pooldestroy(PoolTy *Pool) {
   CheckRequest req;
-  req.type = CHECK_EMPTY;
+  req.op = 0;
   req.pooldestroy.Pool = Pool;
-  enqueueCheckRequest(req, CHECK_POOL_DESTROY);
+  enqueueCheckRequest(req, __stub_pooldestroy);
 }
 
 void __sc_par_wait_for_completion() {
@@ -255,15 +244,13 @@ void __sc_par_wait_for_completion() {
   unsigned long long start_sync_time = rdtsc();
   )
 
-  //  SPIN_AND_YIELD(!gCheckQueue.empty());
-
   gCheckingThreadWorking = true;
   
   CheckRequest req;
-  req.type = CHECK_EMPTY;
-  enqueueCheckRequest(req, CHECK_SYNC);
+  req.op = 0;
+  enqueueCheckRequest(req, __stub_sync);
 
-  SPIN_AND_YIELD(gCheckingThreadWorking);
+  while (gCheckingThreadWorking) {}
 
   PROFILING(
   unsigned long long end_sync_time = rdtsc();
