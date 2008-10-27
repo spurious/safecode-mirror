@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());
 
-    if(CheckingRuntime == RUNTIME_PARALLEL) {
+    if (CheckingRuntime == RUNTIME_PARALLEL) {
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
       if (EnableProtectingMetaData) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
@@ -189,10 +189,7 @@ int main(int argc, char **argv) {
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
-/*
-    Passes.add(new EQTDDataStructures());
-    Passes.add(new InitAllocas());
- */   
+
     // Verify the final result
     Passes.add(createVerifierPass());
 
@@ -251,8 +248,6 @@ int main(int argc, char **argv) {
 
     // Run our queue of passes all at once now, efficiently.
     Passes.run(*M.get());
-
-    
 
     // Delete the ostream if it's not a stdout stream
     if (Out != &std::cout) delete Out;
