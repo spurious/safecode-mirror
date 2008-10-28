@@ -35,7 +35,7 @@ public:
   struct element_t {
     ptr_t op;
     T val;
-  };
+  } __attribute__((packed));
 
   LockFreeFifo () {
     readidx = writeidx = 0;

@@ -46,25 +46,12 @@ struct PoolRegisterRequest {
   unsigned NumBytes;
 };
 
-struct CheckRequest {
-  void (*op)(CheckRequest&);
-  union {
+union CheckRequest {
     PoolCheckRequest poolcheck;
     BoundsCheckRequest boundscheck;
     PoolRegisterRequest poolregister;
     PoolRegisterRequest poolunregister;
     PoolRegisterRequest pooldestroy;
-  };
-
-  bool is_free() const {
-    return op == 0;
-  }
-  void set_type(void (*t)(CheckRequest&)) {
-    op = t;
-  }
-  void set_free() {
-    op = 0;
-  }
 } __attribute__((packed)); 
 
 
@@ -148,7 +135,6 @@ using namespace llvm::safecode;
 extern "C" {
 void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
   CheckRequest req;
-  req.op = 0;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
   enqueueCheckRequest(req, __stub_poolcheck);
@@ -156,7 +142,6 @@ void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
 
 void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
   CheckRequest req;
-  req.op = 0;
   req.poolcheck.Pool = Pool;
   req.poolcheck.Node = Node;
   //  req.poolcheck.dummy = NULL;
@@ -172,7 +157,6 @@ __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
-  req.op = 0;
   req.boundscheck.Pool = Pool;
   req.boundscheck.Source = Source;
   req.boundscheck.Dest = Dest;
@@ -181,7 +165,6 @@ void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
 
 void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
   CheckRequest req;
-  req.op = 0;
   req.boundscheck.Pool = Pool;
   req.boundscheck.Source = Source;
   req.boundscheck.Dest = Dest;
@@ -190,7 +173,6 @@ void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
 
 void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
   CheckRequest req;
-  req.op = 0;
   req.poolregister.Pool = Pool;
   req.poolregister.allocaptr = allocaptr;
   req.poolregister.NumBytes = NumBytes;
@@ -199,7 +181,6 @@ void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
 
 void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
   CheckRequest req;
-  req.op = 0;
   req.poolunregister.Pool = Pool;
   req.poolunregister.allocaptr = allocaptr;
   enqueueCheckRequest(req, __stub_poolregister);
@@ -207,7 +188,6 @@ void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
 
 void __sc_par_pooldestroy(PoolTy *Pool) {
   CheckRequest req;
-  req.op = 0;
   req.pooldestroy.Pool = Pool;
   enqueueCheckRequest(req, __stub_pooldestroy);
 }
@@ -221,7 +201,6 @@ void __sc_par_wait_for_completion() {
   gCheckingThreadWorking = true;
   
   CheckRequest req;
-  req.op = 0;
   enqueueCheckRequest(req, __stub_sync);
 
   while (gCheckingThreadWorking) {}
