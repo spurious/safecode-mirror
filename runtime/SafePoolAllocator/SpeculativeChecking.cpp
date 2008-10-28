@@ -46,19 +46,6 @@ struct PoolRegisterRequest {
   unsigned NumBytes;
 };
 
-typedef enum {
-  CHECK_EMPTY = 0,
-  CHECK_POOL_CHECK,
-  CHECK_POOL_CHECK_UI,
-  CHECK_BOUNDS_CHECK,
-  CHECK_BOUNDS_CHECK_UI,
-  CHECK_POOL_REGISTER,
-  CHECK_POOL_UNREGISTER,
-  CHECK_POOL_DESTROY,
-  CHECK_SYNC,
-  CHECK_REQUEST_COUNT
-} RequestTy;
-
 struct CheckRequest {
   void (*op)(CheckRequest&);
   union {
@@ -130,19 +117,6 @@ static void __stub_sync(CheckRequest &) {
 	gCheckingThreadWorking = false;
 }
 
-class CheckWrapper {
-public:
-  void operator()(CheckRequest & req) const {
-    PROFILING (unsigned long long start_time = rdtsc();)
-      req.op(req);
-    PROFILING (
-	       unsigned long long end_time = rdtsc();
-	       llvm::safecode::profile_queue_op(req.type, start_time, end_time);
-	       ) 
-      }
-};
-
-
 namespace {
   class SpeculativeCheckingGuard {
   public:
@@ -162,7 +136,7 @@ namespace {
     }
 
   private:
-    Task<CheckQueueTy, CheckWrapper> mCheckTask;
+    Task<CheckQueueTy> mCheckTask;
   };
 }
 
