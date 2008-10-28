@@ -47,24 +47,22 @@ public:
     while (!buffer[val].op) {mb();}
     buffer[val].op(buffer[val].val);
     buffer[val].op = 0;
-    mb();
     readidx = (val + 1) % N;
   }
 
-  inline void enqueue (T datum, ptr_t op)
+  inline void enqueue (const T  datum, const ptr_t op)
   {
     unsigned val = writeidx;
     while (buffer[val].op) {mb();}
     buffer[val].val = datum;
     mb();
     buffer[val].op = op;
-    mb();
     writeidx = (val + 1) % N;
   }
 
-  inline bool empty() const {
-    return readidx == writeidx;
-  }
+  //  inline bool empty() const {
+  //    return readidx == writeidx;
+  //  }
 
   inline unsigned size() const {
     unsigned read = readidx;
@@ -74,9 +72,13 @@ public:
   }
 
 private:
+  volatile unsigned __attribute__((aligned(128))) d0;
   volatile unsigned __attribute__((aligned(128))) readidx;
+  volatile unsigned __attribute__((aligned(128))) d1;
   volatile unsigned __attribute__((aligned(128))) writeidx;
-  element_t __attribute__((aligned(128))) buffer[N];
+  volatile unsigned __attribute__((aligned(128))) d2;
+  element_t buffer[N];
+  volatile unsigned __attribute__((aligned(128))) d3;
 };
 
 template <class QueueTy>
