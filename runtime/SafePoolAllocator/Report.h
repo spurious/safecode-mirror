@@ -19,7 +19,8 @@
 #include <stdint.h>
 #include "safecode/Config/config.h"
 
-#define ABORT_PROGRAM() *((volatile int*)NULL)
+//#define ABORT_PROGRAM() *((volatile int*)NULL)
+#define ABORT_PROGRAM() __builtin_trap()
 
 #ifdef SC_DEBUGTOOL
 extern FILE * ReportLog;
