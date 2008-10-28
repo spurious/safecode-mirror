@@ -106,7 +106,7 @@ DSNodePass::getPoolHandle (const Value *V,
   //
   const DSNode *Node = getDSNode(V,F);
   if (!Node) {
-    std::cerr << "JTC: Value " << *V << " has no DSNode!" << std::endl;
+    std::cerr << "JTC: No DSNode: Function: " << F->getName() << ", Value: " << *V << std::endl;
     return 0;
   }
 
@@ -206,12 +206,29 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   // Ensure that the function has a DSGraph
   assert (paPass->hasDSGraph(*F) && "No DSGraph for function!\n");
 
+  //
+  // Lookup the DSNode for the value in the function's DSGraph.
+  //
   const Value * V = (Vnew) ? Vnew : VOrig;
   DSGraph * TDG = paPass->getDSGraph(*F);
 #else  
   DSGraph * TDG = TDPass->getDSGraph(*F);
 #endif  
-  DSNode *DSN = TDG->getNodeForValue((Value *)V).getNode();
+  DSNode *DSN = TDG->getNodeForValue(V).getNode();
+
+  //
+  // If the value wasn't found in the function's DSGraph, then maybe we can
+  // find the value in the globals graph.
+  //
+  if (!DSN) {
+#ifndef LLVA_KERNEL
+    TDG = paPass->getGlobalsGraph ();
+#else
+    TDG = TDPass->getGlobalsGraph ();
+#endif
+    DSN = TDG->getNodeForValue(V).getNode();
+  }
+
   return DSN;
 }
 
