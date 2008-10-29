@@ -18,7 +18,7 @@
 #include "AtomicOps.h"
 #include "Profiler.h"
 #include "ParPoolAllocator.h"
-
+#include <iostream>
 
 NAMESPACE_SC_BEGIN
 
@@ -28,6 +28,7 @@ static unsigned int gDataEnd;
 // A flag to indicate that the checking thread has done its work
 static volatile unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 
+// Two nodes so checks can be aggregated
 struct PoolCheckRequest {
   PoolTy * Pool;
   void * Node;
@@ -133,21 +134,20 @@ NAMESPACE_SC_END
 using namespace llvm::safecode;
 
 extern "C" {
-void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
-  CheckRequest req;
-  req.poolcheck.Pool = Pool;
-  req.poolcheck.Node = Node;
-  enqueueCheckRequest(req, __stub_poolcheck);
-}
+  void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
+    CheckRequest req;
+    req.poolcheck.Pool = Pool;
+    req.poolcheck.Node = Node;
+    enqueueCheckRequest(req, __stub_poolcheck);
+  }
 
-void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
-  CheckRequest req;
-  req.poolcheck.Pool = Pool;
-  req.poolcheck.Node = Node;
-  //  req.poolcheck.dummy = NULL;
-  enqueueCheckRequest(req, __stub_poolcheckui);
-}
-
+  void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
+    CheckRequest req;
+    req.poolcheck.Pool = Pool;
+    req.poolcheck.Node = Node;
+    enqueueCheckRequest(req, __stub_poolcheckui);
+  }
+  
 void
 __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 // FIXME: This is another type of check
@@ -213,7 +213,7 @@ void __sc_par_wait_for_completion() {
 
 void __sc_par_store_check(void * ptr) {
   if (&gDataStart <= ptr && ptr <= &gDataEnd) {
-     *((volatile int*)0);
+    __builtin_trap();
   }
 } 
 

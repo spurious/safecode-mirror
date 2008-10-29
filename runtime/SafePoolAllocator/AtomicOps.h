@@ -50,7 +50,7 @@ public:
     readidx = (val + 1) % N;
   }
 
-  inline void enqueue (const T  datum, const ptr_t op)
+  inline void enqueue (const T datum, const ptr_t op)
   {
     unsigned val = writeidx;
     while (buffer[val].op) {mb();}
