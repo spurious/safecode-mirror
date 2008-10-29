@@ -27,58 +27,76 @@ NAMESPACE_SC_BEGIN
 
 #define mb()  asm volatile ("" ::: "memory")
 
-template<class T> class LockFreeFifo
+class LockFreeFifo
 {
   static const size_t N = 65536;
 public:
-  typedef void (*ptr_t)(T&);
+  typedef void (*ptr_t)(uintptr_t*);
   struct element_t {
-    ptr_t op;
-    T val;
+    volatile ptr_t op;
+    uintptr_t d[3];
   } __attribute__((packed));
 
   LockFreeFifo () {
-    readidx = writeidx = 0;
+    writeidx = 0;
     memset(&buffer[0], sizeof(buffer), 0);
   }
 
-  inline void dispatch (void) {
-    unsigned val = readidx;
-    while (!buffer[val].op) {mb();}
-    buffer[val].op(buffer[val].val);
-    buffer[val].op = 0;
-    readidx = (val + 1) % N;
+  void dispatch (void) {
+    unsigned val = 0;
+    while (true) {
+      __builtin_prefetch(&buffer[(val+1) % N]);
+      while (!buffer[val].op) {}
+      buffer[val].op(&buffer[val].d[0]);
+      buffer[val].op = 0;
+      val = (val + 1) % N;
+    }
   }
 
-  inline void enqueue (const T datum, const ptr_t op)
+  void enqueue (const ptr_t op)
   {
     unsigned val = writeidx;
-    while (buffer[val].op) {mb();}
-    buffer[val].val = datum;
+    while (buffer[val].op) {}
+    buffer[val].op = op;
+    writeidx = (val + 1) % N;
+  }
+
+  void enqueue (uintptr_t d1, const ptr_t op)
+  {
+    unsigned val = writeidx;
+    while (buffer[val].op) {}
+    buffer[val].d[0] = d1;
     mb();
     buffer[val].op = op;
     writeidx = (val + 1) % N;
   }
 
-  //  inline bool empty() const {
-  //    return readidx == writeidx;
-  //  }
+  void enqueue (uintptr_t d1, uintptr_t d2, const ptr_t op)
+  {
+    unsigned val = writeidx;
+    while (buffer[val].op) {}
+    buffer[val].d[0] = d1;
+    buffer[val].d[1] = d2;
+    mb();
+    buffer[val].op = op;
+    writeidx = (val + 1) % N;
+  }
 
-  inline unsigned size() const {
-    unsigned read = readidx;
-    unsigned write = writeidx;
-    if (write >= read) return write - read;
-    else return N - (read - write);
+  void enqueue (uintptr_t d1, uintptr_t d2, uintptr_t d3, const ptr_t op)
+  {
+    unsigned val = writeidx;
+    while (buffer[val].op) {}
+    buffer[val].d[0] = d1;
+    buffer[val].d[1] = d2;
+    buffer[val].d[2] = d3;
+    mb();
+    buffer[val].op = op;
+    writeidx = (val + 1) % N;
   }
 
 private:
-  volatile unsigned __attribute__((aligned(128))) d0;
-  volatile unsigned __attribute__((aligned(128))) readidx;
-  volatile unsigned __attribute__((aligned(128))) d1;
-  volatile unsigned __attribute__((aligned(128))) writeidx;
-  volatile unsigned __attribute__((aligned(128))) d2;
-  element_t buffer[N];
-  volatile unsigned __attribute__((aligned(128))) d3;
+  unsigned __attribute__((aligned(128))) writeidx;
+  element_t __attribute__((aligned(128))) buffer[N];
 };
 
 template <class QueueTy>
@@ -106,7 +124,7 @@ private:
   }
 
   void run() {
-    while(true) mQueue.dispatch();
+    mQueue.dispatch();
   }
   
   QueueTy & mQueue;

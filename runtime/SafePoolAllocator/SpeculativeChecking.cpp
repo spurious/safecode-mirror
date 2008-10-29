@@ -28,85 +28,43 @@ static unsigned int gDataEnd;
 // A flag to indicate that the checking thread has done its work
 static volatile unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
 
-// Two nodes so checks can be aggregated
-struct PoolCheckRequest {
-  PoolTy * Pool;
-  void * Node;
-  void * dummy;
-};
-
-struct BoundsCheckRequest {
-  PoolTy * Pool;
-  void * Source;
-  void * Dest;
-};
-
-struct PoolRegisterRequest {
-  PoolTy * Pool;
-  void * allocaptr;
-  unsigned NumBytes;
-};
-
-union CheckRequest {
-    PoolCheckRequest poolcheck;
-    BoundsCheckRequest boundscheck;
-    PoolRegisterRequest poolregister;
-    PoolRegisterRequest poolunregister;
-    PoolRegisterRequest pooldestroy;
-} __attribute__((packed)); 
-
-
-// Seems not too many differences
-//__attribute__((aligned(64)));
-
-typedef LockFreeFifo<CheckRequest> CheckQueueTy;
+typedef LockFreeFifo CheckQueueTy;
 CheckQueueTy gCheckQueue;
 
-static inline void enqueueCheckRequest(const CheckRequest req, void (*op)(CheckRequest&)) {
-  PROFILING(unsigned long long start_time = rdtsc();)
-
-  gCheckQueue.enqueue(req, op);
-
-  PROFILING(
-  	unsigned long long end_time = rdtsc();
-  	llvm::safecode::profile_enqueue(start_time, end_time)
-		)
+static void __stub_poolcheck(uintptr_t* req) {
+  poolcheck((PoolTy*)req[0], (void*)req[1]);
 }
 
-static void __stub_poolcheck(CheckRequest & req) {
-	poolcheck(req.poolcheck.Pool, req.poolcheck.Node);
+static void __stub_poolcheckui(uintptr_t* req) {
+  poolcheckui((PoolTy*)req[0], (void*)req[1]);
 }
 
-static void __stub_poolcheckui(CheckRequest & req) {
-	poolcheckui(req.poolcheck.Pool, req.poolcheck.Node);
+static void __stub_boundscheck(uintptr_t* req) {
+  boundscheck((PoolTy*)req[0], (void*)req[1], (void*)req[2]);
 }
 
-static void __stub_boundscheck(CheckRequest & req) {
-	boundscheck(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+static void __stub_boundscheckui(uintptr_t* req) {
+  boundscheckui((PoolTy*)req[0], (void*)req[1], (void*)req[2]);
 }
 
-static void __stub_boundscheckui(CheckRequest & req) {
-	boundscheckui(req.boundscheck.Pool, req.boundscheck.Source, req.boundscheck.Dest);
+static void __stub_poolregister(uintptr_t* req) {
+  poolregister((PoolTy*)req[0], (void*)req[1], req[2]);
 }
 
-static void __stub_poolregister(CheckRequest & req) {
-	poolregister(req.poolregister.Pool, req.poolregister.allocaptr, req.poolregister.NumBytes);
+static void __stub_poolunregister(uintptr_t* req) {
+  poolunregister((PoolTy*)req[0], (void*)req[1]);
 }
 
-static void __stub_poolunregister(CheckRequest & req) {
-	poolunregister(req.poolregister.Pool, req.poolregister.allocaptr);
+static void __stub_pooldestroy(uintptr_t* req) {
+  ParPoolAllocator::pooldestroy((PoolTy*)req[0]);
 }
 
-static void __stub_pooldestroy(CheckRequest & req) {
-	ParPoolAllocator::pooldestroy(req.pooldestroy.Pool);
+static void __stub_sync(uintptr_t* ) {
+  gCheckingThreadWorking = false;
 }
 
-static void __stub_sync(CheckRequest &) {
-	gCheckingThreadWorking = false;
-}
-
-static void __stub_stop(CheckRequest &) {
-	pthread_exit(NULL);
+static void __stub_stop(uintptr_t*) {
+  pthread_exit(NULL);
 }
 
 extern "C" {
@@ -119,11 +77,8 @@ namespace {
     SpeculativeCheckingGuard() : mCheckTask(gCheckQueue) {
     }
     ~SpeculativeCheckingGuard() {
-    	CheckRequest req;
-      enqueueCheckRequest(req, __stub_stop);
-			pthread_join(mCheckTask.thread(), NULL);
-/*      __sc_par_wait_for_completion();
-      mCheckTask.stop();*/
+        gCheckQueue.enqueue(__stub_stop);
+        pthread_join(mCheckTask.thread(), NULL);
     }
 
     void activate(void) {
@@ -142,17 +97,11 @@ using namespace llvm::safecode;
 
 extern "C" {
   void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
-    CheckRequest req;
-    req.poolcheck.Pool = Pool;
-    req.poolcheck.Node = Node;
-    enqueueCheckRequest(req, __stub_poolcheck);
+    gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Node, __stub_poolcheck);
   }
 
   void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
-    CheckRequest req;
-    req.poolcheck.Pool = Pool;
-    req.poolcheck.Node = Node;
-    enqueueCheckRequest(req, __stub_poolcheckui);
+    gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Node, __stub_poolcheckui);
   }
   
 void
@@ -163,40 +112,23 @@ __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 }
 
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
-  CheckRequest req;
-  req.boundscheck.Pool = Pool;
-  req.boundscheck.Source = Source;
-  req.boundscheck.Dest = Dest;
-  enqueueCheckRequest(req, __stub_boundscheck);
+  gCheckQueue.enqueue ((uintptr_t)Pool, (uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck);
 }
 
 void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
-  CheckRequest req;
-  req.boundscheck.Pool = Pool;
-  req.boundscheck.Source = Source;
-  req.boundscheck.Dest = Dest;
-  enqueueCheckRequest(req, __stub_boundscheckui);
+  gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheckui);
 }
 
 void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
-  CheckRequest req;
-  req.poolregister.Pool = Pool;
-  req.poolregister.allocaptr = allocaptr;
-  req.poolregister.NumBytes = NumBytes;
-  enqueueCheckRequest(req, __stub_poolregister);
+  gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)allocaptr, NumBytes, __stub_poolregister);
 }
 
 void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
-  CheckRequest req;
-  req.poolunregister.Pool = Pool;
-  req.poolunregister.allocaptr = allocaptr;
-  enqueueCheckRequest(req, __stub_poolunregister);
+  gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)allocaptr, __stub_poolunregister);
 }
 
 void __sc_par_pooldestroy(PoolTy *Pool) {
-  CheckRequest req;
-  req.pooldestroy.Pool = Pool;
-  enqueueCheckRequest(req, __stub_pooldestroy);
+  gCheckQueue.enqueue((uintptr_t)Pool, __stub_pooldestroy);
 }
 
 void __sc_par_wait_for_completion() {
@@ -207,8 +139,7 @@ void __sc_par_wait_for_completion() {
 
   gCheckingThreadWorking = true;
   
-  CheckRequest req;
-  enqueueCheckRequest(req, __stub_sync);
+  gCheckQueue.enqueue(__stub_sync);
 
   while (gCheckingThreadWorking) {}
 
