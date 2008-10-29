@@ -122,9 +122,11 @@ struct InsertPoolChecks : public FunctionPass {
   void addGetElementPtrChecks(BasicBlock * BB);
   void addGetActualValue(llvm::ICmpInst*, unsigned int);
   bool insertExactCheck (GetElementPtrInst * GEP);
+#if 0
   bool insertExactCheck (Instruction * , Value *, Value *, Instruction *);
-  void addLoadStoreChecks(Function &F);
   void addExactCheck (Value * P, Value * I, Value * B, Instruction * InsertPt);
+#endif
+  void addLoadStoreChecks(Function &F);
   void addExactCheck2 (Value * B, Value * R, Value * C, Instruction * InsertPt);
   void insertAlignmentCheck (LoadInst * LI);
 #ifndef LLVA_KERNEL  
@@ -200,6 +202,7 @@ struct RegisterStackObjPass : public FunctionPass {
       static char ID;
       ClearCheckAttributes() : ModulePass((intptr_t) &ID) {};
       virtual ~ClearCheckAttributes() {};
+
       virtual bool runOnModule (Module & M) {
         Funcs.push_back ("poolcheck");
         Funcs.push_back ("poolcheckui");
@@ -208,7 +211,10 @@ struct RegisterStackObjPass : public FunctionPass {
           Function * F = M.getFunction (Funcs[index]);
           if (F) F->setOnlyReadsMemory (false);
         }
+
+        return false;
       }
+
       virtual const char * getPassName() const {
         return "Clear attributes on run-time functions";
       }
