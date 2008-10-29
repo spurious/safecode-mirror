@@ -105,18 +105,18 @@ static void __stub_sync(CheckRequest &) {
 	gCheckingThreadWorking = false;
 }
 
+extern "C" {
+void __sc_par_wait_for_completion();
+}
+
 namespace {
   class SpeculativeCheckingGuard {
   public:
     SpeculativeCheckingGuard() : mCheckTask(gCheckQueue) {
     }
     ~SpeculativeCheckingGuard() {
+      __sc_par_wait_for_completion();
       mCheckTask.stop();
-//      CheckRequest req;
-//      req.type = CHECK_REQUEST_COUNT;
-//      gCheckQueue.enqueue(req);
-      // Since the whole program stops, just skip the undone checks..
-//      __sc_par_wait_for_completion();
     }
 
     void activate(void) {
@@ -183,7 +183,7 @@ void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
   CheckRequest req;
   req.poolunregister.Pool = Pool;
   req.poolunregister.allocaptr = allocaptr;
-  enqueueCheckRequest(req, __stub_poolregister);
+  enqueueCheckRequest(req, __stub_poolunregister);
 }
 
 void __sc_par_pooldestroy(PoolTy *Pool) {
