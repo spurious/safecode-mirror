@@ -105,6 +105,10 @@ static void __stub_sync(CheckRequest &) {
 	gCheckingThreadWorking = false;
 }
 
+static void __stub_stop(CheckRequest &) {
+	pthread_exit(NULL);
+}
+
 extern "C" {
 void __sc_par_wait_for_completion();
 }
@@ -115,8 +119,11 @@ namespace {
     SpeculativeCheckingGuard() : mCheckTask(gCheckQueue) {
     }
     ~SpeculativeCheckingGuard() {
-      __sc_par_wait_for_completion();
-      mCheckTask.stop();
+    	CheckRequest req;
+      enqueueCheckRequest(req, __stub_stop);
+			pthread_join(mCheckTask.thread(), NULL);
+/*      __sc_par_wait_for_completion();
+      mCheckTask.stop();*/
     }
 
     void activate(void) {

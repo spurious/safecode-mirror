@@ -49,8 +49,15 @@ extern void * rewrite_ptr (struct PoolTy * P, void * p);
 void *
 exactcheck (int a, int b, void * result) {
   if ((0 > a) || (a >= b)) {
+    ReportExactCheck ((unsigned)0xbeefdeed,
+                      (unsigned)result,
+                      (unsigned)__builtin_return_address(0),
+                      (unsigned)a,
+                      (unsigned)0);
+#if 0
     poolcheckfail ("exact check failed", (a), (void*)__builtin_return_address(0));
     poolcheckfail ("exact check failed", (b), (void*)__builtin_return_address(0));
+#endif
   }
   return result;
 }

@@ -84,16 +84,14 @@ private:
 template <class QueueTy>
 class Task {
 public:
-  Task(QueueTy & queue) : mQueue(queue), mActive(false) {}
+  Task(QueueTy & queue) : mQueue(queue) {}
   void activate() {
-    mActive = true;
     typedef void * (*start_routine_t)(void*);
-    pthread_t thr;
-    pthread_create(&thr, NULL, (start_routine_t)(&Task::runHelper), this);
+    pthread_create(&mThread, NULL, (start_routine_t)(&Task::runHelper), this);
   }
-  
-  void stop() {
-    mActive = false;
+
+	pthread_t thread() const {
+		return mThread;
   }
 
   QueueTy & getQueue() const {
@@ -101,14 +99,14 @@ public:
   }
 
 private:
+  pthread_t mThread;
   static void * runHelper(Task * this_) {
     this_->run();
     return NULL;
   }
 
   void run() {
-    while(mActive)
-      mQueue.dispatch();
+    while(true) mQueue.dispatch();
   }
   
   QueueTy & mQueue;
