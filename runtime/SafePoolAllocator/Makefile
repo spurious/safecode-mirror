@@ -3,6 +3,8 @@ BYTECODE_LIBRARY=1
 SHARED_LIBRARY=1
 LIBRARYNAME=poolalloc_safe_rt
 
+CXX.Flags += -march=native
+
 include $(LEVEL)/Makefile.common
 
 # Always build optimized and debug versions

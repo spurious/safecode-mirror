@@ -67,6 +67,30 @@ static void __stub_stop(uintptr_t*) {
   pthread_exit(NULL);
 }
 
+//Checking thread cached versions
+
+PoolTy* PoolCache[2];
+
+static void __stub_cachepool_0(uintptr_t* req) {
+  PoolCache[0] = (PoolTy*)req[0];
+}
+static void __stub_cachepool_1(uintptr_t* req) {
+  PoolCache[1] = (PoolTy*)req[0];
+}
+static void __stub_poolcheck_0(uintptr_t* req) {
+  poolcheck(PoolCache[0], (void*)req[0]);
+}
+static void __stub_poolcheck_1(uintptr_t* req) {
+  poolcheck(PoolCache[1], (void*)req[0]);
+}
+static void __stub_boundscheck_0(uintptr_t* req) {
+  boundscheck(PoolCache[0], (void*)req[0], (void*)req[1]);
+}
+static void __stub_boundscheck_1(uintptr_t* req) {
+  boundscheck(PoolCache[1], (void*)req[0], (void*)req[1]);
+}
+
+
 extern "C" {
 void __sc_par_wait_for_completion();
 }
@@ -99,7 +123,12 @@ extern "C" {
   void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
     gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Node, __stub_poolcheck);
   }
-
+  void __sc_par_poolcheck_0(void *Node) {
+    gCheckQueue.enqueue((uintptr_t)Node, __stub_poolcheck_0);
+  }
+  void __sc_par_poolcheck_1(void *Node) {
+    gCheckQueue.enqueue((uintptr_t)Node, __stub_poolcheck_1);
+  }
   void __sc_par_poolcheckui(PoolTy *Pool, void *Node) {
     gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Node, __stub_poolcheckui);
   }
@@ -113,6 +142,12 @@ __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
 
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
   gCheckQueue.enqueue ((uintptr_t)Pool, (uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck);
+}
+void __sc_par_boundscheck_0(void * Source, void * Dest) {
+  gCheckQueue.enqueue ((uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck_0);
+}
+void __sc_par_boundscheck_1(void * Source, void * Dest) {
+  gCheckQueue.enqueue ((uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck_1);
 }
 
 void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
@@ -130,6 +165,13 @@ void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr) {
 void __sc_par_pooldestroy(PoolTy *Pool) {
   gCheckQueue.enqueue((uintptr_t)Pool, __stub_pooldestroy);
 }
+
+ void __sc_par_cachepool_0(PoolTy* Pool) {
+   gCheckQueue.enqueue((uintptr_t)Pool, __stub_cachepool_0);
+ }
+ void __sc_par_cachepool_1(PoolTy* Pool) {
+   gCheckQueue.enqueue((uintptr_t)Pool, __stub_cachepool_1);
+ }
 
 void __sc_par_wait_for_completion() {
   PROFILING(

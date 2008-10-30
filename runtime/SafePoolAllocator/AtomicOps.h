@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <strings.h>
 #include "Config.h"
 #include "Profiler.h"
 
@@ -39,14 +40,13 @@ public:
 
   LockFreeFifo () {
     writeidx = 0;
-    memset(&buffer[0], sizeof(buffer), 0);
+    bzero(&buffer[0], sizeof(buffer));
   }
 
   void dispatch (void) {
     unsigned val = 0;
     while (true) {
-      __builtin_prefetch(&buffer[(val+1) % N]);
-      while (!buffer[val].op) {}
+      while (!buffer[val].op) {asm("pause");}
       buffer[val].op(&buffer[val].d[0]);
       buffer[val].op = 0;
       val = (val + 1) % N;
@@ -56,7 +56,7 @@ public:
   void enqueue (const ptr_t op)
   {
     unsigned val = writeidx;
-    while (buffer[val].op) {}
+    while (buffer[val].op) {asm("pause");}
     buffer[val].op = op;
     writeidx = (val + 1) % N;
   }
@@ -64,7 +64,7 @@ public:
   void enqueue (uintptr_t d1, const ptr_t op)
   {
     unsigned val = writeidx;
-    while (buffer[val].op) {}
+    while (buffer[val].op) {asm("pause");}
     buffer[val].d[0] = d1;
     mb();
     buffer[val].op = op;
@@ -74,7 +74,7 @@ public:
   void enqueue (uintptr_t d1, uintptr_t d2, const ptr_t op)
   {
     unsigned val = writeidx;
-    while (buffer[val].op) {}
+    while (buffer[val].op) {asm("pause");}
     buffer[val].d[0] = d1;
     buffer[val].d[1] = d2;
     mb();
@@ -85,7 +85,7 @@ public:
   void enqueue (uintptr_t d1, uintptr_t d2, uintptr_t d3, const ptr_t op)
   {
     unsigned val = writeidx;
-    while (buffer[val].op) {}
+    while (buffer[val].op) {asm("pause");}
     buffer[val].d[0] = d1;
     buffer[val].d[1] = d2;
     buffer[val].d[2] = d3;
