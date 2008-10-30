@@ -40,8 +40,8 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-  MultiSource/Benchmarks/Olden/mst \
-#  MultiSource/Benchmarks/Olden/bh \
+  MultiSource/Benchmarks/Olden \
+  #MultiSource/Benchmarks/Olden/bh \
   MultiSource/Benchmarks/Olden/bisort \
   MultiSource/Benchmarks/Olden/health \
   MultiSource/Benchmarks/Olden/mst \
@@ -49,6 +49,7 @@ NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden/power \
   MultiSource/Benchmarks/Olden/treeadd \
   MultiSource/Benchmarks/Olden/tsp \
+#  MultiSource/Benchmarks/Olden \
 #  MultiSource/Benchmarks/Olden/em3d \
 #  MultiSource/Benchmarks/Olden/voronoi \
 #   MultiSource/Benchmarks/Olden \
@@ -81,6 +82,22 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 # Targets for gathering statistics for programs for papers
 ##############################################################################
                
+# Program tests for Parallel Checking
+partest::
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=par \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
+                   report.html report.csv; \
+			mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
+			mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
+			done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=par \
+                   report) \
+        done
 
 # Program tests for Pool Allocation
 progtest::
