@@ -13,21 +13,22 @@ namespace {
   RegisterPass<llvm::MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
 
   STATISTIC (MonotonicLoopOptPoolCheck,
-      "Number of monotonic loop optimization performed for poolcheck");
+	     "Number of monotonic loop optimization performed for poolcheck");
   STATISTIC (MonotonicLoopOptPoolCheckUI,
-      "Number of monotonic loop optimization performed for poolcheckUI");
+	     "Number of monotonic loop optimization performed for poolcheckUI");
   STATISTIC (MonotonicLoopOptExactCheck,
-      "Number of monotonic loop optimization performed for exactcheck");
+	     "Number of monotonic loop optimization performed for exactcheck");
   STATISTIC (MonotonicLoopOptExactCheck2,
-      "Number of monotonic loop optimization performed for exactcheck2");
+	     "Number of monotonic loop optimization performed for exactcheck2");
   STATISTIC (MonotonicLoopOptBoundsCheck,
-      "Number of monotonic loop optimization performed for boundscheck");
+	     "Number of monotonic loop optimization performed for boundscheck");
   STATISTIC (MonotonicLoopOptBoundsCheckUI,
-      "Number of monotonic loop optimization performed for boundscheckUI");
+	     "Number of monotonic loop optimization performed for boundscheckUI");
 
   enum {
     CHECK_FUNC_POOLCHECK = 0,
     CHECK_FUNC_POOLCHECKUI,
+		CHECK_FUNC_POOLCHECKALIGN,
     CHECK_FUNC_EXACTCHECK,
     CHECK_FUNC_EXACTCHECK2,
     CHECK_FUNC_BOUNDSCHECK,
@@ -58,6 +59,7 @@ namespace {
   static const checkFunctionInfo checkFunctions[] = {
     checkFunctionInfo(CHECK_FUNC_POOLCHECK,     "poolcheck",     1, 0, 2),
     checkFunctionInfo(CHECK_FUNC_POOLCHECKUI,   "poolcheckui",   1, 0, 2),
+    checkFunctionInfo(CHECK_FUNC_POOLCHECKALIGN,"poolcheckalign",1, 0, 2),
     checkFunctionInfo(CHECK_FUNC_EXACTCHECK,    "exactcheck",    0, 0, 3),
     checkFunctionInfo(CHECK_FUNC_EXACTCHECK2,   "exactcheck2",   0, 1, 2),
     checkFunctionInfo(CHECK_FUNC_BOUNDSCHECK,   "boundscheck",   0, 2, 3),
@@ -67,6 +69,15 @@ namespace {
   typedef std::map<std::string, int> checkFuncMapType;
   checkFuncMapType checkFuncMap;
   
+  // FIXME: There is duplicated codes in Parallel checkings
+  // See whether a call instruction is calling the checking functions
+  // It should be only called after doInitialization
+  static bool isCheckingCall(CallInst * CI) {
+    Function * F = CI->getCalledFunction();
+    if (!F) return false;
+    return checkFuncMap.find(F->getName()) != checkFuncMap.end();
+  }
+
   // Try to find the GEP from the call instruction of the checking function
 
   static GetElementPtrInst * getGEPFromCheckCallInst(int checkFunctionId, CallInst * callInst) {
@@ -75,13 +86,11 @@ namespace {
     if (isa<GetElementPtrInst>(inst)) {
       return dyn_cast<GetElementPtrInst>(inst);
     } else if (isa<BitCastInst>(inst)) {
-      return dyn_cast<GetElementPtrInst>(
-          dyn_cast<BitCastInst>(inst)->getOperand(0)
-          );
+      return dyn_cast<GetElementPtrInst>
+	(dyn_cast<BitCastInst>(inst)->getOperand(0));
     }
     return NULL;
   }
-
   static std::set<Loop*> optimizedLoops;
 }
 
@@ -99,7 +108,7 @@ namespace llvm {
     typedef GraphTraits<Inverse<BasicBlock*> > InvBasicBlockraits;
     InvBasicBlockraits::ChildIteratorType PI = InvBasicBlockraits::child_begin(H);
     assert(PI != InvBasicBlockraits::child_end(H) &&
-        "Loop must have at least one backedge!");
+	   "Loop must have at least one backedge!");
     Backedge = *PI++;
     if (PI == InvBasicBlockraits::child_end(H)) return 0;  // dead loop
     Incoming = *PI++;
@@ -126,15 +135,15 @@ namespace llvm {
   
   bool
   MonotonicLoopOpt::doFinalization() { 
-     optimizedLoops.clear();
-     return false;
+    optimizedLoops.clear();
+    return false;
   }
 
   // Initialization for the check function name -> check function id
   bool
   MonotonicLoopOpt::doInitialization(Loop *L, LPPassManager &LPM) { 
-     optimizedLoops.clear();
-     for (size_t i = 0; i < CHECK_FUNC_COUNT; ++i) {
+    optimizedLoops.clear();
+    for (size_t i = 0; i < CHECK_FUNC_COUNT; ++i) {
       checkFuncMap[checkFunctions[i].name] = checkFunctions[i].id;
     }
     return false;
@@ -165,29 +174,29 @@ namespace llvm {
  
   /// Determines if a GEP can be hoisted
   bool 
-    MonotonicLoopOpt::isHoistableGEP(GetElementPtrInst * GEP, Loop * L) {
-      for(int i = 0, end = GEP->getNumOperands(); i != end; ++i) {
-        Value * op = GEP->getOperand(i);
-        if (L->isLoopInvariant(op)) continue;
+  MonotonicLoopOpt::isHoistableGEP(GetElementPtrInst * GEP, Loop * L) {
+    for(int i = 0, end = GEP->getNumOperands(); i != end; ++i) {
+      Value * op = GEP->getOperand(i);
+      if (L->isLoopInvariant(op)) continue;
 
-        SCEVHandle SH = scevPass->getSCEV(op);
-        if (!SH->hasComputableLoopEvolution(L)) return false;
-        SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
-        if (!AR || !AR->isAffine()) return false;
-        SCEVHandle startVal = AR->getStart();
-        SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
-        if (isa<SCEVCouldNotCompute>(startVal) || isa<SCEVCouldNotCompute>(endVal)){
-          return false;
-        }
+      SCEVHandle SH = scevPass->getSCEV(op);
+      if (!SH->hasComputableLoopEvolution(L)) return false;
+      SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
+      if (!AR || !AR->isAffine()) return false;
+      SCEVHandle startVal = AR->getStart();
+      SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
+      if (isa<SCEVCouldNotCompute>(startVal) || isa<SCEVCouldNotCompute>(endVal)){
+	return false;
       }
-      return true;
     }
+    return true;
+  }
 
   /// Insert checks for edge condition
 
   void
   MonotonicLoopOpt::insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *
-  ptIns, int type)
+					  ptIns, int type)
   {
     enum {
       LOWER_BOUND,
@@ -216,25 +225,25 @@ namespace llvm {
     newGEP->insertBefore(ptIns);
    
     CastInst * castedNewGEP = CastInst::CreatePointerCast(newGEP,
-        PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
-        ptIns);
+							  PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
+							  ptIns);
 
     CallInst * checkInst = callInst->clone();
     const checkFunctionInfo & info = checkFunctions[checkFunctionId];
 
     if (info.argSrcPtrPos) {
       // Copy the srcPtr if necessary
-      CastInst * newSrcPtr =
-        CastInst::CreatePointerCast(origGEP->getPointerOperand(),
-        PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
-        newGEP);
+      CastInst * newSrcPtr = CastInst::CreatePointerCast
+	(origGEP->getPointerOperand(),
+	 PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
+	 newGEP);
       checkInst->setOperand(info.argSrcPtrPos, newSrcPtr);
     }
     
-	if (info.argPoolHandlePos) {
+    if (info.argPoolHandlePos) {
       // Copy the pool handle if necessary
       Instruction * newPH = cast<Instruction>(checkInst->getOperand(1))->clone();
-	  newPH->insertBefore(ptIns);
+      newPH->insertBefore(ptIns);
       checkInst->setOperand(info.argPoolHandlePos, newPH);
     }
     
@@ -244,81 +253,80 @@ namespace llvm {
   
 
   bool
-    MonotonicLoopOpt::runOnLoop(Loop *L, LPPassManager &LPM) {
-      LI = &getAnalysis<LoopInfo>();
-      scevPass = &getAnalysis<ScalarEvolution>();
+  MonotonicLoopOpt::runOnLoop(Loop *L, LPPassManager &LPM) {
+    LI = &getAnalysis<LoopInfo>();
+    scevPass = &getAnalysis<ScalarEvolution>();
 
-      for (Loop::iterator LoopItr = L->begin(), LoopItrE = L->end();
-          LoopItr != LoopItrE; ++LoopItr) {
-        if (optimizedLoops.find(*LoopItr) == optimizedLoops.end())
+    for (Loop::iterator LoopItr = L->begin(), LoopItrE = L->end();
+	 LoopItr != LoopItrE; ++LoopItr) {
+      if (optimizedLoops.find(*LoopItr) == optimizedLoops.end())
         {
           // Handle sub loops first
           LPM.redoLoop(L);
           return false;
         }
-      }
-      optimizedLoops.insert(L);
-      return optimizeCheck(L);
     }
+    optimizedLoops.insert(L);
+    return optimizeCheck(L);
+  }
 
   bool
-    MonotonicLoopOpt::optimizeCheck(Loop *L) {
-      bool changed = false;
-      if (!isEligibleForOptimization(L)) return false;
-      // Get the preheader block to move instructions into...
-      BasicBlock * Preheader = L->getLoopPreheader();
+  MonotonicLoopOpt::optimizeCheck(Loop *L) {
+    bool changed = false;
+    if (!isEligibleForOptimization(L)) return false;
+    // Get the preheader block to move instructions into...
+    BasicBlock * Preheader = L->getLoopPreheader();
       
-      std::vector<PHINode *> loopVarList;
-      getPossibleLoopVariable(L, loopVarList);
-      PHINode * loopVar = NULL;
-      for (std::vector<PHINode*>::iterator it = loopVarList.begin(), end = loopVarList.end(); it != end; ++it) {
-        if (!isMonotonicLoop(L, *it)) continue;
-        loopVar = *it;
+    std::vector<PHINode *> loopVarList;
+    getPossibleLoopVariable(L, loopVarList);
+    PHINode * loopVar = NULL;
+    for (std::vector<PHINode*>::iterator it = loopVarList.begin(), end = loopVarList.end(); it != end; ++it) {
+      if (!isMonotonicLoop(L, *it)) continue;
+      loopVar = *it;
 
-        // Loop over the body of this loop, looking for calls, invokes, and stores.
-        // Because subloops have already been incorporated into AST, we skip blocks in
-        // subloops.
-        //
-        std::vector<CallInst*> toBeRemoved;
-        for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-            I != E; ++I) {
-          BasicBlock *BB = *I;
-          if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
+      // Loop over the body of this loop, looking for calls, invokes, and stores.
+      // Because subloops have already been incorporated into AST, we skip blocks in
+      // subloops.
+      //
+      std::vector<CallInst*> toBeRemoved;
+      for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
+	   I != E; ++I) {
+	BasicBlock *BB = *I;
+	if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
 
-          for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
-              ++it) {
-            CallInst * callInst = dyn_cast<CallInst>(it);
-            if (!callInst) continue;
+	for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
+	     ++it) {
+	  CallInst * callInst = dyn_cast<CallInst>(it);
+	  if (!callInst) continue;
 
-	    Function * F = callInst->getCalledFunction();
-	    if (!F) continue;
+	  Function * F = callInst->getCalledFunction();
+	  if (!F) continue;
 
-            checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
-            if (it == checkFuncMap.end()) continue;
+	  checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
+	  if (it == checkFuncMap.end()) continue;
 
-            int checkFunctionId = it->second;
-            GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
+	  int checkFunctionId = it->second;
+	  GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
 
-            if (!GEP || !isHoistableGEP(GEP, L)) continue;
-
+	  if (!GEP || !isHoistableGEP(GEP, L)) continue;
           
-	    Instruction *ptIns = Preheader->getTerminator();
+	  Instruction *ptIns = Preheader->getTerminator();
 
-            insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
-            insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
-            toBeRemoved.push_back(callInst);
+	  insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
+	  insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
+	  toBeRemoved.push_back(callInst);
 
-            ++(*(statData[checkFunctionId]));
-            changed = true;
-          }
+	  ++(*(statData[checkFunctionId]));
+	  changed = true;
+	}
 
-        }
-        for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
-          (*it)->eraseFromParent();
-        }
       }
-      return changed;
+      for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
+	(*it)->eraseFromParent();
+      }
     }
+    return changed;
+  }
 
   /// Test whether a loop is eligible for monotonic optmization
   /// A loop should satisfy all these following conditions before optmization:
@@ -346,8 +354,9 @@ namespace llvm {
 	 I != E; ++I) {
       BasicBlock *BB = *I;
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
-	if (isa<CallInst>(I)) {
-	  return false;
+	if (CallInst * CI = dyn_cast<CallInst>(I)) {
+	  if (!isCheckingCall(CI)) 
+	    return false;
 	}
       }
     }     
