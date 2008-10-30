@@ -16,6 +16,8 @@ namespace {
 	     "Number of monotonic loop optimization performed for poolcheck");
   STATISTIC (MonotonicLoopOptPoolCheckUI,
 	     "Number of monotonic loop optimization performed for poolcheckUI");
+  STATISTIC (MonotonicLoopOptPoolCheckAlign,
+	     "Number of monotonic loop optimization performed for poolcheckalign");
   STATISTIC (MonotonicLoopOptExactCheck,
 	     "Number of monotonic loop optimization performed for exactcheck");
   STATISTIC (MonotonicLoopOptExactCheck2,
@@ -39,6 +41,7 @@ namespace {
   static llvm::Statistic * statData[] = {
     &MonotonicLoopOptPoolCheck,
     &MonotonicLoopOptPoolCheckUI,
+    &MonotonicLoopOptPoolCheckAlign,
     &MonotonicLoopOptExactCheck,
     &MonotonicLoopOptExactCheck2,
     &MonotonicLoopOptBoundsCheck,
