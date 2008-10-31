@@ -12,6 +12,8 @@
 #define DEBUG_TYPE "dsnode"
 
 #include <iostream>
+#include <signal.h>
+
 #include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
 #include "llvm/Support/CommandLine.h"
@@ -89,26 +91,25 @@ DSNodePass::getPoolHandle (const Value *V,
   //
   assert (collapsed && "For now, we must always handle collapsed pools!\n");
 
+  //
+  // Get the DSNode for the value.
+  //
+  const DSNode *Node = getDSNode (V,F);
+  if (!Node) {
+    std::cerr << "JTC: getPoolHandle: No DSNode: Function: " << F->getName() << ", Value: " << *V << std::endl;
+    return 0;
+  }
+
 #if 1
   //
   // JTC:
   //  If this function has a clone, then try to grab the original.
   //
-  if (!(paPass->getFuncInfo(*F)))
-  {
+  if (!(paPass->getFuncInfo(*F))) {
     F = paPass->getOrigFunctionFromClone(F);
     assert (F && "No Function Information from Pool Allocation!\n");
   }
 #endif
-
-  //
-  // Get the DSNode for the value.
-  //
-  const DSNode *Node = getDSNode(V,F);
-  if (!Node) {
-    std::cerr << "JTC: No DSNode: Function: " << F->getName() << ", Value: " << *V << std::endl;
-    return 0;
-  }
 
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
@@ -193,8 +194,10 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   // JTC:
   //  If this function has a clone, then try to grab the original.
   //
+  bool isClone = false;
   Value * Vnew = (Value *)(VOrig);
   if (!(paPass->getFuncInfo(*F))) {
+    isClone = true;
     F = paPass->getOrigFunctionFromClone(F);
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     if (!FI->NewToOldValueMap.empty()) {
@@ -220,14 +223,36 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   // If the value wasn't found in the function's DSGraph, then maybe we can
   // find the value in the globals graph.
   //
+  DSGraph * GlobalsGraph;
   if (!DSN) {
 #ifndef LLVA_KERNEL
-    TDG = paPass->getGlobalsGraph ();
+    GlobalsGraph = paPass->getGlobalsGraph ();
 #else
-    TDG = TDPass->getGlobalsGraph ();
+    GlobalsGraph = TDPass->getGlobalsGraph ();
 #endif
-    DSN = TDG->getNodeForValue(V).getNode();
+    DSN = GlobalsGraph->getNodeForValue(V).getNode();
   }
+
+  // FIXME: Debugging code.  Please remove when finished debugging.
+#if 0
+  if (!DSN) {
+    if (const GetElementPtrInst * GEP = dyn_cast<GetElementPtrInst>(V)) {
+      DSN = TDG->getNodeForValue(GEP->getPointerOperand()).getNode();
+      if (!DSN) {
+        DSN = GlobalsGraph->getNodeForValue(GEP->getPointerOperand()).getNode();
+      }
+
+      if (!DSN)
+        std::cerr << "JTC: No GEP DSNode: " << isClone << ": " << *V << std::endl;
+    }
+  }
+
+  if (!DSN) {
+    std::cerr << "JTC: Pausing: No DSNode: " << isClone << std::endl;
+    kill (getpid(), SIGTSTP);
+    std::cerr << "JTC: Resuming\n";
+  }
+#endif
 
   return DSN;
 }
