@@ -132,8 +132,14 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for ( ; GI != GE; ++GI) {
     if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GI)) {
-      // Don't register the llvm.used variable
-      if (GV->getName() == "llvm.used") continue;
+      //
+      // Skip over several types of globals, including:
+      //  llvm.used
+      //  llvm.noinline
+      //  Any global pool descriptor
+      //
+      std::string name = GV->getName();
+      if ((name == "llvm.used") || (name == "llvm.noinline")) continue;
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph *G = paPass->getGlobalsGraph();
         DSNode *DSN  = G->getNodeForValue(GV).getNode();
