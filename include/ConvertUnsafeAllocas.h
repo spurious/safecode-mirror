@@ -55,6 +55,10 @@ struct InitAllocas : public FunctionPass {
     Constant * memsetF;
     DominatorTree * domTree;
     DSNodePass * dsnPass;
+    PoolAllocateGroup * paPass;
+
+    // The type of a pool descriptor
+    const Type * PoolType;
 
     // Private methods
     inline bool changeType (Instruction * Inst);

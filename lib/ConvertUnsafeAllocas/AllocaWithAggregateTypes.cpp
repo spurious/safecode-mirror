@@ -70,6 +70,17 @@ namespace llvm
 
   inline bool
   InitAllocas::TypeContainsPointer(const Type *Ty) {
+    //
+    // FIXME:
+    //  What this should really do is ask Pool Allocation if the given memory.
+    //  object is a pool descriptor.  However, I don't think Pool Allocation
+    //  has a good API for requesting that information.
+    //
+    // If this type is a pool descriptor type, then pretend that it doesn't
+    // have any pointer.
+    //
+    if (Ty == PoolType) return false;
+
     if (Ty->getTypeID() == Type::PointerTyID)
       return true;
     else if (Ty->getTypeID() == Type::StructTyID) {
@@ -157,6 +168,12 @@ namespace llvm
     // Get references to previous analysis passes
     TargetData &TD = getAnalysis<TargetData>();
     dsnPass = &getAnalysis<DSNodePass>();
+    paPass = &getAnalysis<PoolAllocateGroup>();
+
+    //
+    // Get the type of a pool descriptor.
+    //
+    PoolType = paPass->getPoolType();
 
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I) {
       for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
