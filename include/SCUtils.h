@@ -3,8 +3,20 @@
 #include "llvm/Instructions.h"
 
 #include <vector>
+#include <string>
 
 using namespace llvm;
+
+namespace llvm {
+//
+// Function: isCheckingCall
+//
+// Determine whether a function is a checking routine inserted by SafeCode
+//
+// FIXME: currently the function stays in CodeDuplication.cpp, it
+// should be a separate cpp file.
+  bool isCheckingCall(const std::string & functionName);
+
 
 
 //
@@ -112,3 +124,4 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
   return true;
 }
 
+}

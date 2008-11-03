@@ -90,6 +90,10 @@ static void __stub_boundscheck_1(uintptr_t* req) {
   boundscheck(PoolCache[1], (void*)req[0], (void*)req[1]);
 }
 
+static void __stub_code_dup_arg(uintptr_t* req) {
+  typedef void (*dup_arg0_t)(void*);
+  ((dup_arg0_t)req[0])((void*)req[1]);
+}
 
 extern "C" {
 void __sc_par_wait_for_completion();
@@ -171,6 +175,10 @@ void __sc_par_pooldestroy(PoolTy *Pool) {
  }
  void __sc_par_cachepool_1(PoolTy* Pool) {
    gCheckQueue.enqueue((uintptr_t)Pool, __stub_cachepool_1);
+ }
+ 
+  void __sc_par_enqueue_code_dup(void * code, void * args) {
+    gCheckQueue.enqueue((uintptr_t)code, (uintptr_t)args, __stub_code_dup_arg);
  }
 
 void __sc_par_wait_for_completion() {

@@ -72,14 +72,6 @@ namespace {
   typedef std::map<std::string, int> checkFuncMapType;
   checkFuncMapType checkFuncMap;
   
-  // FIXME: There is duplicated codes in Parallel checkings
-  // See whether a call instruction is calling the checking functions
-  // It should be only called after doInitialization
-  static bool isCheckingCall(CallInst * CI) {
-    Function * F = CI->getCalledFunction();
-    if (!F) return false;
-    return checkFuncMap.find(F->getName()) != checkFuncMap.end();
-  }
 
   // Try to find the GEP from the call instruction of the checking function
 
@@ -336,6 +328,13 @@ namespace llvm {
   /// 1. Have an preheader
   /// 2. There is only *one* exitblock in the loop
   /// 3. There is no other instructions (actually we only handle call instruction) in the loop change the bounds of the check
+  /// TODO: we should run a bottom-up call graph analysis to identify the 
+  /// calls that are SAFE, i.e., calls that do not affect the bounds of arrays.
+  ///
+  /// Currently we scan through the loop (including sub-loops), we
+  /// don't do the optimization if there exists a call instruction in
+  /// the loop.
+
   bool
   MonotonicLoopOpt::isEligibleForOptimization(const Loop * L) {
     BasicBlock * Preheader = L->getLoopPreheader();
@@ -346,20 +345,15 @@ namespace llvm {
     if (exitBlocks.size() != 1) {
       return false;
     }
-    // TODO: we should run a bottom-up call graph analysis to identify the 
-    // calls that are SAFE, i.e., calls that do not affect the bounds of arrays.
-    //
-    // Currently we scan through the loop (including sub-loops), we
-    // don't do the optimization if there exists a call instruction in
-    // the loop.
+
 
     for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
 	 I != E; ++I) {
       BasicBlock *BB = *I;
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
 	if (CallInst * CI = dyn_cast<CallInst>(I)) {
-	  if (!isCheckingCall(CI)) 
-	    return false;
+	  Function * F = CI->getCalledFunction();
+	  if (F && isCheckingCall(F->getName())) return false;
 	}
       }
     }     

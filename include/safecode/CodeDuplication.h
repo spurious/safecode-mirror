@@ -9,6 +9,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/LoopPass.h"
 
 namespace llvm {
 
@@ -64,6 +65,94 @@ namespace llvm {
   private:
     void wrapCheckingRegionAsFunction(Module & M, const BasicBlock * bb, 
 				      const CodeDuplicationAnalysis::InputArgumentsTy & args);
+  };
+
+
+  /**
+   *
+   * Analyze all loops to find all the loops that are eligible for code duplication. 
+   * It also clones eligible loop
+   *
+   * HACK: the transformation pass is a module pass but it requires
+   * the information from the analysis pass. Currently I have to make
+   * things static in order to perverse the information. Should be refactored.
+   *
+   **/
+  struct DuplicateLoopAnalysis : public LoopPass {
+  DuplicateLoopAnalysis() : LoopPass((intptr_t) & ID) {}
+    virtual ~DuplicateLoopAnalysis() {}
+    virtual const char * getPassName() const { return "Find loops eligible for code duplication"; }
+    virtual bool doInitialization(llvm::Loop*, llvm::LPPassManager&) { return false; }
+    virtual bool doInitialization(Module & M); 
+    virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
+
+    virtual void getAnalysisUsage(AnalysisUsage & AU) const {
+      AU.addRequired<LoopInfo>();
+      AU.setPreservesAll();
+      AU.setPreservesCFG();
+    }
+
+    typedef std::vector<Value *> InputArgumentsTy;
+
+    typedef struct {
+      InputArgumentsTy args;
+      DenseMap<const Value *, Value*> cloneValueMap;
+      Loop * clonedLoop;
+      Function * wrapFunction;
+    } DupLoopInfoTy;
+
+    /**
+     * Return the information of a loop, including:
+     * 1. ``arguments'' of a loop, i.e., all live variables used in
+     * the loop.
+     * 2. duplicated function used in checking
+     *
+     * Return:
+     *  NULL if the loop is not eligible for code duplication
+     *
+     **/
+    static DupLoopInfoTy * getDupLoopInfo(const Loop * L);
+    static char ID;
+
+
+  private:
+    LoopInfo * LI;
+    typedef std::map<const Loop*, DupLoopInfoTy> LoopInfoMapTy;
+    static LoopInfoMapTy LoopInfoMap;
+    std::set<Function *> cloneFunction;
+
+    /**
+     * Calculate arguments of a particular loop
+     **/
+    void calculateArgument(const Loop * L);
+
+    /**
+     * Check whether a loop is eligible for duplication
+     *
+     * Here are the sufficient conditions:
+     * 
+     *  1. All stores in the loop are type-safe.
+     *  2. It only calls readonly functions
+     *
+     **/
+    bool isEligibleforDuplication(const Loop * L) const;
+
+    /**
+     *
+     * Transform a loop into a duplicated one with all the checks
+     * It will do the following:
+     *  1. Clone the loop and wrap it into a function
+     *  2. Replace all uses in the new functions with proper arguments
+     *  3. Clean up the original loop and add calls for parallel checkings
+     **/
+
+    /**
+     * Clone the loop and wrap it into a function
+     **/
+    Function * wrapLoopIntoFunction(Loop  * L, Module * M);
+
+    void insertCheckingCallInLoop(Loop* L, Function * checkingFunction, StructType * checkArgumentType, Module * M);
+    void replaceIntrinsic(Loop * L, Module * M);
   };
 }
 
