@@ -80,7 +80,7 @@ DSNodePass::getDSGraph(Function & F) {
 //
 Value *
 DSNodePass::getPoolHandle (const Value *V,
-                           Function *F,
+                           Function *FClone,
                            PA::FuncInfo &FI,
                            bool collapsed) {
 
@@ -92,24 +92,26 @@ DSNodePass::getPoolHandle (const Value *V,
   assert (collapsed && "For now, we must always handle collapsed pools!\n");
 
   //
-  // Get the DSNode for the value.
+  // Get the DSNode for the value.  Don't worry about mapping back to the
+  // original function because getDSNode() will take care of that for us.
   //
-  const DSNode *Node = getDSNode (V,F);
+  const DSNode *Node = getDSNode (V, FClone);
   if (!Node) {
-    std::cerr << "JTC: getPoolHandle: No DSNode: Function: " << F->getName() << ", Value: " << *V << std::endl;
+    std::cerr << "JTC: getPoolHandle: No DSNode: Function: "
+              << FClone->getName() << ", Value: " << *V << std::endl;
     return 0;
   }
 
-#if 1
   //
-  // JTC:
-  //  If this function has a clone, then try to grab the original.
+  // If this function has a clone, then try to grab the original.
   //
-  if (!(paPass->getFuncInfo(*F))) {
-    F = paPass->getOrigFunctionFromClone(F);
-    assert (F && "No Function Information from Pool Allocation!\n");
+  Function * FOrig = FClone;
+  bool isClone = false;
+  if (!(paPass->getFuncInfo(*FClone))) {
+    FOrig = paPass->getOrigFunctionFromClone(FClone);
+    assert (FOrig && "No Function Information from Pool Allocation!\n");
+    isClone = true;
   }
-#endif
 
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
@@ -123,9 +125,9 @@ DSNodePass::getPoolHandle (const Value *V,
     //
     if (!collapsed) {
 #if 0
-      assert(!getDSNodeOffset(V, F) && " we don't handle middle of structs yet\n");
+      assert(!getDSNodeOffset(V, FClone) && " we don't handle middle of structs yet\n");
 #else
-      if (getDSNodeOffset(V, F))
+      if (getDSNodeOffset(V, FOrig))
         std::cerr << "ERROR: we don't handle middle of structs yet"
                   << std::endl;
 #endif
@@ -134,42 +136,52 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
     }
   }
 
-  Value * PH = paPass->getPool (Node, *F);
+  //
+  // Get the pool handle from the pool allocation pass.  Use the original
+  // function because we want to ensure that whatever pool handle we get back
+  // is accessible from the function.
+  //
+  Value * PH = paPass->getPool (Node, *FClone);
 
 #if 0
   map <Function *, set<Value *> > &
     CollapsedPoolPtrs = efPass->CollapsedPoolPtrs;
 #endif
   
+#if 0
   if (PH) {
     // Check that the node pointed to by V in the TD DS graph is not
     // collapsed
-#if 0
-    if (!collapsed && CollapsedPoolPtrs.count(F)) {
+    if (!collapsed && CollapsedPoolPtrs.count(FOrig)) {
       Value *v = PH;
-      if (CollapsedPoolPtrs[F].find(PH) != CollapsedPoolPtrs[F].end()) {
+      if (CollapsedPoolPtrs[FOrig].find(PH) != CollapsedPoolPtrs[FOrig].end()) {
 #ifdef DEBUG
         std::cerr << "Collapsed pools \n";
 #endif
         return Constant::getNullValue(PoolDescPtrTy);
       } else {
         if (Argument * Arg = dyn_cast<Argument>(v))
-          if ((Arg->getParent()) != F)
+          if ((Arg->getParent()) != FOrig)
             return Constant::getNullValue(PoolDescPtrTy);
         return v;
       }
     } else {
-#else
-    {
-#endif
       if (Argument * Arg = dyn_cast<Argument>(PH))
-        if ((Arg->getParent()) != F)
+        if ((Arg->getParent()) != FOrig)
           return Constant::getNullValue(PoolDescPtrTy);
       return PH;
     } 
   }
+#else
+  //
+  // If we found the pool handle, then return it to the caller.
+  //
+  if (PH) return PH;
+#endif
 
-std::cerr << "JTC: Value " << *V << " not in PoolDescriptor List!" << std::endl;
+  if (isClone)
+    std::cerr << "JTC: No Pool: " << FClone->getName() << ": "
+              << *V << std::endl;
   return 0;
 }
 #else
