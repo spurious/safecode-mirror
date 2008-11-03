@@ -50,8 +50,8 @@ void *
 exactcheck (int a, int b, void * result) {
   if ((0 > a) || (a >= b)) {
     ReportExactCheck ((unsigned)0xbeefdeed,
-                      (unsigned)result,
-                      (unsigned)__builtin_return_address(0),
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
                       (unsigned)a,
                       (unsigned)0);
 #if 0
@@ -70,9 +70,9 @@ exactcheck2 (signed char *base, signed char *result, unsigned size) {
 #else
   {
     ReportExactCheck ((unsigned)0xbeefdeed,
-                      (unsigned)result,
-                      (unsigned)__builtin_return_address(0),
-                      (unsigned)base,
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
+                      (uintptr_t)base,
                       (unsigned)size);
   }
 #endif
@@ -83,9 +83,9 @@ void *
 exactcheck2a (signed char *base, signed char *result, unsigned size) {
   if (result >= base + size ) {
     ReportExactCheck ((unsigned)0xbeefdeed,
-                      (unsigned)result,
-                      (unsigned)__builtin_return_address(0),
-                      (unsigned)base,
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
+                      (uintptr_t)base,
                       (unsigned)size);
   }
   return result;
@@ -95,9 +95,9 @@ void *
 exactcheck3(signed char *base, signed char *result, signed char * end) {
   if ((result < base) || (result > end )) {
     ReportExactCheck ((unsigned)0xbeefbeef,
-                      (unsigned)result,
-                      (unsigned)__builtin_return_address(0),
-                      (unsigned)base,
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
+                      (uintptr_t)base,
                       (unsigned)(end-base));
   }
   return result;

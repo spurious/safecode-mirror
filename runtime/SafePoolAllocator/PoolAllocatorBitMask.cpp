@@ -1311,7 +1311,7 @@ poolalloc_debug (PoolTy *Pool,
 
   // Perform the allocation and determine its offset within the physical page.
   void * canonptr = __barebone_poolalloc(Pool, NumBytes);
-  unsigned offset = (((unsigned)(canonptr)) & (PageSize-1));
+  uintptr_t offset = (((uintptr_t)(canonptr)) & (PageSize-1));
 
 #if 0
   // Remap the object if necessary.
@@ -2144,7 +2144,7 @@ poolfree(PoolTy *Pool, void *Node) {
     // allocated, we know that the pointer coming in has to be a valid node
     // pointer in the pool.  Mask off some bits of the address to find the base
     // of the pool.
-    assert((PageSize & PageSize-1) == 0 && "Page size is not a power of 2??");
+    assert((PageSize & (PageSize-1)) == 0 && "Page size is not a power of 2??");
     PS = (PoolSlab*)((long)Node & ~(PageSize-1));
 
     if (PS->isSingleArray) {
