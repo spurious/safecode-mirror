@@ -94,31 +94,14 @@ namespace llvm {
 
     typedef std::vector<Value *> InputArgumentsTy;
 
-    typedef struct {
-      InputArgumentsTy args;
-      DenseMap<const Value *, Value*> cloneValueMap;
-      Loop * clonedLoop;
-      Function * wrapFunction;
-    } DupLoopInfoTy;
+    InputArgumentsTy dupLoopArgument;
+    DenseMap<const Value *, Value*> cloneValueMap;
+    Loop * clonedLoop;
 
-    /**
-     * Return the information of a loop, including:
-     * 1. ``arguments'' of a loop, i.e., all live variables used in
-     * the loop.
-     * 2. duplicated function used in checking
-     *
-     * Return:
-     *  NULL if the loop is not eligible for code duplication
-     *
-     **/
-    static DupLoopInfoTy * getDupLoopInfo(const Loop * L);
     static char ID;
-
 
   private:
     LoopInfo * LI;
-    typedef std::map<const Loop*, DupLoopInfoTy> LoopInfoMapTy;
-    static LoopInfoMapTy LoopInfoMap;
     std::set<Function *> cloneFunction;
 
     /**

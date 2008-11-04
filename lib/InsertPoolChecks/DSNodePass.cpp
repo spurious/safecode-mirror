@@ -290,7 +290,6 @@ DSNodePass::addCheckedDSNode(const DSNode * node) {
 void
 DSNodePass::addCheckedValue(const Value * value) {
   if (!CheckEveryGEPUse) {
-   std::cerr << "Checked Val: " << *value << std::endl;
    CheckedValues.insert(value);
   }
 }

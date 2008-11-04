@@ -315,27 +315,23 @@ namespace llvm {
 
 
   char DuplicateLoopAnalysis::ID = 0;
-  DuplicateLoopAnalysis::LoopInfoMapTy DuplicateLoopAnalysis::LoopInfoMap;
   
   bool
   DuplicateLoopAnalysis::doInitialization(Module &) {
     cloneFunction.clear();
-    LoopInfoMap.clear();
     return false;
   }
 
   bool
   DuplicateLoopAnalysis::runOnLoop(Loop * L, LPPassManager & LPM) {
     LI = &getAnalysis<LoopInfo>();
+    dupLoopArgument.clear();
+    cloneValueMap.clear();
     Function * F = L->getHeader()->getParent();
     Module * M = F->getParent();
     if (cloneFunction.find(F) == cloneFunction.end() && isEligibleforDuplication(L)) {
       calculateArgument(L);
-      // Loop * clonedLoop = cloneLoop(L, LoopInfoMap[L].cloneValueMap, LI);
-      // LoopInfoMap[L].clonedLoop = clonedLoop;
-      // clonedLoopSet.insert(clonedLoop);
       Function * wrapFunction =  wrapLoopIntoFunction(L, M);
-      LoopInfoMap[L].wrapFunction = wrapFunction;
       cloneFunction.insert(wrapFunction);
       ++DuplicatedLoop;
     }
@@ -343,52 +339,45 @@ namespace llvm {
   }
 
   bool
-  DuplicateLoopAnalysis::isEligibleforDuplication(const Loop * L) const {
-    // Loop should have a preheader for adding synchronization points
-    if (!L->getLoopPreheader())
-      return false;
+	DuplicateLoopAnalysis::isEligibleforDuplication(const Loop * L) const {
+		// Loop should have a preheader for adding synchronization points
+		if (!L->getLoopPreheader())
+			return false;
 
-    // Only duplicate loop with checking calls
+		// Only duplicate loop with checking calls
 
-    bool hasCheckingCalls = false;
-    for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
-      for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE && !hasCheckingCalls; ++BI) {
-	if (BI->mayWriteToMemory()) {
-	  if (isa<CallInst>(BI)) {
-	    CallInst * CI = dyn_cast<CallInst>(BI);
-	    Function * F = CI->getCalledFunction();
-	    if (F) {
-	      hasCheckingCalls = isCheckingCall(F->getName());
-	    }
-	  }
+		bool hasCheckingCalls = false;
+		for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
+			for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
+				if (BI->mayWriteToMemory()) {
+					if (isa<StoreInst>(BI)) {
+						// FIXME: Check whether the store instruction is safe or not
+						continue;
+					} else if (isa<CallInst>(BI)) {
+						CallInst * CI = dyn_cast<CallInst>(BI);
+						Function * F = CI->getCalledFunction();
+						if (F) {
+							bool flag = isCheckingCall(F->getName());
+							hasCheckingCalls |= flag;
+							if (!flag) {
+								return false;
+							}
+						} else {
+							return false;
+						}
+					}
+				}
+			}
+		}
+
+		if (!hasCheckingCalls) return false;
+
+		return true;
 	}
-      }
-    }
-
-    if (!hasCheckingCalls) return false;
-
-    for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
-      for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
-	if (BI->mayWriteToMemory()) {
-	  if (isa<StoreInst>(BI)) {
-	    // FIXME: Check whether the store instruction is safe or not
-	  } else if (isa<CallInst>(BI)) {
-	    CallInst * CI = dyn_cast<CallInst>(BI);
-	    Function * F = CI->getCalledFunction();
-	    if (F && isCheckingCall(F->getName())) {
-	      continue;
-	    }
-	  }
-	  return false;
-	}
-      }
-    }
-    return true;
-  }
 
   void
   DuplicateLoopAnalysis::calculateArgument(const Loop * L) {
-    InputArgumentsTy & args = LoopInfoMap[L].args;
+    assert(dupLoopArgument.size() == 0);
     std::set<Value*> argSet;
     for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
       for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
@@ -403,28 +392,14 @@ namespace llvm {
     }
     
     for(std::set<Value*>::iterator it = argSet.begin(), end = argSet.end(); it != end; ++it) {
-      args.push_back(*it);
-    }
-  }
-
-  DuplicateLoopAnalysis::DupLoopInfoTy *
-  DuplicateLoopAnalysis::getDupLoopInfo(const Loop * L) {
-    LoopInfoMapTy::iterator it = LoopInfoMap.find(L);
-    if (it == LoopInfoMap.end()) {
-      return NULL;
-    } else {
-      return &(it->second);
+      dupLoopArgument.push_back(*it);
     }
   }
 
   Function *
   DuplicateLoopAnalysis::wrapLoopIntoFunction(Loop * L, Module * M) {
-    DuplicateLoopAnalysis::DupLoopInfoTy * dupLoopInfo = DuplicateLoopAnalysis::getDupLoopInfo(L);
-    assert (dupLoopInfo && "No information for duplication");
-    DuplicateLoopAnalysis::InputArgumentsTy & args = dupLoopInfo->args;
-    
     std::vector<const Type *> argType;
-    for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = args.begin(), end = args.end(); it != end; ++it) {
+    for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it != end; ++it) {
       argType.push_back((*it)->getType());
     }
 
@@ -454,7 +429,7 @@ namespace llvm {
     BasicBlock * entryBlock = BasicBlock::Create("entry", F);
     BasicBlock * exitBlock = BasicBlock::Create("loopexit", F);
     ReturnInst::Create(NULL, exitBlock);
-    DenseMap<const Value *, Value*> & valMapping = dupLoopInfo->cloneValueMap;
+    DenseMap<const Value *, Value*> & valMapping = cloneValueMap;
     valMapping[L->getLoopPreheader()] = entryBlock;
     SmallVector<BasicBlock*, 8> exitBlocks;
     L->getUniqueExitBlocks(exitBlocks);
@@ -465,7 +440,7 @@ namespace llvm {
 
     // Generate loads for arguments
     int arg_counter = 0;
-    for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = args.begin(), end = args.end(); it != end; ++it) {
+    for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it != end; ++it) {
       std::vector<Value*> idxVal;
       idxVal.push_back(ConstantInt::getNullValue(Type::Int32Ty));
       idxVal.push_back(ConstantInt::get(Type::Int32Ty, arg_counter));
@@ -537,53 +512,50 @@ namespace llvm {
   }
 
   void
-  DuplicateLoopAnalysis::insertCheckingCallInLoop(Loop * L, Function * checkingFunction, StructType * checkArgumentType, Module * M) {
-    static Value * sFuncWaitForSyncToken = Function::Create
-      (FunctionType::get
-       (Type::VoidTy, std::vector<const Type*>(), false),
-       GlobalValue::ExternalLinkage,
-       "__sc_par_wait_for_completion", 
-       M);
+	DuplicateLoopAnalysis::insertCheckingCallInLoop(Loop * L, Function * checkingFunction, StructType * checkArgumentType, Module * M) {
+		static Constant * sFuncWaitForSyncToken = 
+			M->getOrInsertFunction("__sc_par_wait_for_completion", 
+					FunctionType::get
+					(Type::VoidTy, std::vector<const Type*>(), false));
 
-    static Value * sFuncEnqueueCheckingFunction = Function::Create
-      (FunctionType::get
-       (Type::VoidTy, args<const Type*>::list(PointerType::getUnqual(Type::Int8Ty), PointerType::getUnqual(Type::Int8Ty)), false),
-       GlobalValue::ExternalLinkage,
-       "__sc_par_enqueue_code_dup",
-       M);
+		static Constant * sFuncEnqueueCheckingFunction = 
+			M->getOrInsertFunction("__sc_par_enqueue_code_dup", 
+			FunctionType::get
+			 (Type::VoidTy, args<const Type*>::list(PointerType::getUnqual(Type::Int8Ty), PointerType::getUnqual(Type::Int8Ty)), false));
 
-    Instruction * termInst = L->getHeader()->getTerminator();
-    Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", termInst);
-    InputArgumentsTy & args = LoopInfoMap[L].args;
+		Instruction * termInst = L->getHeader()->getTerminator();
+		Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", termInst);
 
-    size_t arg_counter = 0;
-    for (InputArgumentsTy::const_iterator it = args.begin(), end = args.end(); it !=end; ++it) {
-      std::vector<Value *> idxVal;
-      idxVal.push_back(ConstantInt::getNullValue(Type::Int32Ty));
-      idxVal.push_back(ConstantInt::get(Type::Int32Ty, arg_counter));
-      GetElementPtrInst * GEP = GetElementPtrInst::Create(allocaInst, idxVal.begin(), idxVal.end(), "", termInst);
-      new StoreInst(*it, GEP, termInst);
-      ++arg_counter;
-    }
+		size_t arg_counter = 0;
+		for (InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it !=end; ++it) {
+			std::vector<Value *> idxVal;
+			idxVal.push_back(ConstantInt::getNullValue(Type::Int32Ty));
+			idxVal.push_back(ConstantInt::get(Type::Int32Ty, arg_counter));
+			GetElementPtrInst * GEP = GetElementPtrInst::Create(allocaInst, idxVal.begin(), idxVal.end(), "", termInst);
+			new StoreInst(*it, GEP, termInst);
+			++arg_counter;
+		}
 
-   
-    // enqueue
-    std::vector<Value*> enqueueArg;
-    enqueueArg.push_back(new BitCastInst(checkingFunction, PointerType::getUnqual(Type::Int8Ty), "", termInst));
-    enqueueArg.push_back(new BitCastInst(allocaInst, PointerType::getUnqual(Type::Int8Ty), "", termInst));
-    CallInst::Create(sFuncEnqueueCheckingFunction, enqueueArg.begin(), enqueueArg.end(), "", termInst);
 
-    // FIXME: actually we only need to guarantee that we have a sync point before we exit
-    // The function
-    //    CallInst::Create(sFuncWaitForSyncToken, "", &L->getHeader()->back());
-    
-  }
+		// enqueue
+		std::vector<Value*> enqueueArg;
+		enqueueArg.push_back(new BitCastInst(checkingFunction, PointerType::getUnqual(Type::Int8Ty), "", termInst));
+		enqueueArg.push_back(new BitCastInst(allocaInst, PointerType::getUnqual(Type::Int8Ty), "", termInst));
+		CallInst::Create(sFuncEnqueueCheckingFunction, enqueueArg.begin(), enqueueArg.end(), "", termInst);
+
+		SmallVector<BasicBlock*, 8> exitBlocks;
+		L->getUniqueExitBlocks(exitBlocks);
+		for (SmallVector<BasicBlock*, 8>::iterator it = exitBlocks.begin(), end = exitBlocks.end(); it != end; ++it) {	
+			CallInst::Create(sFuncWaitForSyncToken, "", &((*it)->back()));
+		}
+
+	}
 
   // Helper Function
   bool isCheckingCall(const std::string & name) {
     static std::string checkFuncs[] = {
       "poolcheck", "poolcheckui", "poolcheckui",
-      "exactcheck", "exactcheck2", "boundscheck", "boundscheckui", "funccheck"
+      "exactcheck", "exactcheck2", "boundscheck", "boundscheckui", "funccheck", "__sc_par_enqueue_code_dup", "__sc_par_wait_for_completion"
     };
     
     for (size_t i = 0; i < sizeof(checkFuncs) / sizeof(std::string); ++i) {
