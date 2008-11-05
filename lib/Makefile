@@ -7,7 +7,8 @@ PARALLEL_DIRS = ArrayBoundChecks \
                 PointerChecks \
                 SpeculativeChecking \
                 FaultInjector \
-                IndirectCallChecks
+                IndirectCallChecks \
+                DebugInstrumentation
 
 include $(LEVEL)/Makefile.common
 
