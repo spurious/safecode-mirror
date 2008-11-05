@@ -272,22 +272,23 @@ namespace llvm {
   /// Template Helper to remove instructions from loop
   ///
   template <class T>
-  static void removeInstructionFromLoop(Loop * L, T op) {
-    std::vector<Instruction*> toBeRemoved;
+	static void removeInstructionFromLoop(Loop * L) {
+		T op;
+		std::vector<Instruction*> toBeRemoved;
 
-    for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
-      for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
-	if (op(BI)) {
-	  toBeRemoved.push_back(BI);
+		for (Loop::block_iterator I = L->block_begin(), E = L->block_end(); I != E; ++I) {
+			for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
+				if (op(BI)) {
+					toBeRemoved.push_back(BI);
+				}
+			}
+		}
+
+		for(std::vector<Instruction*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
+			(*it)->eraseFromParent();
+		}
+
 	}
-      }
-    }
-
-    for(std::vector<Instruction*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
-      (*it)->eraseFromParent();
-    }
-
-  }
   
 
   ///
@@ -300,19 +301,46 @@ namespace llvm {
       return isa<StoreInst>(I);
     }
   };
-
-  struct CheckingCallPred {
-    bool operator()(Instruction * I) const {
-      if (CallInst * CI = dyn_cast<CallInst>(I)) {
-	Function * F = CI->getCalledFunction();
-	if (F && isCheckingCall(F->getName())) {
-	  return true;
-	}
-      }
-      return false;
-    } 
+  
+	struct ExactCheckCallPred {
+		bool operator()(Instruction * I) const {
+			if (CallInst * CI = dyn_cast<CallInst>(I)) {
+				Function * F = CI->getCalledFunction();
+				if (F && (F->getName() == "exactcheck" || F->getName() == "exactcheck2")) {
+					return true;
+				}
+			}
+			return false;
+		} 
   };
 
+  struct CheckingCallPred {
+		bool operator()(Instruction * I) const {
+			if (CallInst * CI = dyn_cast<CallInst>(I)) {
+				Function * F = CI->getCalledFunction();
+				if (F && isCheckingCall(F->getName())) {
+					return true;
+				}
+			}
+			return false;
+		} 
+  };
+
+	template <class T1, class T2>
+	struct pred_and {
+		T1 t1; T2 t2;
+		bool operator()(Instruction * I) const {
+			return t1(I) && t2(I);
+		}
+	};
+
+	template <class T>
+	struct pred_not {
+		T t;
+		bool operator()(Instruction * I) const {
+			return !t(I);
+		}
+	};
 
   char DuplicateLoopAnalysis::ID = 0;
   
@@ -323,20 +351,35 @@ namespace llvm {
   }
 
   bool
-  DuplicateLoopAnalysis::runOnLoop(Loop * L, LPPassManager & LPM) {
+  DuplicateLoopAnalysis::runOnFunction(Function & F) {
+		if (cloneFunction.find(&F) != cloneFunction.end())
+			return false;
+
+    Module * M = F.getParent();
     LI = &getAnalysis<LoopInfo>();
-    dupLoopArgument.clear();
+    for (LoopInfo::iterator it = LI->begin(), end = LI->end(); it != end; ++it) {
+			duplicateLoop(*it, M);
+		}
+
+		return false;
+  }
+
+	void
+	DuplicateLoopAnalysis::duplicateLoop(Loop * L, Module * M) {
+		dupLoopArgument.clear();
     cloneValueMap.clear();
-    Function * F = L->getHeader()->getParent();
-    Module * M = F->getParent();
-    if (cloneFunction.find(F) == cloneFunction.end() && isEligibleforDuplication(L)) {
+    if (isEligibleforDuplication(L)) {
       calculateArgument(L);
       Function * wrapFunction =  wrapLoopIntoFunction(L, M);
       cloneFunction.insert(wrapFunction);
       ++DuplicatedLoop;
-    }
-    return false;
-  }
+    } else {
+			// Try all subloops
+			for(Loop::iterator it = L->begin(), end = L->end(); it != end; ++it) {
+				duplicateLoop(*it, M);
+			}
+		}
+	}
 
   bool
 	DuplicateLoopAnalysis::isEligibleforDuplication(const Loop * L) const {
@@ -383,10 +426,13 @@ namespace llvm {
       for (BasicBlock::iterator BI = (*I)->begin(), BE = (*I)->end(); BI != BE; ++BI) {
 	for(User::const_op_iterator OI = BI->op_begin(), OE = BI->op_end(); OI != OE; ++OI) {
 	  Value * val = *OI;
-	  if (Instruction * I = dyn_cast<Instruction>(val)) 
+	  if (Instruction * I = dyn_cast<Instruction>(val))  {
 	    if (!L->contains(I->getParent())) {
-	    argSet.insert(val);
-	  }
+	    	argSet.insert(val);
+			}
+	  } else if (Argument * arg = dyn_cast<Argument>(val)) {
+	    argSet.insert(arg);
+		}
 	}
       }
     }
@@ -481,11 +527,10 @@ namespace llvm {
       }
     }
 
-    struct StoreInstPred isStoreOp;
-    struct CheckingCallPred isCheckingCallOp;
-    removeInstructionFromLoop(NewLoop, isStoreOp);
+    removeInstructionFromLoop<StoreInstPred>(NewLoop);
+    removeInstructionFromLoop<ExactCheckCallPred>(NewLoop);
 
-    removeInstructionFromLoop(L, isCheckingCallOp);
+    removeInstructionFromLoop<pred_and<CheckingCallPred, pred_not<ExactCheckCallPred> > >(L);
 
     replaceIntrinsic(NewLoop, M);
     
@@ -524,7 +569,7 @@ namespace llvm {
 			 (Type::VoidTy, args<const Type*>::list(PointerType::getUnqual(Type::Int8Ty), PointerType::getUnqual(Type::Int8Ty)), false));
 
 		Instruction * termInst = L->getHeader()->getTerminator();
-		Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", termInst);
+		Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", &L->getHeader()->getParent()->front().front());
 
 		size_t arg_counter = 0;
 		for (InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it !=end; ++it) {
@@ -555,7 +600,10 @@ namespace llvm {
   bool isCheckingCall(const std::string & name) {
     static std::string checkFuncs[] = {
       "poolcheck", "poolcheckui", "poolcheckui",
-      "exactcheck", "exactcheck2", "boundscheck", "boundscheckui", "funccheck", "__sc_par_enqueue_code_dup", "__sc_par_wait_for_completion"
+			"poolcheckalign", "poolcheckalignui",
+      "exactcheck", "exactcheck2", 
+			"boundscheck", "boundscheckui", 
+			"funccheck"
     };
     
     for (size_t i = 0; i < sizeof(checkFuncs) / sizeof(std::string); ++i) {

@@ -23,7 +23,6 @@
 NAMESPACE_SC_BEGIN
 
 static unsigned int gDataStart;
-static unsigned int gDataEnd;
 
 // A flag to indicate that the checking thread has done its work
 static volatile unsigned int __attribute__((aligned(128))) gCheckingThreadWorking = 0;
@@ -31,12 +30,18 @@ static volatile unsigned int __attribute__((aligned(128))) gCheckingThreadWorkin
 typedef LockFreeFifo CheckQueueTy;
 CheckQueueTy gCheckQueue;
 
+static unsigned int gDataEnd;
+
 static void __stub_poolcheck(uintptr_t* req) {
   poolcheck((PoolTy*)req[0], (void*)req[1]);
 }
 
 static void __stub_poolcheckui(uintptr_t* req) {
   poolcheckui((PoolTy*)req[0], (void*)req[1]);
+}
+
+static void __stub_poolcheckalign(uintptr_t* req) {
+  poolcheckalign((PoolTy*)req[0], (void*)req[1], (unsigned)req[2]);
 }
 
 static void __stub_boundscheck(uintptr_t* req) {
@@ -139,9 +144,7 @@ extern "C" {
   
 void
 __sc_par_poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
-// FIXME: This is another type of check
-// Just do pool check right now
- __sc_par_poolcheck(Pool, Node);
+	gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Node, (uintptr_t)Offset, __stub_poolcheckalign);
 }
 
 void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
@@ -191,7 +194,7 @@ void __sc_par_wait_for_completion() {
   
   gCheckQueue.enqueue(__stub_sync);
 
-  while (gCheckingThreadWorking) {}
+  while (gCheckingThreadWorking) { asm("pause"); }
 
   PROFILING(
   unsigned long long end_sync_time = rdtsc();
@@ -209,5 +212,13 @@ void __sc_par_init_runtime(void) {
   static SpeculativeCheckingGuard g;
   g.activate();
 }
+// HACK to get rid of _cxa_guard overheads
+/*
+int __cxa_guard_acquire(long long * g) { return !*(char*)(g);} 
+void __cxa_guard_release(long long * g) { *(char*)g = 1;} 
+int __cxa_atexit(void (char*), char *, char *) { return 0;}
+int __cxa_guard_acquire(long long * g) { return 0;} 
+void __cxa_guard_release(long long * g) { } 
+*/
 
 }

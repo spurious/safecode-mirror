@@ -34,16 +34,19 @@ namespace {
 static const char * safeFunctions[] = {
 //  "poolinit", "pool_init_runtime",
   "__sc_par_init_runtime",
-  "memset", "memcmp"
+  "memset", "memcmp",
   "llvm.memcpy.i32", "llvm.memcpy.i64",
   "llvm.memset.i32", "llvm.memset.i64",
   "llvm.memmove.i32", "llvm.memmove.i64",
   "llvm.sqrt.f64",
+	// HACK: these two should be handled by poolalloc
+	"calloc", "realloc",
   // These functions are not marked as "readonly"
   // So we have to add them to the list explicitly
-  "atoi", "srand", "fabs", "random", "srandom", "drand48",
-  "pow", "sqrt"
-
+  "atoi", "atof", "srand", "fabs", "random", "srandom", "drand48",
+  "pow", "sqrt", "lrand48",
+	"clock",
+	"strcpy", "strncpy"
 };
 
 // Functions used in checking
@@ -51,6 +54,7 @@ static const char * checkingFunctions[] = {
   "exactcheck", "exactcheck2", "funccheck",
   "poolregister", "poolunregister",
   "poolcheck", "poolcheckui",
+  "poolcheckalign", "poolcheckalignui",
   "boundscheck", "boundscheckui",
   "poolalloc", "poolrealloc",
   "poolstrdup", "poolcalloc",
@@ -89,7 +93,7 @@ namespace {
       }
 
       for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
-        sSafeFuncSet.insert(safeFunctions[i]);
+				sSafeFuncSet.insert(safeFunctions[i]);
       }
     };
   }; 

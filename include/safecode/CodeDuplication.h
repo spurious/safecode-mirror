@@ -78,13 +78,12 @@ namespace llvm {
    * things static in order to perverse the information. Should be refactored.
    *
    **/
-  struct DuplicateLoopAnalysis : public LoopPass {
-  DuplicateLoopAnalysis() : LoopPass((intptr_t) & ID) {}
+  struct DuplicateLoopAnalysis : public FunctionPass {
+  DuplicateLoopAnalysis() : FunctionPass((intptr_t) & ID) {}
     virtual ~DuplicateLoopAnalysis() {}
     virtual const char * getPassName() const { return "Find loops eligible for code duplication"; }
-    virtual bool doInitialization(llvm::Loop*, llvm::LPPassManager&) { return false; }
     virtual bool doInitialization(Module & M); 
-    virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
+    virtual bool runOnFunction(Function &F);
 
     virtual void getAnalysisUsage(AnalysisUsage & AU) const {
       AU.addRequired<LoopInfo>();
@@ -103,8 +102,12 @@ namespace llvm {
   private:
     LoopInfo * LI;
     std::set<Function *> cloneFunction;
-
-    /**
+  
+		/**
+		 * Try to duplicate loops in a prefix order
+		 **/
+	 	void duplicateLoop(Loop * L, Module * M);
+		/**
      * Calculate arguments of a particular loop
      **/
     void calculateArgument(const Loop * L);

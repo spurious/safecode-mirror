@@ -34,6 +34,7 @@
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/FaultInjector.h"
+#include "safecode/CodeDuplication.h"
 
 #include <fstream>
 #include <iostream>
@@ -82,6 +83,10 @@ static cl::opt<bool>
 EnableProtectingMetaData("protect-metadata", cl::init(false),
 			 cl::desc("Instrument store instructions to protect the meta data"));
 
+static cl::opt<bool>
+EnableCodeDuplication("code-duplication", cl::init(false),
+			 cl::desc("Enable Code Duplication for SAFECode checking"));
+
 
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
 
@@ -127,7 +132,6 @@ int main(int argc, char **argv) {
 
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
-
     Passes.add(new TargetData(M.get()));
 
     // Ensure that all malloc/free calls are changed into LLVM instructions
@@ -182,6 +186,7 @@ int main(int argc, char **argv) {
 
     if (CheckingRuntime == RUNTIME_PARALLEL) {
       Passes.add(new SpeculativeCheckingInsertSyncPoints());
+
       if (EnableProtectingMetaData) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
       }
@@ -198,10 +203,12 @@ int main(int argc, char **argv) {
     //
     Passes.add (new ClearCheckAttributes());
 
+    if (EnableCodeDuplication)
+      Passes.add(new DuplicateLoopAnalysis());
+
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
-
     // Verify the final result
     Passes.add(createVerifierPass());
 
@@ -300,7 +307,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
 
   static IntrinsicMappingEntry RuntimeSingleThread[] = 
     { {"poolcheck",         "poolcheck" },
-      {"poolcheckui",       "poolcheckui" },
+      {"poolcheckui",       "__sc_no_op_poolcheck" },
       {"poolcheckalign",    "poolcheckalign" },
       {"boundscheck",       "boundscheck" },
       {"boundscheckui",     "boundscheckui" },
@@ -319,9 +326,18 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
   static IntrinsicMappingEntry RuntimeParallel[] = 
     { {"poolcheck",         "__sc_par_poolcheck" },
       {"poolcheckui",       "__sc_no_op_poolcheck" },
-      {"poolcheckalign",    "__sc_par_poolcheck" },
+      {"poolcheckalign",    "__sc_par_poolcheckalign" },
+      {"poolcheckalignui",    "__sc_par_poolcheckalignui" },
       {"boundscheck",       "__sc_par_boundscheck" },
       {"boundscheckui",     "__sc_par_boundscheckui" },
+      {"poolcheck.serial",     "__sc_bc_poolcheck" },
+      {"poolcheckui.serial",   "__sc_no_op_poolcheck" },
+      {"poolcheckalign.serial","poolcheckalign" },
+      {"poolcheckalignui.serial","poolcheckalignui" },
+      {"boundscheck.serial",   "__sc_bc_boundscheck" },
+      {"boundscheckui.serial", "__sc_bc_boundscheckui" },
+      {"exactcheck.serial",       "exactcheck" },
+      {"exactcheck2.serial",     "exactcheck2" },
       {"poolregister",      "__sc_par_poolregister" },
       {"poolunregister",    "__sc_par_poolunregister" },
       {"poolalloc",         "__sc_par_poolalloc"},

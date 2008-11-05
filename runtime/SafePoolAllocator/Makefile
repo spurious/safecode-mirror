@@ -9,6 +9,7 @@ else
 CXX.Flags += -march=nocona
 endif
 
+CXX.Flags += -fno-threadsafe-statics
 include $(LEVEL)/Makefile.common
 
 # Always build optimized and debug versions
