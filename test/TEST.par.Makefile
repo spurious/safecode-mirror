@@ -6,9 +6,15 @@
 ##===----------------------------------------------------------------------===##
 
 CURDIR  := $(shell cd .; pwd)
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
+ifeq ($(PROGDIR),"")
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+endif
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
+PADIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/poolalloc; pwd)/
+ifeq ($(PADIR),"")
 PADIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-poolalloc; pwd)/
+endif
 SCDIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/safecode; pwd)/
 
 ifndef ENABLE_LTO
