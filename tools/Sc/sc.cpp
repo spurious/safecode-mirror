@@ -31,6 +31,7 @@
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
+#include "safecode/DebugInstrumentation.h"
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/FaultInjector.h"
@@ -54,6 +55,10 @@ Force("f", cl::desc("Overwrite output files"));
 
 static cl::opt<bool>
 FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
+
+static cl::opt<bool>
+EnableDebugInfo("enable-debuginfo", cl::init(false),
+                cl::desc("Enable Debugging Info in Run-time Errors"));
 
 static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
@@ -209,6 +214,12 @@ int main(int argc, char **argv) {
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
+
+#ifdef SC_DEBUGTOOL
+    if (EnableDebugInfo)
+      Passes.add (new DebugInstrument());
+#endif
+
     // Verify the final result
     Passes.add(createVerifierPass());
 
