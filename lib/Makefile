@@ -10,5 +10,7 @@ PARALLEL_DIRS = ArrayBoundChecks \
                 IndirectCallChecks \
                 DebugInstrumentation
 
+OPTIONAL_DIRS := Safecode
+
 include $(LEVEL)/Makefile.common
 
