@@ -43,19 +43,11 @@ RegisterPass<DebugInstrument> X ("debuginstrument",
 ///////////////////////////////////////////////////////////////////////////
 // Command line options
 ///////////////////////////////////////////////////////////////////////////
-#if 0
-cl::opt<bool> InjectEasyDPFaults ("inject-easydp", cl::Hidden,
-                                  cl::init(false),
-                                  cl::desc("Inject Trivial Dangling Pointer Dereferences"));
-#endif
 
 namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
   ///////////////////////////////////////////////////////////////////////////
-#if 0
-  STATISTIC (DPFaults,   "Number of Dangling Pointer Faults Injected");
-#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -137,18 +129,8 @@ DebugInstrument::transformFunction (Function * F) {
     // If the source filename is in the meta-data section, move it to the
     // default section.
     //
-    std::cerr << "JTC: Src: " << *SourceFile << std::endl;
     if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(SourceFile)) {
       if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
-        std::cerr << "JTC: Removing Section\n";
-#if 0
-      SourceFile = new GlobalVariable (GV->getType()->getElementType(),
-                                       true,
-                                       GlobalValue::InternalLinkage,
-                                       GV->getInitializer(),
-                                       "sourcefile",
-                                       F->getParent());
-#endif
         GV->setSection ("");
       }
     }
@@ -193,7 +175,7 @@ DebugInstrument::runOnModule (Module &M) {
   DebugLocator.setModule (&M);
 
   //
-  // Transform allocations
+  // Transform allocations, load/store checks, and bounds checks.
   //
   transformFunction (M.getFunction ("poolalloc"));
   transformFunction (M.getFunction ("poolcheck"));
