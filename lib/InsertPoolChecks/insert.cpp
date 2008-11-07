@@ -873,7 +873,8 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
     } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
       if (!isa<Function>(FunctionOp)) {
-        std::cerr << "JTC: LIC: " << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
+        std::cerr << "JTC: Indirect Function Call Check: "
+                  << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
         if (isClonedFunc) {
           assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
           const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
