@@ -19,7 +19,7 @@ struct SourceLocation {
 #ifndef NDEBUG	
 	void dump();
 #endif
-	SourceLocation() : lineNo(0), colNo(0) {}
+	SourceLocation() : name(0), directory(0), filename(0), lineNo(0), colNo(0) {}
 	void print(std::ostream&) const;
 };
 

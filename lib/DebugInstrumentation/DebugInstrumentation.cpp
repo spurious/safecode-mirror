@@ -100,18 +100,6 @@ DebugInstrument::transformFunction (Function * F) {
                                                            DebugFuncType);
 
   //
-  // Create dummy line number and source file information for now.
-  //
-  Value * LineNumber = ConstantInt::get (Type::Int32Ty, 42);
-  Constant * SourceFileInit = ConstantArray::get (std::string("/filename.cpp"));
-  Value * SourceFile = new GlobalVariable (SourceFileInit->getType(),
-                                           true,
-                                           GlobalValue::InternalLinkage,
-                                           SourceFileInit,
-                                           "",
-                                           F->getParent());
-
-  //
   // Create a set of call instructions that must be modified.
   //
   std::vector<CallInst *> Worklist;
@@ -128,6 +116,46 @@ DebugInstrument::transformFunction (Function * F) {
   while (Worklist.size()) {
     CallInst * CI = Worklist.back();
     Worklist.pop_back();
+
+    //
+    // Get the line number and source file information for the call.
+    //
+    ValueLocation * SourceInfo = DebugLocator.getInstrLocation (CI);
+    Value * LineNumber = ConstantInt::get (Type::Int32Ty, SourceInfo->statement.lineNo);
+    Value * SourceFile = SourceInfo->statement.filename;
+    if (!SourceFile) {
+      Constant * FInit = ConstantArray::get ("<unknown>");
+      SourceFile = new GlobalVariable (FInit->getType(),
+                                       true,
+                                       GlobalValue::InternalLinkage,
+                                       FInit,
+                                       "sourcefile",
+                                       F->getParent());
+    }
+
+    //
+    // If the source filename is in the meta-data section, move it to the
+    // default section.
+    //
+    std::cerr << "JTC: Src: " << *SourceFile << std::endl;
+    if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(SourceFile)) {
+      if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
+        std::cerr << "JTC: Removing Section\n";
+#if 0
+      SourceFile = new GlobalVariable (GV->getType()->getElementType(),
+                                       true,
+                                       GlobalValue::InternalLinkage,
+                                       GV->getInitializer(),
+                                       "sourcefile",
+                                       F->getParent());
+#endif
+        GV->setSection ("");
+      }
+    }
+
+    //
+    // Transform the function call.
+    //
     std::vector<Value *> args (CI->op_begin(), CI->op_end());
     args.erase (args.begin());
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
@@ -159,7 +187,17 @@ DebugInstrument::runOnModule (Module &M) {
   // Create the void pointer type
   VoidPtrTy = PointerType::getUnqual(Type::Int8Ty); 
 
+  //
+  // Get the debugging information for the current module.
+  //
+  DebugLocator.setModule (&M);
+
+  //
   // Transform allocations
+  //
   transformFunction (M.getFunction ("poolalloc"));
+  transformFunction (M.getFunction ("poolcheck"));
+  transformFunction (M.getFunction ("boundscheckui"));
+  transformFunction (M.getFunction ("exactcheck2"));
   return true;
 }
