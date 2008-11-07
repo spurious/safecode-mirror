@@ -53,7 +53,9 @@ exactcheck (int a, int b, void * result) {
                       (uintptr_t)result,
                       (uintptr_t)__builtin_return_address(0),
                       (unsigned)a,
-                      (unsigned)0);
+                      (unsigned)0,
+                      "<Unknown>",
+                      0);
 #if 0
     poolcheckfail ("exact check failed", (a), (void*)__builtin_return_address(0));
     poolcheckfail ("exact check failed", (b), (void*)__builtin_return_address(0));
@@ -73,7 +75,28 @@ exactcheck2 (signed char *base, signed char *result, unsigned size) {
                       (uintptr_t)result,
                       (uintptr_t)__builtin_return_address(0),
                       (uintptr_t)base,
-                      (unsigned)size);
+                      (unsigned)size,
+                      "<Unknown>",
+                      0);
+  }
+#endif
+  return result;
+}
+
+void *
+exactcheck2_debug (signed char *base, signed char *result, unsigned size, void * SourceFile, unsigned lineno) {
+  if ((result < base) || (result >= (base + size)))
+#ifdef SC_ENABLE_OOB
+    return rewrite_ptr (0, result);
+#else
+  {
+    ReportExactCheck ((unsigned)0xbeefdeed,
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
+                      (uintptr_t)base,
+                      (unsigned)size,
+                      (unsigned char *)(SourceFile),
+                      lineno);
   }
 #endif
   return result;
@@ -86,7 +109,9 @@ exactcheck2a (signed char *base, signed char *result, unsigned size) {
                       (uintptr_t)result,
                       (uintptr_t)__builtin_return_address(0),
                       (uintptr_t)base,
-                      (unsigned)size);
+                      (unsigned)size,
+                      "<Unknown>",
+                      0);
   }
   return result;
 }
@@ -98,7 +123,9 @@ exactcheck3(signed char *base, signed char *result, signed char * end) {
                       (uintptr_t)result,
                       (uintptr_t)__builtin_return_address(0),
                       (uintptr_t)base,
-                      (unsigned)(end-base));
+                      (unsigned)(end-base),
+                      "<Unknown>",
+                      0);
   }
   return result;
 }

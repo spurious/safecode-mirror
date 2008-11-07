@@ -21,6 +21,7 @@ extern "C" {
 #endif
   void * exactcheck(int a, int b, void * result) __attribute__ ((weak));
   void * exactcheck2(signed char *base, signed char *result, unsigned size) __attribute__ ((weak));
+  void * exactcheck2_debug (signed char *base, signed char *result, unsigned size, void *, unsigned) __attribute__ ((weak));
   void * exactcheck2a(signed char *base, signed char *result, unsigned size) __attribute__ ((weak));
   void * exactcheck3(signed char *base, signed char *result, signed char * end)__attribute__ ((weak));
 #ifdef __cpluscplus

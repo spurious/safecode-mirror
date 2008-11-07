@@ -26,18 +26,42 @@
 #include <utility>
 
 #define AddrArrSize 2
+
 extern unsigned poolmemusage;
 //unsigned PCheckPassed = 1;
 
+//
+// Structure: DebugMetaData
+//
+// Description:
+//  This structure contains information on the error to be reported.
+//
+// Fields:
+//  allocID    : The ID number of the allocation of the object.
+//  freeID     : The ID number of the deallocation of the object.
+//  allocPC    : The program counter at which the object was last allocated.
+//  freePC     : The program counter at which the object was last deallocated.
+//  canonAddr  : The canonical address of the memory reference.
+//  SourceFile : A string containing the source file to which the erring
+//               instruction is found.
+//  lineno     : The line number in the source file to which the erring
+//               instruction is found.
+//
 typedef struct DebugMetaData {
   unsigned allocID;
   unsigned freeID;
   void * allocPC;
   void * freePC;
   void * canonAddr;
-} DebugMetaData;
 
+  // Source filename
+  void * SourceFile;
+
+  // Line number
+  unsigned lineno;
+} DebugMetaData;
 typedef DebugMetaData * PDebugMetaData;
+
 
 typedef struct PoolTy {
   // Splay tree used for object registration
@@ -128,6 +152,8 @@ extern "C" {
   void * rewrite_ptr (PoolTy *, void * p);
 
   void * poolalloc_debug (PoolTy *P, unsigned Size, void * SrcFle, unsigned no);
+  void   poolcheck_debug (PoolTy *P, void * Node, void * SrcFle, unsigned no);
+  void * boundscheckui_debug (PoolTy * P, void * S, void * D, void * SFile, unsigned int lineno);
   //void protect_shadowpage();
  
   // Barebone allocators, which only do allocations

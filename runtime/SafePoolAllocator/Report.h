@@ -84,15 +84,20 @@ ReportDanglingPointer (void * addr,
 //  pc       - The program counter of the failed run-time check.
 //
 static void
-ReportLoadStoreCheck (unsigned ptr,
-                      unsigned pc) {
+ReportLoadStoreCheck (void * ptr,
+                      void * pc,
+                      char * SourceFile,
+                      unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Load/Store violation to memory address 0x%08x\n", id, ptr);
-  fprintf (ReportLog, "%04d:                     at program counter 0x%08x\n", id, pc);
-  fprintf (ReportLog, "%04d:\tAddress                : 0x%08x \n", id, ptr);
+  fprintf (ReportLog, "%04d: Load/Store violation to memory address %08p\n", id, ptr);
+  fprintf (ReportLog, "%04d:                     at program counter %08p\n", id, pc);
+  fprintf (ReportLog, "%04d:\tAddress                : %08p \n", id, ptr);
+  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
+  abort();
   return;
 }
 
@@ -122,7 +127,9 @@ ReportBoundsCheck (unsigned src,
                    unsigned allocPC,
                    unsigned pc,
                    unsigned objstart,
-                   unsigned objlen) {
+                   unsigned objlen,
+                   unsigned char * SourceFile,
+                   unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
@@ -130,6 +137,8 @@ ReportBoundsCheck (unsigned src,
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
   fprintf (ReportLog, "%04d:\tIndex source pointer : 0x%08x \n", id, src);
   fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%08x \n", id, dest);
+  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   if (objstart || objlen) {
     fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
     fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
@@ -165,12 +174,16 @@ ReportExactCheck (unsigned src,
                   unsigned dest,
                   unsigned pc,
                   unsigned objstart,
-                  unsigned objlen) {
+                  unsigned objlen,
+                  unsigned char * SourceFile,
+                  unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
   fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%08x (ExactCheck)\n", id, dest);
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%08x \n", id, dest);
   if (objstart || objlen) {
     fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%08x \n", id, objstart);
@@ -201,8 +214,10 @@ static inline void ReportDanglingPointer (void * addr,
 }
 
 static inline void
-ReportLoadStoreCheck (unsigned ptr,
-                      unsigned pc) {
+ReportLoadStoreCheck (void * ptr,
+                      void * pc,
+                      char * SourceFile,
+                      unsigned lineno) {
   ABORT_PROGRAM();
 }
 

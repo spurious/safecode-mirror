@@ -16,10 +16,22 @@
 // been allocated from them.
 //
 //===----------------------------------------------------------------------===//
-// NOTE:
+// NOTES:
 //  1) Some of the bounds checking code may appear strange.  The reason is that
 //     it is manually inlined to squeeze out some more performance.  Please
 //     don't change it.
+//
+//  2) This run-time performs MMU re-mapping of pages to perform dangling
+//     pointer detection.  A "shadow" address is the address of a memory block
+//     that has been remapped to a new virtal address; the shadow address is
+//     returned to the caller on allocation and is unmapped on deallocation.
+//     A "canonical" address is the virtual address of memory as it is mapped
+//     in the pool slabs; the canonical address is remapped to different shadow
+//     address each time that particular piece of memory is allocated.
+//
+//     In normal operation, the shadow address and canonical address are
+//     identical.
+//
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
@@ -97,8 +109,11 @@ static PDebugMetaData createPtrMetaData (unsigned,
                                          unsigned,
                                          void *,
                                          void *,
-                                         void *);
+                                         void *,
+                                         char * SourceFile = "",
+                                         unsigned lineno = 0);
 #endif
+
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -1041,7 +1056,7 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   assert (NumBytes > 0);
   Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
   if (logregs) {
-    fprintf (stderr, "poolregister: %p %d\n", (void*)allocaptr, NumBytes);
+    fprintf (stderr, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
   }
 #endif
 }
@@ -1294,6 +1309,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   return retAddress;
 }
 
+#if SC_DEBUGTOOL
 //
 // Function: poolalloc_debug()
 //
@@ -1307,13 +1323,12 @@ poolalloc_debug (PoolTy *Pool,
                  void * SourceFilep,
                  unsigned lineno) {
   // Do some initial casting for type goodness
-  unsigned char * SourceFile = (unsigned char *)(SourceFilep);
+  char * SourceFile = (char *)(SourceFilep);
 
   // Perform the allocation and determine its offset within the physical page.
   void * canonptr = __barebone_poolalloc(Pool, NumBytes);
-  uintptr_t offset = (((uintptr_t)(canonptr)) & (PageSize-1));
+  uintptr_t offset = (((uintptr_t)(canonptr)) & (PPageSize-1));
 
-#if 0
   // Remap the object if necessary.
   void * shadowpage = RemapObject (canonptr, NumBytes);
   void * shadowptr = (unsigned char *)(shadowpage) + offset;
@@ -1321,13 +1336,25 @@ poolalloc_debug (PoolTy *Pool,
   // Register the object in the splay tree.
   poolregister (Pool, shadowptr, NumBytes);
 
+  //
+  // Create the meta data object containing the debug information and the
+  // mapping from shadow address to canonical address.
+  //
+  PDebugMetaData debugmetadataPtr;
+  globalallocID++;
+  debugmetadataPtr = createPtrMetaData (globalallocID,
+                                        globalfreeID,
+                                        __builtin_return_address(0),
+                                        0,
+                                        canonptr, SourceFile, lineno);
+  dummyPool.DPTree.insert (shadowptr,
+                           (char*) shadowptr + NumBytes - 1,
+                           debugmetadataPtr);
+
   // Return the shadow pointer.
   return shadowptr;
-#else
-  poolregister (Pool, canonptr, NumBytes);
-  return canonptr;
-#endif
 }
+#endif
 
 void *
 poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
@@ -1556,50 +1583,79 @@ SearchForContainingSlab(PoolTy *Pool, void *Node, unsigned &TheIndex) {
   return PS;
 }
 
-void
-poolcheck(PoolTy *Pool, void *Node) {
+//
+// Function: _barebone_poolcheck()
+//
+// Description:
+//  Perform an accurate load/store check for the given pointer.  This function
+//  encapsulates the logic necessary to do the check.
+//
+// Return value:
+//  true  - The pointer was found within a valid object within the pool.
+//  false - The pointer was not found within a valid object within the pool.
+//
+static inline bool
+_barebone_poolcheck (PoolTy * Pool, void * Node) {
   void * S, * end;
-  if (!Pool) return;
+
+  //
+  // If the pool handle is NULL, return successful.
+  //
+  if (!Pool) return true;
+
+  //
+  // Look through the splay trees for an object in which the pointer points.
+  //
   bool fs = Pool->Objects.find(Node, S, end);
   if ((fs) && (S <= Node) && (Node <= end)) {
-    return;
+    return true;
   }
 
-  /*
-   * The node is not found or is not within bounds; fail!
-   */
-  ReportLoadStoreCheck ((uintptr_t)(Node),(uintptr_t)__builtin_return_address(0));
+  //
+  // The node is not found or is not within bounds; fail!
+  //
+  return false;
+}
+
+void
+poolcheck (PoolTy *Pool, void *Node) {
+  if (!_barebone_poolcheck (Pool, Node))
+    ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
+  return;
+}
+
+void
+poolcheck_debug (PoolTy *Pool, void *Node, void * SourceFilep, unsigned lineno) {
+  if (!_barebone_poolcheck (Pool, Node))
+    ReportLoadStoreCheck (Node,
+                          __builtin_return_address(0),
+                          (char *)SourceFilep,
+                          lineno);
   return;
 }
 
 void
 poolcheckui (PoolTy *Pool, void *Node) {
-  void * S, *end;
-  if (!Pool) return;
-
-  /*
-   * Look for the object within the pool's splay tree.
-   */
-  bool fs = Pool->Objects.find(Node, S, end);
-  if ((fs) && (S <= Node) && (Node <= end)) {
+  if (_barebone_poolcheck (Pool, Node))
     return;
-  }
 
-  /*
-   * Look for the object within the splay tree of external objects.
-   */
+  //
+  // Look for the object within the splay tree of external objects.
+  //
+  int fs = 0;
+  void * S, *end;
 	if (ConfigData.TrackExternalMallocs) {
 		S = Node;
-		fs = ExternalObjects.find(Node, S, end);
+		fs = ExternalObjects.find (Node, S, end);
 		if ((fs) && (S <= Node) && (Node <= end)) {
 			return;
 		}
 	}
 
-  /*
-   * The node is not found or is not within bounds.  Report a warning but keep
-   * going.
-   */
+  //
+  // The node is not found or is not within bounds.  Report a warning but keep
+  // going.
+  //
   fprintf (stderr, "PoolcheckUI failed(%p:%x): %p %p from %p\n", 
       (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
   fflush (stderr);
@@ -1641,7 +1697,8 @@ boundscheck_lookup (PoolTy * Pool, void * & Source, void * & End ) {
 //
 void *
 boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
-                   void * Source, void * Dest, bool CanFail) {
+                   void * Source, void * Dest, bool CanFail,
+                   void * SourceFile, unsigned int lineno) {
   //
   // First, we know that the pointer is out of bounds.  If we indexed off the
   // beginning or end of a valid object, determine if we can rewrite the
@@ -1675,7 +1732,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                          (unsigned)allocPC,
                          (uintptr_t)__builtin_return_address(0),
                          (uintptr_t)ObjStart,
-                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)));
+                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)),
+                         (unsigned char *)(SourceFile),
+                         lineno);
       return Dest;
     }
   }
@@ -1698,7 +1757,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (unsigned)0,
                            (uintptr_t)__builtin_return_address(0),
                            (unsigned)0,
-                           (unsigned)4096);
+                           (unsigned)4096,
+                           (unsigned char *)(SourceFile),
+                           lineno);
       }
     }
   }
@@ -1724,7 +1785,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (unsigned)0,
                            (uintptr_t)__builtin_return_address(1),
                            (uintptr_t)S,
-                           (unsigned)((char*) ObjEnd - (char*)(ObjStart)));
+                           (unsigned)((char*) ObjEnd - (char*)(ObjStart)),
+                           (unsigned char *)(SourceFile),
+                           lineno);
       }
     }
   }
@@ -1739,7 +1802,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                        (unsigned)0,
                        (uintptr_t)__builtin_return_address(0),
                        (uintptr_t)0,
-                       (unsigned)0);
+                       (unsigned)0,
+                       (unsigned char *)(SourceFile),
+                       lineno);
     abort();
   }
 
@@ -1772,7 +1837,7 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object in which Source was found
     //
-    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true);  
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true, NULL, 0);  
   }
 }
 
@@ -1805,7 +1870,40 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object in which Source was found
     //
-    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false);
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false, NULL, 0);
+  }
+}
+
+//
+// Function: boundscheckui_debug()
+//
+// Description:
+//  Identical to boundscheckui() but with debug information.
+//
+// Inputs:
+//  Pool - The pool to which the pointers (Source and Dest) should belong.
+//  Source - The Source pointer of the indexing operation (the GEP).
+//  Dest   - The result of the indexing operation (the GEP).
+//
+void *
+boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFile, unsigned int lineno) {
+  // This code is inlined at all boundscheckui calls
+
+  // Search the splay for Source and return the bounds of the object
+  void * ObjStart, * ObjEnd;
+  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
+
+  // Check if destination lies in the same object
+  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
+                        ((Dest <= ObjEnd))), 1)) {
+    return Dest;
+  } else {
+    //
+    // Either:
+    //  1) A valid object was not found in splay tree, or
+    //  2) Dest is not within the valid object in which Source was found
+    //
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false, SourceFile, lineno);
   }
 }
 
@@ -2047,7 +2145,7 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
   /*
    * The object has not been found.  Provide an error.
    */
-  ReportLoadStoreCheck ((uintptr_t)(Node),(uintptr_t)__builtin_return_address(0));
+  ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
 }
 #endif
 
@@ -2263,23 +2361,34 @@ poolfree(PoolTy *Pool, void *Node) {
 //  Allocates memory for a DebugMetaData struct and fills up the appropriate
 //  fields so to keep a record of the pointer's meta data
 //
+// Inputs:
+//  AllocID - A unique identifier for the allocation.
+//  FreeID  - A unique identifier for the deallocation.
+//  AllocPC - The program counter at which the object was allocated.
+//  FreePC  - The program counter at which the object was freed.
+//  Canon   - The canonical address of the memory object.
+//
 #if SC_DEBUGTOOL
 static PDebugMetaData
-createPtrMetaData (unsigned paramAllocID,
-                   unsigned paramFreeID,
-                   void * paramAllocPC,
-                   void * paramFreePC,
-                   void * paramCanon) {
+createPtrMetaData (unsigned AllocID,
+                   unsigned FreeID,
+                   void * AllocPC,
+                   void * FreePC,
+                   void * Canon,
+                   char * SourceFile,
+                   unsigned lineno) {
   // FIXME:
   //  This will cause an allocation that is registered as an external
   //  allocation.  We need to use some internal allocation routine.
   //
   PDebugMetaData ret = (PDebugMetaData) malloc (sizeof(DebugMetaData));
-  ret->allocID = paramAllocID;
-  ret->freeID = paramFreeID;
-  ret->allocPC = paramAllocPC;
-  ret->freePC = paramFreePC;
-  ret->canonAddr = paramCanon;
+  ret->allocID = AllocID;
+  ret->freeID = FreeID;
+  ret->allocPC = AllocPC;
+  ret->freePC = FreePC;
+  ret->canonAddr = Canon;
+  ret->SourceFile = SourceFile;
+  ret->lineno = lineno;
 
   return ret;
 }
