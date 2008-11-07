@@ -30,8 +30,8 @@
 
 using namespace llvm;
 
-void SourceLocation::print(std::ostream& out) const
-{
+void
+SourceLocation::print(std::ostream& out) const {
   // FIXME: Enable this again!
 #if 0
 	if (filename.empty()) {
@@ -54,8 +54,8 @@ void SourceLocation::print(std::ostream& out) const
 #endif
 }
 
-void ValueLocation::print(std::ostream& out) const
-{
+void
+ValueLocation::print(std::ostream& out) const {
 //         if(!isStatement) {
 		 if(type.preciselyDefined()) {
 			 type.print(out);
@@ -70,13 +70,13 @@ void ValueLocation::print(std::ostream& out) const
 }
 
 #ifndef NDEBUG
-void SourceLocation::dump()
-{
+void
+SourceLocation::dump() {
 	llvm::cerr << *this;
 }
 
-void ValueLocation::dump()
-{
+void
+ValueLocation::dump() {
   cerr << "variable ";
   variable.dump();
   cerr <<" of type ";
@@ -86,8 +86,8 @@ void ValueLocation::dump()
 }
 #endif
 
-ValueLocation* ValueLocator::getInstrLocation(const Instruction* I)
-{
+ValueLocation *
+ValueLocator::getInstrLocation(const Instruction* I) {
 	ValueLocation* vloc = getValueLocation(I);
 	const BasicBlock* BB = I->getParent();
 	BasicBlock::const_iterator ci = BB->begin();
@@ -158,8 +158,7 @@ findDirectDeclaration (const Value* V) {
 
 
 ValueLocation*
-ValueLocator::getValueInfo (const DbgDeclareInst* DI)
-{
+ValueLocator::getValueInfo (const DbgDeclareInst* DI) {
 	ValueLocation* vinfo = new ValueLocation();
 	vinfo->isStatement = false;
 	Value* V = DI->getVariable();
@@ -193,8 +192,8 @@ ValueLocator::getValueInfo (const DbgDeclareInst* DI)
 	return vinfo;
 }
 
-void ValueLocator::printValue(std::ostream& out, const Value* V)
-{
+void
+ValueLocator::printValue (std::ostream& out, const Value* V) {
 	if(isa<Constant>(V)) {
 		if(const ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
 			out << CI->getSExtValue();
@@ -208,8 +207,9 @@ void ValueLocator::printValue(std::ostream& out, const Value* V)
 	}
 }
 
-void ValueLocator::printGEPIndices(ValueLocation *vLoc, const GetElementPtrInst *GEPI)
-{
+void
+ValueLocator::printGEPIndices (ValueLocation *vLoc,
+                               const GetElementPtrInst *GEPI) {
 	SmallVector<Value*, 8> IndicesVector(GEPI->idx_begin(), GEPI->idx_end());
 	Value* const* Indices = &IndicesVector[0];
 	const unsigned NumIndices = IndicesVector.size();
@@ -222,8 +222,9 @@ void ValueLocator::printGEPIndices(ValueLocation *vLoc, const GetElementPtrInst 
 	std::stringstream name;
 	assert(M && "Module must be set");
 
-	if(!isa<ConstantInt>(Indices[0]) || !cast<ConstantInt>(Indices[0])->isZero()) {
-		//show only non-zero pointer arithmetic
+	if (!isa<ConstantInt>(Indices[0]) ||
+      !cast<ConstantInt>(Indices[0])->isZero()) {
+		// Show only non-zero pointer arithmetic
 		name << "&";
 		name << vLoc->variable.name;
 		name << "[";
@@ -232,7 +233,7 @@ void ValueLocator::printGEPIndices(ValueLocation *vLoc, const GetElementPtrInst 
 	} else {
 		name << vLoc->variable.name;
 	}
-	if(1 != NumIndices && DebugTD) {
+	if (1 != NumIndices && DebugTD) {
 		if(isa<CompositeTypeDesc>(DebugTD)) {
 			DebugTD = cast<CompositeTypeDesc>(DebugTD)->getFromType();
 		} else if(isa<DerivedTypeDesc>(DebugTD)) {
@@ -251,7 +252,7 @@ void ValueLocator::printGEPIndices(ValueLocation *vLoc, const GetElementPtrInst 
 			name << "]";
 		} else if (isa<StructType>(Ty)) {
 			int idx = cast<ConstantInt>(IdxVal)->getSExtValue();
-			if(CompositeTypeDesc *CTD = dyn_cast_or_null<CompositeTypeDesc>(DebugTD)) {
+			if (CompositeTypeDesc *CTD = dyn_cast_or_null<CompositeTypeDesc>(DebugTD)) {
 				DebugInfoDesc * DID = CTD->getElements()[idx];
 				DebugTD = cast<TypeDesc>(DID);
 				name << "." << DebugTD->getName();
@@ -272,7 +273,8 @@ void ValueLocator::printGEPIndices(ValueLocation *vLoc, const GetElementPtrInst 
 //  Allocate and initialize a new ValueLocation object for the given LLVM
 //  value.
 //
-ValueLocation* ValueLocator::getValueLocation (const Value* V) {
+ValueLocation *
+ValueLocator::getValueLocation (const Value* V) {
   //  
   // If the value has no type, just create a no-name ValueLocation object.
   //
@@ -342,6 +344,7 @@ ValueLocation* ValueLocator::getValueLocation (const Value* V) {
 		return vinfo;
 	}
 }
+
 #if 0
 	for(Value::use_const_iterator i = V->use_begin(), e = V->use_end(); i != e; ++i) {
 		if(const BitCastInst *BI = dyn_cast<BitCastInst>(*i)) {
@@ -373,7 +376,8 @@ ValueLocation* ValueLocator::getValueLocation (const Value* V) {
 #endif
 
 
-bool SourceLocator::runOnFunction(Function &F) {
+bool
+SourceLocator::runOnFunction (Function &F) {
 	if(location) {
 		delete location;
 		location = NULL;
