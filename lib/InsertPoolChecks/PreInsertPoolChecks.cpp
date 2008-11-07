@@ -137,9 +137,11 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       //  llvm.used
       //  llvm.noinline
       //  Any global pool descriptor
+      //  Any global in the meta-data seciton
       //
       std::string name = GV->getName();
       if ((name == "llvm.used") || (name == "llvm.noinline")) continue;
+      if ((GV->getSection()) == "llvm.metadata") continue;
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph *G = paPass->getGlobalsGraph();
         DSNode *DSN  = G->getNodeForValue(GV).getNode();
