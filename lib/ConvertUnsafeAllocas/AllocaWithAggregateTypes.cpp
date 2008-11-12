@@ -99,48 +99,70 @@ namespace llvm
   }
 
   //
-  // FIXME:
-  //  I don't think the code below is strictly correct.  I think we could have
-  //  a type-known node that allocates memory using non-pointer LLVM types but
-  //  uses the memory as a structure with a pointer in a type consistent
-  //  manner.
+  // Method: changeType()
   //
-  //    Example:
+  // Description:
+  //  Determine whether the specified instruction is an allocation instruction
+  //  that needs to have its result initialized.
   //
-  //    foo = alloc (unsigned char array[24]);
-  //    ...
-  //    (struct bar *)(foo)->pointer = p;
+  // Inputs:
+  //  Inst - An instruction that may be an allocation instruction.
   //
-  //  I think what we really want to do is to see if the DSNode for the given
-  //  alloca is type-known *and* whether it has any links to other DSNodes.
+  // Results:
+  //  true  - This is an allocation instruction that contains pointers; it
+  //          requires initialization.
+  //  false - This is either not an allocation instruction or an allocation
+  //          instruction that does not require initialization.
+  //
+  // Notes:
+  //  1) An allocation does not need initialization if it contains no pointers
+  //     or is type-unknown (being type-unknown causes SAFECode to place
+  //     load/store checks on the pointers loaded from the memory, so no
+  //     initialization is needed).
+  //
+  //  2) We get the type of the allocated memory from DSA; we do not use the
+  //     LLVM type of the allocation.  This is because a program can allocate
+  //     memory using a type that contains no pointer but uses the memory
+  //     consistently as a type with pointers.  For example, consider the
+  //     following code:
+  //
+  //      foo = alloc (unsigned char array[24]);
+  //      ...
+  //      (struct bar *)(foo)->pointer = p;
   //
   inline bool
   InitAllocas::changeType (Instruction * Inst) {
-    // Get the DSNode for this instruction
-    DSNode *Node = dsnPass->getDSNode(Inst, Inst->getParent()->getParent());
+    //
+    // Only initialize alloca instructions.
+    //
+    if (AllocaInst * AllocInst = dyn_cast<AllocaInst>(Inst)) {
+      // Get the DSNode for this instruction
+      DSNode *Node = dsnPass->getDSNode(Inst, Inst->getParent()->getParent());
 
-    //
-    // Do not bother to change this allocation if the type is unknown;
-    // regular SAFECode checks will prevent anything bad from happening to
-    // uninitialzed pointers loaded from this memory.
-    //
-    if (Node && (Node->isNodeCompletelyFolded()))
-      return false;
+      //
+      // If this allocation has no DSNode e.g., it's a pool handle, then don't
+      // bother looking at it.
+      //
+      if (!Node) return false;
 
-    //
-    // Check to see if the instruction is an alloca.
-    //
-    if (Inst->getOpcode() == Instruction::Alloca) {
-      AllocationInst * AllocInst = cast<AllocationInst>(Inst);
-      
+      //
+      // Do not bother to change this allocation if the type is unknown;
+      // regular SAFECode checks will prevent anything bad from happening to
+      // uninitialzed pointers loaded from this memory.
+      //
+      if (Node->isNodeCompletelyFolded())
+        return false;
+
       //
       // Get the type of object allocated.
       //
-      const Type * TypeCreated = AllocInst->getAllocatedType ();
-      
+      const Type * TypeCreated = Node->getType();
+
+      //
+      // If the type contains a pointer, it must be changed.
+      //
       if (TypeContainsPointer(TypeCreated))
         return true;
-      
     }
     return false;
   }
