@@ -228,7 +228,9 @@ ReportBoundsCheck (unsigned src,
                    unsigned allocPC,
                    unsigned pc,
                    unsigned objstart,
-                   unsigned objlen) {
+                   unsigned objlen,
+                   unsigned char * SourceFile,
+                   unsigned lineno) {
   ABORT_PROGRAM();
 }
 
@@ -237,7 +239,9 @@ static inline void ReportExactCheck (unsigned src,
                   unsigned dest,
                   unsigned pc,
                   unsigned objstart,
-                  unsigned objlen) {
+                  unsigned objlen,
+                  unsigned char * SourceFile,
+                  unsigned lineno) {
   ABORT_PROGRAM();
 }
 
