@@ -1030,6 +1030,30 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
   return (void*) ((char*)New + offset);
 }
 
+//
+// Function: poolargvregister()
+//
+// Description:
+//  Register all of the argv strings in the external object pool.
+//
+void
+poolargvregister (int argc, char ** argv) {
+  for (unsigned index=0; index < argc; ++index) {
+    fprintf (stderr, "poolargvregister: %p %p\n", argv[index], argv[index] + strlen (argv[index]) + 1);
+    fflush (stderr);
+    ExternalObjects.insert (argv[index], argv[index] + strlen (argv[index]) + 1);
+  }
+
+  return;
+}
+
+//
+// Function: poolregister()
+//
+// Description:
+//  Register the memory starting at the specified pointer of the specified size
+//  with the given Pool.
+//
 void
 poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 
@@ -1619,18 +1643,52 @@ _barebone_poolcheck (PoolTy * Pool, void * Node) {
 
 void
 poolcheck (PoolTy *Pool, void *Node) {
-  if (!_barebone_poolcheck (Pool, Node))
-    ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
+  if (_barebone_poolcheck (Pool, Node))
+    return;
+
+  //
+  // Look for the object within the splay tree of external objects.
+  //
+  int fs = 0;
+  void * S, *end;
+	if (1) {
+		S = Node;
+		fs = ExternalObjects.find (Node, S, end);
+		if ((fs) && (S <= Node) && (Node <= end)) {
+			return;
+		}
+	}
+
+  //
+  // We cannot find the pointer anywhere!  Time to fail a load/store check!
+  //
+  ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
+
   return;
 }
 
 void
 poolcheck_debug (PoolTy *Pool, void *Node, void * SourceFilep, unsigned lineno) {
-  if (!_barebone_poolcheck (Pool, Node))
-    ReportLoadStoreCheck (Node,
-                          __builtin_return_address(0),
-                          (char *)SourceFilep,
-                          lineno);
+  if (_barebone_poolcheck (Pool, Node))
+    return;
+ 
+  //
+  // Look for the object within the splay tree of external objects.
+  //
+  int fs = 0;
+  void * S, *end;
+	if (1) {
+		S = Node;
+		fs = ExternalObjects.find (Node, S, end);
+		if ((fs) && (S <= Node) && (Node <= end)) {
+			return;
+		}
+	}
+
+  ReportLoadStoreCheck (Node,
+                        __builtin_return_address(0),
+                        (char *)SourceFilep,
+                        lineno);
   return;
 }
 
@@ -1710,7 +1768,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
         (((char *) Dest) == ObjEnd)) {
       void * ptr = rewrite_ptr (Pool, Dest);
       if (logregs)
-        fprintf (ReportLog, "boundscheckui: rewrite: %p %p %p %p at pc=%p to %p\n",
+        fprintf (ReportLog, "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
                  ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr);
         fflush (ReportLog);
       return ptr;
@@ -1730,7 +1788,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                          (uintptr_t)Dest,
                          (unsigned)allocID,
                          (unsigned)allocPC,
-                         (uintptr_t)__builtin_return_address(0),
+                         (uintptr_t)__builtin_return_address(1),
                          (uintptr_t)ObjStart,
                          (unsigned)((char*) ObjEnd - (char*)(ObjStart)),
                          (unsigned char *)(SourceFile),
@@ -1755,7 +1813,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (uintptr_t)Dest,
                            (unsigned)0,
                            (unsigned)0,
-                           (uintptr_t)__builtin_return_address(0),
+                           (uintptr_t)__builtin_return_address(1),
                            (unsigned)0,
                            (unsigned)4096,
                            (unsigned char *)(SourceFile),
@@ -1766,8 +1824,11 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
 
   /*
    * Attempt to look for the object in the external object splay tree.
+   * Do this even if we're not tracking external allocations because a few
+   * other objects without associated pools (e.g., argv pointers) may be
+   * registered in here.
    */
-  if (ConfigData.TrackExternalMallocs) {
+  if (1) {
     void * S, * end;
     bool fs = ExternalObjects.find(Source, S, end);
     if (fs) {
@@ -1800,12 +1861,11 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                        (uintptr_t)Dest,
                        (unsigned)0,
                        (unsigned)0,
-                       (uintptr_t)__builtin_return_address(0),
+                       (uintptr_t)__builtin_return_address(1),
                        (uintptr_t)0,
                        (unsigned)0,
                        (unsigned char *)(SourceFile),
                        lineno);
-    abort();
   }
 
   return Dest;
@@ -1838,6 +1898,35 @@ boundscheck (PoolTy * Pool, void * Source, void * Dest) {
     //  2) Dest is not within the valid object in which Source was found
     //
     return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true, NULL, 0);  
+  }
+}
+
+//
+// Function: boundscheck_debug()
+//
+// Description:
+//  Identical to boundscheck() except that it takes additional debug info
+//  parameters.
+//
+void *
+boundscheck_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFile, unsigned lineno) {
+  // This code is inlined at all boundscheck() calls
+
+  // Search the splay for Source and return the bounds of the object
+  void * ObjStart = Source, * ObjEnd;
+  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
+
+  // Check if destination lies in the same object
+  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
+                        ((Dest <= ObjEnd))), 1)) {
+    return Dest;
+  } else {
+    //
+    // Either:
+    //  1) A valid object was not found in splay tree, or
+    //  2) Dest is not within the valid object in which Source was found
+    //
+    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true, SourceFile, lineno);  
   }
 }
 
@@ -1930,7 +2019,7 @@ rewrite_ptr (PoolTy * Pool, void * p) {
   }
 
   if (!Pool) Pool = &OOBPool;
-  Pool->OOB.insert(P, P, p);
+  Pool->OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
   return invalidptr;
 #else
   return p;
@@ -2116,9 +2205,6 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned StartOffset,
 //  Offset - The offset, in bytes, that the pointer should be to the beginning
 //           of objects found in the pool.
 //
-// FIXME:
-//  For now, this does nothing, but it should, in fact, do a run-time check.
-//
 void
 poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
   //
@@ -2147,6 +2233,51 @@ poolcheckalign (PoolTy *Pool, void *Node, unsigned Offset) {
    */
   ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
 }
+
+//
+// Function: poolcheckalign_debug()
+//
+// Description:
+//  Identical to poolcheckalign() but with additional debug info parameters.
+//
+// Inputs:
+//  Pool   - The pool in which the pointer should be found.
+//  Node   - The pointer to check.
+//  Offset - The offset, in bytes, that the pointer should be to the beginning
+//           of objects found in the pool.
+//
+// FIXME:
+//  For now, this does nothing, but it should, in fact, do a run-time check.
+//
+void
+poolcheckalign_debug (PoolTy *Pool, void *Node, unsigned Offset, void * SourceFile, unsigned lineno) {
+  //
+  // Let null pointers go if the alignment is zero; such pointers are aligned.
+  //
+  if ((Node == 0) && (Offset == 0))
+    return;
+
+  //
+  // If no pool was specified, return.
+  //
+  if (!Pool) return;
+
+  //
+  // Look for the object in the splay of regular objects.
+  //
+  void * S, * end;
+  bool t = Pool->Objects.find(Node, S, end);
+
+  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == (int)Offset)) {
+      return;
+  }
+
+  //
+  // The object has not been found.  Provide an error.
+  //
+  ReportLoadStoreCheck (Node, __builtin_return_address(0), (char *)SourceFile, lineno);
+}
+
 #endif
 
 //

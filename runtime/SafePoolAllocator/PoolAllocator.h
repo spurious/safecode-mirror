@@ -69,7 +69,7 @@ typedef struct PoolTy {
 
 #if SC_ENABLE_OOB 
   // Splay tree used for out of bound objects
-  RangeSplayMap<PDebugMetaData> OOB;
+  RangeSplayMap<void *> OOB;
 #endif
 
   // FIXME: should be dangling pointer macro
@@ -131,6 +131,7 @@ extern "C" {
   void * poolcalloc (PoolTy *Pool, unsigned Number, unsigned NumBytes);
   void * poolstrdup(PoolTy *Pool, char *Node);
 
+  void poolargvregister (int argc, char ** argv);
   void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
   void poolunregister(PoolTy *Pool, void *allocaptr);
   void poolfree(PoolTy *Pool, void *Node);
@@ -153,6 +154,8 @@ extern "C" {
 
   void * poolalloc_debug (PoolTy *P, unsigned Size, void * SrcFle, unsigned no);
   void   poolcheck_debug (PoolTy *P, void * Node, void * SrcFle, unsigned no);
+  void   poolcheckalign_debug (PoolTy *P, void *Node, unsigned Offset, void * SourceFile, unsigned lineno);
+  void * boundscheck_debug (PoolTy * P, void * S, void * D, void * SFile, unsigned int lineno);
   void * boundscheckui_debug (PoolTy * P, void * S, void * D, void * SFile, unsigned int lineno);
   //void protect_shadowpage();
  
