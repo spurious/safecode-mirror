@@ -92,13 +92,34 @@ ValueLocator::getInstrLocation(const Instruction* I) {
 	const BasicBlock* BB = I->getParent();
 	BasicBlock::const_iterator ci = BB->begin();
 	BasicBlock::const_iterator ce = BB->end();
-	//set iterator to current Value
+
+	// Iterate to find the specified instruction.
 	while(&*ci != I && ci != ce) ++ci;
 	assert(&*ci == I && "Value must be found inside its own BasicBlock");
 
-	//look for a stoppoint
-	for(;ci != ce; ++ci) {
-		if(const DbgStopPointInst *SPI = dyn_cast<DbgStopPointInst>(&*ci)) {
+  //
+	// Look for a stoppoint in the basic block that precedes the instruction.
+  //
+	for (;ci != BB->begin(); --ci) {
+		if (const DbgStopPointInst *SPI = dyn_cast<DbgStopPointInst>(&*ci)) {
+			struct SourceLocation* sloc = &vloc->statement;
+			sloc->filename = SPI->getFileName();
+			sloc->directory = SPI->getDirectory();
+			sloc->lineNo = SPI->getLine();
+			sloc->colNo = SPI->getColumn();
+			vloc->isStatement = true;
+			return vloc;
+		}
+	}
+
+  //
+  // If we can't find a stoppoint that precedes the statement, try looking for
+  // one that comes after the statement within the same basic block.
+  //
+	while(&*ci != I && ci != ce) ++ci;
+	assert(&*ci == I && "Value must be found inside its own BasicBlock");
+	for (;ci != ce; ++ci) {
+		if (const DbgStopPointInst *SPI = dyn_cast<DbgStopPointInst>(&*ci)) {
 			struct SourceLocation* sloc = &vloc->statement;
 			sloc->filename = SPI->getFileName();
 			sloc->directory = SPI->getDirectory();
