@@ -12,7 +12,8 @@ TOOLNAME=sc
 
 # Initialize the USEDLIBS so we can add to it
 
-LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
+LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
+                    nativecodegen
 USEDLIBS        := faultinject
 
 include $(LEVEL)/Makefile.common
@@ -25,6 +26,7 @@ $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
                   $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
+                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/debuginstr.o \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
 	$(Echo) Linking $(BuildMode) executable $(TOOLNAME) $(StripWarnMsg)
@@ -40,6 +42,7 @@ LDFLAGS += $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
            $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
+           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/debuginstr.o \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
            $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
 
