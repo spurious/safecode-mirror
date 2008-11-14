@@ -45,7 +45,7 @@ namespace llvm {
 bool 
 PreInsertPoolChecks::runOnModule(Module & M) {
   RuntimeInit = M.getOrInsertFunction("pool_init_runtime", Type::VoidTy, 
-      Type::Int32Ty, NULL); 
+      Type::Int32Ty, Type::Int32Ty, NULL); 
   dsnPass = &getAnalysis<DSNodePass>();
 #ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
@@ -240,7 +240,8 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   }
 
   std::vector<Value *> args;
-  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks, RewriteOOB));
+  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks));
+  args.push_back (ConstantInt::get(Type::Int32Ty, RewriteOOB));
   CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif
