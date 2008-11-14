@@ -52,7 +52,7 @@ struct ShadowInfo {
 std::map<void *,std::vector<struct ShadowInfo> > ShadowPages;
 
 // Structure defining configuration data
-struct ConfigData ConfigData = {false, false, false};
+struct ConfigData ConfigData = {false, true, false};
 
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
