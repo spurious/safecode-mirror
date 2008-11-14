@@ -74,7 +74,12 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     }
   }
 
-  // First register, argc and argv
+  // Create the void pointer type
+  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+
+  //
+  // First register argc and argv
+  //
   Function::arg_iterator AI = MainFunc->arg_begin(), AE = MainFunc->arg_end();
   if (MainFunc->arg_size() == 2) {
     //There is argc and argv
@@ -122,10 +127,27 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       std::cerr << "argv's pool descriptor is not present. \n";
       //	abort();
     }
+
+    //
+    // FIXME:
+    //  This is a hack around what appears to be a DSA bug.  These pointers
+    //  should be marked incomplete, but for some reason, in at least one test
+    //  case, they are not.
+    //
+    // Register all of the argv strings
+    //
+    Constant * RegisterArgv = M.getOrInsertFunction ("poolargvregister",
+                                                     Type::VoidTy, 
+                                                     Type::Int32Ty,
+                                                     Argv->getType(),
+                                                     NULL); 
+    std::vector<Value *> fargs;
+    fargs.push_back (Argc);
+    fargs.push_back (Argv);
+    CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
   }
 
   // Now iterate over globals and register all the arrays
-  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
   Type *PoolDescType = ArrayType::get(VoidPtrType, 50);
   Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
 
@@ -218,7 +240,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
   }
 
   std::vector<Value *> args;
-  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks, 0));
+  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks, RewriteOOB));
   CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif

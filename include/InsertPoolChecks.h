@@ -40,11 +40,15 @@ struct PreInsertPoolChecks : public ModulePass {
     // Flags whether we want to do dangling checks
     bool DanglingChecks;
 
+    // Flags whether we should rewrite Out of Bound pointers or just fail them
+    bool RewriteOOB;
+
     public :
     static char ID;
-    PreInsertPoolChecks (bool DPChecks = false)
+    PreInsertPoolChecks (bool DPChecks = false, bool RewritePtrs=false)
       : ModulePass ((intptr_t) &ID) {
       DanglingChecks = DPChecks;
+      RewriteOOB = RewritePtrs;
     }
     const char *getPassName() const { return "Register Global variable into pools"; }
     virtual bool runOnModule(Module &M);
