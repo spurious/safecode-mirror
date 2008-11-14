@@ -64,6 +64,9 @@ static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
 
 static cl::opt<bool>
+RewriteOOB("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
+
+static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
                      cl::desc("Enable fast indirect call checks"));
 
@@ -74,8 +77,14 @@ enum CheckingRuntimeType {
   RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL 
 };
 
+#ifdef SC_DEBUGTOOL
+enum CheckingRuntimeType DefaultRuntime = RUNTIME_DEBUG;
+#else
+enum CheckingRuntimeType DefaultRuntime = RUNTIME_SINGLETHREAD;
+#endif
+
 static cl::opt<enum CheckingRuntimeType>
-CheckingRuntime("runtime", cl::init(RUNTIME_SINGLETHREAD),
+CheckingRuntime("runtime", cl::init(DefaultRuntime),
                   cl::desc("The runtime API used by the program"),
                   cl::values(
   clEnumVal(RUNTIME_PA,           "Pool Allocation runtime  no checks)"),
@@ -179,7 +188,7 @@ int main(int argc, char **argv) {
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
-    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks));
+    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks, RewriteOOB));
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
 
