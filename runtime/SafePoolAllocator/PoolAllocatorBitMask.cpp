@@ -764,11 +764,12 @@ struct StackSlab {
 //===----------------------------------------------------------------------===//
 
 void
-pool_init_runtime (unsigned Dangling) {
+pool_init_runtime (unsigned Dangling, unsigned RewriteOOB) {
   //
   // Configure the allocator.
   //
   ConfigData.RemapObjects = Dangling;
+  ConfigData.StrictIndexing = !(RewriteOOB);
 
   //
   // Allocate a range of memory for rewrite pointers.
@@ -1946,7 +1947,7 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart, * ObjEnd;
+  void * ObjStart = Source, * ObjEnd;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object
@@ -1979,7 +1980,7 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart, * ObjEnd;
+  void * ObjStart = Source, * ObjEnd;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object

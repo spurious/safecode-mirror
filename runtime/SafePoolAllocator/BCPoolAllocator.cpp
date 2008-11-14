@@ -39,8 +39,9 @@ public:
   }
   
   static void pool_init_runtime() {
-    // Disable dangling pointer checkings
-    ::pool_init_runtime(0);
+    // Disable dangling pointer checkings and rewriting of out of bound
+    // pointers
+    ::pool_init_runtime(0, 0);
   }
 
   static void poolfree(PoolTy *Pool, void *Node) {

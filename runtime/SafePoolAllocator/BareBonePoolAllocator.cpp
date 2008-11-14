@@ -32,7 +32,7 @@ public:
   }
   
   static void pool_init_runtime() {
-    ::pool_init_runtime(0);
+    ::pool_init_runtime(0, 0);
   }
 
   static void poolfree(PoolTy *Pool, void *Node) {
