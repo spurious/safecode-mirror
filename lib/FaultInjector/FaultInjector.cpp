@@ -429,10 +429,11 @@ FaultInjector::insertBadIndexing (Function & F) {
     // Create the new GEP instruction.
     //
     Value * Pointer = GEP->getPointerOperand();
+    std::string name = GEP->getName() + "badindex";
     GetElementPtrInst * NewGEP = GetElementPtrInst::Create (Pointer,
                                                             args.begin(),
                                                             args.end(),
-                                                            GEP->getName(),
+                                                            name,
                                                             GEP);
     GEP->replaceAllUsesWith (NewGEP);
     GEP->eraseFromParent();
