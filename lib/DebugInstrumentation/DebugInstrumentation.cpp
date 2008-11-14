@@ -179,6 +179,8 @@ DebugInstrument::runOnModule (Module &M) {
   //
   transformFunction (M.getFunction ("poolalloc"));
   transformFunction (M.getFunction ("poolcheck"));
+  transformFunction (M.getFunction ("poolcheckalign"));
+  transformFunction (M.getFunction ("boundscheck"));
   transformFunction (M.getFunction ("boundscheckui"));
   transformFunction (M.getFunction ("exactcheck2"));
   return true;
