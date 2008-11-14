@@ -12,7 +12,7 @@
 extern "C" {
   void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
   void __sc_par_poolunregister(PoolTy *Pool, void *allocaptr);
-  void __sc_par_pool_init_runtime(unsigned Dangling);
+  void __sc_par_pool_init_runtime (unsigned Dangling, unsigned RewriteOOB);
   void __sc_par_poolinit(PoolTy *Pool, unsigned NodeSize);
   void * __sc_par_poolalloc(PoolTy *Pool, unsigned NumBytes);
   void __sc_par_poolfree(PoolTy *Pool, void *Node);

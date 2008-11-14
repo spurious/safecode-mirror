@@ -5,7 +5,7 @@
 #include "ParPoolAllocator.h"
 
 extern "C" {
-  void __sc_par_pool_init_runtime(unsigned Dangling) {
+  void __sc_par_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
     ParPoolAllocator::pool_init_runtime();
   }
 

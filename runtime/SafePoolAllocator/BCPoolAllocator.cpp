@@ -56,7 +56,7 @@ public:
 
 
 extern "C" {
-  void __sc_bc_pool_init_runtime(unsigned Dangling) {
+  void __sc_bc_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
     BCPoolAllocator::pool_init_runtime();
   }
 
