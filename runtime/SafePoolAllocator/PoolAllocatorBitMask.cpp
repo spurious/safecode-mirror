@@ -27,7 +27,7 @@
 //     returned to the caller on allocation and is unmapped on deallocation.
 //     A "canonical" address is the virtual address of memory as it is mapped
 //     in the pool slabs; the canonical address is remapped to different shadow
-//     address each time that particular piece of memory is allocated.
+//     addresses each time that particular piece of memory is allocated.
 //
 //     In normal operation, the shadow address and canonical address are
 //     identical.
@@ -2001,18 +2001,24 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
   }
 }
 
-/*
- * Function: rewrite_ptr()
- *
- * Description:
- *  Take the given pointer and rewrite it to an Out Of Bounds (OOB) pointer.
- */
+//
+// Function: rewrite_ptr()
+//
+// Description:
+//  Take the given pointer and rewrite it to an Out Of Bounds (OOB) pointer.
+//
 void *
 rewrite_ptr (PoolTy * Pool, void * p) {
 #if SC_ENABLE_OOB
-  PoolTy * OrigPool = Pool;
+  //
+  // Calculate a new rewrite pointer.
+  //
   if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
   ++invalidptr;
+
+  //
+  // Ensure that we haven't run out of rewrite pointers.
+  //
   void* P = invalidptr;
   if ((uintptr_t) P == InvalidUpper) {
     fprintf (stderr, "rewrite: out of rewrite ptrs: %x %x, pc=%x\n",
@@ -2021,17 +2027,20 @@ rewrite_ptr (PoolTy * Pool, void * p) {
     return p;
   }
 
+  //
+  // Insert the mapping from rewrite pointer to original pointer into the pool.
+  // If no pool was specified (as is the case for an ExactCheck), use a
+  // special Out of Bounds Pointer pool.
+  //
   if (!Pool) Pool = &OOBPool;
   Pool->OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
 #if SC_DEBUGTOOL
   //
   // If debugging tool support is enabled, then insert it into the global
   // OOB pool as well; this will ensure that we can find the pointer on a
-  // memory protection violation.
+  // memory protection violation (on faults, we don't have Pool handle
+  // information).
   //
-  extern FILE * ReportLog;
-  fprintf (ReportLog, "rewrite: %x: %x -> %x\n", OrigPool, p, invalidptr);
-  fflush (ReportLog);
   OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
 #endif
   return invalidptr;
