@@ -91,6 +91,10 @@ unsigned InvalidLower = 0x00000003;
 // Splay tree of external objects
 extern RangeSplaySet<> ExternalObjects;
 
+// Records Out of Bounds pointer rewrites; also used by OOB rewrites for
+// exactcheck() calls
+static PoolTy OOBPool;
+
 #ifndef SC_DEBUGTOOL
 /// It should be always zero in production version 
 static /*const*/ unsigned logregs = 0;
@@ -2006,9 +2010,7 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
 void *
 rewrite_ptr (PoolTy * Pool, void * p) {
 #if SC_ENABLE_OOB
-  // Used for exactcheck calls in which no pool is specified.
-  static PoolTy OOBPool;
-
+  PoolTy * OrigPool = Pool;
   if (invalidptr == 0) invalidptr = (unsigned char*)InvalidLower;
   ++invalidptr;
   void* P = invalidptr;
@@ -2021,6 +2023,17 @@ rewrite_ptr (PoolTy * Pool, void * p) {
 
   if (!Pool) Pool = &OOBPool;
   Pool->OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
+#if SC_DEBUGTOOL
+  //
+  // If debugging tool support is enabled, then insert it into the global
+  // OOB pool as well; this will ensure that we can find the pointer on a
+  // memory protection violation.
+  //
+  extern FILE * ReportLog;
+  fprintf (ReportLog, "rewrite: %x: %x -> %x\n", OrigPool, p, invalidptr);
+  fflush (ReportLog);
+  OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
+#endif
   return invalidptr;
 #else
   return p;
@@ -2546,19 +2559,49 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
   signal(SIGBUS, NULL);
+
+  // Cast parameters to the desired type
   ucontext_t * mycontext = (ucontext_t *) context;
 
+  //
+  // Get the address causing the fault.
+  //
   void * faultAddr = info->si_addr, *end;
   PDebugMetaData debugmetadataptr;
   int fs = 0;
 
 #if SC_DEBUGTOOL
-  if (0 == (fs = dummyPool.DPTree.find (info->si_addr, faultAddr, end, debugmetadataptr)))
-  {
+  //
+  // Attempt to look up dangling pointer information for the faulting pointer.
+  //
+  fs = dummyPool.DPTree.find (info->si_addr, faultAddr, end, debugmetadataptr);
+
+  //
+  // If there is no dangling pointer information for the faulting pointer,
+  // perhaps it is an Out of Bounds Rewrite Pointer.  Check for that now.
+  //
+  if (0 == fs) {
+    unsigned program_counter = 0;
+#if defined(__APPLE__)
+#if defined(i386) || defined(__i386__) || defined(__x86__)
+    program_counter = mycontext->uc_mcontext->__ss.__eip;
+#endif
+#endif
     extern FILE * ReportLog;
-    fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
-    fflush(ReportLog);
-    abort();
+    void * start = faultAddr;
+    void * tag = 0;
+    void * end;
+    fprintf (ReportLog, "faultAddr: %x\n", faultAddr);
+    fflush (ReportLog);
+    if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
+      ReportOOBPointer (program_counter, tag);
+      abort();
+    } else {
+      extern FILE * ReportLog;
+      fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
+      fflush(ReportLog);
+      abort();
+    }
   }
 #endif
  
