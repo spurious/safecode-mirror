@@ -95,6 +95,10 @@ extern RangeSplaySet<> ExternalObjects;
 // exactcheck() calls
 static PoolTy OOBPool;
 
+// Map between rewrite pointer and source file information
+std::map<void *, void*>    RewriteSourcefile;
+std::map<void *, unsigned> RewriteLineno;
+
 #ifndef SC_DEBUGTOOL
 /// It should be always zero in production version 
 static /*const*/ unsigned logregs = 0;
@@ -1771,7 +1775,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
   if (found) {
     if ((ConfigData.StrictIndexing == false) ||
         (((char *) Dest) == ObjEnd)) {
-      void * ptr = rewrite_ptr (Pool, Dest);
+      void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
       if (logregs)
         fprintf (ReportLog, "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
                  ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr);
@@ -1812,7 +1816,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
       return Dest;
     } else {
       if (ConfigData.StrictIndexing == false) {
-        return rewrite_ptr (Pool, Dest);
+        return rewrite_ptr (Pool, Dest, SourceFile, lineno);
       } else {
         ReportBoundsCheck ((uintptr_t)Source,
                            (uintptr_t)Dest,
@@ -2007,8 +2011,18 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
 // Description:
 //  Take the given pointer and rewrite it to an Out Of Bounds (OOB) pointer.
 //
+// Inputs:
+//  Pool       - The pool in which the pointer should be located (but isn't).
+//               This value can be NULL if the caller doesn't know the pool.
+//
+//  p          - The pointer that needs to be rewritten.
+//  SourceFile - The name of the source file in which the check requesting the
+//               rewrite is located.
+//  lineno     - The line number within the source file in which the check
+//               requesting the rewrite is located.
+//
 void *
-rewrite_ptr (PoolTy * Pool, void * p) {
+rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 #if SC_ENABLE_OOB
   //
   // Calculate a new rewrite pointer.
@@ -2042,6 +2056,8 @@ rewrite_ptr (PoolTy * Pool, void * p) {
   // information).
   //
   OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
+  RewriteSourcefile[invalidptr] = SourceFile;
+  RewriteLineno[invalidptr] = lineno;
 #endif
   return invalidptr;
 #else
@@ -2603,7 +2619,9 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     fprintf (ReportLog, "faultAddr: %x\n", faultAddr);
     fflush (ReportLog);
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
-      ReportOOBPointer (program_counter, tag);
+      char * Filename = (char *)(RewriteSourcefile[faultAddr]);
+      unsigned lineno = RewriteLineno[faultAddr];
+      ReportOOBPointer (program_counter, tag, Filename, lineno);
       abort();
     } else {
       extern FILE * ReportLog;

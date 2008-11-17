@@ -28,7 +28,7 @@
 struct PoolTy;
 
 /* Function to rewriting pointers to Out Of Bounds (OOB) Pointers */
-extern void * rewrite_ptr (struct PoolTy * P, void * p);
+extern void * rewrite_ptr (struct PoolTy * P, void * p, void * SF, unsigned l);
 
 /*
  * Function: exactcheck()
@@ -68,7 +68,7 @@ void *
 exactcheck2 (signed char *base, signed char *result, unsigned size) {
   if ((result < base) || (result >= (base + size)))
 #ifdef SC_ENABLE_OOB
-    return rewrite_ptr (0, result);
+    return rewrite_ptr (0, result, "<Unknown>", 0);
 #else
   {
     ReportExactCheck ((unsigned)0xbeefdeed,
@@ -87,7 +87,7 @@ void *
 exactcheck2_debug (signed char *base, signed char *result, unsigned size, void * SourceFile, unsigned lineno) {
   if ((result < base) || (result >= (base + size)))
 #ifdef SC_ENABLE_OOB
-    return rewrite_ptr (0, result);
+    return rewrite_ptr (0, result, SourceFile, lineno);
 #else
   {
     ReportExactCheck ((unsigned)0xbeefdeed,

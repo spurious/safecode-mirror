@@ -205,14 +205,15 @@ ReportExactCheck (unsigned src,
 //  pc  - The program counter of the failed run-time check.
 //  ptr - The out of bounds pointer.
 //
-//
 static void
-ReportOOBPointer (unsigned pc, void * ptr) {
+ReportOOBPointer (unsigned pc, void * ptr, char * SourceFile, unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
   fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address 0x%08x\n", id, (unsigned)ptr);
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
   return;
 }
@@ -267,7 +268,8 @@ static inline void ReportExactCheck (unsigned src,
   ABORT_PROGRAM();
 }
 
-static inline void ReportOOBPointer (unsigned pc, void * ptr) {
+static inline void
+ReportOOBPointer (unsigned pc, void * ptr, char * SourceFile, unsigned lineno) {
   ABORT_PROGRAM();
 }
 

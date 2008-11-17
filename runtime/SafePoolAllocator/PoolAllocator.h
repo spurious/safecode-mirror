@@ -150,7 +150,7 @@ extern "C" {
   void pool_delstack (PoolTy * Pool);
   void * pool_alloca (PoolTy * Pool, unsigned int NumBytes);
 
-  void * rewrite_ptr (PoolTy *, void * p);
+  void * rewrite_ptr (PoolTy *, void * p, void * SrcFile, unsigned lineno);
 
   void * poolalloc_debug (PoolTy *P, unsigned Size, void * SrcFle, unsigned no);
   void   poolcheck_debug (PoolTy *P, void * Node, void * SrcFle, unsigned no);
