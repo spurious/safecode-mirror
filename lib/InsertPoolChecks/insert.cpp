@@ -514,8 +514,8 @@ InsertPoolChecks::addCheckProto(Module &M) {
   REG_FUNC (PoolCheckUI,      VoidTy, "poolcheckui",        vpTy, vpTy)
   REG_FUNC (PoolCheckAlign,   VoidTy, "poolcheckalign",     vpTy, vpTy, Int32Ty)
   REG_FUNC (PoolCheckAlignUI, VoidTy, "poolcheckalignui",   vpTy, vpTy, Int32Ty)
-  REG_FUNC (PoolCheckArray,   VoidTy, "boundscheck",        vpTy, vpTy, vpTy)
-  REG_FUNC (PoolCheckArrayUI, VoidTy, "boundscheckui",      vpTy, vpTy, vpTy)
+  REG_FUNC (PoolCheckArray,   vpTy,   "boundscheck",        vpTy, vpTy, vpTy)
+  REG_FUNC (PoolCheckArrayUI, vpTy,   "boundscheckui",      vpTy, vpTy, vpTy)
   REG_FUNC (ExactCheck,       VoidTy, "exactcheck",         Int32Ty, Int32Ty)
   REG_FUNC (ExactCheck2,      vpTy,   "exactcheck2",         vpTy, vpTy, Int32Ty)
   std::vector<const Type *> FArg3(1, Type::Int32Ty);
@@ -727,6 +727,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   // invisible.
   //
   if (Node && (Node->isIncompleteNode())) return;
+  if (Node && (Node->isExternalNode())) return;
 
   //
   // Only check pointers to type-unknown objects.
@@ -1132,12 +1133,28 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         dsnPass->addCheckedDSNode(Node);
         dsnPass->addCheckedValue(GEPNew);
 
+        Instruction * CI;
         if (Node->isIncompleteNode())
-          CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
-                           "", InsertPt);
+          CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
+                                "", InsertPt);
         else
-          CallInst::Create(PoolCheckArray, args.begin(), args.end(),
-                           "", InsertPt);
+          CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
+                                "", InsertPt);
+
+        //
+        // Replace the uses of the original pointer with the result of the
+        // boundscheck.
+        //
+#if SC_ENABLE_OOB
+        CI = castTo (CI, GEP->getType(), GEP->getName(), InsertPt);
+
+        Value::use_iterator UI = GEP->use_begin();
+        for (; UI != GEP->use_end(); ++UI) {
+          if (((*UI) != CI) && ((*UI) != Casted))
+            UI->replaceUsesOfWith (GEP, CI);
+        }
+#endif
+
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
