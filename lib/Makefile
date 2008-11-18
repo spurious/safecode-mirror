@@ -6,9 +6,10 @@ PARALLEL_DIRS = ArrayBoundChecks \
                 StackSafety \
                 PointerChecks \
                 SpeculativeChecking \
+                RewriteOOB \
                 FaultInjector \
                 IndirectCallChecks \
-                DebugInstrumentation
+                DebugInstrumentation \
 
 include $(LEVEL)/Makefile.common
 
