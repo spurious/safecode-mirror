@@ -32,6 +32,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/RewriteOOB.h"
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/FaultInjector.h"
@@ -64,7 +65,7 @@ static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
 
 static cl::opt<bool>
-RewriteOOB("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
+RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
@@ -188,7 +189,7 @@ int main(int argc, char **argv) {
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
-    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks, RewriteOOB));
+    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks, RewritePtrs));
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
 
@@ -219,6 +220,11 @@ int main(int argc, char **argv) {
 
     if (EnableCodeDuplication)
       Passes.add(new DuplicateLoopAnalysis());
+
+    //
+    // Do post processing required for Out of Bounds pointer rewriting.
+    //
+    if (RewritePtrs) Passes.add(new RewriteOOB());
 
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
