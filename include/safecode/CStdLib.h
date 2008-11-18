@@ -24,20 +24,18 @@ STATISTIC(stat_missed_strcpy, "Total strcpy() calls missed");
 
 // From KTransform.h
 namespace llvm {
-/*
-ModulePass * createSCPass(RegSCPass * KP);
-*/
-ModulePass * createStringTransformPass();
+	ModulePass * createStringTransformPass();
 }
 
 namespace {
 	class StringTransform : public ModulePass {
+	private:
+                bool strcpyTransform(Module &M);
 
 	public:
 		static char ID;
 		StringTransform() : ModulePass((intptr_t)&ID) {}
                 virtual bool runOnModule(Module &M);
-                bool strcpyTransform(Module &M);
 
 		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 			AU.setPreservesAll();
@@ -45,7 +43,6 @@ namespace {
 		virtual void print(std::ostream &O, const Module *M) const {}
 	};
 
-	RegisterPass<StringTransform> X("string_transform", "Secure C standard string library calls");
 }
 
 #endif
