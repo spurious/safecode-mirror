@@ -282,22 +282,6 @@ InsertPoolChecks::addExactCheck2 (Value * BasePointer,
   // Record that this value was checked.
   //
   dsnPass->addCheckedValue(Result);
-
-#if 0
-  //
-  // Replace the old pointer with the return value of exactcheck2(); this
-  // prevents GCC from removing it completely.
-  //
-  if (CI->getType() != GEP->getType())
-    CI = castTo (CI, GEP->getType(), GEP->getName(), InsertPt);
-
-  Value::use_iterator UI = GEP->use_begin();
-  for (; UI != GEP->use_end(); ++UI) {
-    if (((*UI) != CI) && ((*UI) != ResultPointer))
-      UI->replaceUsesOfWith (GEP, CI);
-  }
-#endif
-
   return;
 }
 
@@ -1140,20 +1124,6 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         else
           CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
                                 "", InsertPt);
-
-        //
-        // Replace the uses of the original pointer with the result of the
-        // boundscheck.
-        //
-#if SC_ENABLE_OOB
-        CI = castTo (CI, GEP->getType(), GEP->getName(), InsertPt);
-
-        Value::use_iterator UI = GEP->use_begin();
-        for (; UI != GEP->use_end(); ++UI) {
-          if (((*UI) != CI) && ((*UI) != Casted))
-            UI->replaceUsesOfWith (GEP, CI);
-        }
-#endif
 
         DEBUG(std::cerr << "inserted instrcution \n");
       }
