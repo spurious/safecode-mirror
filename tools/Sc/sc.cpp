@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
     // Remove special attributes for loop hoisting that were added by previous
     // SAFECode passes.
     //
-    Passes.add (new ClearCheckAttributes());
+    Passes.add (createClearCheckAttributesPass());
 
     if (EnableCodeDuplication)
       Passes.add(new DuplicateLoopAnalysis());
@@ -318,13 +318,14 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
 
   typedef LowerSafecodeIntrinsic::IntrinsicMappingEntry IntrinsicMappingEntry;
   static IntrinsicMappingEntry RuntimePA[] = 
-    { {"poolcheck",         "__sc_no_op_poolcheck" },
-      {"poolcheckui",       "__sc_no_op_poolcheck" },
-      {"poolcheckalign",    "__sc_no_op_poolcheckalign" },
-      {"boundscheck",       "__sc_no_op_boundscheck" },
-      {"boundscheckui",     "__sc_no_op_boundscheck" },
-      {"exactcheck",       "__sc_no_op_exactcheck" },
-      {"exactcheck2",     "__sc_no_op_exactcheck2" },
+    { {"sc.lscheck",         "__sc_no_op_poolcheck" },
+      {"sc.lscheckui",       "__sc_no_op_poolcheck" },
+      {"sc.lscheckalign",    "__sc_no_op_poolcheckalign" },
+      {"sc.lscheckalignui",    "__sc_no_op_poolcheckalign" },
+      {"sc.boundscheck",       "__sc_no_op_boundscheck" },
+      {"sc.boundscheckui",     "__sc_no_op_boundscheck" },
+      {"sc.exactcheck",       "__sc_no_op_exactcheck" },
+      {"sc.exactcheck2",     "__sc_no_op_exactcheck2" },
       {"poolregister",      "__sc_no_op_poolregister" },
       {"poolunregister",    "__sc_no_op_poolunregister" },
       {"poolalloc",         "__sc_barebone_poolalloc"},
@@ -338,11 +339,14 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
     };
 
   static IntrinsicMappingEntry RuntimeSingleThread[] = 
-    { {"poolcheck",         "poolcheck" },
-      {"poolcheckui",       "__sc_no_op_poolcheck" },
-      {"poolcheckalign",    "poolcheckalign" },
-      {"boundscheck",       "boundscheck" },
-      {"boundscheckui",     "boundscheckui" },
+    { {"sc.lscheck",         "sc.lscheck" },
+      {"sc.lscheckui",       "__sc_no_op_poolcheck" },
+      {"sc.lscheckalign",    "poolcheckalign" },
+      {"sc.lscheckalignui",    "poolcheckalignui" },
+      {"sc.boundscheck",       "boundscheck" },
+      {"sc.boundscheckui",     "boundscheckui" },
+      {"sc.exactcheck",       "exactcheck" },
+      {"sc.exactcheck2",     "exactcheck2" },
       {"poolregister",      "poolregister" },
       {"poolunregister",    "poolunregister" },
       {"poolalloc",         "__sc_bc_poolalloc"},
@@ -355,21 +359,35 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"poolstrdup",        "__sc_bc_poolstrdup"},
     };
 
+  static IntrinsicMappingEntry RuntimeDebug[] = 
+    { {"sc.lscheck",         "poolcheck" },
+      {"sc.lscheckui",       "poolcheckui" },
+      {"sc.lscheckalign",    "poolcheckalign" },
+      {"sc.lscheckalignui",    "poolcheckalignui" },
+      {"sc.boundscheck",       "boundscheck" },
+      {"sc.boundscheckui",     "boundscheckui" },
+      {"sc.exactcheck",       "exactcheck" },
+      {"sc.exactcheck2",     "exactcheck2" },
+    };
+
+
   static IntrinsicMappingEntry RuntimeParallel[] = 
-    { {"poolcheck",         "__sc_par_poolcheck" },
-      {"poolcheckui",       "__sc_no_op_poolcheck" },
-      {"poolcheckalign",    "__sc_par_poolcheckalign" },
-      {"poolcheckalignui",    "__sc_par_poolcheckalignui" },
-      {"boundscheck",       "__sc_par_boundscheck" },
-      {"boundscheckui",     "__sc_par_boundscheckui" },
-      {"poolcheck.serial",     "__sc_bc_poolcheck" },
-      {"poolcheckui.serial",   "__sc_no_op_poolcheck" },
-      {"poolcheckalign.serial","poolcheckalign" },
-      {"poolcheckalignui.serial","poolcheckalignui" },
-      {"boundscheck.serial",   "__sc_bc_boundscheck" },
-      {"boundscheckui.serial", "__sc_bc_boundscheckui" },
-      {"exactcheck.serial",       "exactcheck" },
-      {"exactcheck2.serial",     "exactcheck2" },
+    { {"sc.lscheck",         "__sc_par_poolcheck" },
+      {"sc.lscheckui",       "__sc_no_op_poolcheck" },
+      {"sc.lscheckalign",    "__sc_par_poolcheckalign" },
+      {"sc.lscheckalignui",    "__sc_par_poolcheckalignui" },
+      {"sc.boundscheck",       "__sc_par_boundscheck" },
+      {"sc.boundscheckui",     "__sc_par_boundscheckui" },
+      {"sc.exactcheck",       "exactcheck" },
+      {"sc.exactcheck2",     "exactcheck2" },
+      {"sc.lscheck.serial",     "__sc_bc_poolcheck" },
+      {"sc.lscheckui.serial",   "__sc_no_op_poolcheck" },
+      {"sc.lscheckalign.serial","poolcheckalign" },
+      {"sc.lscheckalignui.serial","poolcheckalignui" },
+      {"sc.boundscheck.serial",   "__sc_bc_boundscheck" },
+      {"sc.boundscheckui.serial", "__sc_bc_boundscheckui" },
+      {"sc.exactcheck.serial",       "exactcheck" },
+      {"sc.exactcheck2.serial",     "exactcheck2" },
       {"poolregister",      "__sc_par_poolregister" },
       {"poolunregister",    "__sc_par_poolunregister" },
       {"poolalloc",         "__sc_par_poolalloc"},
@@ -388,7 +406,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
     break;
     
   case RUNTIME_DEBUG:
-  // DO NOTHING, no replacement needed
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeDebug, RuntimeDebug + sizeof(RuntimeDebug) / sizeof(IntrinsicMappingEntry)));
     break;
 
   case RUNTIME_SINGLETHREAD:
@@ -400,5 +418,3 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
     break;
   }
 }
-
-     
