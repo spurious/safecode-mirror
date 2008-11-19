@@ -3,6 +3,7 @@
 #include "llvm/Instructions.h"
 
 #include <vector>
+#include <set>
 #include <string>
 
 using namespace llvm;
@@ -122,6 +123,64 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
   }
 
   return true;
+}
+
+//
+// Function: peelCasts()
+//
+// Description:
+//  This method peels off casts to get to the original instruction that
+//  generated the value for the given instruction.
+//
+// Inputs:
+//  PointerOperand - The value off of which we will peel the casts.
+//
+// Outputs:
+//  Chain - The set of values that are between the original value and the
+//          specified value.
+//
+// Return value:
+//  A pointer to the LLVM value that originates the specified LLVM value.
+//
+static Value *
+peelCasts (Value * PointerOperand, std::set<Value *> & Chain) {
+  Value * SourcePointer = PointerOperand;
+  bool done = false;
+
+  while (!done) {
+    //
+    // Trace through constant cast and GEP expressions
+    //
+    if (ConstantExpr * cExpr = dyn_cast<ConstantExpr>(SourcePointer)) {
+      if (cExpr->isCast()) {
+        if (isa<PointerType>(cExpr->getOperand(0)->getType())) {
+          Chain.insert (SourcePointer);
+          SourcePointer = cExpr->getOperand(0);
+          continue;
+        }
+      }
+
+      // We cannot handle this expression; break out of the loop
+      break;
+    }
+
+    //
+    // Trace back through cast instructions.
+    //
+    if (CastInst * CastI = dyn_cast<CastInst>(SourcePointer)) {
+      if (isa<PointerType>(CastI->getOperand(0)->getType())) {
+        Chain.insert (SourcePointer);
+        SourcePointer = CastI->getOperand(0);
+        continue;
+      }
+      break;
+    }
+
+    // We can't scan through any more instructions; give up
+    done = true;
+  }
+
+  return SourcePointer;
 }
 
 }
