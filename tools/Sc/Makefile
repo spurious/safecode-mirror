@@ -14,7 +14,7 @@ TOOLNAME=sc
 
 LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
                     nativecodegen
-USEDLIBS        := faultinject oob
+USEDLIBS        := faultinject oob optchecks
 
 include $(LEVEL)/Makefile.common
 

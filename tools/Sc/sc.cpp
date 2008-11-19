@@ -32,6 +32,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
@@ -220,6 +221,11 @@ int main(int argc, char **argv) {
 
     if (EnableCodeDuplication)
       Passes.add(new DuplicateLoopAnalysis());
+
+    //
+    // Attempt to optimize the checks.
+    //
+    Passes.add (new OptimizeChecks());
 
     //
     // Do post processing required for Out of Bounds pointer rewriting.
