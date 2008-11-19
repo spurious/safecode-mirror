@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef INSERTPOOLCHECKS_H
-#define INSERTPOOLCHECKS_H
+#ifndef _INSERT_POOLCHECKS_H_
+#define _INSERT_POOLCHECKS_H_
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -24,6 +24,7 @@
 #include "safecode/PoolHandles.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
+#include "safecode/Intrinsic.h"
 
 #ifndef LLVA_KERNEL
 #include "SafeDynMemAlloc.h"
@@ -82,7 +83,6 @@ struct InsertPoolChecks : public FunctionPass {
     static char ID;
     InsertPoolChecks () : FunctionPass ((intptr_t) &ID) { }
     const char *getPassName() const { return "Inserting Pool checks Pass"; }
-    virtual bool doInitialization(Module &M);
     virtual bool doFinalization(Module &M);
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -94,15 +94,18 @@ struct InsertPoolChecks : public FunctionPass {
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
+      AU.addRequired<InsertSCIntrinsic>();
       AU.addRequiredTransitive<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
 
+      AU.addPreserved<InsertSCIntrinsic>();
       AU.addPreserved<EQTDDataStructures>();
       AU.addPreserved<PoolAllocateGroup>();
       AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
     };
-    private :
+    private:
+    InsertSCIntrinsic * intrinsic;
       ArrayBoundsCheck * abcPass;
 #ifndef  LLVA_KERNEL
   PoolAllocateGroup * paPass;
@@ -111,16 +114,16 @@ struct InsertPoolChecks : public FunctionPass {
   TDDataStructures * TDPass;
 #endif  
   DSNodePass * dsnPass;
-  Constant *PoolCheck;
-  Constant *PoolCheckUI;
-  Constant *PoolCheckAlign;
-  Constant *PoolCheckAlignUI;
-  Constant *PoolCheckArray;
-  Constant *PoolCheckArrayUI;
-  Constant *ExactCheck;
-  Constant *ExactCheck2;
-  Constant *FunctionCheck;
-  Constant *GetActualValue;
+  Function *PoolCheck;
+  Function *PoolCheckUI;
+  Function *PoolCheckAlign;
+  Function *PoolCheckAlignUI;
+  Function *PoolCheckArray;
+  Function *PoolCheckArrayUI;
+  Function *ExactCheck;
+  Function *ExactCheck2;
+  Function *FunctionCheck;
+  Function *GetActualValue;
   void addCheckProto(Module &M);
   void addPoolChecks(Function &F);
   void addGetElementPtrChecks(BasicBlock * BB);
@@ -144,7 +147,7 @@ struct InsertPoolChecks : public FunctionPass {
 /// Monotonic Loop Optimization
 struct MonotonicLoopOpt : public LoopPass {
   static char ID;
-  const char *getPassName() const { return "Optimize SAFECode checkings in monotonic loops"; }
+  virtual const char *getPassName() const { return "Optimize SAFECode checkings in monotonic loops"; }
   MonotonicLoopOpt() : LoopPass((intptr_t) &ID) {}
   virtual bool doInitialization(Loop *L, LPPassManager &LPM); 
   virtual bool doFinalization(); 
@@ -191,45 +194,10 @@ struct RegisterStackObjPass : public FunctionPass {
     PoolAllocateGroup * paPass;
     TargetData * TD;
     DSNodePass * dsnPass;
-	DominatorTree * DT;
+    DominatorTree * DT;
     void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig, DomTreeNode * DTN);
  };
 
-  //
-  // Pass: ClearCheckAttributes
-  //
-  // Description:
-  //  Remove special attributes from the run-time checking functions.
-  //
-  struct ClearCheckAttributes : public ModulePass {
-    public:
-      static char ID;
-      ClearCheckAttributes() : ModulePass((intptr_t) &ID) {};
-      virtual ~ClearCheckAttributes() {};
-
-      virtual bool runOnModule (Module & M) {
-        Funcs.push_back ("poolcheck");
-        Funcs.push_back ("poolcheckui");
-
-        for (unsigned index = 0; index < Funcs.size(); ++index) {
-          Function * F = M.getFunction (Funcs[index]);
-          if (F) F->setOnlyReadsMemory (false);
-        }
-
-        return false;
-      }
-
-      virtual const char * getPassName() const {
-        return "Clear attributes on run-time functions";
-      }
-
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.setPreservesAll();
-      };
-
-    private:
-      std::vector<std::string> Funcs;
- };
-
+ extern ModulePass * createClearCheckAttributesPass();
 }
 #endif

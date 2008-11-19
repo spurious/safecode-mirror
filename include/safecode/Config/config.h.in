@@ -1,5 +1,8 @@
 /* include/llvm/Config/config.h.in.  Generated from autoconf/configure.ac by autoheader.  */
 
+#define NAMESPACE_SC_BEGIN namespace llvm {
+#define NAMESPACE_SC_END namespace llvm {
+
 /* Define if dlopen(0) will open the symbols of the program */
 #undef CAN_DLOPEN_SELF
 

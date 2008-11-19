@@ -15,9 +15,7 @@
 #define DEBUG_TYPE "safecode"
 
 #include <iostream>
-#include "safecode/Config/config.h"
-#include "SCUtils.h"
-#include "InsertPoolChecks.h"
+
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
@@ -25,12 +23,14 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+
+#include "safecode/Config/config.h"
+#include "SCUtils.h"
+#include "InsertPoolChecks.h"
 #include "safecode/VectorListHelper.h"
 
-#define REG_FUNC(var, ret, name, ...) do { var = M.getOrInsertFunction(name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0);
 
 char llvm::InsertPoolChecks::ID = 0;
-char llvm::ClearCheckAttributes::ID = 0;
 
 static llvm::RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
 
@@ -490,44 +490,38 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
 
 void
 InsertPoolChecks::addCheckProto(Module &M) {
-  static const Type * VoidTy = Type::VoidTy;
-  static const Type * Int32Ty = Type::Int32Ty;
-  static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
 
-  REG_FUNC (PoolCheck,        VoidTy, "poolcheck",          vpTy, vpTy)
-  REG_FUNC (PoolCheckUI,      VoidTy, "poolcheckui",        vpTy, vpTy)
-  REG_FUNC (PoolCheckAlign,   VoidTy, "poolcheckalign",     vpTy, vpTy, Int32Ty)
-  REG_FUNC (PoolCheckAlignUI, VoidTy, "poolcheckalignui",   vpTy, vpTy, Int32Ty)
-  REG_FUNC (PoolCheckArray,   vpTy,   "boundscheck",        vpTy, vpTy, vpTy)
-  REG_FUNC (PoolCheckArrayUI, vpTy,   "boundscheckui",      vpTy, vpTy, vpTy)
-  REG_FUNC (ExactCheck,       VoidTy, "exactcheck",         Int32Ty, Int32Ty)
-  REG_FUNC (ExactCheck2,      vpTy,   "exactcheck2",         vpTy, vpTy, Int32Ty)
-  std::vector<const Type *> FArg3(1, Type::Int32Ty);
-  FArg3.push_back(vpTy);
-  FArg3.push_back(vpTy);
-  FunctionType *FunctionCheckTy = FunctionType::get(Type::VoidTy, FArg3, true);
-  FunctionCheck = M.getOrInsertFunction("funccheck", FunctionCheckTy);
-  REG_FUNC (GetActualValue,   vpTy,   "pchk_getActualValue",vpTy, vpTy)
+  PoolCheck 		= intrinsic->getIntrinsic("sc.lscheck").F;
+  PoolCheckUI 		= intrinsic->getIntrinsic("sc.lscheckui").F;
+  PoolCheckAlign 	= intrinsic->getIntrinsic("sc.lscheckalign").F;
+  PoolCheckAlignUI 	= intrinsic->getIntrinsic("sc.lscheckalignui").F;
+  PoolCheckArray 	= intrinsic->getIntrinsic("sc.boundscheck").F;
+  PoolCheckArrayUI 	= intrinsic->getIntrinsic("sc.boundscheckui").F;
+  ExactCheck		= intrinsic->getIntrinsic("sc.exactcheck").F;
+  ExactCheck2 		= intrinsic->getIntrinsic("sc.exactcheck2").F;
+  FunctionCheck 	= intrinsic->getIntrinsic("sc.funccheck").F;
+  GetActualValue 	= intrinsic->getIntrinsic("sc.get_actual_val").F;
 
   //
   // Mark poolcheck() as only reading memory.
   //
-  if (Function * F = dyn_cast<Function>(PoolCheck))
-    F->setOnlyReadsMemory();
-  if (Function * F = dyn_cast<Function>(PoolCheckUI))
-    F->setOnlyReadsMemory();
+  PoolCheck->setOnlyReadsMemory();
+  PoolCheckUI->setOnlyReadsMemory();
+  PoolCheckAlign->setOnlyReadsMemory();
+  PoolCheckAlignUI->setOnlyReadsMemory();
 
   // Special cases for var args
-}
-  
-bool
-InsertPoolChecks::doInitialization(Module &M) {
-  addCheckProto(M);
-  return true;
 }
 
 bool
 InsertPoolChecks::runOnFunction(Function &F) {
+  static bool uninitialized = true;
+  if (uninitialized) {
+    addCheckProto(*F.getParent());
+    uninitialized = false;
+  }
+
   abcPass = &getAnalysis<ArrayBoundsCheck>();
 #ifndef LLVA_KERNEL
   paPass = &getAnalysis<PoolAllocateGroup>();

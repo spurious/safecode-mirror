@@ -588,12 +588,22 @@ namespace llvm {
 		enqueueArg.push_back(new BitCastInst(allocaInst, PointerType::getUnqual(Type::Int8Ty), "", termInst));
 		CallInst::Create(sFuncEnqueueCheckingFunction, enqueueArg.begin(), enqueueArg.end(), "", termInst);
 
+
 		SmallVector<BasicBlock*, 8> exitBlocks;
 		L->getUniqueExitBlocks(exitBlocks);
 		for (SmallVector<BasicBlock*, 8>::iterator it = exitBlocks.begin(), end = exitBlocks.end(); it != end; ++it) {	
 			CallInst::Create(sFuncWaitForSyncToken, "", &((*it)->back()));
 		}
 
+/*
+	Function * origFunc = L->getHeader()->getParent();
+		for (Function::iterator it = origFunc->begin(), end = origFunc->end(); it != end; ++it) {
+			Instruction * TI = it->getTerminator();
+			if (isa<ReturnInst>(TI) || isa<UnwindInst>(TI)) {
+				CallInst::Create(sFuncWaitForSyncToken, "", TI);
+			}
+		}
+*/
 	}
 
   // Helper Function

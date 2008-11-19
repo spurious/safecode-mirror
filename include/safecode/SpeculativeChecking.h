@@ -88,6 +88,31 @@ namespace llvm {
     virtual const char * getPassName() const { return "Instrument store instructions to protect the metadata of parallel checking"; }
     virtual bool runOnBasicBlock(BasicBlock & BB);
   };
+
+
+  ///
+  /// Pool cache transform
+  /// Try to wrap the checking calls so that we don't need to pass the
+  /// pool handle into the queue.
+  ///
+  class GlobalPoolCacheTransform : public ModulePass {
+  public:
+    static char ID;
+  GlobalPoolCacheTransform(): ModulePass((intptr_t)&ID) {}
+    virtual ~GlobalPoolCacheTransform() {}
+    virtual const char * getPassName() const { return "Transform checking calls to eliminate passing global pool handle"; }
+    virtual bool runOnModule(Module &M);
+  private:
+    ///
+    /// Create wrapper for a particular global pool.
+    ///
+    void createWrapper(Value * globalPoolHandle);
+
+    ///
+    /// Transform the checking call into wrapper calls
+    ///
+    void transformCheckingCall(CallInst * CI);
+  };
 }
 
 #endif
