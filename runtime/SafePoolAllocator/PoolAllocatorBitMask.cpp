@@ -98,6 +98,7 @@ static PoolTy OOBPool;
 // Map between rewrite pointer and source file information
 std::map<void *, void*>    RewriteSourcefile;
 std::map<void *, unsigned> RewriteLineno;
+std::map<void *, void *>   RewrittenPointers;
 
 #ifndef SC_DEBUGTOOL
 /// It should be always zero in production version 
@@ -2023,6 +2024,15 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
 //
 void *
 rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
+#if SC_DEBUGTOOL
+  //
+  // If this pointer has already been rewritten, do not rewrite it again.
+  //
+  if (RewrittenPointers.find (p) != RewrittenPointers.end()) {
+    return RewrittenPointers[p];
+  }
+#endif
+
 #if SC_ENABLE_OOB
   //
   // Calculate a new rewrite pointer.
@@ -2042,11 +2052,16 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   }
 
   //
-  // Insert the mapping from rewrite pointer to original pointer into the pool.
   // If no pool was specified (as is the case for an ExactCheck), use a
   // special Out of Bounds Pointer pool.
   //
   if (!Pool) Pool = &OOBPool;
+
+  //
+  // Determine if this pointer value has already been rewritten.  If so, just
+  // return the previously rewritten value.  Otherwise, insert a mapping from
+  // rewrite pointer to original pointer into the pool.
+  //
   Pool->OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
 #if SC_DEBUGTOOL
   //
@@ -2055,9 +2070,14 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   // memory protection violation (on faults, we don't have Pool handle
   // information).
   //
+  extern FILE * ReportLog;
+  fprintf (ReportLog, "rewrite: %p -> %p\n", p, invalidptr);
+  fflush (ReportLog);
+
   OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
   RewriteSourcefile[invalidptr] = SourceFile;
   RewriteLineno[invalidptr] = lineno;
+  RewrittenPointers[p] = invalidptr;
 #endif
   return invalidptr;
 #else
