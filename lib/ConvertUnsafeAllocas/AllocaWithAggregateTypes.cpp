@@ -135,7 +135,7 @@ namespace llvm
     //
     // Only initialize alloca instructions.
     //
-    if (AllocaInst * AllocInst = dyn_cast<AllocaInst>(Inst)) {
+    if (isa<AllocaInst>(Inst)) {
       // Get the DSNode for this instruction
       DSNode *Node = dsnPass->getDSNode(Inst, Inst->getParent()->getParent());
 
