@@ -23,7 +23,6 @@
 #include "SCUtils.h"
 
 #include <iostream>
-#include <set>
 
 char llvm::RewriteOOB::ID = 0;
 
@@ -70,12 +69,18 @@ namespace llvm {
     // Iterate though all calls to the function and modify the use of the
     // operand to be the result of the function.
     //
+    bool modified = false;
     for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
       //
       // We are only concerned about call instructions; any other use is of
       // no interest to the organization.
       //
       if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+        //
+        // We're going to make a change.  Mark that we will have done so.
+        //
+        modified = true;
+
         //
         // Get the operand that needs to be replaced as well as the operand
         // with all of the casts peeled away.  Increment the operand index by
@@ -116,6 +121,8 @@ namespace llvm {
         }
       }
     }
+
+    return modified;
   }
 
   bool
