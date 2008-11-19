@@ -142,7 +142,7 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
 // Return value:
 //  A pointer to the LLVM value that originates the specified LLVM value.
 //
-static Value *
+static inline Value *
 peelCasts (Value * PointerOperand, std::set<Value *> & Chain) {
   Value * SourcePointer = PointerOperand;
   bool done = false;
