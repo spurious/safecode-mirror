@@ -3,6 +3,7 @@ LEVEL = ..
 PARALLEL_DIRS = ArrayBoundChecks \
                 ConvertUnsafeAllocas \
                 InsertPoolChecks \
+                OptimizeChecks \
                 StackSafety \
                 PointerChecks \
                 SpeculativeChecking \
