@@ -126,7 +126,7 @@ namespace {
 
 NAMESPACE_SC_END
 
-using namespace llvm::safecode;
+using namespace llvm;
 
 extern "C" {
   void __sc_par_poolcheck(PoolTy *Pool, void *Node) {
