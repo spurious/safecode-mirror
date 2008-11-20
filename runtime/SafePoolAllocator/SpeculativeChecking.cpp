@@ -198,7 +198,7 @@ void __sc_par_wait_for_completion() {
 
   PROFILING(
   unsigned long long end_sync_time = rdtsc();
-  llvm::safecode::profile_sync_point(start_sync_time, end_sync_time, size);
+  profile_sync_point(start_sync_time, end_sync_time, size);
   )
 }
 
