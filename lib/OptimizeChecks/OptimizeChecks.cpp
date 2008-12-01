@@ -155,6 +155,7 @@ namespace llvm {
     // operand to be the result of the function.
     //
     bool modified = false;
+    std::vector<Instruction *> CallsToDelete;
     for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
       //
       // We are only concerned about call instructions; any other use is of
@@ -167,12 +168,6 @@ namespace llvm {
         if (CI->use_begin() != CI->use_end()) continue;
 
         //
-        // We are going to change something.  Indicate that we will have
-        // changed the program.
-        //
-        modified = true;
-
-        //
         // Get the operand that needs to be replaced as well as the operand
         // with all of the casts peeled away.  Increment the operand index by
         // one because a call instrution's first operand is the function to
@@ -182,14 +177,24 @@ namespace llvm {
         Value * Operand = peelCasts (CI->getOperand(operand+1), Chain);
 
         //
-        // If the operand is only used in comparisons, remove the run-time
-        // check.
+        // If the operand is only used in comparisons, mark the run-time check
+        // for removal.
         //
         if (onlyUsedInCompares (Operand)) {
-          CI->eraseFromParent();
+          CallsToDelete.push_back (CI);
           ++Removed;
+          modified = true;
         }
       }
+    }
+
+    //
+    // Remove all of the instructions that we found to be unnecessary.
+    //
+    while (CallsToDelete.size()) {
+      Instruction * I = CallsToDelete.back();
+      CallsToDelete.pop_back();
+      I->eraseFromParent();
     }
 
     return modified;
