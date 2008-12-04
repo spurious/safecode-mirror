@@ -1049,8 +1049,6 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 void
 poolargvregister (int argc, char ** argv) {
   for (unsigned index=0; index < argc; ++index) {
-    fprintf (stderr, "poolargvregister: %p %p\n", argv[index], argv[index] + strlen (argv[index]) + 1);
-    fflush (stderr);
     ExternalObjects.insert (argv[index], argv[index] + strlen (argv[index]) + 1);
   }
 
@@ -2638,17 +2636,18 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     void * end;
     fprintf (ReportLog, "faultAddr: %x\n", faultAddr);
     fflush (ReportLog);
+#if SC_ENABLE_OOB
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
       unsigned lineno = RewriteLineno[faultAddr];
       ReportOOBPointer (program_counter, tag, Filename, lineno);
       abort();
-    } else {
-      extern FILE * ReportLog;
-      fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
-      fflush(ReportLog);
-      abort();
     }
+#endif
+    extern FILE * ReportLog;
+    fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
+    fflush(ReportLog);
+    abort();
   }
 #endif
  
