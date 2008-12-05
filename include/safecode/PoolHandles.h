@@ -25,6 +25,8 @@
 #include "poolalloc/PoolAllocate.h"
 #endif
 
+#include "dsa/DSNode.h"
+
 namespace llvm {
 
 /// Passes that holds DSNode and Pool Handle information
