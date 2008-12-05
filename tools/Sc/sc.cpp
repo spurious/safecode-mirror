@@ -65,8 +65,10 @@ EnableDebugInfo("enable-debuginfo", cl::init(false),
 static cl::opt<bool>
 DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
 
+#ifdef SC_ENABLE_OOB
 static cl::opt<bool>
 RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
+#endif
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
