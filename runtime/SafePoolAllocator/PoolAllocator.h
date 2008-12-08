@@ -114,6 +114,10 @@ typedef struct PoolTy {
   void *prevPage[4];
   unsigned short lastUsed;
 
+  // Interpretation of AllocadPool variable in original SAFECode:
+  //  AllocadPool = -1 : unused so far
+  //  AllocadPool 0    : used only for mallocs
+  //  AllocadPool >0   : used for only allocas indicating the size 
   short AllocadPool;
   void *allocaptr;
 #if 0
