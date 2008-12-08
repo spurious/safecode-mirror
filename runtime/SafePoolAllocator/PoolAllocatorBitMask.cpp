@@ -1085,7 +1085,13 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 #if 0
   Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
 #endif
-  assert (NumBytes > 0);
+
+   //
+   // If the object has length zero, then don't bother registering it.
+   //
+   if (NumBytes == 0)
+     return;
+
   Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
   if (logregs) {
     fprintf (stderr, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
