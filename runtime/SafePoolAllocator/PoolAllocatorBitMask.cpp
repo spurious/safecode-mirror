@@ -185,10 +185,12 @@ private:
     NodeFlagsVector[NodeNum/16] |= 1 << ((NodeNum & 15)+16);
   }
 
+public:
   bool isStartOfAllocation(unsigned NodeNum) {
     return NodeFlagsVector[NodeNum/16] & (1 << ((NodeNum & 15)+16));
   }
   
+private:
   void clearStartBit(unsigned NodeNum) {
     NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
   }
@@ -420,8 +422,20 @@ PoolSlab::allocateSingle() {
   return -1;
 }
 
-// allocateMultiple - Allocate multiple contiguous elements from this pool,
-// returning -1 if there is no space.
+//
+// Method: allocateMultiple()
+//
+// Description:
+//  Allocate multiple contiguous elements from this pool.
+//
+// Inputs:
+//  Size - The number of *nodes* to allocate from this slab.
+//
+// Return value:
+//  -1 - There is no space for an allocation of this size in the slab.
+//  -1 - An attempt was made to use this method on a single array slab.
+//  Otherwise, the index number of the first free node in the slab is returned.
+//
 int
 PoolSlab::allocateMultiple(unsigned Size) {
   // Do not allocate small arrays in SingleArray slabs
@@ -452,6 +466,7 @@ PoolSlab::allocateMultiple(unsigned Size) {
     return UE;
   }
 
+  //
   // If not, check to see if this node has a declared "FirstUnused" value
   // starting which Size nodes can be allocated
   //
@@ -541,27 +556,55 @@ unsigned PoolSlab::getSize(void *Ptr, unsigned ElementSize) {
 }
 
 
-// containsElement - Return the element number of the specified address in
-// this slab.  If the address is not in slab, return -1.
+//
+// Method: containsElement()
+//
+// Description:
+//  Return the element number of the specified address in this slab.  If the
+//  address is not in slab, return -1.
+//
 int
 PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   const void *FirstElement = getElementAddress(0, 0);
+
+  //
+  // If the pointer is less than the first element of the slab, then it is
+  // not within the slab at all.
+  //
   if (FirstElement <= Ptr) {
+
+    //
+    // Calculate the offet, in bytes, of the pointer from the beginning of the
+    // slab.
+    //
     unsigned Delta = (char*)Ptr-(char*)FirstElement;
+
+    //
+    // If this array is a single array and the pointer is within the bounds of
+    // the slab, then simply return the offset of the pointer divided by the
+    // size of each element.
+    //
     if (isSingleArray) {
-      if (Delta < SizeOfSlab) return Delta/ElementSize;
+      if (Delta < SizeOfSlab) {
+        return Delta/ElementSize;
+      }
     }
+
     unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
       if (Delta % ElementSize != 0) {
         fprintf(stderr, "Freeing pointer into the middle of an element!\n");
         fflush(stderr);
-    abort();
+        abort();
       }
       
       return Index;
     }
   }
+
+  //
+  // The pointer is not within a slab.
+  //
   return -1;
 }
 
@@ -947,6 +990,7 @@ pooldestroy(PoolTy *Pool) {
 // FIXME: look into globalTemp, make it a pass by reference arg instead of
 //          a global variable.
 // FIXME: determine whether Size is bytes or number of nodes.
+//
 static void *
 poolallocarray(PoolTy* Pool, unsigned Size) {
   DISABLED_IN_PRODUCTION_VERSION ;
@@ -977,28 +1021,49 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
   for (; PS; PS = PS->Next) {
     int Element = PS->allocateMultiple(Size);
     if (Element != -1) {
-    // We allocated an element.  Check to see if this slab has been completely
-    // filled up.  If so, move it to the Ptr2 list.
+      //
+      // We allocated an element.  Check to see if this slab has been
+      // completely filled up.  If so, move it to the Ptr2 list.
+      //
       if (PS->isFull()) {
         PS->unlinkFromList();
         PS->addToList((PoolSlab**)&Pool->Ptr2);
       }
       
-      // insert info into adl splay tree for poolcheck runtime
-      //unsigned NodeSize = Pool->NodeSize;
+      //
+      // FIXME:
+      //  We may have some inter-procedural communication via globalTemp.  We
+      //  need to fix that if it exists.
+      //
+
+      //
+      // Set the globalTemp variable to the address of the newly allocated
+      // memory.
+      //
       globalTemp = PS->getElementAddress(Element, Pool->NodeSize);
+
+      //
+      // Find the offset of the object within the physical page to which it
+      // belongs.
+      //
       offset = (uintptr_t)globalTemp & (PPageSize - 1); 
-      //adl_splay_insert(&(Pool->Objects), globalTemp, 
-      //          (unsigned)((Size*NodeSize) - NodeSize + 1), (Pool));
-      if(logregs) {fprintf(stderr, " poolallocarray:731:before RemapObject\n");}
-      //  remap the page to get a shadow page (dangling pointer detection library)
-      PS = (PoolSlab *) RemapObject(globalTemp, Size*Pool->NodeSize);
+
+      //
+      // Remap the page to get a shadow page (used for dangling pointer
+      // detection).
+      //
+      void * RemappedPage = RemapObject(globalTemp, Size*Pool->NodeSize);
+
       if (logregs) {
-        fprintf(stderr, " poolallocarray:735: globalTemp = 0x%p\n", globalTemp);
-        fprintf(stderr ," poolallocarray:736: PS = 0x%p, offset = 0x%08x, retAddress = 0x%p\n",
-              (void*)PS, offset, (char*)PS + offset);
+        fprintf(stderr, " poolallocarray:735: globalTemp = %p\n", globalTemp);
+        fprintf(stderr, " poolallocarray:737: Element = 0x%0x\n", Element);
+        fprintf(stderr, " poolallocarray:739: = NodeSize = 0x%0x\n", Pool->NodeSize);
+        fprintf(stderr ," poolallocarray:736: Page = %p, offset = 0x%08x, retAddress = %p\n",
+              RemappedPage, offset, (char*)RemappedPage + offset);
+        fflush (stderr);
       }
-      return (void*) ((char*)PS + offset);
+
+      return (void*) ((char*)RemappedPage + offset);
     }
   }
   
@@ -1122,9 +1187,17 @@ frag(PoolTy * Pool) {
   fflush (stderr);
 }
 
-//Pool->AllocadPool -1 : unused so far
-//Pool->AllocadPool 0 : used only for mallocs
-//Pool->AllocadPool >0 : used for only allocas indicating the size 
+//
+// Function: poolalloc()
+//
+// Description:
+//  Allocate memory from the specified pool with the specified size.
+//
+// Inputs:
+//  Pool - The pool from which to allocate the memory.
+//  Size - The size, in bytes, of the memory object to allocate.  This does
+//         *not* need to match the size of the objects found in the pool.
+//
 void *
 poolalloc(PoolTy *Pool, unsigned NumBytes) {
   DISABLED_IN_PRODUCTION_VERSION ;
@@ -1149,6 +1222,10 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (NumBytes == 0)
     NumBytes = 1;
 
+  //
+  // Calculate the number of nodes within the pool to allocate for an object
+  // of the specified size.
+  //
   unsigned NodeSize = Pool->NodeSize;
   unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
   unsigned offset = 0;
@@ -1158,6 +1235,10 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     if (logregs) {
       fprintf(stderr, " poolalloc:848: Allocating more than 1 node for %d bytes\n", NumBytes); fflush(stderr);
     }
+
+    //
+    // Allocate the memory.
+    //
     retAddress = poolallocarray(Pool, NodesToAllocate);
 
     //
@@ -1170,7 +1251,7 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
                                           globalfreeID,
                                           __builtin_return_address(0),
                                           0,
-                                          globalTemp);
+                                          globalTemp, "<unknown>", 0);
     dummyPool.DPTree.insert (retAddress,
                              (char*) retAddress + NumBytes - 1,
                              debugmetadataPtr);
@@ -2364,40 +2445,53 @@ void
 poolfree(PoolTy *Pool, void *Node) {
   DISABLED_IN_PRODUCTION_VERSION;
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
-  DEBUG(printf("poolfree  %x %x \n",Pool,Node);)
   PoolSlab *PS;
   int Idx;
   
-  
   if (logregs) {
-    printf(" poolfree:1368: poolfree to addr 0x%p\n", Node);
+    fprintf(stderr, "poolfree: 1368: Pool=%p, addr=%p\n", Pool, Node);
+    fflush (stderr);
   }
 
   // Canonical pointer for the pointer we're freeing
   void * CanonNode = Node;
 
 #if SC_DEBUGTOOL
-  // update DebugMetaData
+  //
+  // Increment the ID number for this deallocation.
+  //
   globalfreeID++;
 
-  // FIXME: figure what mykey, NumPPAge and len are for
-  void * mykey, * end;
+  // The start and end of the object as registered in the dangling pointer
+  // object metapool
+  void * start, * end;
+
+  // FIXME: figure what NumPPAge and len are for
   unsigned len = 1;
   unsigned NumPPage = 0;
   unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
-  PDebugMetaData debugmetadataptr;
+  PDebugMetaData debugmetadataptr = 0;
   
   //
   // Retrieve the debug information about the node.  This will include a
   // pointer to the canonical page.
   //
-  // Haohui: redirect the query from the pool to the dummy pool
-  dummyPool.DPTree.find (Node, mykey, end, debugmetadataptr);
-  assert (debugmetadataptr && "poolfree: No debugmetadataptr\n");
+  bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
+  assert (found && debugmetadataptr && "poolfree: No debugmetadataptr\n");
   
   if (logregs) {
-    printf(" poolfree:1387: mykey = 0x%08x offset = 0x%08x\n", (unsigned)mykey, offset);
-    printf(" poolfree:1388: len = %d\n", len);
+    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
+    fprintf(stderr, "poolfree:1388: len = %d\n", len);
+    fflush (stderr);
+  }
+
+  //
+  // If dangling pointer detection is not enabled, remove the object from the
+  // dangling pointer splay tree.  The memory object's memory will be reused,
+  // and we don't want to match it for subsequently allocated objects.
+  //
+  if (!(ConfigData.RemapObjects)) {
+    dummyPool.DPTree.remove (Node);
   }
 
   // figure out how many pages does this object span to
@@ -2412,10 +2506,10 @@ poolfree(PoolTy *Pool, void *Node) {
     NumPPage++;
 
   CanonNode = debugmetadataptr->canonAddr;
-  
   if (logregs) {
-    printf(" poolfree:1397: NumPPage = %d\n", NumPPage);
-    printf(" poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
+    fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
+    fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
+    fflush (stderr);
   }
   updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
 #endif
