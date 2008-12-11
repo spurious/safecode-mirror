@@ -1933,7 +1933,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
         return Dest;
       } else {
         if ((ConfigData.StrictIndexing == false) ||
-            (((char *) Dest) == ObjEnd)) {
+            (((char *) Dest) == end)) {
           void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
           if (logregs)
             fprintf (ReportLog,
