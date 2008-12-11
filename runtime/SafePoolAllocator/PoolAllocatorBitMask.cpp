@@ -1887,7 +1887,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                          (unsigned)allocPC,
                          (uintptr_t)__builtin_return_address(1),
                          (uintptr_t)ObjStart,
-                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)),
+                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1,
                          (unsigned char *)(SourceFile),
                          lineno);
       return Dest;
@@ -1932,9 +1932,16 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
       if ((S <= Dest) && (Dest <= end)) {
         return Dest;
       } else {
-        if (logregs) {
-          fprintf (ReportLog, "boundscheckui: %p %p %p\n", (void*)Pool, Source, Dest);
+        if ((ConfigData.StrictIndexing == false) ||
+            (((char *) Dest) == ObjEnd)) {
+          void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
+          if (logregs)
+            fprintf (ReportLog,
+                     "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
+                     S, end, Source, Dest, (void*)__builtin_return_address(1),
+                     ptr);
           fflush (ReportLog);
+          return ptr;
         }
 
         ReportBoundsCheck ((uintptr_t)Source,
@@ -1943,7 +1950,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (unsigned)0,
                            (uintptr_t)__builtin_return_address(1),
                            (uintptr_t)S,
-                           (unsigned)((char*) ObjEnd - (char*)(ObjStart)),
+                           (unsigned)((char*) end - (char*)(S)) + 1,
                            (unsigned char *)(SourceFile),
                            lineno);
       }
@@ -2157,9 +2164,11 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   // memory protection violation (on faults, we don't have Pool handle
   // information).
   //
-  extern FILE * ReportLog;
-  fprintf (ReportLog, "rewrite: %p -> %p\n", p, invalidptr);
-  fflush (ReportLog);
+  if (logregs) {
+    extern FILE * ReportLog;
+    fprintf (ReportLog, "rewrite: %p -> %p\n", p, invalidptr);
+    fflush (ReportLog);
+  }
 
   OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
   RewriteSourcefile[invalidptr] = SourceFile;
