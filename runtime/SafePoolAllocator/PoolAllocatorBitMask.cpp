@@ -861,10 +861,23 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB) {
     installAllocHooks();
   }
 
+  //
+  // Initialize the dummy pool.
+  //
+#if SC_DEBUGTOOL  
+  poolinit (&dummyPool, 1);
+#endif
   return;
 }
 
-// poolinit - Initialize a pool descriptor to empty
+//
+// Function: poolinit()
+//
+// Description:
+//  Initialize the specified pool descriptor.  Pool descriptors are either
+//  global variables or alloca'ed memory created by instrumentation added by
+//  the SAFECode passes.  This function initializes all of the fields of the
+//  pool descriptor.
 //
 void
 poolinit(PoolTy *Pool, unsigned NodeSize) {
@@ -896,29 +909,17 @@ poolinit(PoolTy *Pool, unsigned NodeSize) {
   Pool->RegNodes = new std::map<void*,unsigned>;
 #endif
 
-#if SC_DEBUGTOOL  
-  if (dummyInitialized == 1)
-    return;
-  
-  dummyPool.NodeSize = NodeSize ? NodeSize : 1;
-  dummyPool.Ptr1 = dummyPool.Ptr2 = 0;
-  dummyPool.LargeArrays = 0;
-  // For SAFECode, we set FreeablePool to 0 always
-  //  Pool->FreeablePool = 0;
-  dummyPool.AllocadPool = -1;
-  dummyPool.allocaptr = 0;
-  dummyPool.lastUsed = 0;
-  dummyPool.prevPage[0] = 0;
-  dummyPool.prevPage[1] = 0;
-  // Initialize the SlabAddressArray to zero
-  for (int i = 0; i < AddrArrSize; ++i) {
-    dummyPool.SlabAddressArray[i] = 0;
-  }
-  dummyPool.NumSlabs = 0;
-#if 0
-  dummyPool.RegNodes = new std::map<void*,unsigned>;
+  //
+  // Call the in-place constructor for the splay tree of objects and, if
+  // applicable, the set of Out of Bound rewrite pointers and the splay tree
+  // used for dangling pointer detection.
+  //
+  new (&(Pool->Objects)) RangeSplaySet<>();
+#if SC_ENABLE_OOB 
+  new (&(Pool->OOB)) RangeSplayMap<void *>();
 #endif
-  dummyInitialized = 1;
+#if SC_DEBUGTOOL
+  new (&(Pool->DPTree)) RangeSplayMap<PDebugMetaData>();
 #endif
 }
 
@@ -1159,7 +1160,8 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 
   Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
   if (logregs) {
-    fprintf (stderr, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
+    fprintf (ReportLog, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
+    fflush (ReportLog);
   }
 #endif
 }
