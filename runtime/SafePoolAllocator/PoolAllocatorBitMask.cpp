@@ -1919,12 +1919,12 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
     }
   }
 
-  /*
-   * Attempt to look for the object in the external object splay tree.
-   * Do this even if we're not tracking external allocations because a few
-   * other objects without associated pools (e.g., argv pointers) may be
-   * registered in here.
-   */
+  //
+  // Attempt to look for the object in the external object splay tree.
+  // Do this even if we're not tracking external allocations because a few
+  // other objects without associated pools (e.g., argv pointers) may be
+  // registered in here.
+  //
   if (1) {
     void * S, * end;
     bool fs = ExternalObjects.find(Source, S, end);
