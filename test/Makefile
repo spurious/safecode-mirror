@@ -29,8 +29,8 @@ else
 OPTIMIZED :=
 endif
 
-PROFILING_DAT_DIR := /Users/mai4/work/data
-PROFILING_RESULT_DIR := /Users/mai4/work/data/profiling
+PROFILING_DAT_DIR := $(shell pwd)/data
+PROFILING_RESULT_DIR := $(shell pwd)/data/profiling
 
 LARGE_PROBLEM_SIZE_DIRS :=
 
