@@ -70,6 +70,9 @@ typedef int kern_return_t;
 static const unsigned int KERN_SUCCESS=0;
 #endif
 
+// Physical page size
+unsigned PPageSize;
+
 //
 // Function: InitializePageManager()
 //
@@ -83,9 +86,11 @@ InitializePageManager() {
   if (!PageSize) {
     PageSize =  PageMultiplier * sysconf(_SC_PAGESIZE) ;
   }
+
+  if (!PPageSize)
+    PPageSize = sysconf(_SC_PAGESIZE);
 }
 
-unsigned PPageSize = sysconf(_SC_PAGESIZE);
 static unsigned logregs = 0;
 
 #if !USE_MEMALIGN
