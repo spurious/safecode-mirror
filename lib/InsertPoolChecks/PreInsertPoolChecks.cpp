@@ -36,16 +36,128 @@ namespace {
   STATISTIC (SavedGlobals,        "Global object registrations avoided");
 }
 
+////////////////////////////////////////////////////////////////////////////
+// Static Functions
+////////////////////////////////////////////////////////////////////////////
+
+//
+// Function: insertInitCalls()
+//
+// Description:
+//  Insert the necessary code into the program to initialize the run-time.
+//
+// Inputs:
+//  M              - The module for the program in which to insert
+//                   initialization calls.
+//
+//  DanglingChecks - Flags whether the SAFECode run-time should perform
+//                   dangling pointer checks.
+//
+//  RewriteOOB     - Flags whether the SAFECode run-time should perform
+//                   Out-of-Bounds (OOB) pointer rewriting.
+//
+void
+insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
+  // The pointer to the run-time initialization function
+  Constant *RuntimeInit;
+
+  //
+  // Create a new function with zero arguments.  This will be the SAFECode
+  // run-time constructor; it will be called by static global variable
+  // constructor magic before main() is called.
+  //
+  std::vector<const Type *> NoParamTypes;
+  FunctionType * FType = FunctionType::get (Type::VoidTy, NoParamTypes, false);
+  Function * RuntimeCtor = Function::Create (FType,
+                                             GlobalValue::InternalLinkage,
+                                             "safecodeinit",
+                                             &M);
+
+  //
+  // Add a call in the new constructor function to the SAFECode initialization
+  // function.
+  //
+  BasicBlock * BB = BasicBlock::Create ("entry", RuntimeCtor);
+  RuntimeInit = M.getOrInsertFunction ("pool_init_runtime",
+                                       Type::VoidTy, 
+                                       Type::Int32Ty,
+                                       Type::Int32Ty,
+                                       NULL); 
+
+  std::vector<Value *> args;
+  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks));
+  args.push_back (ConstantInt::get(Type::Int32Ty, RewriteOOB));
+  CallInst::Create (RuntimeInit, args.begin(), args.end(), "", BB); 
+
+  //
+  // Add a return instruction at the end of the basic block.
+  //
+  ReturnInst::Create (BB);
+
+  //
+  // Insert the run-time ctor into the ctor list.
+  //
+  std::vector<Constant *> CtorInits;
+  CtorInits.push_back (ConstantInt::get (Type::Int32Ty, 65535));
+  CtorInits.push_back (RuntimeCtor);
+  Constant * RuntimeCtorInit = ConstantStruct::get (CtorInits);
+
+  //
+  // Get the current set of static global constructors and add the new ctor
+  // to the end of the list (the list seems to be initialized in reverse
+  // order).
+  //
+  std::vector<Constant *> CurrentCtors;
+  GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
+  if (GVCtor) {
+    if (Constant * C = GVCtor->getInitializer()) {
+      for (unsigned index = 0; index < C->getNumOperands(); ++index) {
+        CurrentCtors.push_back (C->getOperand (index));
+      }
+    }
+
+    //
+    // Rename the global variable so that we can name our global
+    // llvm.global_ctors.
+    //
+    GVCtor->setName ("removed");
+  }
+  CurrentCtors.push_back (RuntimeCtorInit);
+
+  //
+  // Create a new initializer.
+  //
+  Constant * NewInit=ConstantArray::get (ArrayType::get (RuntimeCtorInit->
+                                                         getType(),
+                                                         CurrentCtors.size()),
+                                         CurrentCtors);
+
+  //
+  // Create the new llvm.global_ctors global variable and replace all uses of
+  // the old global variable with the new one.
+  //
+  new GlobalVariable (NewInit->getType(),
+                      false,
+                      GlobalValue::AppendingLinkage,
+                      NewInit,
+                      "llvm.global_ctors",
+                      &M);
+  return;
+}
 
 namespace llvm {
+
 ////////////////////////////////////////////////////////////////////////////
 // PreInsertPoolChecks Methods
 ////////////////////////////////////////////////////////////////////////////
 
 bool 
 PreInsertPoolChecks::runOnModule(Module & M) {
-  RuntimeInit = M.getOrInsertFunction("pool_init_runtime", Type::VoidTy, 
-      Type::Int32Ty, Type::Int32Ty, NULL); 
+  //
+  // Insert code to initialize the SAFECode runtime.
+  //
+  insertInitCalls (M, DanglingChecks, RewriteOOB);
+
   dsnPass = &getAnalysis<DSNodePass>();
 #ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
@@ -128,6 +240,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       //	abort();
     }
 
+#if 1
     //
     // FIXME:
     //  This is a hack around what appears to be a DSA bug.  These pointers
@@ -145,6 +258,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
     fargs.push_back (Argc);
     fargs.push_back (Argv);
     CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+#endif
   }
 
   // Now iterate over globals and register all the arrays
@@ -158,11 +272,19 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       // Skip over several types of globals, including:
       //  llvm.used
       //  llvm.noinline
+      //  llvm.global_ctors
       //  Any global pool descriptor
       //  Any global in the meta-data seciton
       //
+      // The llvm.global_ctors requires special note.  Apparently, it will not
+      // be code generated as the list of constructors if it has any uses
+      // within the program.  This transform must ensure, then, that it is
+      // never used, even if such a use would otherwise be innocuous.
+      //
       std::string name = GV->getName();
-      if ((name == "llvm.used") || (name == "llvm.noinline")) continue;
+      if ((name == "llvm.used")     ||
+          (name == "llvm.noinline") ||
+          (name == "llvm.global_ctors")) continue;
       if ((GV->getSection()) == "llvm.metadata") continue;
       if (GV->getType() != PoolDescPtrTy) {
         DSGraph *G = paPass->getGlobalsGraph();
@@ -239,10 +361,6 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
       ++InsertPt;
   }
 
-  std::vector<Value *> args;
-  args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks));
-  args.push_back (ConstantInt::get(Type::Int32Ty, RewriteOOB));
-  CallInst::Create(RuntimeInit, args.begin(), args.end(), "", InsertPt); 
 }
 #endif
 }

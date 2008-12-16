@@ -72,7 +72,6 @@ struct PreInsertPoolChecks : public ModulePass {
   TargetData * TD;
 #endif
   DSNodePass * dsnPass;
-  Constant *RuntimeInit;
 #ifndef LLVA_KERNEL  
   void registerGlobalArraysWithGlobalPools(Module &M);
 #endif  
