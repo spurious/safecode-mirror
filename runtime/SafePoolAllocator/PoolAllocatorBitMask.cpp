@@ -840,18 +840,11 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB) {
   InvalidUpper = (unsigned int) Addr + invalidsize;
 #endif
 
-#if SC_DEBUGTOOL
   //
-  // Open up an additional file for error reporting.
+  // Leave initialization of the Report logfile to the reporting routines.
+  // The libc stdio functions may have not been initialized by this point, so
+  // we cannot rely upon them working.
   //
-  ReportLog = fopen ("sclogfile", "a");
-  fprintf (ReportLog, "\n");
-  fprintf (ReportLog, "New Run of Program\n");
-  fprintf (ReportLog, "====================================================\n");
-  fflush (ReportLog);
-#else
-  ReportLog = NULL;
-#endif
 
   //
   // Install hooks for catching allocations outside the scope of SAFECode.
@@ -1823,6 +1816,13 @@ poolcheckui (PoolTy *Pool, void *Node) {
 // Description:
 //  Perform the lookup for a bounds check.
 //
+// Outputs:
+//  Source - If the object is found within the pool, this is the address of the
+//           first valid byte of the object.
+//
+//  End    - If the object is found within the pool, this is the address of the
+//           last valid byte of the object.
+//
 // Return value:
 //  Returns true if the object is found.
 //
@@ -1839,8 +1839,8 @@ boundscheck_lookup (PoolTy * Pool, void * & Source, void * & End ) {
 //  This is the slow path for a boundscheck() and boundcheckui() calls.
 //
 // Inputs:
-//  ObjStart - The start of the object.
-//  ObjLen   - The length of the object.
+//  ObjStart - The address of the first valid byte of the object.
+//  ObjEnd   - The address of the last valid byte of the object.
 //  Pool     - The pool in which the pointer belong.
 //  Source   - The source pointer used in the indexing operation (the GEP).
 //  Dest     - The result pointer of the indexing operation (the GEP).
@@ -1862,7 +1862,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
   //
   if (found) {
     if ((ConfigData.StrictIndexing == false) ||
-        (((char *) Dest) == ObjEnd)) {
+        (((char *) Dest) == (((char *)ObjEnd)+1))) {
       void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
       if (logregs)
         fprintf (ReportLog, "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
@@ -1903,7 +1903,8 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
     if (Dest < (unsigned char *)(4096)) {
       return Dest;
     } else {
-      if (ConfigData.StrictIndexing == false) {
+      if ((ConfigData.StrictIndexing == false) ||
+          (((unsigned) Dest) == 4096)) {
         return rewrite_ptr (Pool, Dest, SourceFile, lineno);
       } else {
         ReportBoundsCheck ((uintptr_t)Source,
@@ -1933,7 +1934,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
         return Dest;
       } else {
         if ((ConfigData.StrictIndexing == false) ||
-            (((char *) Dest) == end)) {
+            (((char *) Dest) == (((char *)end)+1))) {
           void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
           if (logregs)
             fprintf (ReportLog,
