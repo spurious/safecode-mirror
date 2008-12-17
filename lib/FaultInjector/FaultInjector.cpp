@@ -63,6 +63,11 @@ InjectBadIndices ("inject-badindices", cl::Hidden,
                   cl::init(false),
                   cl::desc("Inject Bad Indices in GEPs"));
 
+cl::opt<bool>
+InjectUninitUses ("inject-uninituses", cl::Hidden,
+                  cl::init(false),
+                  cl::desc("Inject Uses of Uninitialized Pointers"));
+
 cl::opt<int>
 Seed ("seed", cl::Hidden, cl::init(1),
       cl::desc("Seed Value for Random Number Generator"));
@@ -81,9 +86,10 @@ namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
   ///////////////////////////////////////////////////////////////////////////
-  STATISTIC (DPFaults,   "Number of Dangling Pointer Faults Injected");
-  STATISTIC (BadSizes,   "Number of Bad Allocation Size Faults Injected");
-  STATISTIC (BadIndices, "Number of Bad Indexing Faults Injected");
+  STATISTIC (DPFaults,       "Number of Dangling Pointer Faults Injected");
+  STATISTIC (BadSizes,       "Number of Bad Allocation Size Faults Injected");
+  STATISTIC (BadIndices,     "Number of Bad Indexing Faults Injected");
+  STATISTIC (UsesBeforeInit, "Number of Injected Uses Before Initialization");
 
   // Threshold for determining whether a fault will be inserted
   int threshold;
@@ -113,6 +119,69 @@ doFault () {
     return true;
   else
     return false;
+}
+
+//
+// Function: typeContainsPointer()
+//
+// Description:
+//  This function determines whether the specified LLVM type is either a
+//  pointer type or a derived type that contains a pointer.
+//
+// Inputs:
+//  Ty - The type created by the allocation.
+//
+// Outputs:
+//  Indices - A vector of indices that can be used to create a GEP to the
+//            pointer field of the type.  This vector is *always* modified by
+//            this function, even if no pointer type is found.
+//
+// Return value:
+//  true  - The type contains a pointer.
+//  false - This function could not prove that this type contains a pointer.
+//
+static inline bool
+typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices) {
+  //
+  // If this is a pointer type, stop the recursion.  We've found our pointer.
+  //
+  if (isa<PointerType>(Ty)) {
+    return true;
+  }
+
+  //
+  // If this is an array type or vector type, search within the type of
+  // element.
+  //
+  if (const ArrayType * AT = dyn_cast<ArrayType>(Ty)) {
+    Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
+    return typeContainsPointer (AT->getElementType(), Indices);
+  }
+
+  if (const VectorType * VT = dyn_cast<VectorType>(Ty)) {
+    Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
+    return typeContainsPointer (VT->getElementType(), Indices);
+  }
+
+  //
+  // If this is a structure type, search for a pointer within each element type
+  // of the structure.
+  //
+  if (const StructType * ST = dyn_cast<StructType>(Ty)) {
+    for (unsigned index = 0; index < ST->getNumElements(); ++index) {
+      Indices.push_back (ConstantInt::get (Type::Int32Ty, index));
+      if (typeContainsPointer (ST->getElementType(index), Indices)) {
+        return true;
+      } else {
+        Indices.pop_back ();
+      }
+    }
+  }
+
+  //
+  // We don't know what this is.  Say it doesn't contain a pointer.
+  //
+  return false;
 }
 
 //
@@ -450,6 +519,104 @@ FaultInjector::insertBadIndexing (Function & F) {
 }
 
 //
+// Method: insertUninitializedUse()
+//
+// Description:
+//  This method will insert uses of uninitialized pointers.
+//
+// Inputs:
+//  F - The function in which to inject errors.
+//
+// Return value:
+//  true  - This method modified the given function.
+//  false - This method did not modify the given function.
+//
+// Pre-conditions:
+//  The seed value for the random number generator used to determine if we
+//  inject faults must already have been called.
+//
+// Post-conditions:
+//  The global statistics variable will have been updated to reflect the number
+//  of uninitialized uses added.
+//
+bool
+FaultInjector::insertUninitializedUse (Function & F) {
+  // Worklist of allocation sites to instrument
+  std::map<AllocationInst *, std::vector<Value *> > WorkList;
+
+  //
+  // Look for allocation instructions that allocate structures with pointers
+  // in them.
+  //
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
+      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+        //
+        // Only inject a fault if the allocated memory has a pointer in it.
+        //
+        std::vector<Value *> Indices;
+        Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
+        if (typeContainsPointer (AI->getAllocatedType(), Indices)) {
+          // Skip if we should not insert a fault.
+          if (!doFault()) continue;
+          WorkList.insert(std::make_pair (AI, Indices));
+        }
+      }
+    }
+  }
+
+  //
+  // Flag whether we'll have modified something.
+  //
+  bool modified = (WorkList.size() > 0);
+
+  std::map<AllocationInst *, std::vector<Value *> >::iterator i;
+  for (i = WorkList.begin(); i != WorkList.end(); ++i) {
+    // Get the allocation instruction which we will use.
+    AllocationInst * AI = i->first;
+
+    // Get the set of indices that we found for accessing the pointer element
+    std::vector<Value *> Indices = i->second;
+
+    //
+    // Find the insertion point; it should be the next instruction after the
+    // allocation.
+    //
+    BasicBlock::iterator InsertPt = AI;
+    ++InsertPt;
+
+    //
+    // Insert a GEP expression for the pointer using the indices we found when
+    // we went searching for a pointer value.
+    //
+    GetElementPtrInst * GEP = GetElementPtrInst::Create (AI,
+                                                         Indices.begin(),
+                                                         Indices.end(),
+                                                         "gep",
+                                                         InsertPt);
+
+    //
+    // Now load the uninitialized pointer.
+    //
+    LoadInst * BadPtr = new LoadInst (GEP, "badptr", InsertPt);
+
+    //
+    // Now my evil plan is complete!  Dereference this pointer and take the
+    // first step into oblivion!
+    //
+    LoadInst * FaultingLoad = new LoadInst (BadPtr, "shouldfault", InsertPt);
+
+    //
+    // Update the statistics.
+    //
+    ++UsesBeforeInit;
+  }
+
+  return modified;
+}
+
+//
 // Method: runOnModule()
 //
 // Description:
@@ -494,6 +661,9 @@ FaultInjector::runOnModule(Module &M) {
 
     // Insert incorrect indices in GEPs
     if (InjectBadIndices) modified |= insertBadIndexing (*F);
+
+    // Insert uses of uninitialized pointers
+    if (InjectUninitUses) modified |= insertUninitializedUse (*F);
   }
 
   return modified;
