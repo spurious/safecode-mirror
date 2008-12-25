@@ -14,6 +14,8 @@
 
 #define DEBUG_TYPE "safecode"
 
+#include "safecode/SAFECode.h"
+
 #include <iostream>
 
 #include "llvm/Instruction.h"
@@ -24,15 +26,15 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 
-#include "safecode/Config/config.h"
 #include "SCUtils.h"
 #include "InsertPoolChecks.h"
 #include "safecode/VectorListHelper.h"
 
+NAMESPACE_SC_BEGIN
 
-char llvm::InsertPoolChecks::ID = 0;
+char InsertPoolChecks::ID = 0;
 
-static llvm::RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
+static RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
 
 // Options for Enabling/Disabling the Insertion of Various Checks
 cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
@@ -89,7 +91,6 @@ namespace {
 #endif
 }
 
-namespace llvm {
 ////////////////////////////////////////////////////////////////////////////
 // InsertPoolChecks Methods
 ////////////////////////////////////////////////////////////////////////////
@@ -1464,4 +1465,4 @@ InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
 }
 #endif
 
-}
+NAMESPACE_SC_END

@@ -16,11 +16,11 @@
 #ifndef _INSERT_POOLCHECKS_H_
 #define _INSERT_POOLCHECKS_H_
 
+#include "safecode/SAFECode.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "safecode/Config/config.h"
 #include "safecode/PoolHandles.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
@@ -31,7 +31,7 @@
 #include "poolalloc/PoolAllocate.h"
 #endif
 
-namespace llvm {
+NAMESPACE_SC_BEGIN
 
 using namespace CUA;
 
@@ -198,5 +198,6 @@ struct RegisterStackObjPass : public FunctionPass {
  };
 
  extern ModulePass * createClearCheckAttributesPass();
-}
+
+NAMESPACE_SC_END
 #endif

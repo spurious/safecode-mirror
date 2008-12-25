@@ -1,7 +1,6 @@
 /// Implementation of simple profiler
 
 #include "Profiler.h"
-#include "safecode/Config/config.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>

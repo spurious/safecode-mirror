@@ -16,16 +16,16 @@
 #ifndef _SC_INTRINSIC_H_
 #define _SC_INTRINSIC_H_
 
+#include "safecode/SAFECode.h"
+
 #include <set>
 #include <map>
 
 #include "llvm/Pass.h"
 
-#include "safecode/Config/config.h"
-
 NAMESPACE_SC_BEGIN
 
-class InsertSCIntrinsic : public ModulePass {
+class InsertSCIntrinsic : public llvm::ModulePass {
  public:
   static char ID;
   typedef enum IntrinsicType {
@@ -38,24 +38,24 @@ class InsertSCIntrinsic : public ModulePass {
 
   typedef struct IntrinsicInfo {
     IntrinsicType type;
-    Function * F;
+    llvm::Function * F;
   } IntrinsicInfoTy;
 
- InsertSCIntrinsic() : ModulePass((intptr_t)&ID), currentModule(NULL) {}
+ InsertSCIntrinsic() : llvm::ModulePass((intptr_t)&ID), currentModule(NULL) {}
   virtual ~InsertSCIntrinsic() {}
-  virtual bool runOnModule(Module & M);
+  virtual bool runOnModule(llvm::Module & M);
   virtual const char * getPassName() const { return "Insert declaration of SAFECode Intrinsic"; }
-  void addIntrinsic(IntrinsicType type, const std::string & name, FunctionType * FTy);
+  void addIntrinsic(IntrinsicType type, const std::string & name, llvm::FunctionType * FTy);
   const IntrinsicInfoTy & getIntrinsic(const std::string & name) const;
-  bool isSCIntrinsic(Value * inst) const;
-  bool isCheckingIntrinsic(Value * inst) const;
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+  bool isSCIntrinsic(llvm::Value * inst) const;
+  bool isCheckingIntrinsic(llvm::Value * inst) const;
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.setPreservesCFG();
     AU.setPreservesAll();
   }
  private:
-  Module * currentModule;
-  std::map<Function *, IntrinsicInfoTy> intrinsicFuncMap;
+  llvm::Module * currentModule;
+  std::map<llvm::Function *, IntrinsicInfoTy> intrinsicFuncMap;
   std::map<std::string, IntrinsicInfoTy> intrinsicNameMap;
 };
 

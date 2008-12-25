@@ -12,6 +12,8 @@
 //
 //===--------------------------------------------------------------------===//
 
+#include "safecode/SAFECode.h"
+
 #include "llvm/Module.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/PassManager.h"
@@ -44,6 +46,7 @@
 #include <memory>
 
 using namespace llvm;
+using namespace NAMESPACE_SC;
 
 // General options for sc.
 static cl::opt<std::string>
@@ -68,6 +71,8 @@ DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Po
 #ifdef SC_ENABLE_OOB
 static cl::opt<bool>
 RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
+#else
+static bool RewritePtrs = false;
 #endif
 
 static cl::opt<bool>

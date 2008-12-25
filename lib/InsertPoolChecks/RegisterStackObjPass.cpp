@@ -14,7 +14,8 @@
 
 #define DEBUG_TYPE "stackreg"
 
-#include "safecode/Config/config.h"
+#include "safecode/SAFECode.h"
+
 #include "SCUtils.h"
 #include "InsertPoolChecks.h"
 #include "llvm/Instruction.h"
@@ -23,9 +24,11 @@
 #include "llvm/ADT/Statistic.h"
 #include "safecode/VectorListHelper.h"
 
-char llvm::RegisterStackObjPass::ID = 0;
+NAMESPACE_SC_BEGIN
 
-static llvm::RegisterPass<RegisterStackObjPass> passRegStackObj ("reg-stack-obj", "register stack objects into pools");
+char RegisterStackObjPass::ID = 0;
+
+static RegisterPass<RegisterStackObjPass> passRegStackObj ("reg-stack-obj", "register stack objects into pools");
 
 // Pass Statistics
 namespace {
@@ -34,8 +37,6 @@ namespace {
   STATISTIC (SavedRegAllocs,      "Stack registrations avoided");
 }
 
-
-namespace llvm {
 ////////////////////////////////////////////////////////////////////////////
 // RegisterStackObjPass Methods
 ////////////////////////////////////////////////////////////////////////////
@@ -281,4 +282,5 @@ namespace llvm {
     // Update statistics
     ++StackRegisters;
   }
-}
+
+NAMESPACE_SC_END

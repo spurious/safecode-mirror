@@ -22,6 +22,7 @@
 #include "safecode/Intrinsic.h"
 #include "safecode/Config/config.h"
 
+using namespace llvm;
 NAMESPACE_SC_BEGIN
 
 struct CleanAttribute {

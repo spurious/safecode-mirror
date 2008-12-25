@@ -12,7 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Config.h"
+#include "safecode/SAFECode.h"
+
 #include "SafeCodeRuntime.h"
 #include "PoolAllocator.h"
 #include "AtomicOps.h"
@@ -123,10 +124,9 @@ namespace {
   };
 }
 
-
 NAMESPACE_SC_END
 
-using namespace llvm;
+using namespace NAMESPACE_SC;
 
 extern "C" {
   void __sc_par_poolcheck(PoolTy *Pool, void *Node) {

@@ -14,6 +14,8 @@
 #ifndef _ATOMIC_OPS_H_
 #define _ATOMIC_OPS_H_
 
+#include "safecode/SAFECode.h"
+
 #include <pthread.h>
 #include <cassert>
 #include <errno.h>
@@ -21,7 +23,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <strings.h>
-#include "Config.h"
 #include "Profiler.h"
 
 NAMESPACE_SC_BEGIN

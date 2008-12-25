@@ -15,8 +15,9 @@
 
 #define DEBUG_TYPE "pre-insertchecks"
 
+#include "safecode/SAFECode.h"
+
 #include <iostream>
-#include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
@@ -26,7 +27,9 @@
 #include "llvm/Support/Debug.h"
 #include "safecode/VectorListHelper.h"
 
-char llvm::PreInsertPoolChecks::ID = 0;
+NAMESPACE_SC_BEGIN
+
+char PreInsertPoolChecks::ID = 0;
 
 static llvm::RegisterPass<PreInsertPoolChecks> pipcPass ("presafecode", "prepare for SAFECode");
 
@@ -144,8 +147,6 @@ insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
                       &M);
   return;
 }
-
-namespace llvm {
 
 ////////////////////////////////////////////////////////////////////////////
 // PreInsertPoolChecks Methods
@@ -363,4 +364,5 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
 
 }
 #endif
-}
+
+NAMESPACE_SC_END

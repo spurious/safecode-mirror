@@ -2,15 +2,19 @@
 ///
 
  
+#include "safecode/SAFECode.h"
 #include <set>
 #include "SCUtils.h"
-#include "safecode/Config/config.h"
 #include "InsertPoolChecks.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/ADT/Statistic.h"
 
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
+
 namespace {
-  RegisterPass<llvm::MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
+  RegisterPass<MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
 
   STATISTIC (MonotonicLoopOptPoolCheck,
 	     "Number of monotonic loop optimization performed for poolcheck");
@@ -89,8 +93,6 @@ namespace {
   static std::set<Loop*> optimizedLoops;
 }
 
-
-namespace llvm {
   char MonotonicLoopOpt::ID = 0;
 
   /// Find the induction variable for a loop
@@ -359,4 +361,4 @@ namespace llvm {
     }     
     return true;
   }
-}
+NAMESPACE_SC_END

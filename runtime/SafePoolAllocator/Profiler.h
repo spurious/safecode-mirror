@@ -3,9 +3,10 @@
 #ifndef _SC_PROFILER_H_
 #define _SC_PROFILER_H_
 
+#include "safecode/SAFECode.h"
+
 #include <stdint.h>
 #include <stdlib.h>
-#include "Config.h"
 #include "rdtsc.h"
 #define ENABLE_PROFILING 1
 #define SAMPLING_FACTOR	32

@@ -20,6 +20,7 @@
 #include "safecode/Intrinsic.h"
 #include "safecode/VectorListHelper.h"
 
+using namespace llvm;
 NAMESPACE_SC_BEGIN
 
 #define REG_FUNC(type, name, ret,  ...) do { addIntrinsic(type, name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false)); } while (0)
