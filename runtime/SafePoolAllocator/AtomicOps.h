@@ -106,7 +106,8 @@ public:
   Task(QueueTy & queue) : mQueue(queue) {}
   void activate() {
     typedef void * (*start_routine_t)(void*);
-    pthread_create(&mThread, NULL, (start_routine_t)(&Task::runHelper), this);
+    int ret = pthread_create(&mThread, NULL, (start_routine_t)(&Task::runHelper), this);
+    assert (ret == 0 && "Create checking failed!");
   }
 
 	pthread_t thread() const {

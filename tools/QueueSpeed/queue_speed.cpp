@@ -12,7 +12,7 @@ extern "C" void __sc_par_cachepool_0(PoolTy*);
 
 int main() {
 
-  __sc_par_init_runtime();
+  __sc_par_pool_init_runtime(0, 0);
   __sc_par_poolinit(&Pool, 128);
   __sc_par_cachepool_0(&Pool);
   char* obj1 = (char*)__sc_par_poolalloc(&Pool, 128);

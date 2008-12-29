@@ -60,7 +60,7 @@ namespace {
 //                   Out-of-Bounds (OOB) pointer rewriting.
 //
 void
-insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
+PreInsertPoolChecks::insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
   // The pointer to the run-time initialization function
   Constant *RuntimeInit;
 
@@ -69,12 +69,13 @@ insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
   // run-time constructor; it will be called by static global variable
   // constructor magic before main() is called.
   //
-  std::vector<const Type *> NoParamTypes;
-  FunctionType * FType = FunctionType::get (Type::VoidTy, NoParamTypes, false);
-  Function * RuntimeCtor = Function::Create (FType,
-                                             GlobalValue::InternalLinkage,
-                                             "safecodeinit",
-                                             &M);
+  const char * runtimeCtorName = "_GLOBAL__I__sc_init_runtime";
+  intrinsic->addIntrinsic(InsertSCIntrinsic::SC_INTRINSIC_POOL_CONTROL, runtimeCtorName, FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false));
+
+  Function * RuntimeCtor = intrinsic->getIntrinsic(runtimeCtorName).F;
+  // Make the runtime constructor compatible with other ctors
+  RuntimeCtor->setDoesNotThrow();
+  RuntimeCtor->setLinkage(GlobalValue::InternalLinkage);
 
   //
   // Add a call in the new constructor function to the SAFECode initialization
@@ -154,6 +155,7 @@ insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
 
 bool 
 PreInsertPoolChecks::runOnModule(Module & M) {
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
   //
   // Insert code to initialize the SAFECode runtime.
   //

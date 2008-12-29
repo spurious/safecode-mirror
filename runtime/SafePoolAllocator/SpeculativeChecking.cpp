@@ -53,6 +53,10 @@ static void __stub_boundscheckui(uintptr_t* req) {
   boundscheckui((PoolTy*)req[0], (void*)req[1], (void*)req[2]);
 }
 
+static void __stub_poolargvregister(uintptr_t* req) {
+  poolargvregister((int)req[0], (char**)req[1]);
+}
+
 static void __stub_poolregister(uintptr_t* req) {
   poolregister((PoolTy*)req[0], (void*)req[1], req[2]);
 }
@@ -161,6 +165,10 @@ void __sc_par_boundscheckui(PoolTy * Pool, void * Source, void * Dest) {
   gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheckui);
 }
 
+void __sc_par_poolargvregister(int argc, char ** argv) {
+  gCheckQueue.enqueue((uintptr_t)argc, (uintptr_t)argv, __stub_poolargvregister);
+}
+
 void __sc_par_poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes){
   gCheckQueue.enqueue((uintptr_t)Pool, (uintptr_t)allocaptr, NumBytes, __stub_poolregister);
 }
@@ -207,18 +215,11 @@ void __sc_par_store_check(void * ptr) {
     __builtin_trap();
   }
 } 
-
-void __sc_par_init_runtime(void) {
+  
+void __sc_par_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
+  ParPoolAllocator::pool_init_runtime(Dangling, RewriteOOB);
   static SpeculativeCheckingGuard g;
   g.activate();
 }
-// HACK to get rid of _cxa_guard overheads
-/*
-int __cxa_guard_acquire(long long * g) { return !*(char*)(g);} 
-void __cxa_guard_release(long long * g) { *(char*)g = 1;} 
-int __cxa_atexit(void (char*), char *, char *) { return 0;}
-int __cxa_guard_acquire(long long * g) { return 0;} 
-void __cxa_guard_release(long long * g) { } 
-*/
 
 }

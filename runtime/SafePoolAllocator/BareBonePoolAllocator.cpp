@@ -44,7 +44,7 @@ public:
 using namespace llvm;
 
 extern "C" {
-  void __sc_barebone_pool_init_runtime(unsigned Dangling) {
+  void __sc_barebone_pool_init_runtime(unsigned, unsigned) {
     BarebonePoolAllocator::pool_init_runtime();
   }
 

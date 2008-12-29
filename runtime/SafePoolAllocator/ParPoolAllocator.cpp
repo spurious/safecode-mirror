@@ -5,10 +5,6 @@
 #include "ParPoolAllocator.h"
 
 extern "C" {
-  void __sc_par_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
-    ParPoolAllocator::pool_init_runtime();
-  }
-
   void __sc_par_poolinit(PoolTy *Pool, unsigned NodeSize) {
     ParPoolAllocator::poolinit(Pool, NodeSize);
   }

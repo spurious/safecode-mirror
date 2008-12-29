@@ -54,6 +54,8 @@ struct PreInsertPoolChecks : public ModulePass {
     const char *getPassName() const { return "Register Global variable into pools"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<InsertSCIntrinsic>();
+      AU.addPreserved<InsertSCIntrinsic>();
 #ifndef LLVA_KERNEL      
       AU.addRequired<TargetData>();
 #endif
@@ -67,6 +69,7 @@ struct PreInsertPoolChecks : public ModulePass {
       AU.setPreservesCFG();
     };
     private :
+    InsertSCIntrinsic * intrinsic;
 #ifndef  LLVA_KERNEL
   PoolAllocateGroup * paPass;
   TargetData * TD;
@@ -75,6 +78,7 @@ struct PreInsertPoolChecks : public ModulePass {
 #ifndef LLVA_KERNEL  
   void registerGlobalArraysWithGlobalPools(Module &M);
 #endif  
+  void insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB);
 };
 
 struct InsertPoolChecks : public FunctionPass {

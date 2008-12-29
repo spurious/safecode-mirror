@@ -54,9 +54,8 @@ public:
     Pool->Objects.clear();
   }
   
-  static void pool_init_runtime() {
-    // Disable dangling pointer checkings and out of bound pointer rewrites
-    ::pool_init_runtime(0, 0);
+  static void pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
+    ::pool_init_runtime(Dangling, RewriteOOB);
   }
 
   static void poolfree(PoolTy *Pool, void *Node) {

@@ -33,7 +33,7 @@ namespace {
 // TODO: add stuffs like strlen / strcpy / strncpy
 static const char * safeFunctions[] = {
 //  "poolinit", "pool_init_runtime",
-  "__sc_par_init_runtime",
+  "pool_init_runtime",
   "memset", "memcmp",
   "llvm.memcpy.i32", "llvm.memcpy.i64",
   "llvm.memset.i32", "llvm.memset.i64",
@@ -52,7 +52,7 @@ static const char * safeFunctions[] = {
 // Functions used in checking
 static const char * checkingFunctions[] = {
   "exactcheck", "exactcheck2", "funccheck",
-  "poolregister", "poolunregister",
+  "poolargvregister", "poolregister", "poolunregister",
   "poolcheck", "poolcheckui",
   "poolcheckalign", "poolcheckalignui",
   "boundscheck", "boundscheckui",
@@ -114,15 +114,6 @@ namespace llvm {
        GlobalValue::ExternalLinkage,
        "__sc_par_wait_for_completion", 
        &M);
-    Function * sFuncInitRuntime = Function::Create
-      (FunctionType::get
-       (Type::VoidTy, std::vector<const Type*>(), false),
-       GlobalValue::ExternalLinkage,
-       "__sc_par_init_runtime", 
-       &M);
-    Function * funcMain = M.getFunction("main");
-    assert (funcMain && "Cannot find main function");
-    CallInst::Create(sFuncInitRuntime, "", &funcMain->front().front());
     return true;
   }
 
