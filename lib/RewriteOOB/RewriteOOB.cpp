@@ -36,9 +36,13 @@ namespace llvm {
   // Method: processFunction()
   //
   // Description:
-  //  If the specified function exists within the program, modify it so that
-  //  the operand at the specified index is replaced with the return value
-  //  of the function.
+  //  This method searches for calls to a specified function.  For every such
+  //  call, it replaces the use of an operand of the call with the return value
+  //  of the call.
+  //
+  //  This allows functions like boundscheck() to return a rewrite pointer;
+  //  this code changes the program to use the returned rewrite pointer instead
+  //  of the original pointer which was passed into boundscheck().
   //
   // Inputs:
   //  M       - The module in which to search for the function.
