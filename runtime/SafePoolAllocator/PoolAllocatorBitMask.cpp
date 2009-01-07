@@ -1904,7 +1904,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
       return Dest;
     } else {
       if ((ConfigData.StrictIndexing == false) ||
-          (((unsigned) Dest) == 4096)) {
+          (((uintptr_t) Dest) == 4096)) {
         return rewrite_ptr (Pool, Dest, SourceFile, lineno);
       } else {
         ReportBoundsCheck ((uintptr_t)Source,
