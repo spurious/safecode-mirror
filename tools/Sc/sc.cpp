@@ -370,11 +370,12 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
     { {"sc.lscheck",         "poolcheck" },
       {"sc.lscheckui",       "poolcheckui" },
       {"sc.lscheckalign",    "poolcheckalign" },
-      {"sc.lscheckalignui",    "poolcheckalignui" },
-      {"sc.boundscheck",       "boundscheck" },
-      {"sc.boundscheckui",     "boundscheckui" },
-      {"sc.exactcheck",       "exactcheck" },
+      {"sc.lscheckalignui",  "poolcheckalignui" },
+      {"sc.boundscheck",     "boundscheck" },
+      {"sc.boundscheckui",   "boundscheckui" },
+      {"sc.exactcheck",      "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
+      {"sc.get_actual_val",  "pchk_getActualValue" },
     };
 
 
