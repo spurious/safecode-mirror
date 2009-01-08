@@ -161,6 +161,8 @@ extern "C" {
   void   poolcheckalign_debug (PoolTy *P, void *Node, unsigned Offset, void * SourceFile, unsigned lineno);
   void * boundscheck_debug (PoolTy * P, void * S, void * D, void * SFile, unsigned int lineno);
   void * boundscheckui_debug (PoolTy * P, void * S, void * D, void * SFile, unsigned int lineno);
+  void * pchk_getActualValue (PoolTy * Pool, void * src);
+
   //void protect_shadowpage();
  
   // Barebone allocators, which only do allocations

@@ -2190,7 +2190,6 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 //
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
-#if SC_ENABLE_OOB
   if ((uintptr_t)src <= InvalidLower) return src;
 
   void* tag = 0;
@@ -2217,9 +2216,6 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   fflush (stderr);
   abort ();
   return tag;
-#else
-  return src;
-#endif
 }
 
 #if 0
