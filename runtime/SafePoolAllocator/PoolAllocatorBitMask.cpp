@@ -2182,12 +2182,12 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 #endif
 }
 
-/*
- * Function: getActualValue()
- *
- * Description:
- *  If src is an out of object pointer, get the original value.
- */
+//
+// Function: getActualValue()
+//
+// Description:
+//  If src is an out of object pointer, get the original value.
+//
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
 #if SC_ENABLE_OOB
@@ -2195,13 +2195,23 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
 
   void* tag = 0;
   void * end;
-  /* outside rewrite zone */
+
+  //
+  // Check to see whether the specified pointer is outside the rewrite zone.
+  //
   if ((uintptr_t)src & ~(InvalidUpper - 1)) return src;
+
+  //
+  // Look for the pointer in the pool's OOB pointer list.  If we find it,
+  // return its actual value.
+  //
   if (Pool->OOB.find(src, src, end, tag)) {
     return tag;
   }
 
-  /* Lookup has failed */
+  //
+  // We cannot map the pointer back into its original value.  Flag an error.
+  //
   fprintf (stderr, "GetActualValue failure: src = %x, pc = %x", (uintptr_t) src,
            (uintptr_t) __builtin_return_address(0));
   fflush (stderr);
