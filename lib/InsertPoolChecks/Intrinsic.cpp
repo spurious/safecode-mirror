@@ -1,4 +1,4 @@
-//===- Intrinsic.cpp - Insert declaration of SAFECode intrinsic to bc files --------------//
+//===- Intrinsic.cpp - Insert declaration of SAFECode intrinsics -------------//
 // 
 //                          The SAFECode Compiler 
 //
@@ -7,9 +7,9 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// This file implements a module plass to insert declaration of
-// SAFECode intrinsic to the bitcode file. It also provides interfaces
-// for latter passes to use these intrinsics.
+// This file implements a module pass to insert declarations of the SAFECode
+// intrinsics into the bitcode file. It also provides interfaces for later
+// passes which use these intrinsics.
 //
 //===----------------------------------------------------------------------===//
 

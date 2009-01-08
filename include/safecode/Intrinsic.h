@@ -1,4 +1,4 @@
-//===- Intrinsic.h - Insert declaration of SAFECode intrinsic to bc files ----//
+//===- Intrinsic.cpp - Insert declaration of SAFECode intrinsics -------------//
 // 
 //                          The SAFECode Compiler 
 //
