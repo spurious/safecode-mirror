@@ -18,9 +18,14 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "safecode/Config/config.h"
 
-namespace llvm {
+#include "safecode/SAFECode.h"
+#include "safecode/Intrinsic.h"
+#include "safecode/PoolHandles.h"
+
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
 
 //
 // Pass: RewriteOOB
@@ -34,6 +39,13 @@ struct RewriteOOB : public ModulePass {
   private:
     // Private methods
     bool processFunction (Module & M, std::string name, unsigned operand);
+    bool addGetActualValues (Module & M);
+    void addGetActualValue (ICmpInst *SCI, unsigned operand);
+
+    // Private variables
+    PoolAllocateGroup * paPass;
+    DSNodePass        * dsnPass;
+    InsertSCIntrinsic * intrinPass;
 
   public:
     static char ID;
@@ -44,9 +56,18 @@ struct RewriteOOB : public ModulePass {
       // We require Dominator information
       AU.addRequired<DominatorTree>();
 
+      // We require these pass to get information on pool handles
+      AU.addRequired<DSNodePass>();
+      AU.addRequired<PoolAllocateGroup>();
+
+      // This pass gives us information on the various run-time checks
+      AU.addRequired<InsertSCIntrinsic>();
+
       // Pretend that we don't modify anything
       AU.setPreservesAll();
     }
 };
-} 
+
+NAMESPACE_SC_END
+
 #endif
