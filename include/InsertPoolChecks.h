@@ -126,11 +126,9 @@ struct InsertPoolChecks : public FunctionPass {
   Function *ExactCheck;
   Function *ExactCheck2;
   Function *FunctionCheck;
-  Function *GetActualValue;
   void addCheckProto(Module &M);
   void addPoolChecks(Function &F);
   void addGetElementPtrChecks(BasicBlock * BB);
-  void addGetActualValue(llvm::ICmpInst*, unsigned int);
   bool insertExactCheck (GetElementPtrInst * GEP);
 #if 0
   bool insertExactCheck (Instruction * , Value *, Value *, Instruction *);

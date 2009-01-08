@@ -502,7 +502,6 @@ InsertPoolChecks::addCheckProto(Module &M) {
   ExactCheck		= intrinsic->getIntrinsic("sc.exactcheck").F;
   ExactCheck2 		= intrinsic->getIntrinsic("sc.exactcheck2").F;
   FunctionCheck 	= intrinsic->getIntrinsic("sc.funccheck").F;
-  GetActualValue 	= intrinsic->getIntrinsic("sc.get_actual_val").F;
 
   //
   // Mark poolcheck() as only reading memory.
@@ -1282,7 +1281,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
 #undef REG_FUNC
 
-/// CODES for LLVA_KERNEL
+/// CODE for LLVA_KERNEL
 
 #ifdef LLVA_KERNEL
 //
@@ -1378,91 +1377,10 @@ InsertPoolChecks::addLoadStoreChecks(Function &F) {
     } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
       Value *P = SI->getPointerOperand();
       addLSChecks(P, SI, F);
-    } else if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
-#ifdef SC_ENABLE_OOB
-      switch (CmpI->getPredicate()) {
-        ICmpInst::Predicate::ICMP_EQ:
-        ICmpInst::Predicate::ICMP_NE:
-          // Replace all pointer operands with the getActualValue() call
-          assert ((CmpI->getNumOperands() == 2) &&
-                   "nmber of operands for CmpI different from 2 ");
-          if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
-            // we need to insert a call to getactualvalue
-            // First get the poolhandle for the pointer
-            // TODO: We don't have a working getactualvalue(), so don't waste
-            // time calling it.
-            if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
-                (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
-              addGetActualValue(CmpI, 0);
-              addGetActualValue(CmpI, 1);
-            }
-          }
-          break;
-
-        default:
-          break;
-      }
-#endif // endif for SC_ENABLE_OOB
     }
   }
 }
 
-void
-InsertPoolChecks::addGetActualValue (ICmpInst *SCI, unsigned operand) {
-#if 1
-  // We know that the operand is a pointer type 
-  Value *op   = SCI->getOperand(operand);
-  Function *F = SCI->getParent()->getParent();
-
-#ifndef LLVA_KERNEL    
-#if 0
-  // Some times the ECGraphs doesnt contain F for newly created cloned
-  // functions
-  if (!equivPass->ContainsDSGraphFor(*F)) {
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    op = FI->MapValueToOriginal(op);
-    if (!op) return; //abort();
-  }
-#endif
-#endif    
-
-  Function *Fnew = F;
-  Value *PH = 0;
-  if (Argument *arg = dyn_cast<Argument>(op)) {
-    Fnew = arg->getParent();
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*Fnew);
-    PH = dsnPass->getPoolHandle(op, Fnew, *FI);
-  } else if (Instruction *Inst = dyn_cast<Instruction>(op)) {
-    Fnew = Inst->getParent()->getParent();
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*Fnew);
-    PH = dsnPass->getPoolHandle(op, Fnew, *FI);
-  } else if (isa<Constant>(op)) {
-    return;
-    //      abort();
-  } else if (!isa<ConstantPointerNull>(op)) {
-    //has to be a global
-    abort();
-  }
-  op = SCI->getOperand(operand);
-  if (!isa<ConstantPointerNull>(op)) {
-    if (PH) {
-      if (1) { //HACK fixed
-        const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
-        Value * PHVptr = castTo (PH, VoidPtrType, PH->getName()+".casted", SCI);
-        Value * OpVptr = castTo (op, VoidPtrType, op->getName()+".casted", SCI);
-
-        std::vector<Value *> args = make_vector(PHVptr, OpVptr,0);
-        CallInst *CI = CallInst::Create (GetActualValue, args.begin(), args.end(), "getval", SCI);
-        Instruction *CastBack = castTo (CI, op->getType(),
-                                         op->getName()+".castback", SCI);
-        SCI->setOperand (operand, CastBack);
-      }
-    } else {
-      //It shouldn't work if PH is not null
-    }
-  }
-#endif
-}
 #endif
 
 NAMESPACE_SC_END
