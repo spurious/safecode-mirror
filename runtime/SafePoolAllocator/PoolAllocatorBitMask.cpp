@@ -2190,6 +2190,7 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 //
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
+#if SC_DEBUGTOOL
   if ((uintptr_t)src <= InvalidLower) return src;
 
   void* tag = 0;
@@ -2216,6 +2217,10 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   fflush (stderr);
   abort ();
   return tag;
+#else
+  // The function should be disabled at runtime
+  assert (0 && "This function should be disabled at runtime!"); 
+#endif
 }
 
 #if 0
