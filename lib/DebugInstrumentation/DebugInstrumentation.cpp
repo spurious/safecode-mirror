@@ -16,7 +16,9 @@
 
 #include "safecode/DebugInstrumentation.h"
 
+#include "llvm/Analysis/DebugInfo.h"
 #include "llvm/Constants.h"
+#include "llvm/IntrinsicInst.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
@@ -112,9 +114,9 @@ DebugInstrument::transformFunction (Function * F) {
     //
     // Get the line number and source file information for the call.
     //
-    ValueLocation * SourceInfo = DebugLocator.getInstrLocation (CI);
-    Value * LineNumber = ConstantInt::get (Type::Int32Ty, SourceInfo->statement.lineNo);
-    Value * SourceFile = SourceInfo->statement.filename;
+    const DbgStopPointInst * StopPt = findStopPoint (CI);
+    Value * LineNumber = StopPt->getLineValue();
+    Value * SourceFile = StopPt->getFileName();
     if (!SourceFile) {
       Constant * FInit = ConstantArray::get ("<unknown>");
       SourceFile = new GlobalVariable (FInit->getType(),
@@ -168,11 +170,6 @@ bool
 DebugInstrument::runOnModule (Module &M) {
   // Create the void pointer type
   VoidPtrTy = PointerType::getUnqual(Type::Int8Ty); 
-
-  //
-  // Get the debugging information for the current module.
-  //
-  DebugLocator.setModule (&M);
 
   //
   // Transform allocations, load/store checks, and bounds checks.
