@@ -702,7 +702,7 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       //This will only work one level of arrays and structs
       //If there are arrays inside a struct then this will
       //not help us prove the safety of the access ....
-      unsigned Size = getAnalysis<TargetData>().getABITypeSize(ST);
+      unsigned Size = getAnalysis<TargetData>().getTypePaddedSize(ST);
       string var2 = var1 + "_i";
       const Type* csiType = Type::Int32Ty;
       const ConstantInt * signedOne = ConstantInt::get(csiType,Size);

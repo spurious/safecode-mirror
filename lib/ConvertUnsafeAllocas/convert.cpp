@@ -251,7 +251,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
-                              TD->getABITypeSize(AI->getAllocatedType()));
+                              TD->getTypePaddedSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -373,7 +373,7 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
 #else
   Value *AllocSize;
   AllocSize = ConstantInt::get (Type::Int32Ty,
-                                TD->getABITypeSize(AI->getAllocatedType()));
+                                TD->getTypePaddedSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",
@@ -429,7 +429,7 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 #else
             Value *AllocSize =
             ConstantInt::get(Type::Int32Ty,
-                              TD->getABITypeSize(AI->getAllocatedType()));
+                              TD->getTypePaddedSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
@@ -563,7 +563,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   //
   Value *AllocSize;
   AllocSize = ConstantInt::get (Type::Int32Ty,
-                                TD->getABITypeSize(AI->getAllocatedType()));
+                                TD->getTypePaddedSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",

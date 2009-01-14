@@ -406,7 +406,7 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
         //
         // Determine if this is a data type that we can make smaller.
         //
-        if (((TD->getABITypeSize(AI->getAllocatedType())) > 4) && doFault()) {
+        if (((TD->getTypePaddedSize(AI->getAllocatedType())) > 4) && doFault()) {
           WorkList.push_back(AI);
         }
       }

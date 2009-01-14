@@ -366,7 +366,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
     const ArrayType *AT = dyn_cast<ArrayType>(GlobalType);
     if ((!AT) || (AT->getNumElements())) {
       Value* Size = ConstantInt::get (Type::Int32Ty,
-                                      TD->getABITypeSize(GlobalType));
+                                      TD->getTypePaddedSize(GlobalType));
       addExactCheck2 (PointerOperand, GEP, Size, InsertPt);
       return true;
     }
@@ -391,7 +391,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
 #endif
 
     const Type * AllocaType = AI->getAllocatedType();
-    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AllocaType));
+    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getTypePaddedSize(AllocaType));
 
     if (AI->isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul,
@@ -758,7 +758,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         Value * AllocSize;
         if (AllocationInst * AI = dyn_cast<AllocationInst>(SourcePointer)) {
           AllocSize = ConstantInt::get (Type::Int32Ty,
-                                        TD->getABITypeSize(AI->getAllocatedType()));
+                                        TD->getTypePaddedSize(AI->getAllocatedType()));
           if (AI->isArrayAllocation()) {
             AllocSize = BinaryOperator::Create (Instruction::Mul,
                                                AllocSize,
@@ -766,7 +766,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
           }
         } else if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SourcePointer)) {
           AllocSize = ConstantInt::get (Type::Int32Ty,
-                                        TD->getABITypeSize(GV->getType()->getElementType()));
+                                        TD->getTypePaddedSize(GV->getType()->getElementType()));
         } else if (CallInst * CI = dyn_cast<CallInst>(SourcePointer)) {
           assert (CI->getCalledFunction() && "Indirect call!\n");
           if (CI->getCalledFunction()->getName() == "poolalloc") {

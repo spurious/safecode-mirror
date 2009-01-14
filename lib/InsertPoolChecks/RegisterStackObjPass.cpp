@@ -221,7 +221,7 @@ namespace {
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
     Value *AllocSize =
-      ConstantInt::get(Type::Int32Ty, TD->getABITypeSize(AI->getAllocatedType()));
+      ConstantInt::get(Type::Int32Ty, TD->getTypePaddedSize(AI->getAllocatedType()));
     
     if (AI->isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
