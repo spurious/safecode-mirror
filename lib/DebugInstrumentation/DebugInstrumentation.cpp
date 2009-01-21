@@ -115,9 +115,13 @@ DebugInstrument::transformFunction (Function * F) {
     // Get the line number and source file information for the call.
     //
     const DbgStopPointInst * StopPt = findStopPoint (CI);
-    Value * LineNumber = StopPt->getLineValue();
-    Value * SourceFile = StopPt->getFileName();
-    if (!SourceFile) {
+    Value * LineNumber;
+    Value * SourceFile;
+    if (StopPt) {
+      LineNumber = StopPt->getLineValue();
+      SourceFile = StopPt->getFileName();
+    } else {
+      LineNumber = ConstantInt::get (Type::Int32Ty, 0);
       Constant * FInit = ConstantArray::get ("<unknown>");
       SourceFile = new GlobalVariable (FInit->getType(),
                                        true,
@@ -129,7 +133,7 @@ DebugInstrument::transformFunction (Function * F) {
 
     //
     // If the source filename is in the meta-data section, move it to the
-    // default section.
+    // default section.  This ensures that it gets code generated.
     //
     if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(SourceFile)) {
       if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
