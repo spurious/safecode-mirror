@@ -32,7 +32,7 @@ namespace {
 // either we know the semantics of them or they are not handled
 // TODO: add stuffs like strlen / strcpy / strncpy
 static const char * safeFunctions[] = {
-//  "poolinit", "pool_init_runtime",
+  //  "poolinit", "pool_init_runtime",
   "pool_init_runtime",
   "memset", "memcmp",
   "llvm.memcpy.i32", "llvm.memcpy.i64",
@@ -49,15 +49,21 @@ static const char * safeFunctions[] = {
 	"strcpy", "strncpy"
 };
 
+// TODO: Should use the information from the intrinsic pass
 // Functions used in checking
+
 static const char * checkingFunctions[] = {
-  "exactcheck", "exactcheck2", "funccheck",
-  "poolargvregister", "poolregister", "poolunregister",
-  "poolcheck", "poolcheckui",
-  "poolcheckalign", "poolcheckalignui",
-  "boundscheck", "boundscheckui",
-  "poolalloc", "poolrealloc",
-  "poolstrdup", "poolcalloc",
+  "sc.lscheck", "sc.lscheckui", "sc.lscheckalign", "sc.lscheckalignui",
+  "sc.boundscheck", "sc.boundscheckui", "sc.exactcheck", "sc.exactcheck2",
+  "sc.lscheck.serial", "sc.lscheckui.serial", "sc.lscheckalign.serial",
+  "sc.lscheckalignui.serial", "sc.boundscheck.serial",
+  "sc.boundscheckui.serial", "sc.exactcheck.serial", "sc.exactcheck2.serial",
+  
+  "funccheck",
+
+  // Function for pool allocations
+  "poolinit", "pooldestroy", "poolargvregister", "poolregister",
+  "poolunregister", "poolalloc", "poolrealloc", "poolstrdup", "poolcalloc",
   "poolfree"
 };
 
