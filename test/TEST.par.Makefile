@@ -6,23 +6,25 @@
 ##===----------------------------------------------------------------------===##
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
+PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/test-suite; pwd)/
 ifeq ($(PROGDIR),"")
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-test; pwd)/
 endif
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
-PADIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/poolalloc; pwd)/
+#PADIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/poolalloc; pwd)/
+PADIR   := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-poolalloc; pwd)/
 ifeq ($(PADIR),"")
-PADIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-poolalloc; pwd)/
+PADIR   := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-poolalloc; pwd)/
 endif
-SCDIR   := $(shell cd $(LLVM_SRC_ROOT)/projects/safecode; pwd)/
+SCDIR   := $(shell cd $(LLVM_OBJ_ROOT)/projects/safecode; pwd)/
 
 ifndef ENABLE_LTO
 ENABLE_LTO := 1
 endif
 
 TOOL_MODE := Debug
-LIB_MODE := Release
+LIB_MODE := Debug
+#Release
 
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(TOOL_MODE)/bin/sc
 
@@ -43,7 +45,7 @@ PA_RT_BC := $(SCDIR)/$(LIB_MODE)/lib/libpoolalloc_safe_rt.bca
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(PADIR)/$(LIB_MODE)/lib/libpa_pre_rt.bca
 else
-PA_RT_O  := $(SCDIR)/$(LIB_MODE)/lib/poolalloc_safe_rt.o
+PA_RT_O  := $(SCDIR)/$(LIB_MODE)/lib/poolalloc_safe_rt.a
 PA_PRE_RT_O := $(PADIR)/$(LIB_MODE)/lib/libpa_pre_rt.o
 endif
 
@@ -54,7 +56,7 @@ SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 SC_COMMON_FLAGS := -pa -disable-staticchecks
 SC_NONSC_FLAGS = $(SC_COMMON_FLAGS) -runtime=RUNTIME_PA
 SC_SINGLE_FLAGS = $(SC_COMMON_FLAGS) -runtime=RUNTIME_SINGLETHREAD
-SC_THREAD_FLAGS = $(SC_COMMON_FLAGS) -runtime=RUNTIME_PARALLEL -protect-metadata
+SC_THREAD_FLAGS = $(SC_COMMON_FLAGS) -runtime=RUNTIME_PARALLEL -protect-metadata -code-duplication
 
 # Pre processing library for DSA
 ASSIST_SO := $(PADIR)/Debug/lib/libAssistDS$(SHLIBEXT)
@@ -69,6 +71,7 @@ endif
 #LLVMLDFLAGS= -disable-opt
 PRESC_LLVMLDFLAGS=-link-as-library
 PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm -loops -unroll-threshold 0
+# -always-inline -inline -inline-threshold 10000
 OPTZN_PASSES=-std-compile-opts
 
 
