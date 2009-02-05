@@ -54,7 +54,7 @@ namespace {
 
   bool
   RegisterStackObjPass::runOnFunction(Function & F) {
-    // paPass = getAnalysisToUpdate<PoolAllocateGroup>();
+    // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
     TD = &getAnalysis<TargetData>();
     paPass = &getAnalysis<PoolAllocateGroup>();
     dsnPass = &getAnalysis<DSNodePass>();

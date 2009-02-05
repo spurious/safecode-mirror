@@ -525,7 +525,7 @@ InsertPoolChecks::runOnFunction(Function &F) {
   abcPass = &getAnalysis<ArrayBoundsCheck>();
 #ifndef LLVA_KERNEL
   paPass = &getAnalysis<PoolAllocateGroup>();
-  // paPass = getAnalysisToUpdate<PoolAllocateGroup>();
+  // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   TD  = &getAnalysis<TargetData>();
 #endif

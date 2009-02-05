@@ -618,7 +618,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass  = &getAnalysis<checkStackSafety>();
   abcPass  = &getAnalysis<ArrayBoundsCheck>();
-  paPass   =  getAnalysisToUpdate<PoolAllocateGroup>();
+  paPass   =  getAnalysisIfAvailable<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
 
   //
