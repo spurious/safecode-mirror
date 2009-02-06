@@ -63,6 +63,9 @@ struct RewriteOOB : public ModulePass {
       // This pass gives us information on the various run-time checks
       AU.addRequired<InsertSCIntrinsic>();
 
+      // Require this pass to keep it from being invalidated
+      AU.addRequiredTransitive<EQTDDataStructures>();
+
       // Pretend that we don't modify anything
       AU.setPreservesAll();
     }
