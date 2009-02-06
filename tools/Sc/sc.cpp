@@ -216,6 +216,11 @@ int main(int argc, char **argv) {
     }
 
     //
+    // Do post processing required for Out of Bounds pointer rewriting.
+    //
+    if (RewritePtrs) Passes.add(new RewriteOOB());
+
+    //
     // Run the LICM pass to hoist checks out of loops.
     //
     Passes.add (createLICMPass());
@@ -233,11 +238,6 @@ int main(int argc, char **argv) {
     // Attempt to optimize the checks.
     //
     Passes.add (new OptimizeChecks());
-
-    //
-    // Do post processing required for Out of Bounds pointer rewriting.
-    //
-    if (RewritePtrs) Passes.add(new RewriteOOB());
 
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
