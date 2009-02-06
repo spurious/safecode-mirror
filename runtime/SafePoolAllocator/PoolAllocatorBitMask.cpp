@@ -2191,15 +2191,16 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 void *
 pchk_getActualValue (PoolTy * Pool, void * src) {
 #if SC_DEBUGTOOL
-  if ((uintptr_t)src <= InvalidLower) return src;
+  //
+  // If the pointer is not within the rewrite pointer range, then it is not a
+  // rewritten pointer.  Simply return its current value.
+  //
+  if (((uintptr_t)src <= InvalidLower) || ((uintptr_t)src > InvalidUpper)) {
+    return src;
+  }
 
   void* tag = 0;
   void * end;
-
-  //
-  // Check to see whether the specified pointer is outside the rewrite zone.
-  //
-  if ((uintptr_t)src & ~(InvalidUpper - 1)) return src;
 
   //
   // Look for the pointer in the pool's OOB pointer list.  If we find it,
@@ -2210,13 +2211,11 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   }
 
   //
-  // We cannot map the pointer back into its original value.  Flag an error.
+  // If we can't find the pointer, no worries.  If the program tries to use the
+  // pointer, another SAFECode checks should flag a failure.  In this case,
+  // just return the pointer.
   //
-  fprintf (stderr, "GetActualValue failure: src = %x, pc = %x", (uintptr_t) src,
-           (uintptr_t) __builtin_return_address(0));
-  fflush (stderr);
-  abort ();
-  return tag;
+  return src;
 #else
   // The function should be disabled at runtime
   assert (0 && "This function should be disabled at runtime!"); 
