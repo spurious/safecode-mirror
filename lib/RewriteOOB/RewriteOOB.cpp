@@ -35,6 +35,10 @@ char RewriteOOB::ID = 0;
 // Statistics
 STATISTIC (Changes, "Number of Bounds Checks Modified");
 
+// Register the pass
+static RegisterPass<RewriteOOB> P ("oob-rewriter",
+                                   "OOB Pointer Rewrite Transform");
+
 //
 // Method: processFunction()
 //
@@ -199,10 +203,12 @@ RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
   if (Argument *arg = dyn_cast<Argument>(op)) {
     Function * F = arg->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
     PH = dsnPass->getPoolHandle(op, F, *FI);
   } else if (Instruction *Inst = dyn_cast<Instruction>(op)) {
     Function * F = Inst->getParent()->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+    if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
     PH = dsnPass->getPoolHandle(op, F, *FI);
   } else if (isa<Constant>(op)) {
     return;
