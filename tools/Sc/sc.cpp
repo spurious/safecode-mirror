@@ -343,6 +343,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"poolrealloc",       "__sc_barebone_poolrealloc"},
       {"poolcalloc",        "__sc_barebone_poolcalloc"},
       {"poolstrdup",        "__sc_barebone_poolstrdup"},
+      {"sc.get_actual_val",  "pchk_getActualValue" },
     };
 
   static IntrinsicMappingEntry RuntimeSingleThread[] = 
@@ -364,6 +365,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"poolrealloc",       "__sc_bc_poolrealloc"},
       {"poolcalloc",        "__sc_bc_poolcalloc"},
       {"poolstrdup",        "__sc_bc_poolstrdup"},
+      {"sc.get_actual_val",  "pchk_getActualValue" },
     };
 
   static IntrinsicMappingEntry RuntimeDebug[] = 
