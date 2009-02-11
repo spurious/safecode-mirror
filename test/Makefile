@@ -29,6 +29,8 @@ else
 OPTIMIZED :=
 endif
 
+RUNTIMELIMIT=3600
+
 PROFILING_DAT_DIR := $(shell pwd)/data
 PROFILING_RESULT_DIR := $(shell pwd)/data/profiling
 
@@ -41,20 +43,30 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden \
+  #External/SPEC/CINT2000/197.parser \
+  #External/Namd \
+  #External/Povray \
+  #External/SPEC/CINT2000 \
+  #External/SPEC/CINT2000/175.vpr \
+  #External/SPEC/CINT2000/176.gcc \
+  #External/SPEC/CINT2000/254.gap \
+  #External/SPEC/CINT2000/300.twolf \
+  #External/SPEC/CINT2000 \
+  #External/SPEC/CINT2000/252.eon \
   #MultiSource/Benchmarks/Olden/bh \
-  MultiSource/Benchmarks/Olden/bisort \
-  MultiSource/Benchmarks/Olden/health \
-  MultiSource/Benchmarks/Olden/mst \
-  MultiSource/Benchmarks/Olden/perimeter \
-  MultiSource/Benchmarks/Olden/power \
-  MultiSource/Benchmarks/Olden/treeadd \
-  MultiSource/Benchmarks/Olden/tsp \
+  #MultiSource/Applications/Burg \
+  #MultiSource/Benchmarks/Olden/bisort \
+  #MultiSource/Benchmarks/Olden/health \
+  #MultiSource/Benchmarks/Olden/mst \
+  #MultiSource/Benchmarks/Olden/perimeter \
+  #MultiSource/Benchmarks/Olden/power \
+  #MultiSource/Benchmarks/Olden/treeadd \
+  #MultiSource/Benchmarks/Olden/tsp \
 #  MultiSource/Benchmarks/Olden \
 #  MultiSource/Benchmarks/Olden/em3d \
 #  MultiSource/Benchmarks/Olden/voronoi \
 #   MultiSource/Benchmarks/Olden \
 #   MultiSource/Benchmarks/Ptrdist \
-#   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/164.gzip \
 #   SingleSource \
 #   External/SPEC/CINT2000/300.twolf \
@@ -64,10 +76,8 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 #   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/181.mcf \
 #   External/SPEC/CINT2000/256.bzip2 \
-#   External/Povray \
    #External/SPEC/CINT2000/186.crafty \
    #External/SPEC/CFP2000/188.ammp \
-   #External/Namd \
    #MultiSource/Applications/ghttpd \
    #MultiSource/Benchmarks/Olden/bh \
    #MultiSource/Benchmarks/Ptrdist \
@@ -104,12 +114,16 @@ progtest::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
-               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html report.csv) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               LARGE_PROBLEM_SIZE=1 \
+               report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
                    report.html report.csv; \
 mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
@@ -155,11 +169,15 @@ progvg::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
-               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html report.csv) \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               LARGE_PROBLEM_SIZE=1\
+               report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
                    report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
