@@ -1,8 +1,20 @@
-/// This pool allocator registers objects into splay tree
-/// to perform memory access checking.
+//===- BCPoolAllocator.cpp: -----------------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This pool allocator registers objects into splay tree to perform memory
+// access checking.
+//
+//===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
 #include <cassert>
+
 /* #define DEBUG_OUTPUT */
 
 class BCPoolAllocator {

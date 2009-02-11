@@ -1,8 +1,16 @@
-/**
- * Barebone allcator is a simple wrapper on pool allocation
- * APIs, which is equivalent of pool allocation.
- *
- **/
+//===- BareBonePoolAllocator.cpp: -----------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// Barebone allcator is a simple wrapper around the pool allocation APIs,
+// which is equivalent of pool allocation.
+//
+//===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
 #include <cassert>

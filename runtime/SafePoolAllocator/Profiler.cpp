@@ -1,4 +1,15 @@
-/// Implementation of simple profiler
+//===- Profiler.cpp: ------------------------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// Implementation of simple profiler
+//
+//===----------------------------------------------------------------------===//
 
 #include "Profiler.h"
 #include <pthread.h>

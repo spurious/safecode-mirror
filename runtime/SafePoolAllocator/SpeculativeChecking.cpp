@@ -1,14 +1,14 @@
 //===- SpeculativeChecking.cpp - Implementation of Speculative Checking --*- C++ -*-===//
 // 
-//                     The LLVM Compiler Infrastructure
+//                          The SAFECode Compiler
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
 // 
 //===----------------------------------------------------------------------===//
 //
-// This file implements the asynchronous checking interfaces, enqueues checking requests
-// and provides a synchronization token for each checking request.
+// This file implements the asynchronous checking interfaces, enqueues checking
+// requests and provides a synchronization token for each checking request.
 //
 //===----------------------------------------------------------------------===//
 

@@ -1,6 +1,16 @@
-/// This allocator is used for parallel checking, which puts
-/// the execution of poolreigster / poolunregister into the checking 
-/// thread
+//===- ParPoolAllocator.cpp: ----------------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This allocator is used for parallel checking, which puts the execution of
+// poolreigster / poolunregister into the checking thread.
+//
+//===----------------------------------------------------------------------===//
 
 #include "ParPoolAllocator.h"
 
