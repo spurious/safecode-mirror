@@ -1,7 +1,13 @@
-//===- ArrayBoundCheck.cpp - ArrayBounds Checking (Omega)----------------===//
+//===- ABCPreProcess.cpp - Array Bounds Checking (Omega) ---------------- --////
+//                          The SAFECode Compiler
 //
-// requires piNodeinsertion pass before
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
 //===----------------------------------------------------------------------===//
+//
+// This pass requires the piNodeinsertion pass.
+//
 
 #include "llvm/Pass.h"
 #include "llvm/Module.h"

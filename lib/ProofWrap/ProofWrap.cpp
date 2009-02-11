@@ -1,3 +1,16 @@
+//===- ProofWrap.cpp: SAFECode Type Checker -------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file is part of the type-checker for SAFECode.
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
 #include "llvm/Constants.h"

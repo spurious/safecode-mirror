@@ -1,3 +1,15 @@
+//===- IndirectCallChecks.cpp: Fast Indirect Call Check Instrumentation ---===//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This pass instruments code with fast checks for indirect function calls.
+//
+//===----------------------------------------------------------------------===//
+
 #include "safecode/Config/config.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"

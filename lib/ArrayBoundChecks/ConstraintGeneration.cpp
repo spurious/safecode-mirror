@@ -1,8 +1,16 @@
-//===- ConstraintGeneration.cpp: Interprocedural Constraint Generation --===//
+//===- ConstraintGeneration.cpp: Interprocedural Constraint Generation ----===//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
 //
 // Now we use the control dependence, post dominance frontier to generate
 // constraints for 
-//===--------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
+
 #include <unistd.h>
 #include "dsa/DSGraph.h"
 #include "utils/fdstream.h"

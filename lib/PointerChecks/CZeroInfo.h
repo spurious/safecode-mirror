@@ -1,10 +1,16 @@
-//===- llvm/Analysis/CZeroInfo.h - CZero info --------*- C++ -*--=//
+//===- CZeroInfo.h: CZero Info ---------------------------------*- C++ -*--===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
 //
 // This file checks the LLVM code for any potential security holes. We allow
 // a restricted number of usages in order to preserve memory safety etc.
 //
 //===----------------------------------------------------------------------===//
-
 
 #ifndef LLVM_ANALYSIS_CZEROINFO_H
 #define LLVM_ANALYSIS_CZEROINFO_H
@@ -17,11 +23,11 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CFG.h"
 #include <algorithm>
+
 using std::string;
 using std::map;
 using std::vector;
 using std::set;
-
 
 namespace llvm {
 

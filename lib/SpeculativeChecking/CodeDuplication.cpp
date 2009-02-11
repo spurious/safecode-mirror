@@ -1,5 +1,16 @@
-/// This file performs code duplication analysis and wraps codes into
-/// functions
+//===- CodeDuplication.cpp: -----------------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file performs code duplication analysis and wraps codes into
+// functions.
+//
+//===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "code_duplication"
 #include <set>

@@ -1,8 +1,16 @@
-/**
- *
- * Lower all intrinsic used by SAFECode to appropriate runtime implementation
- *
- **/
+//===- LowerSafecodeIntrinsic.cpp: ----------------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This pass lowers all intrinsics added by SAFECode to appropriate calls to
+// run-time functions in the run-time implementation.
+//
+//===----------------------------------------------------------------------===//
 
 #include "llvm/Module.h"
 #include "safecode/LowerSafecodeIntrinsic.h"

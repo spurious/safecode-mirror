@@ -1,7 +1,15 @@
-/// Pass to eliminate redundant checks in monotonic loops
-///
+//===- MonotonicLoopOpt.cpp: Monotonic Loop Optimizations for SAFECode ----===//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This pass eliminates redundant checks in monotonic loops.
+//
+//===----------------------------------------------------------------------===//
 
- 
 #include "safecode/SAFECode.h"
 #include <set>
 #include "SCUtils.h"

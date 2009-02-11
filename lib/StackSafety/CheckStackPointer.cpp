@@ -1,7 +1,15 @@
-//===-- StackSafety.cpp - Analysis for ensuring stack safety ------------//
+//===- StackSafety.cpp: - Analysis for Ensuring Stack Safety --------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
 // Implementation of StackSafety.h
-//            
-
+//
+//===----------------------------------------------------------------------===//
 
 #include "llvm/Module.h"
 #include "llvm/Function.h"

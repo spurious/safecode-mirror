@@ -1,9 +1,17 @@
-//===-- CZero.cpp - CZero security checks  ----------------===//
+//===- CZero.cpp: - CZero Security Checks ---------------------------------===//
+//
+//                          The SAFECode Compiler
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
 //
 // This transformation ensures that the code emitted (if there are no warnings)
 // poses no security threat to the target system.
 //
 //===----------------------------------------------------------------------===//
+
 
 #include "llvm/Transforms/IPO.h"
 #include "CZeroInfo.h"
