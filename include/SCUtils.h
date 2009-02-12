@@ -1,3 +1,17 @@
+//===- SCUtils.h - Utility Functions for SAFECode ----------------------------//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file implements several utility functions used by SAFECode.
+//
+//===----------------------------------------------------------------------===//
+
+
 #include "llvm/BasicBlock.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
@@ -10,14 +24,14 @@ using namespace llvm;
 
 namespace llvm {
 //
-// Function: isCheckingCall
+// Function: isCheckingCall()
 //
-// Determine whether a function is a checking routine inserted by SafeCode
+// Description:
+//  Determine whether a function is a checking routine inserted by SafeCode.
 //
 // FIXME: currently the function stays in CodeDuplication.cpp, it
 // should be a separate cpp file.
-  bool isCheckingCall(const std::string & functionName);
-
+bool isCheckingCall(const std::string & functionName);
 
 
 //

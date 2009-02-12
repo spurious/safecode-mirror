@@ -1,4 +1,16 @@
-//Assumes that ABCPreprocess is run before 
+//===- ArrayBoundsCheck.h - Static Array Bounds Checking Pass for SAFECode ---//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This pass implements a static array bounds checking analysis pass.  It
+// assumes that the ABCPreprocess pass is run before.
+//
+//===----------------------------------------------------------------------===//
 
 #ifndef ARRAY_BOUNDS_CHECK
 #define ARRAY_BOUNDS_CHECK
@@ -35,6 +47,21 @@ struct ArrayBoundsCheck : public ModulePass {
       AU.addRequired<PostDominatorTree>();
       AU.addRequired<PostDominanceFrontier>();
       AU.setPreservesAll();
+    }
+
+    void releaseMemory() {
+      //
+      // Delete all of the sets used to track unsafe GEPs.
+      //
+      std::map<BasicBlock *,std::set<Instruction*>*>::iterator i;
+      for (i = UnsafeGetElemPtrs.begin(); i != UnsafeGetElemPtrs.end(); ++i) {
+        delete i->second;
+      }
+
+      //
+      // Clear the map.
+      //
+      UnsafeGetElemPtrs.clear();
     }
 
     std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;

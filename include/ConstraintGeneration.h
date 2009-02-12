@@ -1,4 +1,16 @@
-//Assumes that ABCPreprocess is run before 
+//===- ConstraintGeneration.h - ----------------------------------------------//
+// 
+//                          The SAFECode Compiler 
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// Note: This code assumes that ABCPreprocess is run before.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef CONSTRAINT_GENERATION
 #define CONSTRAINT_GENERATION
 

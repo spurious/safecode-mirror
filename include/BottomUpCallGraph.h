@@ -57,6 +57,21 @@ namespace llvm {
         AU.setPreservesAll();	
       }
       virtual bool runOnModule(Module&M);
+
+      //
+      // Method: releaseMemory()
+      //
+      // Description:
+      //  Free memory that is used by this pass.  This method should be called
+      //  by the PassManager before the pass's analysis results are
+      //  invalidated.
+      //
+      virtual void releaseMemory() {
+        CalleeNodeCallSiteMap.clear();
+        Stack.clear();
+        Visited.clear();
+        SccList.clear();
+      }
   };
 }
 #endif

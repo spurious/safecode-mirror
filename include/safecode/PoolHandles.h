@@ -48,6 +48,23 @@ struct DSNodePass : public ModulePass {
       AU.setPreservesAll();
     };
 
+    //
+    // Method: releaseMemory()
+    //
+    // Description:
+    //  This method is called by the pass manager when the analysis results of
+    //  this pass are either invalidated or no longer needed.  This method
+    //  should free up memory and prepare the analysis pass for its next
+    //  execution by the pass manager.
+    //
+    void releaseMemory () {
+      //
+      // Clear out the set of checked values and checked DSNodes.
+      //
+      CheckedValues.clear();
+      CheckedDSNodes.clear();
+    }
+
   public:
     // FIXME: Provide better interfaces
 #ifndef  LLVA_KERNEL
@@ -66,6 +83,7 @@ struct DSNodePass : public ModulePass {
     void addCheckedValue(const Value * value);
     bool isDSNodeChecked(const DSNode * node) const;
     bool isValueChecked(const Value * val) const;
+
   private:
     // Set of checked DSNodes
     std::set<const DSNode *> CheckedDSNodes;

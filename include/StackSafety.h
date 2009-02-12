@@ -1,6 +1,13 @@
-//===- StackSafety.h                                      -*- C++ -*---------=//
+//===- StackSafety.h - ------------------------------------*- C++ -*---------=//
+// 
+//                          The SAFECode Compiler 
 //
-// This file defines checks for stack safety
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file defines checks for stack safety.
 // 
 //===----------------------------------------------------------------------===//
 
@@ -32,6 +39,19 @@ namespace llvm {
         AU.addRequired<EQTDDataStructures>();
         AU.setPreservesAll();
       }
+
+      //
+      // Method: releaseMemory()
+      //
+      // Description:
+      //  This method frees memory used by the pass; it should be called by the
+      //  PassManager before the pass's analysis results are invalidated.
+      //
+      virtual void releaseMemory () {
+        // Clear the set of nodes
+        AllocaNodes.clear();
+      }
+
     private :
       std::set<DSNode *> reachableAllocaNodes; 
       bool markReachableAllocas(DSNode *DSN, bool start=false);

@@ -1,10 +1,15 @@
-//===- llvm/Transforms/IPO/EmbeC/EmbeC.h  - CZero passes  -*- C++ -*---------=//
+//===- SafeDynMemAlloc.h  - CZero passes  -----------------*- C++ -*---------=//
+// 
+//                          The SAFECode Compiler 
 //
-// This file defines a set of utilities for EmbeC checks on pointers and
-// dynamic memory
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
 // 
 //===----------------------------------------------------------------------===//
 //
+// This file defines a set of utilities for EmbeC checks on pointers and
+// dynamic memory.
+// 
 // FIXME:
 //  This pass is currently disabled and a subset of its functinality moved to
 //  the Check Insertion Pass.  However, removing it from the sc tool seems to
