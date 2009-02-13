@@ -1,4 +1,4 @@
-//===-- sc - SAFECode Compiler Tool -------------------------------------===//
+//===-- sc - SAFECode Compiler Tool ---------------------------------------===//
 //
 //                     The SAFECode Project
 //
@@ -6,11 +6,11 @@
 // under the University of Illinois Open Source License. See LICENSE.TXT for
 // details.
 //
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // This program is a tool to run the SAFECode passes on a bytecode input file.
 //
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "safecode/SAFECode.h"
 
@@ -74,6 +74,10 @@ RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB)
 #else
 static bool RewritePtrs = false;
 #endif
+
+static cl::opt<bool>
+StopOnFirstError("terminate", cl::init(false),
+                              cl::desc("Terminate when an Error Ocurs"));
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
@@ -197,7 +201,9 @@ int main(int argc, char **argv) {
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new InsertPoolChecks());
-    Passes.add(new PreInsertPoolChecks(DanglingPointerChecks, RewritePtrs));
+    Passes.add(new PreInsertPoolChecks (DanglingPointerChecks,
+                                        RewritePtrs,
+                                        StopOnFirstError));
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
 

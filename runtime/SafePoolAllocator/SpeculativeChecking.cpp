@@ -216,8 +216,10 @@ void __sc_par_store_check(void * ptr) {
   }
 } 
   
-void __sc_par_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
-  ParPoolAllocator::pool_init_runtime(Dangling, RewriteOOB);
+void __sc_par_pool_init_runtime(unsigned Dangling,
+                                unsigned RewriteOOB,
+                                unsigned Terminate) {
+  ParPoolAllocator::pool_init_runtime(Dangling, RewriteOOB, Terminate);
   static SpeculativeCheckingGuard g;
   g.activate();
 }

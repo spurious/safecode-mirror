@@ -126,7 +126,9 @@ typedef struct PoolTy {
 } PoolTy;
 
 extern "C" {
-  void pool_init_runtime(unsigned Dangling, unsigned RewriteOOB);
+  void pool_init_runtime(unsigned Dangling,
+                         unsigned RewriteOOB,
+                         unsigned Terminate);
   void poolinit(PoolTy *Pool, unsigned NodeSize);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);

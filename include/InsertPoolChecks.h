@@ -44,12 +44,18 @@ struct PreInsertPoolChecks : public ModulePass {
     // Flags whether we should rewrite Out of Bound pointers or just fail them
     bool RewriteOOB;
 
+    // Flags whether SAFECode should terminate on the first error
+    bool Terminate;
+
     public :
     static char ID;
-    PreInsertPoolChecks (bool DPChecks = false, bool RewritePtrs=false)
+    PreInsertPoolChecks (bool DPChecks = false,
+                         bool RewritePtrs=false,
+                         bool StopOnFirst=false)
       : ModulePass ((intptr_t) &ID) {
       DanglingChecks = DPChecks;
-      RewriteOOB = RewritePtrs;
+      RewriteOOB     = RewritePtrs;
+      Terminate      = StopOnFirst;
     }
     const char *getPassName() const { return "Register Global variable into pools"; }
     virtual bool runOnModule(Module &M);
@@ -78,7 +84,7 @@ struct PreInsertPoolChecks : public ModulePass {
 #ifndef LLVA_KERNEL  
   void registerGlobalArraysWithGlobalPools(Module &M);
 #endif  
-  void insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB);
+  void insertInitCalls (Module & M, bool DPChecks, bool RewriteOOB, bool Term);
 };
 
 struct InsertPoolChecks : public FunctionPass {

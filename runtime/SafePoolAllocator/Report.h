@@ -20,8 +20,7 @@
 #include "safecode/Config/config.h"
 
 #ifdef SC_DEBUGTOOL
-#define ABORT_PROGRAM() {;}
-//#define ABORT_PROGRAM() abort()
+#define ABORT_PROGRAM() abort()
 #else
 //#define ABORT_PROGRAM() *((volatile int*)NULL)
 #define ABORT_PROGRAM() __builtin_trap()
@@ -29,6 +28,9 @@
 
 
 #ifdef SC_DEBUGTOOL
+// Global Configuration Information
+extern unsigned StopOnError;
+
 extern FILE * ReportLog;
 static unsigned alertNum = 0;
 static unsigned initialized = 0;
@@ -94,7 +96,7 @@ ReportDanglingPointer (void * addr,
   fprintf (ReportLog, "%04d:\tObject freed at program counter       : 0x%08x \n", id, freepc);
   fprintf (ReportLog, "%04d:\tObject free generation number         : %d \n", id, freegen);
   fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
-  ABORT_PROGRAM();
+  if (StopOnError) ABORT_PROGRAM();
   return;
 }
 
@@ -122,7 +124,7 @@ ReportLoadStoreCheck (void * ptr,
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
-  ABORT_PROGRAM();
+  if (StopOnError) ABORT_PROGRAM();
   return;
 }
 
@@ -174,7 +176,7 @@ ReportBoundsCheck (unsigned src,
     fprintf (ReportLog, "%04d:\tNot found within object\n", id);
   }
   fflush (ReportLog);
-  ABORT_PROGRAM();
+  if (StopOnError) ABORT_PROGRAM();
   return;
 }
 
@@ -219,7 +221,7 @@ ReportExactCheck (unsigned src,
     fprintf (ReportLog, "%04d:\tNot found within object\n", id);
   }
   fflush (ReportLog);
-  ABORT_PROGRAM();
+  if (StopOnError) ABORT_PROGRAM();
   return;
 }
 
@@ -243,7 +245,7 @@ ReportOOBPointer (unsigned pc, void * ptr, char * SourceFile, unsigned lineno) {
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
-  ABORT_PROGRAM();
+  if (StopOnError) ABORT_PROGRAM();
   return;
 }
 

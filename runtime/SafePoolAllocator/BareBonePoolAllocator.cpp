@@ -40,7 +40,7 @@ public:
   }
   
   static void pool_init_runtime() {
-    ::pool_init_runtime(0, 0);
+    ::pool_init_runtime(0, 0, 1);
   }
 
   static void poolfree(PoolTy *Pool, void *Node) {
@@ -52,7 +52,7 @@ public:
 using namespace llvm;
 
 extern "C" {
-  void __sc_barebone_pool_init_runtime(unsigned, unsigned) {
+  void __sc_barebone_pool_init_runtime(unsigned, unsigned, unsigned) {
     BarebonePoolAllocator::pool_init_runtime();
   }
 

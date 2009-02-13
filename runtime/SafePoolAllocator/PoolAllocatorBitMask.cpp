@@ -82,6 +82,9 @@ FILE * ReportLog;
 // Global Configuration Information
 extern ConfigData ConfigData;
 
+// Configuration for C code; flags that we should stop on the first error
+unsigned StopOnError = 0;
+
 // Invalid address range
 #if !defined(__linux__)
 unsigned InvalidUpper = 0x00000000;
@@ -815,13 +818,28 @@ struct StackSlab {
 //
 //===----------------------------------------------------------------------===//
 
+//
+// Function: pool_init_runtime()
+//
+// Description:
+//  This function is called to initialize the entire SAFECode run-time.  It
+//  configures the various run-time options for SAFECode and performs other
+//  initialization tasks.
+//
+// Inputs:
+//  Dangling   - Set to non-zero to enable dangling pointer detection.
+//  RewriteOOB - Set to non-zero to enable Out-Of-Bounds pointer rewriting.
+//  Termiante  - Set to non-zero to have SAFECode terminate when an error
+//               occurs.
+//
 void
-pool_init_runtime (unsigned Dangling, unsigned RewriteOOB) {
+pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Configure the allocator.
   //
   ConfigData.RemapObjects = Dangling;
   ConfigData.StrictIndexing = !(RewriteOOB);
+  StopOnError = Terminate;
 
   //
   // Allocate a range of memory for rewrite pointers.

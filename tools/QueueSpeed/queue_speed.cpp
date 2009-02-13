@@ -2,7 +2,7 @@
 
 PoolTy Pool;
 
-extern "C" void __sc_par_init_runtime(void);
+extern "C" void __sc_par_init_runtime(unsigned, unsigned, unsigned);
 extern "C" void __sc_par_poolcheck(PoolTy *, void *);
 extern "C" void __sc_par_poolcheck_0(void *);
 extern "C" void __sc_par_boundscheck(PoolTy*, void*, void*);
@@ -12,7 +12,7 @@ extern "C" void __sc_par_cachepool_0(PoolTy*);
 
 int main() {
 
-  __sc_par_pool_init_runtime(0, 0);
+  __sc_par_pool_init_runtime(0, 0, 1);
   __sc_par_poolinit(&Pool, 128);
   __sc_par_cachepool_0(&Pool);
   char* obj1 = (char*)__sc_par_poolalloc(&Pool, 128);

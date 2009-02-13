@@ -53,7 +53,7 @@ public:
   static void pool_init_runtime() {
     // Disable dangling pointer checkings and rewriting of out of bound
     // pointers
-    ::pool_init_runtime(0, 0);
+    ::pool_init_runtime(0, 0, 1);
   }
 
   static void poolfree(PoolTy *Pool, void *Node) {
@@ -68,7 +68,9 @@ public:
 
 
 extern "C" {
-  void __sc_bc_pool_init_runtime(unsigned Dangling, unsigned RewriteOOB) {
+  void __sc_bc_pool_init_runtime(unsigned Dangling,
+                                 unsigned RewriteOOB,
+                                 unsigned Terminate) {
     BCPoolAllocator::pool_init_runtime();
   }
 

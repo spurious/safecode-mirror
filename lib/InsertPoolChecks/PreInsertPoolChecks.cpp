@@ -59,8 +59,14 @@ namespace {
 //  RewriteOOB     - Flags whether the SAFECode run-time should perform
 //                   Out-of-Bounds (OOB) pointer rewriting.
 //
+//  Terminate      - Flags whether the SAFECode run-time should terminate after
+//                   the first error it catches.
+//
 void
-PreInsertPoolChecks::insertInitCalls (Module & M, bool DanglingChecks, bool RewriteOOB) {
+PreInsertPoolChecks::insertInitCalls (Module & M,
+                                      bool DanglingChecks,
+                                      bool RewriteOOB,
+                                      bool Terminate) {
   // The pointer to the run-time initialization function
   Constant *RuntimeInit;
 
@@ -86,11 +92,13 @@ PreInsertPoolChecks::insertInitCalls (Module & M, bool DanglingChecks, bool Rewr
                                        Type::VoidTy, 
                                        Type::Int32Ty,
                                        Type::Int32Ty,
+                                       Type::Int32Ty,
                                        NULL); 
 
   std::vector<Value *> args;
   args.push_back (ConstantInt::get(Type::Int32Ty, DanglingChecks));
   args.push_back (ConstantInt::get(Type::Int32Ty, RewriteOOB));
+  args.push_back (ConstantInt::get(Type::Int32Ty, Terminate));
   CallInst::Create (RuntimeInit, args.begin(), args.end(), "", BB); 
 
   //
@@ -159,7 +167,7 @@ PreInsertPoolChecks::runOnModule(Module & M) {
   //
   // Insert code to initialize the SAFECode runtime.
   //
-  insertInitCalls (M, DanglingChecks, RewriteOOB);
+  insertInitCalls (M, DanglingChecks, RewriteOOB, Terminate);
 
   dsnPass = &getAnalysis<DSNodePass>();
 #ifndef LLVA_KERNEL  
