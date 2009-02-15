@@ -105,6 +105,25 @@ static void __stub_code_dup_arg(uintptr_t* req) {
   ((dup_arg0_t)req[0])((void*)req[1]);
 }
 
+// Function to test queue performance
+static void __stub_no_op(uintptr_t*) {
+}
+extern "C" {
+
+void __sc_par_enqueue_1() {
+  gCheckQueue.enqueue (NULL, __stub_no_op);
+}
+
+void __sc_par_enqueue_2() {
+  gCheckQueue.enqueue (NULL, NULL, __stub_no_op);
+}
+
+void __sc_par_enqueue_3() {
+  gCheckQueue.enqueue (NULL, NULL, NULL, __stub_no_op);
+}
+
+}
+
 extern "C" {
 void __sc_par_wait_for_completion();
 }
@@ -157,6 +176,7 @@ void __sc_par_boundscheck(PoolTy * Pool, void * Source, void * Dest) {
 void __sc_par_boundscheck_0(void * Source, void * Dest) {
   gCheckQueue.enqueue ((uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck_0);
 }
+
 void __sc_par_boundscheck_1(void * Source, void * Dest) {
   gCheckQueue.enqueue ((uintptr_t)Source, (uintptr_t)Dest, __stub_boundscheck_1);
 }

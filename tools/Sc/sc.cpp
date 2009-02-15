@@ -87,7 +87,7 @@ static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
 enum CheckingRuntimeType {
-  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL 
+  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP 
 };
 
 #ifdef SC_DEBUGTOOL
@@ -104,6 +104,7 @@ CheckingRuntime("runtime", cl::init(DefaultRuntime),
   clEnumVal(RUNTIME_DEBUG,        "Debugging Tool runtime"),
   clEnumVal(RUNTIME_SINGLETHREAD, "Single Thread runtime (Production version)"),
   clEnumVal(RUNTIME_PARALLEL,     "Parallel Checking runtime (Production version)"),
+  clEnumVal(RUNTIME_QUEUE_OP,     "Parallel no-op Checking runtime (For testing queue performance)"),
   clEnumValEnd));
 
 static cl::opt<bool>
@@ -171,7 +172,8 @@ int main(int argc, char **argv) {
 
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
-    Passes.add(new ConvertUnsafeAllocas());
+    if (CheckingRuntime != RUNTIME_PA)
+      Passes.add(new ConvertUnsafeAllocas());
 
     // Remove indirect calls to malloc and free functions
     Passes.add(createIndMemRemPass());
@@ -417,6 +419,28 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"poolstrdup",        "__sc_par_poolstrdup"},
     };
 
+  const char * queueOpFunction = "__sc_par_enqueue_1";
+
+  static IntrinsicMappingEntry RuntimeQueuePerformance[] = 
+    { {"sc.lscheck",        queueOpFunction}, 
+      {"sc.lscheckui",      queueOpFunction},
+      {"sc.lscheckalign",   queueOpFunction}, 
+      {"sc.lscheckalignui", queueOpFunction},
+      {"sc.boundscheck",    queueOpFunction}, 
+      {"sc.boundscheckui",  queueOpFunction},
+      {"sc.exactcheck",     "exactcheck" },
+      {"sc.exactcheck2",    "exactcheck2" },
+      {"poolregister",      queueOpFunction}, 
+      {"poolunregister",    queueOpFunction},
+      {"poolalloc",         "__sc_barebone_poolalloc"},
+      {"poolfree",          "__sc_barebone_poolfree"},
+      {"pooldestroy",       "__sc_barebone_pooldestroy"},
+      {"pool_init_runtime", "__sc_par_pool_init_runtime"},
+      {"poolinit",          "__sc_barebone_poolinit"},
+      {"poolrealloc",       "__sc_barebone_poolrealloc"},
+      {"poolcalloc",        "__sc_barebone_poolcalloc"},
+      {"poolstrdup",        "__sc_barebone_poolstrdup"},
+    };
   switch (type) {
   case RUNTIME_PA:
     Passes.add(new LowerSafecodeIntrinsic(RuntimePA, RuntimePA + sizeof(RuntimePA) / sizeof(IntrinsicMappingEntry)));
@@ -432,6 +456,10 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
 
   case RUNTIME_PARALLEL:
     Passes.add(new LowerSafecodeIntrinsic(RuntimeParallel, RuntimeParallel + sizeof(RuntimeParallel) / sizeof(IntrinsicMappingEntry)));
+    break;
+
+  case RUNTIME_QUEUE_OP:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeQueuePerformance, RuntimeQueuePerformance+ sizeof(RuntimeQueuePerformance) / sizeof(IntrinsicMappingEntry)));
     break;
   }
 }
