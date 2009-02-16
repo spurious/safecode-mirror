@@ -42,13 +42,13 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-  MultiSource/Benchmarks/Olden \
-  #External/SPEC/CINT2000/197.parser \
-  #External/Namd \
-  #External/Povray \
-  #External/SPEC/CINT2000 \
-  #External/SPEC/CINT2000/175.vpr \
+  External/Namd \
+  External/Povray \
+  External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/176.gcc \
+  #External/SPEC/CINT2000/175.vpr \
+  #MultiSource/Benchmarks/Olden \
+  #External/SPEC/CINT2000/197.parser \
   #External/SPEC/CINT2000/254.gap \
   #External/SPEC/CINT2000/300.twolf \
   #External/SPEC/CINT2000 \
@@ -137,6 +137,38 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=safecode \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+# Program tests for SAFECode debug tool
+progdebug::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=debug \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               LARGE_PROBLEM_SIZE=1 \
+               report.html report.csv) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=debug \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
+                   report.html report.csv; \
+mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
+mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir;  \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=debug \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=debug \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
