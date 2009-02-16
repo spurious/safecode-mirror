@@ -77,7 +77,7 @@ static void * globalTemp = 0;
 unsigned poolmemusage = 0;
 
 /// UNUSED in production version
-FILE * ReportLog;
+FILE * ReportLog = 0;
 
 // Global Configuration Information
 extern ConfigData ConfigData;
@@ -863,6 +863,7 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // The libc stdio functions may have not been initialized by this point, so
   // we cannot rely upon them working.
   //
+  ReportLog = stderr;
 
   //
   // Install hooks for catching allocations outside the scope of SAFECode.
@@ -2093,12 +2094,20 @@ boundscheckui (PoolTy * Pool, void * Source, void * Dest) {
 //  Identical to boundscheckui() but with debug information.
 //
 // Inputs:
-//  Pool - The pool to which the pointers (Source and Dest) should belong.
-//  Source - The Source pointer of the indexing operation (the GEP).
-//  Dest   - The result of the indexing operation (the GEP).
+//  Pool       - The pool to which the pointers (Source and Dest) should
+//               belong.
+//  Source     - The Source pointer of the indexing operation (the GEP).
+//  Dest       - The result of the indexing operation (the GEP).
+//  SourceFile - The source file in which the check was inserted.
+//  lineno     - The line number of the instruction for which the check was
+//               inserted.
 //
 void *
-boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFile, unsigned int lineno) {
+boundscheckui_debug (PoolTy * Pool,
+                     void * Source,
+                     void * Dest,
+                     void * SourceFile,
+                     unsigned int lineno) {
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
@@ -2115,7 +2124,15 @@ boundscheckui_debug (PoolTy * Pool, void * Source, void * Dest, void * SourceFil
     //  1) A valid object was not found in splay tree, or
     //  2) Dest is not within the valid object in which Source was found
     //
-    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false, SourceFile, lineno);
+    return boundscheck_check (ret,
+                              ObjStart,
+                              ObjEnd,
+                              Pool,
+                              Source,
+                              Dest,
+                              false,
+                              SourceFile,
+                              lineno);
   }
 }
 
@@ -2517,8 +2534,17 @@ poolfree(PoolTy *Pool, void *Node) {
   // pointer to the canonical page.
   //
   bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
-  assert (found && debugmetadataptr && "poolfree: No debugmetadataptr\n");
-  
+
+  //
+  // For now, if there is an attempt to free an invalid object, simply ignore
+  // the problem.
+  //
+  if (!found) return;
+
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  assert ((!found || (found && debugmetadataptr)) && "poolfree: No debugmetadataptr\n");
+
   if (logregs) {
     fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
     fprintf(stderr, "poolfree:1388: len = %d\n", len);
@@ -2545,13 +2571,21 @@ poolfree(PoolTy *Pool, void *Node) {
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
 
-  CanonNode = debugmetadataptr->canonAddr;
+  //
+  // If this is a remapped pointer, find its canonical address.
+  //
+  if (ConfigData.RemapObjects) {
+    CanonNode = debugmetadataptr->canonAddr;
+    updatePtrMetaData (debugmetadataptr,
+                       globalfreeID,
+                       __builtin_return_address(0));
+  }
+
   if (logregs) {
     fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
     fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
     fflush (stderr);
   }
-  updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));
 #endif
 
   //
