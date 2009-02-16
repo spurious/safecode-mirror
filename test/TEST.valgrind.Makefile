@@ -7,22 +7,23 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-CFLAGS = -O2 -fno-strict-aliasing
-
+#
+# Turn on debug information for use with the SAFECode tool
+#
+CFLAGS = -g -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -enable-debuginfo -rewrite-oob -disable-staticchecks
 VALGRIND = valgrind -q --log-file=vglog
 
 # Pool allocator pass shared object
-#PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
 PA_SO    := $(PROJECT_DIR)/Debug/lib/addchecks.o
 
 # Pool allocator runtime library
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
+#PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
 PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 
 # Pool System library for interacting with the system
@@ -33,7 +34,7 @@ POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
 SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
-OPTZN_PASSES := -std-compile-opts
+OPTZN_PASSES := -strip-debug -std-compile-opts
 
 
 #
