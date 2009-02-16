@@ -17,7 +17,7 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/Debug/bin/sc
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
 #PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks$(SHLIBEXT)
@@ -64,8 +64,7 @@ PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspe
 
 EXTRA_LOPT_OPTIONS :=
 #-loopsimplify -unroll-threshold 0 
-OPTZN_PASSES := -std-compile-opts $(EXTRA_LOPT_OPTIONS)
-#OPTZN_PASSES := -disable-opt
+OPTZN_PASSES := -strip-debug -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 ifeq ($(OS),Darwin)
 LDFLAGS += -lpthread
@@ -134,7 +133,7 @@ Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM_RT_O)
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
-	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM_RT_O)
