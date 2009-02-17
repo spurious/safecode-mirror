@@ -165,21 +165,19 @@ int main(int argc, char **argv) {
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
 
-    // Inject faults before doing anything.  Note that the options to turn on
-    // fault injection are within the pass; the default options for this pass
-    // make it do nothing.
-    Passes.add(new FaultInjector());
-
-    // Convert Unsafe alloc instructions first.  This does not rely upon
-    // pool allocation and has problems dealing with cloned functions.
-    if (CheckingRuntime != RUNTIME_PA)
-      Passes.add(new ConvertUnsafeAllocas());
-
-    // Remove indirect calls to malloc and free functions
+    //
+    // Remove indirect calls to malloc and free functions.  This can be done
+    // here because none of the SAFECode transforms will add indirect calls to
+    // malloc() and free().
+    //
     Passes.add(createIndMemRemPass());
 
-    // Ensure that all malloc/free calls are changed into LLVM instructions
-    Passes.add(createRaiseAllocationsPass());
+    //
+    // Convert Unsafe alloc instructions first.  This does not rely upon
+    // pool allocation and has problems dealing with cloned functions.
+    //
+    if (CheckingRuntime != RUNTIME_PA)
+      Passes.add(new ConvertUnsafeAllocas());
 
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
     // Bottom-Up Call Graph pass doesn't work after pool allocation has
