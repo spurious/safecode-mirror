@@ -179,6 +179,7 @@ DebugInstrument::runOnModule (Module &M) {
   // Transform allocations, load/store checks, and bounds checks.
   //
   transformFunction (M.getFunction ("poolalloc"));
+  transformFunction (M.getFunction ("poolfree"));
   transformFunction (M.getFunction ("poolcheck"));
   transformFunction (M.getFunction ("poolcheckalign"));
   transformFunction (M.getFunction ("boundscheck"));
