@@ -172,6 +172,9 @@ int main(int argc, char **argv) {
     //
     Passes.add(createIndMemRemPass());
 
+    // Ensure that all malloc/free calls are changed into LLVM instructions
+    Passes.add(createRaiseAllocationsPass());
+
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
