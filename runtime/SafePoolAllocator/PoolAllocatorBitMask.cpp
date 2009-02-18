@@ -1455,6 +1455,11 @@ poolalloc_debug (PoolTy *Pool,
                  unsigned NumBytes,
                  void * SourceFilep,
                  unsigned lineno) {
+  //
+  // Ensure that we're allocating at least one byte.
+  //
+  if (NumBytes == 0) NumBytes = 1;
+
   // Do some initial casting for type goodness
   char * SourceFile = (char *)(SourceFilep);
 
@@ -1486,6 +1491,35 @@ poolalloc_debug (PoolTy *Pool,
 
   // Return the shadow pointer.
   return shadowptr;
+}
+
+//
+// Function: poolfree_debug()
+//
+// Description:
+//  This function is identical to poolfree() except that it relays source-level
+//  debug information to the error reporting routines.
+//
+void
+poolfree_debug (PoolTy *Pool,
+                void * Node,
+                void * SourceFile,
+                unsigned lineno) {
+  PDebugMetaData debugmetadataptr = 0;
+  void * start, * end;
+
+  //
+  // Check whether the pointer is valid.
+  //
+  if (!dummyPool.DPTree.find (Node, start, end, debugmetadataptr)) {
+    ReportInvalidFree ((unsigned)__builtin_return_address(0),
+                       Node,
+                       (char *) SourceFile,
+                       lineno);
+    return;
+  } else {
+    poolfree (Pool, Node);
+  }
 }
 #endif
 
@@ -2536,14 +2570,21 @@ poolfree(PoolTy *Pool, void *Node) {
   bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
 
   //
-  // For now, if there is an attempt to free an invalid object, simply ignore
-  // the problem.
+  // If we cannot find the meta-data for this pointer, then the free is
+  // invalid.  Report it as an error and then continue executing if possible.
   //
-  if (!found) return;
+  if (!found) {
+    ReportInvalidFree ((unsigned)__builtin_return_address(0),
+                       Node,
+                       "<Unknown>",
+                       0);
+    return;
+  }
 
   // Assert that we either didn't find the object or we found the object *and*
   // it has meta-data associated with it.
-  assert ((!found || (found && debugmetadataptr)) && "poolfree: No debugmetadataptr\n");
+  assert ((!found || (found && debugmetadataptr)) &&
+          "poolfree: No debugmetadataptr\n");
 
   if (logregs) {
     fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);

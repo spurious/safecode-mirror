@@ -249,6 +249,36 @@ ReportOOBPointer (unsigned pc, void * ptr, char * SourceFile, unsigned lineno) {
   return;
 }
 
+//
+// Function: ReportInvalidFree()
+//
+// Description:
+//  Generate a report for an invalid free.
+//
+// Inputs:
+//  pc         - The program counter at which the invalid free occurred.
+//  ptr        - The invalid pointer passed to poolfree().
+//  SourceFile - The source file in which the call to free() occurred.
+//  lineno     - The line number at which the call to free() occurred.
+//
+static void
+ReportInvalidFree (unsigned pc,
+                   void * ptr,
+                   char * SourceFile,
+                   unsigned lineno) {
+  // Print the header and get the ID for this report
+  unsigned id = printAlertHeader();
+
+  fprintf (ReportLog, "%04d: Invalid free of address 0x%08x\n", id,
+                                                                (unsigned)ptr);
+  fprintf (ReportLog, "%04d:      at program counter 0x%08x\n", id, pc);
+  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
+  fflush (ReportLog);
+  if (StopOnError) ABORT_PROGRAM();
+  return;
+}
+
 #else
 
 // Production code: all reporters are just simple wrappers for ABORT_PROGRAM()
