@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
   llvm_shutdown_obj ShutdownObject;
 
   try {
-    cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
+    cl::ParseCommandLineOptions(argc, argv, "SAFECode Compiler\n");
     sys::PrintStackTraceOnErrorSignal();
 
     // Load the module to be compiled...
