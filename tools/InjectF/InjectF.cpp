@@ -73,7 +73,7 @@ main(int argc, char **argv) {
   llvm_shutdown_obj ShutdownObject;
 
   try {
-    cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
+    cl::ParseCommandLineOptions(argc, argv, "Fault Injector Tool\n");
     sys::PrintStackTraceOnErrorSignal();
 
     // Load the module to be compiled...
