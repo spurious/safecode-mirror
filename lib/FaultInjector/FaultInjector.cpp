@@ -290,7 +290,7 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
 //  false - The module was left unmodified.
 //
 // Notes:
-//  This code utilizes DSA to ensure that the pointer can pointer to heap
+//  This code utilizes DSA to ensure that the pointer can point to heap
 //  memory (although the pointer is allowed to alias global and stack memory).
 //
 bool
