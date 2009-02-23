@@ -33,17 +33,6 @@ using namespace llvm;
 using namespace CUA;
 using namespace ABC;
 
-#if 0
-extern DominatorSet::DomSetMapType dsmt;
-extern DominanceFrontier::DomSetMapType dfmt;
-
-static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
-  DominatorSet::DomSetMapType::const_iterator dsmtI = dsmt.find(bb1);
-  assert((dsmtI != dsmt.end()) && " basic block not found in dominator set");
-  return (dsmtI->second.count(bb2) != 0);
-}
-#endif
-
 //
 // Command line options
 //
@@ -89,7 +78,6 @@ createProtos (Module & M) {
   // If we fail to get the kmalloc function, generate an error.
   //
   assert ((kmalloc != 0) && "No kmalloc function found!\n");
-#else
 #endif
 }
 
@@ -122,7 +110,7 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
 
 bool ConvertUnsafeAllocas::markReachableAllocas(DSNode *DSN) {
   reachableAllocaNodes.clear();
-  return   markReachableAllocasInt(DSN);
+  return markReachableAllocasInt(DSN);
 }
 
 bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
