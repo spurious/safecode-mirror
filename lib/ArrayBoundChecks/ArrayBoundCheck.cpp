@@ -1530,17 +1530,6 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		  if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
 		    if (aType->getElementType()->isPrimitiveType()) {
 		      int elSize = aType->getNumElements();
-#if 0
-		      switch (aType->getElementType()->getTypeID()) {
-		      case Type::Int16TyID :
-		      case Type::Int16TyID :  elSize = (elSize/numbytes)*2; break;
-		      case Type::Int32TyID :
-		      case Type::Int32TyID :  elSize = (elSize/numbytes)*4; break;
-		      case Type::Int64TyID :
-		      case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
-		      default : break;
-		      }
-#else
 		      if ((aType->getElementType()) == Type::Int16Ty) {
             elSize = (elSize/numbytes)*2;
           } else if ((aType->getElementType()) == Type::Int32Ty) {
@@ -1548,7 +1537,6 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
           } else if ((aType->getElementType()) == Type::Int64Ty) {
             elSize = (elSize/numbytes)*8;
           }
-#endif
 		      string varName = getValueName(I);
 		      const Type* csiType = Type::Int32Ty;
 		      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
@@ -1559,19 +1547,6 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
 		} else if (const ArrayType *aType = dyn_cast<ArrayType>(opEltype)) {
 		  if (aType->getElementType()->isPrimitiveType()) {
 		    int elSize = aType->getNumElements();
-#if 0
-		    switch (aType->getElementType()->getTypeID()) {
-		    case Type::Int8TyID : 
-		    case Type::Int8TyID : elSize = elSize / numbytes; break;
-		    case Type::Int16TyID :
-		    case Type::Int16TyID :  elSize = (elSize/numbytes) *2; break;
-		    case Type::Int32TyID :
-		    case Type::Int32TyID :  elSize = (elSize/numbytes)*4; break;
-		    case Type::Int64TyID :
-		    case Type::Int64TyID :  elSize = (elSize/numbytes)*8; break;
-		    default : break;
-		    }
-#else
 		    if ((aType->getElementType()) == Type::Int8Ty) {
           elSize = elSize / numbytes;
         } else if ((aType->getElementType()) == Type::Int16Ty) {
@@ -1581,7 +1556,6 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
         } else if ((aType->getElementType()) == Type::Int64Ty) {
           elSize = (elSize/numbytes)*8;
         }
-#endif
 		    string varName = getValueName(I);
 		    const Type* csiType = Type::Int32Ty;
 		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
