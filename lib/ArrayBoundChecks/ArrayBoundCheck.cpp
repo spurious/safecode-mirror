@@ -76,42 +76,24 @@ namespace {
 std::ostream &Out = std::cerr;
 std::ofstream includeOut;
 
-//The following are filled from the preprocess pass, since they require
-//fn passes
+// The following are filled from the preprocess pass, since they require
+// function passes.
 extern IndVarMap indMap; 
-#if 0
-extern DominatorSet::DomSetMapType dsmt;
-extern PostDominatorSet::DomSetMapType pdsmt;
-extern PostDominanceFrontier::DomSetMapType pdfmt;
-#endif
 
-#if 0
-static bool dominates(BasicBlock *bb1, BasicBlock *bb2) {
-  DominatorSet::DomSetMapType::const_iterator dsmtI = dsmt.find(bb1);
-  assert((dsmtI != dsmt.end()) && " basic block not found in dominator set");
-  return (dsmtI->second.count(bb2) != 0);
-}
-
-static bool postDominates(BasicBlock *bb1, BasicBlock *bb2) {
-  PostDominatorSet::DomSetMapType::const_iterator pdsmtI = pdsmt.find(bb1);
-  if (pdsmtI == pdsmt.end())
-    return false;
-  return (pdsmtI->second.count(bb2) != 0);
-}
-#endif
-
-//count the number of problems given to Omega
+// Count the number of problems given to Omega
 static  unsigned countA = 0;
-//This will tell us whether the collection of constraints
-//depends on the incoming args or not
-//Do we need this to be global?
+
+// This will tell us whether the collection of constraints
+// depends on the incoming args or not
+// Do we need this to be global?
 static bool reqArgs = false;
-//a hack for llvm's malloc instruction which concerts all ints to uints
-//This is not really necessary, as it is checked in the pool allocation run-time
-//library 
+
+// A hack for LLVM's malloc instruction which concerts all ints to uints
+// This is not really necessary, as it is checked in the pool allocation
+// run-time library 
 static bool fromMalloc = false;
 
-//Interprocedural ArrayBoundsCheck pass
+// Interprocedural ArrayBoundsCheck pass
 RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
 void ArrayBoundsCheck::initialize(Module &M) {
@@ -258,7 +240,10 @@ ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   return root;
 }
 
-void ArrayBoundsCheck::addFormalToActual(Function *Fn, CallInst *CI, ABCExprTree **rootp) {
+void
+ArrayBoundsCheck::addFormalToActual (Function *Fn,
+                                     CallInst *CI,
+                                     ABCExprTree **rootp) {
   LinearExpr *le1 = new LinearExpr(CI,Mang);
   Constraint *c1 = new Constraint(getValueName(Fn),le1,"=");
   *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
@@ -280,7 +265,8 @@ void ArrayBoundsCheck::addFormalToActual(Function *Fn, CallInst *CI, ABCExprTree
 // This is an auxillary function used by getConstraints
 // gets the constraints on the return value interms of its arguments
 // and ands it with the existing rootp!
-void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp) {
+void
+ArrayBoundsCheck::getConstraintsAtCallSite (CallInst *CI,ABCExprTree **rootp) {
   if (Function *pf = dyn_cast<Function>(CI->getOperand(0))) {
     if (pf->isDeclaration()) {
       *rootp = new ABCExprTree(*rootp,addConstraintsForKnownFunctions(pf, CI), "&&");
@@ -347,7 +333,9 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   }
 }
 
-void ArrayBoundsCheck::addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp) {
+void
+ArrayBoundsCheck::addControlDependentConditions (BasicBlock *currentBlock,
+                                                 ABCExprTree **rootp) {
   PostDominanceFrontier::const_iterator it = postdomFrontier->find(currentBlock);
   if (it != postdomFrontier->end()) {
     const PostDominanceFrontier::DomSetType &S = it->second;
@@ -522,7 +510,6 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
         getConstraints(ri->getOperand(0), rootp);
       }
-      
     } else if (PHINode *p = dyn_cast<PHINode>(I)) {
       //its a normal PhiNode
       if (indMap.count(p) > 0) {
@@ -540,7 +527,6 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
         
         getConstraints(UBound, rootp);
-        
       }
     } else if (isa<CallInst>(I)) {
       CallInst * CI = dyn_cast<CallInst>(I);
@@ -752,8 +738,9 @@ ABCExprTree *ArrayBoundsCheck::getArgumentConstraints(Function & F) {
               reqArgFList.insert(CI->getParent()->getParent());
             }
           }
-          if (!root) root = rootCallInst;
-          else {
+          if (!root) {
+            root = rootCallInst;
+          } else {
             root = new ABCExprTree(root, rootCallInst, "||");
           }
         }
@@ -1216,8 +1203,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           if (!isa<ConstantArray>(CI->getOperand(2))) {
             if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(2))) {
               if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
-          std::cerr << "Format string problem " << CI->getOperand(2);
-          //exit(-1);
+                std::cerr << "Format string problem " << CI->getOperand(2);
+                //exit(-1);
               }
             }
           }
@@ -1225,8 +1212,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           if (!isa<ConstantArray>(CI->getOperand(2))) {
             if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(2))) {
               if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
-          std::cerr << "Format string problem " << CI->getOperand(2);
-          //    exit(-1);
+                std::cerr << "Format string problem " << CI->getOperand(2);
+                //    exit(-1);
               }
             }
           }
@@ -1234,8 +1221,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           if (!isa<ConstantArray>(CI->getOperand(1))) {
             if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(1))) {
               if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
-          std::cerr << "Format string problem " << CI->getOperand(1);
-          //exit(-1);
+                std::cerr << "Format string problem " << CI->getOperand(1);
+                //exit(-1);
               }
             }
           }
@@ -1243,8 +1230,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           if (!isa<ConstantArray>(CI->getOperand(2))) {
             if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(CI->getOperand(1))) {
               if (!isa<ConstantArray>(GEPI->getPointerOperand())) {
-          std::cerr << "Format string problem " << CI->getOperand(1);
-          //exit(-1);
+                std::cerr << "Format string problem " << CI->getOperand(1);
+                //exit(-1);
               }
             }
           }
@@ -1255,13 +1242,14 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
             //      exit(-1);
           }
         }
-            } else {
+      } else {
         //indirect function call doesn't call the known external functions
-        EQTDDataStructures::callee_iterator
-          cI = cbudsPass->callee_begin(CI), cE = cbudsPass->callee_end(CI);
+        EQTDDataStructures::callee_iterator cI = cbudsPass->callee_begin(CI),
+                                            cE = cbudsPass->callee_end(CI);
         for (; cI != cE; ++cI) { 
           Function * Target = (Function *)(*cI);
-          if ((Target->isDeclaration()) || (KnownFuncDB.find(Target->getName()) != KnownFuncDB.end())) {
+          if ((Target->isDeclaration()) ||
+              (KnownFuncDB.find(Target->getName()) != KnownFuncDB.end())) {
             assert(1 && " Assumption that indirect fn call doesnt call an externalfails");
           }
         }
@@ -1274,7 +1262,10 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
 // TODO:
 //  Need to handle the new floating point compare instructions
 //
-void ArrayBoundsCheck::addBranchConstraints(BranchInst *BI,BasicBlock *Successor, ABCExprTree **rootp) {
+void
+ArrayBoundsCheck::addBranchConstraints (BranchInst *BI,
+                                        BasicBlock *Successor,
+                                        ABCExprTree **rootp) {
   //this has to be a conditional branch, otherwise we wouldnt have been here
   assert((BI->isConditional()) && "abcd wrong branch constraint");
   if (CmpInst *SCI = dyn_cast<CmpInst>(BI->getCondition())) {
@@ -1347,10 +1338,13 @@ void ArrayBoundsCheck::addBranchConstraints(BranchInst *BI,BasicBlock *Successor
 
 
 // SimplifyExpression: Simplify a Value and return it as an affine expressions
-LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **rootp) {
+LinearExpr*
+ArrayBoundsCheck::SimplifyExpression (Value *Expr, ABCExprTree **rootp) {
   assert(Expr != 0 && "Can't classify a null expression!");
+
+  // nothing  known return variable itself
   if (Expr->getType() == Type::FloatTy || Expr->getType() == Type::DoubleTy)
-    return new LinearExpr(Expr, Mang) ;   // nothing  known return variable itself
+    return new LinearExpr(Expr, Mang);
 
   if ((isa<BasicBlock>(Expr)) || (isa<Function>(Expr)))
     assert(1 && "Unexpected expression type to classify!");
@@ -1423,161 +1417,162 @@ LinearExpr* ArrayBoundsCheck::SimplifyExpression( Value *Expr, ABCExprTree **roo
       string number2;
       bool addC = false;
       if (toType->isPrimitiveType() && fromType->isPrimitiveType()) {
-	//Here we have to give constraints for 
-	//FIXME .. this should be for all types not just sbyte 
-  // FIXME: JTC: I am pretty sure this is overly conservative; I'm just not
-  //             sure how to handle the lack of signed-ness on LLVM types.
-  if (toType == Type::Int32Ty) {
-    if (fromType == Type::Int8Ty) {
-	    number1 = "0";
-	    number2 = "127";
-	    addC = true;
-    } else if (fromType == Type::Int8Ty) {
-	    //in llvm front end the malloc argument is always casted to
-	    //uint! so we hack it here
-	    //This hack works incorrectly for
-	    //some programs so moved it to malloc itself
-	    //FIXME FIXME This might give incorrect results in some cases!!!!
-	    addC = true;
-    }
-  }
+        //Here we have to give constraints for 
+        //FIXME .. this should be for all types not just sbyte 
+        // FIXME: JTC: I am pretty sure this is overly conservative; I'm just
+        //             not sure how to handle the lack of signed-ness on LLVM
+        //             types.
+        if (toType == Type::Int32Ty) {
+          if (fromType == Type::Int8Ty) {
+            number1 = "0";
+            number2 = "127";
+            addC = true;
+          } else if (fromType == Type::Int8Ty) {
+            //in llvm front end the malloc argument is always casted to
+            //uint! so we hack it here
+            //This hack works incorrectly for
+            //some programs so moved it to malloc itself
+            //FIXME FIXME This might give incorrect results in some cases!!!!
+            addC = true;
+          }
+        }
 
 #if 0
-	switch(toType->getTypeID()) {
-	case Type::Int32TyID :
-	  switch (fromType->getTypeID()) {
-	  case Type::Int8TyID :
-	    number1 = "-128";
-	    number2 = "127";
-	    addC = true;
-	    break;
-	  case Type::Int8TyID :
-	    number1 = "0";
-	    number2 = "255";
-	    addC = true;
-	  default:
-	    break;
-	  }
-	case Type::Int32TyID :
-	  switch(fromType->getTypeID()) {
-	  case Type::Int32TyID :
-	    //in llvm front end the malloc argument is always casted to
-	    //uint! so we hack it here
-	    //This hack works incorrectly for
-	    //some programs so moved it to malloc itself
-	    //FIXME FIXME This might give incorrect results in some cases!!!!
-	    addC = true;
-	    break;
-	  case Type::Int8TyID :
-	  case Type::Int8TyID :
-	    number1 = "0";
-	    number2 = "255";
-	    addC = true;
-	    break;
-	  default :
-	    break;
-	  }
-	default:
-	  break;
-	}
-#endif
-	if (addC) {
-	  string var = getValueName(I);
-	  LinearExpr *l1 = new LinearExpr(I,Mang);
-	  if (number1 != "") {
-	    Constraint *c1 = new Constraint(number1,l1,">=",true);
-	    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-	  }
-	  if (number2 != "") {
-	    Constraint *c2 = new Constraint(number2,l1,"<=",true);
-	    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
-	  }
-	  Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(0),rootp),"=");
-	  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-	  return l1;
-	}
-      } else {
-	if (const PointerType *pType = dyn_cast<PointerType>(I->getType())){
-	  const Type *eltype = pType->getElementType();
-	  if (eltype->isPrimitiveType()) {
-	    unsigned numbytes = 0;
-	    if (eltype == Type::Int8Ty) {
-	    //FIXME: this should make use of Target!!!!
-	      numbytes = 1;
-	    } else if (eltype == Type::Int8Ty) {
-	      numbytes = 4;
-	    } else if (eltype == Type::Int32Ty) {
-	      numbytes = 4;
-	    } else if (eltype == Type::Int32Ty) {
-	      numbytes = 4;
-	    } else if (eltype == Type::Int16Ty) {
-	      numbytes = 2;
-	    } else if (eltype == Type::Int16Ty) {
-	      numbytes = 2;
-	    } else if (eltype == Type::Int64Ty) {
-	      numbytes = 8;
-	    } else if (eltype == Type::Int64Ty) {
-	      numbytes = 8;
-	    } 
-
-	    if (numbytes != 0) {
-	      if (const PointerType *opPType = dyn_cast<PointerType>(fromType)){
-		const Type *opEltype = opPType->getElementType();
-		if (const StructType *stype = dyn_cast<StructType>(opEltype)) {
-		  //special case for casts to beginning of structs
-		  // the case is (sbyte*) (Struct with the first element arrauy)
-		  //If it is a cast from struct to something else * ...
-		  if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
-		    if (aType->getElementType()->isPrimitiveType()) {
-		      int elSize = aType->getNumElements();
-		      if ((aType->getElementType()) == Type::Int16Ty) {
-            elSize = (elSize/numbytes)*2;
-          } else if ((aType->getElementType()) == Type::Int32Ty) {
-            elSize = (elSize/numbytes)*4;
-          } else if ((aType->getElementType()) == Type::Int64Ty) {
-            elSize = (elSize/numbytes)*8;
+        switch(toType->getTypeID()) {
+        case Type::Int32TyID :
+          switch (fromType->getTypeID()) {
+          case Type::Int8TyID :
+            number1 = "-128";
+            number2 = "127";
+            addC = true;
+            break;
+          case Type::Int8TyID :
+            number1 = "0";
+            number2 = "255";
+            addC = true;
+          default:
+            break;
           }
-		      string varName = getValueName(I);
-		      const Type* csiType = Type::Int32Ty;
-		      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
-		      LinearExpr *l1 = new LinearExpr(signedOne, Mang);
-		      return l1;
-		    }
-		  }
-		} else if (const ArrayType *aType = dyn_cast<ArrayType>(opEltype)) {
-		  if (aType->getElementType()->isPrimitiveType()) {
-		    int elSize = aType->getNumElements();
-		    if ((aType->getElementType()) == Type::Int8Ty) {
-          elSize = elSize / numbytes;
-        } else if ((aType->getElementType()) == Type::Int16Ty) {
-          elSize = (elSize/numbytes) *2;
-        } else if ((aType->getElementType()) == Type::Int32Ty) {
-          elSize = (elSize/numbytes)*4;
-        } else if ((aType->getElementType()) == Type::Int64Ty) {
-          elSize = (elSize/numbytes)*8;
+        case Type::Int32TyID :
+          switch(fromType->getTypeID()) {
+          case Type::Int32TyID :
+            //in llvm front end the malloc argument is always casted to
+            //uint! so we hack it here
+            //This hack works incorrectly for
+            //some programs so moved it to malloc itself
+            //FIXME FIXME This might give incorrect results in some cases!!!!
+            addC = true;
+            break;
+          case Type::Int8TyID :
+          case Type::Int8TyID :
+            number1 = "0";
+            number2 = "255";
+            addC = true;
+            break;
+          default :
+            break;
+          }
+        default:
+          break;
         }
-		    string varName = getValueName(I);
-		    const Type* csiType = Type::Int32Ty;
-		    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
-		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
-		    return l1;
-		  }
-		}
-	      }
-	    }
-	  }
-	}
+#endif
+        if (addC) {
+          string var = getValueName(I);
+          LinearExpr *l1 = new LinearExpr(I,Mang);
+          if (number1 != "") {
+            Constraint *c1 = new Constraint(number1,l1,">=",true);
+            *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+          }
+          if (number2 != "") {
+            Constraint *c2 = new Constraint(number2,l1,"<=",true);
+            *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
+          }
+          Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(0),rootp),"=");
+          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+          return l1;
+        }
+      } else {
+        if (const PointerType *pType = dyn_cast<PointerType>(I->getType())) {
+          const Type *eltype = pType->getElementType();
+          if (eltype->isPrimitiveType()) {
+            unsigned numbytes = 0;
+            if (eltype == Type::Int8Ty) {
+              //FIXME: this should make use of Target!!!!
+              numbytes = 1;
+            } else if (eltype == Type::Int8Ty) {
+              numbytes = 4;
+            } else if (eltype == Type::Int32Ty) {
+              numbytes = 4;
+            } else if (eltype == Type::Int32Ty) {
+              numbytes = 4;
+            } else if (eltype == Type::Int16Ty) {
+              numbytes = 2;
+            } else if (eltype == Type::Int16Ty) {
+              numbytes = 2;
+            } else if (eltype == Type::Int64Ty) {
+              numbytes = 8;
+            } else if (eltype == Type::Int64Ty) {
+              numbytes = 8;
+            } 
+
+            if (numbytes != 0) {
+              if (const PointerType *opPType = dyn_cast<PointerType>(fromType)){
+                const Type *opEltype = opPType->getElementType();
+                if (const StructType *stype = dyn_cast<StructType>(opEltype)) {
+                  // special case for casts to beginning of structs
+                  // the case is (sbyte*) (Struct with the first element arrauy)
+                  // If it is a cast from struct to something else * ...
+                  if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
+                    if (aType->getElementType()->isPrimitiveType()) {
+                      int elSize = aType->getNumElements();
+                      if ((aType->getElementType()) == Type::Int16Ty) {
+                        elSize = (elSize/numbytes)*2;
+                      } else if ((aType->getElementType()) == Type::Int32Ty) {
+                        elSize = (elSize/numbytes)*4;
+                      } else if ((aType->getElementType()) == Type::Int64Ty) {
+                        elSize = (elSize/numbytes)*8;
+                      }
+                      string varName = getValueName(I);
+                      const Type* csiType = Type::Int32Ty;
+                      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                      LinearExpr *l1 = new LinearExpr(signedOne, Mang);
+                      return l1;
+                    }
+                  }
+                } else if (const ArrayType *aType = dyn_cast<ArrayType>(opEltype)) {
+                  if (aType->getElementType()->isPrimitiveType()) {
+                    int elSize = aType->getNumElements();
+                    if ((aType->getElementType()) == Type::Int8Ty) {
+                      elSize = elSize / numbytes;
+                    } else if ((aType->getElementType()) == Type::Int16Ty) {
+                      elSize = (elSize/numbytes) *2;
+                    } else if ((aType->getElementType()) == Type::Int32Ty) {
+                      elSize = (elSize/numbytes)*4;
+                    } else if ((aType->getElementType()) == Type::Int64Ty) {
+                      elSize = (elSize/numbytes)*8;
+                    }
+                    string varName = getValueName(I);
+                    const Type* csiType = Type::Int32Ty;
+                    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
+                    return l1;
+                  }
+                }
+              }
+            }
+          }
+        }
       } 
       return SimplifyExpression(I->getOperand(0),rootp);
-    } else  {
+    } else {
       getConstraints(I,rootp);
       LinearExpr* ret = new LinearExpr(I,Mang);
       return ret;
     }
   }
+
   // Otherwise, I don't know anything about this value!
   return 0;
 }
-
 
 Pass *createArrayBoundsCheckPass() { return new ABC::ArrayBoundsCheck(); }
