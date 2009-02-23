@@ -226,8 +226,13 @@ int main(int argc, char **argv) {
 
     //
     // Do post processing required for Out of Bounds pointer rewriting.
+    // Try to optimize the checks first as the rewriteOOB pass may make
+    // optimization impossible.
     //
-    if (RewritePtrs) Passes.add(new RewriteOOB());
+    if (RewritePtrs) {
+      Passes.add (new OptimizeChecks());
+      Passes.add(new RewriteOOB());
+    }
 
     //
     // Run the LICM pass to hoist checks out of loops.
