@@ -81,11 +81,25 @@ class LinearExpr {
     void printOmegaSymbols(ostream &out);
 };
 
+//
+// Class: Constraint
+//
+// Description:
+//  This class represents a constaint of the form <var> <rel> <expr> where:
+//    <var>  : is a variable
+//    <rel>  : is one of the following relations: <, >, <=, >=
+//    <expr> : is a linear expression
+//
 class Constraint {
     string var;
     LinearExpr *le;
-    string rel; // can be < ,  >, <=, >= for now
-    bool leConstant_; //is the left value constant 
+
+    // The relation: can be < ,  >, <=, >= for now
+    string rel;
+
+    // Flags whether the left-hand value is constant 
+    bool leConstant_;
+
   public :
     Constraint(string v, LinearExpr *l, string r, bool leConstant = false ) {
       assert(l != 0 && "the rhs for this constraint is null");
@@ -102,7 +116,10 @@ class Constraint {
 // Class: ABCExprTree
 //
 // Description:
-// This holds a set of ABCExprs.
+//  This class represents a set of relations that are connected together with
+//  boolean AND and OR.  It represents the entire expression as a tree.  Each
+//  node has a left and right subtree and either an AND or OR relation that
+//  specified the relationship between the two subtrees.
 //
 class ABCExprTree {
     Constraint *constraint;
@@ -116,9 +133,9 @@ class ABCExprTree {
       right = 0;
       logOp = "&&";
     };
+
     ABCExprTree(ABCExprTree *l, ABCExprTree *r, string op) {
       constraint = 0;
-      //    r->dump();
       assert( l && " l is null \n");
       assert( r && " r is null \n");
       left = l;
