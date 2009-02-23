@@ -114,133 +114,132 @@ static bool fromMalloc = false;
 //Interprocedural ArrayBoundsCheck pass
 RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
+void ArrayBoundsCheck::initialize(Module &M) {
+  KnownFuncDB.insert("snprintf"); //added the format string & string check
+  KnownFuncDB.insert("strcpy"); //need to add the extra checks 
+  KnownFuncDB.insert("memcpy"); //need to add the extra checks 
+  KnownFuncDB.insert("llvm.memcpy"); //need to add the extra checks 
+  KnownFuncDB.insert("strlen"); //Gives return value constraints 
+  KnownFuncDB.insert("read"); // read requires checks and return value constraints
+  KnownFuncDB.insert("fread"); //need to add the extra checks 
 
- void ArrayBoundsCheck::initialize(Module &M) {
-    KnownFuncDB.insert("snprintf"); //added the format string & string check
-    KnownFuncDB.insert("strcpy"); //need to add the extra checks 
-    KnownFuncDB.insert("memcpy"); //need to add the extra checks 
-    KnownFuncDB.insert("llvm.memcpy"); //need to add the extra checks 
-    KnownFuncDB.insert("strlen"); //Gives return value constraints 
-    KnownFuncDB.insert("read"); // read requires checks and return value constraints
-    KnownFuncDB.insert("fread"); //need to add the extra checks 
+  KnownFuncDB.insert("fprintf"); //need to check if it is not format string
+  KnownFuncDB.insert("printf"); //need to check if it is not format string 
+  KnownFuncDB.insert("vfprintf"); //need to check if it is not format string 
+  KnownFuncDB.insert("syslog"); //need to check if it is not format string 
 
-    KnownFuncDB.insert("fprintf"); //need to check if it is not format string
-    KnownFuncDB.insert("printf"); //need to check if it is not format string 
-    KnownFuncDB.insert("vfprintf"); //need to check if it is not format string 
-    KnownFuncDB.insert("syslog"); //need to check if it is not format string 
+  KnownFuncDB.insert("memset"); //need to check if we are not setting outside
+  KnownFuncDB.insert("llvm.memset"); //need to check if we are not setting outside
+  KnownFuncDB.insert("gets"); // need to check if the char array is greater than 80
+  KnownFuncDB.insert("strchr"); //FIXME check has not been added yet 
+  KnownFuncDB.insert("sprintf"); //FIXME to add extra checks
+  KnownFuncDB.insert("fscanf"); //Not sure if it requires a check
 
-    KnownFuncDB.insert("memset"); //need to check if we are not setting outside
-    KnownFuncDB.insert("llvm.memset"); //need to check if we are not setting outside
-    KnownFuncDB.insert("gets"); // need to check if the char array is greater than 80
-    KnownFuncDB.insert("strchr"); //FIXME check has not been added yet 
-    KnownFuncDB.insert("sprintf"); //FIXME to add extra checks
-    KnownFuncDB.insert("fscanf"); //Not sure if it requires a check
-
-    //Not sure if the following require any checks. 
-    KnownFuncDB.insert("llvm.va_start");
-    KnownFuncDB.insert("llvm.va_end");
-    
-    //The following doesnt require checks
-    KnownFuncDB.insert("random");
-    KnownFuncDB.insert("rand");
-    KnownFuncDB.insert("clock");
-    KnownFuncDB.insert("exp");
-    KnownFuncDB.insert("fork");
-    KnownFuncDB.insert("wait");
-    KnownFuncDB.insert("fflush");
-    KnownFuncDB.insert("fclose");
-    KnownFuncDB.insert("alarm");
-    KnownFuncDB.insert("signal");
-    KnownFuncDB.insert("setuid");
-    KnownFuncDB.insert("__errno_location");
-    KnownFuncDB.insert("log");
-    KnownFuncDB.insert("srand48");
-    KnownFuncDB.insert("drand48");
-    KnownFuncDB.insert("lrand48");
-    KnownFuncDB.insert("times"); 
-    KnownFuncDB.insert("puts");
-    KnownFuncDB.insert("putchar");
-    KnownFuncDB.insert("strcmp");
-    KnownFuncDB.insert("strtol");
-    KnownFuncDB.insert("fopen");
-    KnownFuncDB.insert("fwrite");
-    KnownFuncDB.insert("fgetc");
-    KnownFuncDB.insert("getc");
-    KnownFuncDB.insert("open");
-    KnownFuncDB.insert("feof");
-    KnownFuncDB.insert("fputc");
-    KnownFuncDB.insert("atol");
-    KnownFuncDB.insert("atoi");
-    KnownFuncDB.insert("atof");
-    KnownFuncDB.insert("exit");
-    KnownFuncDB.insert("perror");
-    KnownFuncDB.insert("sqrt");
-    KnownFuncDB.insert("floor");
-    KnownFuncDB.insert("pow");
-    KnownFuncDB.insert("abort");
-    KnownFuncDB.insert("srand");
-    KnownFuncDB.insert("perror");
-    KnownFuncDB.insert("__isnan");
-    KnownFuncDB.insert("__main");
-    KnownFuncDB.insert("ceil");
-  }
+  //Not sure if the following require any checks. 
+  KnownFuncDB.insert("llvm.va_start");
+  KnownFuncDB.insert("llvm.va_end");
   
-  void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
-    for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
-      Function *F = FI;
-      includeOut << "symbolic   Unknown;\n"
-                 << "symbolic   argc;\n"
-                 << "symbolic   argv;\n"
-                 << "symbolic " << getValueName(F) <<"; \n";
+  //The following doesnt require checks
+  KnownFuncDB.insert("random");
+  KnownFuncDB.insert("rand");
+  KnownFuncDB.insert("clock");
+  KnownFuncDB.insert("exp");
+  KnownFuncDB.insert("fork");
+  KnownFuncDB.insert("wait");
+  KnownFuncDB.insert("fflush");
+  KnownFuncDB.insert("fclose");
+  KnownFuncDB.insert("alarm");
+  KnownFuncDB.insert("signal");
+  KnownFuncDB.insert("setuid");
+  KnownFuncDB.insert("__errno_location");
+  KnownFuncDB.insert("log");
+  KnownFuncDB.insert("srand48");
+  KnownFuncDB.insert("drand48");
+  KnownFuncDB.insert("lrand48");
+  KnownFuncDB.insert("times"); 
+  KnownFuncDB.insert("puts");
+  KnownFuncDB.insert("putchar");
+  KnownFuncDB.insert("strcmp");
+  KnownFuncDB.insert("strtol");
+  KnownFuncDB.insert("fopen");
+  KnownFuncDB.insert("fwrite");
+  KnownFuncDB.insert("fgetc");
+  KnownFuncDB.insert("getc");
+  KnownFuncDB.insert("open");
+  KnownFuncDB.insert("feof");
+  KnownFuncDB.insert("fputc");
+  KnownFuncDB.insert("atol");
+  KnownFuncDB.insert("atoi");
+  KnownFuncDB.insert("atof");
+  KnownFuncDB.insert("exit");
+  KnownFuncDB.insert("perror");
+  KnownFuncDB.insert("sqrt");
+  KnownFuncDB.insert("floor");
+  KnownFuncDB.insert("pow");
+  KnownFuncDB.insert("abort");
+  KnownFuncDB.insert("srand");
+  KnownFuncDB.insert("perror");
+  KnownFuncDB.insert("__isnan");
+  KnownFuncDB.insert("__main");
+  KnownFuncDB.insert("ceil");
+}
 
-      for (Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
-           aE = F->getArgumentList().end(); aI != aE; ++aI) {
-        includeOut << "symbolic   "
-                   << getValueName((aI))
-                   << ";\n";
+void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
+  for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
+    Function *F = FI;
+    includeOut << "symbolic   Unknown;\n"
+               << "symbolic   argc;\n"
+               << "symbolic   argv;\n"
+               << "symbolic " << getValueName(F) <<"; \n";
+
+    for (Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
+         aE = F->getArgumentList().end(); aI != aE; ++aI) {
+      includeOut << "symbolic   "
+                 << getValueName((aI))
+                 << ";\n";
+    }
+
+    for (Module::global_iterator gI = M.global_begin(), gE = M.global_end();
+         gI != gE; ++gI) {
+      includeOut << "symbolic   "
+                 << getValueName((gI))
+                 << ";\n";
+      if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
+        printarraytype(getValueName(gI), AT);
       }
+    }
 
-      for (Module::global_iterator gI = M.global_begin(), gE = M.global_end();
-           gI != gE; ++gI) {
+    for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      if ((&*I)->getType() != Type::VoidTy) {
         includeOut << "symbolic   "
-                   << getValueName((gI))
+                   << getValueName(&*I)
                    << ";\n";
-        if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
-          printarraytype(getValueName(gI), AT);
-        }
-      }
 
-      for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-        if ((&*I)->getType() != Type::VoidTy) {
-          includeOut << "symbolic   "
-                     << getValueName(&*I)
-                     << ";\n";
-
-          if (AllocationInst *AI = dyn_cast<AllocationInst>(&*I)) {
-            // We have to see the dimension of the array that this alloca is
-            // pointing to
-            // If the allocation is done by constant, then its a constant array
-            // else its a normal alloca which we already have taken care of  
-            if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
-              printarraytype(getValueName(&*I), AT);
-            }
+        if (AllocationInst *AI = dyn_cast<AllocationInst>(&*I)) {
+          // We have to see the dimension of the array that this alloca is
+          // pointing to
+          // If the allocation is done by constant, then its a constant array
+          // else its a normal alloca which we already have taken care of  
+          if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
+            printarraytype(getValueName(&*I), AT);
           }
         }
       }
     }
   }
+}
 
-  string ArrayBoundsCheck::getValueName(const Value *V) {
-    return Mang->getValueName(V);
-  }
+string ArrayBoundsCheck::getValueName(const Value *V) {
+  return Mang->getValueName(V);
+}
 
-  void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
-    string var1 = var + "_i";
-    includeOut << "symbolic   " << var1 << ";\n";
-    if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-      printarraytype(var1,AT);
-    }
+void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
+  string var1 = var + "_i";
+  includeOut << "symbolic   " << var1 << ";\n";
+  if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
+    printarraytype(var1,AT);
   }
+}
 
 ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
@@ -348,64 +347,63 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
   }
 }
 
-  void ArrayBoundsCheck::addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp) {
-    PostDominanceFrontier::const_iterator it = postdomFrontier->find(currentBlock);
-    if (it != postdomFrontier->end()) {
-      const PostDominanceFrontier::DomSetType &S = it->second;
-      if (S.size() > 0) {
-        PostDominanceFrontier::DomSetType::iterator pCurrent = S.begin(),
-                                                    pEnd     = S.end();
-        //check if it is control dependent on only one node.
-        //If it is control dependent on only one node.
-        //If it not, then there must be only one that dominates this node and
-        //the rest should be dominated by this node.
-        //or this must dominate every other node (incase of do while)
-        bool dominated = false; 
-        bool rdominated = true; //to check if this dominates every other node
-        for (; pCurrent != pEnd; ++pCurrent) {
-          if (*pCurrent == currentBlock) {
-            rdominated = rdominated & true;
+void ArrayBoundsCheck::addControlDependentConditions(BasicBlock *currentBlock, ABCExprTree **rootp) {
+  PostDominanceFrontier::const_iterator it = postdomFrontier->find(currentBlock);
+  if (it != postdomFrontier->end()) {
+    const PostDominanceFrontier::DomSetType &S = it->second;
+    if (S.size() > 0) {
+      PostDominanceFrontier::DomSetType::iterator pCurrent = S.begin(),
+                                                  pEnd     = S.end();
+      //check if it is control dependent on only one node.
+      //If it is control dependent on only one node.
+      //If it not, then there must be only one that dominates this node and
+      //the rest should be dominated by this node.
+      //or this must dominate every other node (incase of do while)
+      bool dominated = false; 
+      bool rdominated = true; //to check if this dominates every other node
+      for (; pCurrent != pEnd; ++pCurrent) {
+        if (*pCurrent == currentBlock) {
+          rdominated = rdominated & true;
+          continue;
+        }
+        if (!dominated) {
+          if (domTree->dominates(*pCurrent, currentBlock)) {
+            dominated = true;
+            rdominated = false;
             continue;
-          }
-          if (!dominated) {
-            if (domTree->dominates(*pCurrent, currentBlock)) {
-              dominated = true;
-              rdominated = false;
-              continue;
-            }
-          }
-          if (domTree->dominates(currentBlock, *pCurrent)) {
-            rdominated = rdominated & true;
-            continue;
-          } else {
-#if 0
-            out << "In function " << currentBlock->getParent()->getName();
-            out << "for basic block " << currentBlock->getName();
-            out << "Something wrong .. non affine or unstructured control flow ??\n";
-#endif
-            dominated = false;
-            break;
           }
         }
-        if ((dominated) || (rdominated)) {
-          // Now we are sure that the control dominance is proper
-          // i.e. it doesn't have unstructured control flow 
-          
-          PostDominanceFrontier::DomSetType::iterator pdCurrent = S.begin(),
-                                                      pdEnd     = S.end();
-          for (; pdCurrent != pdEnd; ++pdCurrent) {
-            BasicBlock *CBB = *pdCurrent;
-            if (DoneList.find(CBB) == DoneList.end()) {
-              TerminatorInst *TI = CBB->getTerminator();
-              if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
-                for (unsigned index = 0; index < BI->getNumSuccessors(); ++index) {
-                  BasicBlock * succBlock = BI->getSuccessor(index);
-                  if (postdomTree->properlyDominates(currentBlock, succBlock)) {
-                    DoneList.insert(CBB);
-                    addControlDependentConditions(CBB,rootp);
-                    addBranchConstraints(BI, BI->getSuccessor(index), rootp);
-                    break;
-                  }
+        if (domTree->dominates(currentBlock, *pCurrent)) {
+          rdominated = rdominated & true;
+          continue;
+        } else {
+#if 0
+          out << "In function " << currentBlock->getParent()->getName();
+          out << "for basic block " << currentBlock->getName();
+          out << "Something wrong .. non affine or unstructured control flow ??\n";
+#endif
+          dominated = false;
+          break;
+        }
+      }
+      if ((dominated) || (rdominated)) {
+        // Now we are sure that the control dominance is proper
+        // i.e. it doesn't have unstructured control flow 
+        
+        PostDominanceFrontier::DomSetType::iterator pdCurrent = S.begin(),
+                                                    pdEnd     = S.end();
+        for (; pdCurrent != pdEnd; ++pdCurrent) {
+          BasicBlock *CBB = *pdCurrent;
+          if (DoneList.find(CBB) == DoneList.end()) {
+            TerminatorInst *TI = CBB->getTerminator();
+            if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
+              for (unsigned index = 0; index < BI->getNumSuccessors(); ++index) {
+                BasicBlock * succBlock = BI->getSuccessor(index);
+                if (postdomTree->properlyDominates(currentBlock, succBlock)) {
+                  DoneList.insert(CBB);
+                  addControlDependentConditions(CBB,rootp);
+                  addBranchConstraints(BI, BI->getSuccessor(index), rootp);
+                  break;
                 }
               }
             }
@@ -414,302 +412,303 @@ void ArrayBoundsCheck::getConstraintsAtCallSite(CallInst *CI,ABCExprTree **rootp
       }
     }
   }
+}
 
-  // adds constraints for known functions 
-  ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
+// adds constraints for known functions 
+ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
+  const Type* csiType = Type::Int32Ty;
+  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+  string var = "0";
+  Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
+  ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
+  ABCExprTree **rootp = &root;
+  string funcName = kf->getName();
+  if (funcName == "memcpy") {
+    string var = getValueName(CI->getOperand(1));
+    LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
+    Constraint *c1 = new Constraint(var,l1,">=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"||");
+    getConstraints(CI->getOperand(1), rootp);
+    getConstraints(CI->getOperand(2), rootp);
+  } else if (funcName == "llvm.memcpy") {
+    string var = getValueName(CI->getOperand(1));
+    LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
+    Constraint *c1 = new Constraint(var,l1,">=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"||");
+    getConstraints(CI->getOperand(1), rootp);
+    getConstraints(CI->getOperand(2), rootp);
+  } else if (funcName == "strlen") {
+    string var = getValueName(CI);
     const Type* csiType = Type::Int32Ty;
     const ConstantInt * signedzero = ConstantInt::get(csiType,0);
-    string var = "0";
-    Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
-    ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
-    ABCExprTree **rootp = &root;
-    string funcName = kf->getName();
-    if (funcName == "memcpy") {
-      string var = getValueName(CI->getOperand(1));
-      LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
-      Constraint *c1 = new Constraint(var,l1,">=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"||");
-      getConstraints(CI->getOperand(1), rootp);
-      getConstraints(CI->getOperand(2), rootp);
-    } else if (funcName == "llvm.memcpy") {
-      string var = getValueName(CI->getOperand(1));
-      LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
-      Constraint *c1 = new Constraint(var,l1,">=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"||");
-      getConstraints(CI->getOperand(1), rootp);
-      getConstraints(CI->getOperand(2), rootp);
-    } else if (funcName == "strlen") {
-      string var = getValueName(CI);
-      const Type* csiType = Type::Int32Ty;
-      const ConstantInt * signedzero = ConstantInt::get(csiType,0);
-      
-      Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-      LinearExpr *l1 = new LinearExpr(CI->getOperand(1),Mang);
-      Constraint *c1 = new Constraint(var,l1,"<");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-      getConstraints(CI->getOperand(1), rootp);
-    } else if (funcName == "read") {
-      string var = getValueName(CI);
-      LinearExpr *l1 = new LinearExpr(CI->getOperand(3),Mang);
-      Constraint *c1 = new Constraint(var,l1,"<=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-      getConstraints(CI->getOperand(3), rootp);
-      
-    } else if (funcName == "fread") {
-      string var = getValueName(CI);
-      LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
-      LinearExpr *l2 = new LinearExpr(CI->getOperand(3),Mang);
-      l2->mulLinearExpr(l1);
-      Constraint *c1 = new Constraint(var,l2,"<=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-      getConstraints(CI->getOperand(3), rootp);
-      getConstraints(CI->getOperand(2), rootp);
-      
-    } else {
-      //      out << funcName << " is not supported yet \n";
-      // Ignoring some functions is okay as long as they are not part of the
-      //one of the multiple indirect calls
-      assert((CI->getOperand(0) == kf) && "Need to handle this properly \n");
-    }
-    return root;
-  }
-
-
-  void ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
-    string tempName1 = getValueName(v);
-    LinearExpr *letemp1 = new LinearExpr(v,Mang);
-    Constraint* ctemp1 = new Constraint(tempName1,letemp1,"=");
-    ABCExprTree* abctemp1 = new ABCExprTree(ctemp1);
-    getConstraintsInternal(v,&abctemp1);
-    *rootp = new ABCExprTree(*rootp, abctemp1, "&&");
-  }
-  
-  //Get Constraints on a value v, this assumes that the Table is correctly set
-  //for the function that is cal ling this 
-  void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
-    string var;
-    if ( Instruction *I = dyn_cast<Instruction>(v)) {
     
-      Function* func = I->getParent()->getParent();
-      BasicBlock * currentBlock = I->getParent();
+    Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+    LinearExpr *l1 = new LinearExpr(CI->getOperand(1),Mang);
+    Constraint *c1 = new Constraint(var,l1,"<");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+    getConstraints(CI->getOperand(1), rootp);
+  } else if (funcName == "read") {
+    string var = getValueName(CI);
+    LinearExpr *l1 = new LinearExpr(CI->getOperand(3),Mang);
+    Constraint *c1 = new Constraint(var,l1,"<=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+    getConstraints(CI->getOperand(3), rootp);
+    
+  } else if (funcName == "fread") {
+    string var = getValueName(CI);
+    LinearExpr *l1 = new LinearExpr(CI->getOperand(2),Mang);
+    LinearExpr *l2 = new LinearExpr(CI->getOperand(3),Mang);
+    l2->mulLinearExpr(l1);
+    Constraint *c1 = new Constraint(var,l2,"<=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+    getConstraints(CI->getOperand(3), rootp);
+    getConstraints(CI->getOperand(2), rootp);
+    
+  } else {
+    //      out << funcName << " is not supported yet \n";
+    // Ignoring some functions is okay as long as they are not part of the
+    //one of the multiple indirect calls
+    assert((CI->getOperand(0) == kf) && "Need to handle this properly \n");
+  }
+  return root;
+}
 
-      //Here we need to add the post dominator stuff if necessary
-      addControlDependentConditions(currentBlock, rootp);
 
-      if (!isa<ReturnInst>(I)) {
-        var = getValueName(I);
-      } else {
-        var = getValueName(func);
-      }
-      if  (fMap.count(func)) {
-        if (fMap[func]->inLocalConstraints(I)) { //checking the cache
-          if (fMap[func]->getLocalConstraint(I) != 0) {
-            *rootp = new ABCExprTree(*rootp, fMap[func]->getLocalConstraint(I),"&&");
-          }
-          return;
+void ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
+  string tempName1 = getValueName(v);
+  LinearExpr *letemp1 = new LinearExpr(v,Mang);
+  Constraint* ctemp1 = new Constraint(tempName1,letemp1,"=");
+  ABCExprTree* abctemp1 = new ABCExprTree(ctemp1);
+  getConstraintsInternal(v,&abctemp1);
+  *rootp = new ABCExprTree(*rootp, abctemp1, "&&");
+}
+
+//Get Constraints on a value v, this assumes that the Table is correctly set
+//for the function that is cal ling this 
+void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
+  string var;
+  if ( Instruction *I = dyn_cast<Instruction>(v)) {
+  
+    Function* func = I->getParent()->getParent();
+    BasicBlock * currentBlock = I->getParent();
+
+    //Here we need to add the post dominator stuff if necessary
+    addControlDependentConditions(currentBlock, rootp);
+
+    if (!isa<ReturnInst>(I)) {
+      var = getValueName(I);
+    } else {
+      var = getValueName(func);
+    }
+    if  (fMap.count(func)) {
+      if (fMap[func]->inLocalConstraints(I)) { //checking the cache
+        if (fMap[func]->getLocalConstraint(I) != 0) {
+          *rootp = new ABCExprTree(*rootp, fMap[func]->getLocalConstraint(I),"&&");
         }
-      } else {
-        fMap[func] = new FuncLocalInfo();
+        return;
       }
-      fMap[func]->addLocalConstraint(I,0);
-      if (isa<SwitchInst>(I)) {
-        //TODO later
-      } else if (ReturnInst * ri = dyn_cast<ReturnInst>(I)) {
-        if (ri->getNumOperands() > 0) {
-        //For getting the constraints on return values 
-          LinearExpr *l1 = new LinearExpr(ri->getOperand(0),Mang);
-          Constraint *c1 = new Constraint(var,l1,"=");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-          getConstraints(ri->getOperand(0), rootp);
-        }
+    } else {
+      fMap[func] = new FuncLocalInfo();
+    }
+    fMap[func]->addLocalConstraint(I,0);
+    if (isa<SwitchInst>(I)) {
+      //TODO later
+    } else if (ReturnInst * ri = dyn_cast<ReturnInst>(I)) {
+      if (ri->getNumOperands() > 0) {
+      //For getting the constraints on return values 
+        LinearExpr *l1 = new LinearExpr(ri->getOperand(0),Mang);
+        Constraint *c1 = new Constraint(var,l1,"=");
+        *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+        getConstraints(ri->getOperand(0), rootp);
+      }
+      
+    } else if (PHINode *p = dyn_cast<PHINode>(I)) {
+      //its a normal PhiNode
+      if (indMap.count(p) > 0) {
+        //We know that this is the canonical induction variable
+        //First get the upper bound
+        Value *UBound = indMap[p];
+        LinearExpr *l1 = new LinearExpr(UBound, Mang);
+        Constraint *c1 = new Constraint(var, l1, "<");
+        *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
+
+        const Type* csiType = Type::Int32Ty;
+        const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+        LinearExpr *l2 = new LinearExpr(signedzero, Mang);
+        Constraint *c2 = new Constraint(var, l2, ">=");
+        *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
         
-      } else if (PHINode *p = dyn_cast<PHINode>(I)) {
-        //its a normal PhiNode
-        if (indMap.count(p) > 0) {
-          //We know that this is the canonical induction variable
-          //First get the upper bound
-          Value *UBound = indMap[p];
-          LinearExpr *l1 = new LinearExpr(UBound, Mang);
-          Constraint *c1 = new Constraint(var, l1, "<");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
-
-          const Type* csiType = Type::Int32Ty;
-          const ConstantInt * signedzero = ConstantInt::get(csiType,0);
-          LinearExpr *l2 = new LinearExpr(signedzero, Mang);
-          Constraint *c2 = new Constraint(var, l2, ">=");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
-          
-          getConstraints(UBound, rootp);
-          
-        }
-      } else if (isa<CallInst>(I)) {
-        CallInst * CI = dyn_cast<CallInst>(I);
-        //First we have to check if it is an RMalloc
-        if (CI->getOperand(0)->getName() == "RMalloc") {
-          //It is an RMalloc, we knoe it has only one argument 
-          Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(1),rootp),"=");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-        } else {
-          if (fMap.count(func) == 0) {
-            fMap[func] = new FuncLocalInfo();
-          }
-          //This also get constraints for arguments of CI
-          getConstraintsAtCallSite(CI, rootp);
-        }
+        getConstraints(UBound, rootp);
+        
       }
-      else if (isa<AllocationInst>(I)) {
-        //Note that this is for the local variables which are converted in to
-        //allocas, mallocs , we take care of the RMallocs (CASES work)in the CallInst case
-        AllocationInst *AI = cast<AllocationInst>(I);
-        if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
-          //sometime allocas have some array as their allocating constant !!
-          //We then have to generate constraints for all the dimensions
-          const Type* csiType = Type::Int32Ty;
-          const ConstantInt * signedOne = ConstantInt::get(csiType,1);
-
-          Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-          generateArrayTypeConstraints(var, AT, rootp);
-        } else {
-          //This is the general case, where the allocas/mallocs are allocated by some
-          //variable
-          //Ugly hack because of the llvm front end's cast of
-          //argument of malloc to uint
-          fromMalloc = true;
-          Value *sizeVal = I->getOperand(0) ;
-          //          if (CastInst *csI = dyn_cast<CastInst>(I->getOperand(0))) {
-          //            const Type *toType = csI->getType();
-          //            const Type *fromType = csI->getOperand(0)->getType();
-          //            if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::UIntTyID)) {
-          //              sizeVal = csI->getOperand(0);
-          //          }
-          //          }
-          Constraint *c = new Constraint(var, SimplifyExpression(sizeVal,rootp),"=");
-          fromMalloc = false;
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-        }
-      } else if (isa<GetElementPtrInst>(I)) {
-        GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
-        Value *PointerOperand = I->getOperand(0);
-        if (const PointerType *pType = dyn_cast<PointerType>(PointerOperand->getType()) ){
-          //this is for arrays inside structs 
-          if (const StructType *stype = dyn_cast<StructType>(pType->getElementType())) {
-            //getelementptr *key, long 0, ubyte 0, long 18
-            if (GEP->getNumOperands() == 4) {
-              if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
-                int elSize = aType->getNumElements();
-                if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(3))) {
-                  elSize = elSize - CSI->getSExtValue();
-                  if (elSize == 0) {
-                  //Dirty HACK, this doesnt work for more than 2 arrays in a struct!!
-                    if (const ArrayType *aType2 = dyn_cast<ArrayType>(stype->getContainedType(1))) {
-                      elSize = aType2->getNumElements();
-                    }
-                  }
-                  const Type* csiType = Type::Int32Ty;
-                  const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
-                  Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
-                  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-                }
-              }
-            }
-          }
-        }
-        //dunno if this is a special case or need to be generalized
-        //FIXME for now it is a special case.
-        if (I->getNumOperands() == 2) {
-          getConstraints(PointerOperand,rootp);
-          getConstraints(GEP->getOperand(1),rootp);
-          LinearExpr *L1 = new LinearExpr(GEP->getOperand(1), Mang);
-          LinearExpr *L2 = new LinearExpr(PointerOperand, Mang);
-          L1->negate();
-          L1->addLinearExpr(L2);
-          Constraint *c = new Constraint(var, L1,"=");
-          *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-        }
-        //This is added for the special case found in the embedded bench marks
-        //Normally GetElementPtrInst is taken care by the getSafetyConstraints
-        //But sometimes you get a pointer to an array x = &x[0]
-        //z = getelementptr x 0 0
-        //getlelementptr z is equivalent to getelementptr x !
-        if (I->getNumOperands() == 3) {
-          if (const PointerType *PT = dyn_cast<PointerType>(PointerOperand->getType())) {
-            if (const ArrayType *AT = dyn_cast<ArrayType>(PT->getElementType())) {
-              if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(1))) {
-                if (CSI->getSExtValue() == 0) {
-                  if (const ConstantInt *CSI2 = dyn_cast<ConstantInt>(I->getOperand(2))) {
-                    if (CSI2->getSExtValue() == 0) {
-                      //Now add the constraint
-
-                      const Type* csiType = Type::Int32Ty;
-                      const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
-                      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
-                      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-                      
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      } else {
-        Constraint *c = new Constraint(var, SimplifyExpression(I,rootp),"=");
+    } else if (isa<CallInst>(I)) {
+      CallInst * CI = dyn_cast<CallInst>(I);
+      //First we have to check if it is an RMalloc
+      if (CI->getOperand(0)->getName() == "RMalloc") {
+        //It is an RMalloc, we knoe it has only one argument 
+        Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(1),rootp),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+      } else {
+        if (fMap.count(func) == 0) {
+          fMap[func] = new FuncLocalInfo();
+        }
+        //This also get constraints for arguments of CI
+        getConstraintsAtCallSite(CI, rootp);
       }
-      fMap[func]->addLocalConstraint(I,*rootp); //storing in the cache
-    } else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(v)) {
-      //Its a global variable...
-      //It could be an array
-      var = getValueName(GV);
-      if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+    }
+    else if (isa<AllocationInst>(I)) {
+      //Note that this is for the local variables which are converted in to
+      //allocas, mallocs , we take care of the RMallocs (CASES work)in the CallInst case
+      AllocationInst *AI = cast<AllocationInst>(I);
+      if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
+        //sometime allocas have some array as their allocating constant !!
+        //We then have to generate constraints for all the dimensions
         const Type* csiType = Type::Int32Ty;
         const ConstantInt * signedOne = ConstantInt::get(csiType,1);
-        
+
         Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-        generateArrayTypeConstraintsGlobal(var, AT, rootp, 1);          
+        generateArrayTypeConstraints(var, AT, rootp);
+      } else {
+        //This is the general case, where the allocas/mallocs are allocated by some
+        //variable
+        //Ugly hack because of the llvm front end's cast of
+        //argument of malloc to uint
+        fromMalloc = true;
+        Value *sizeVal = I->getOperand(0) ;
+        //          if (CastInst *csI = dyn_cast<CastInst>(I->getOperand(0))) {
+        //            const Type *toType = csI->getType();
+        //            const Type *fromType = csI->getOperand(0)->getType();
+        //            if ((toType->isPrimitiveType()) && (toType->getPrimitiveID() == Type::UIntTyID)) {
+        //              sizeVal = csI->getOperand(0);
+        //          }
+        //          }
+        Constraint *c = new Constraint(var, SimplifyExpression(sizeVal,rootp),"=");
+        fromMalloc = false;
+        *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       }
-    }
-  }
+    } else if (isa<GetElementPtrInst>(I)) {
+      GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
+      Value *PointerOperand = I->getOperand(0);
+      if (const PointerType *pType = dyn_cast<PointerType>(PointerOperand->getType()) ){
+        //this is for arrays inside structs 
+        if (const StructType *stype = dyn_cast<StructType>(pType->getElementType())) {
+          //getelementptr *key, long 0, ubyte 0, long 18
+          if (GEP->getNumOperands() == 4) {
+            if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
+              int elSize = aType->getNumElements();
+              if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(3))) {
+                elSize = elSize - CSI->getSExtValue();
+                if (elSize == 0) {
+                //Dirty HACK, this doesnt work for more than 2 arrays in a struct!!
+                  if (const ArrayType *aType2 = dyn_cast<ArrayType>(stype->getContainedType(1))) {
+                    elSize = aType2->getNumElements();
+                  }
+                }
+                const Type* csiType = Type::Int32Ty;
+                const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
+                *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+              }
+            }
+          }
+        }
+      }
+      //dunno if this is a special case or need to be generalized
+      //FIXME for now it is a special case.
+      if (I->getNumOperands() == 2) {
+        getConstraints(PointerOperand,rootp);
+        getConstraints(GEP->getOperand(1),rootp);
+        LinearExpr *L1 = new LinearExpr(GEP->getOperand(1), Mang);
+        LinearExpr *L2 = new LinearExpr(PointerOperand, Mang);
+        L1->negate();
+        L1->addLinearExpr(L2);
+        Constraint *c = new Constraint(var, L1,"=");
+        *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+      }
+      //This is added for the special case found in the embedded bench marks
+      //Normally GetElementPtrInst is taken care by the getSafetyConstraints
+      //But sometimes you get a pointer to an array x = &x[0]
+      //z = getelementptr x 0 0
+      //getlelementptr z is equivalent to getelementptr x !
+      if (I->getNumOperands() == 3) {
+        if (const PointerType *PT = dyn_cast<PointerType>(PointerOperand->getType())) {
+          if (const ArrayType *AT = dyn_cast<ArrayType>(PT->getElementType())) {
+            if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(1))) {
+              if (CSI->getSExtValue() == 0) {
+                if (const ConstantInt *CSI2 = dyn_cast<ConstantInt>(I->getOperand(2))) {
+                  if (CSI2->getSExtValue() == 0) {
+                    //Now add the constraint
 
-  void ArrayBoundsCheck::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
-    string var1 = var + "_i";
-    const Type* csiType = Type::Int32Ty;
-    if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-      const ConstantInt * signedOne = ConstantInt::get(csiType,1);
-      Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-      generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
+                    const Type* csiType = Type::Int32Ty;
+                    const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
+                    Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
+                    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+                    
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     } else {
-      const ConstantInt * signedOne = ConstantInt::get(csiType,numElem * T->getNumElements());
-      Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
+      Constraint *c = new Constraint(var, SimplifyExpression(I,rootp),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
+    fMap[func]->addLocalConstraint(I,*rootp); //storing in the cache
+  } else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(v)) {
+    //Its a global variable...
+    //It could be an array
+    var = getValueName(GV);
+    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+      const Type* csiType = Type::Int32Ty;
+      const ConstantInt * signedOne = ConstantInt::get(csiType,1);
+      
+      Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
+      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+      generateArrayTypeConstraintsGlobal(var, AT, rootp, 1);          
+    }
   }
-  
-  
-  void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
-    string var1 = var + "_i";
-    const Type* csiType = Type::Int32Ty;
-    const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
+}
+
+void ArrayBoundsCheck::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
+  string var1 = var + "_i";
+  const Type* csiType = Type::Int32Ty;
+  if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
+    const ConstantInt * signedOne = ConstantInt::get(csiType,1);
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-    if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-      generateArrayTypeConstraints(var1,AT, rootp);
-    } else if (const StructType *ST = dyn_cast<StructType>(T->getElementType())) {
-      //This will only work one level of arrays and structs
-      //If there are arrays inside a struct then this will
-      //not help us prove the safety of the access ....
-      unsigned Size = getAnalysis<TargetData>().getTypePaddedSize(ST);
-      string var2 = var1 + "_i";
-      const Type* csiType = Type::Int32Ty;
-      const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
-      Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
-      *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-    }
+    generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
+  } else {
+    const ConstantInt * signedOne = ConstantInt::get(csiType,numElem * T->getNumElements());
+    Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
+}
+
+
+void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
+  string var1 = var + "_i";
+  const Type* csiType = Type::Int32Ty;
+  const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
+  Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
+  *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+  if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
+    generateArrayTypeConstraints(var1,AT, rootp);
+  } else if (const StructType *ST = dyn_cast<StructType>(T->getElementType())) {
+    //This will only work one level of arrays and structs
+    //If there are arrays inside a struct then this will
+    //not help us prove the safety of the access ....
+    unsigned Size = getAnalysis<TargetData>().getTypePaddedSize(ST);
+    string var2 = var1 + "_i";
+    const Type* csiType = Type::Int32Ty;
+    const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
+    Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
+    *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
+  }
+}
   
 ABCExprTree *ArrayBoundsCheck::getArgumentConstraints(Function & F) {
     if (buCG->isInSCC(&F)) return 0; //Ignore recursion for now
@@ -771,60 +770,60 @@ ABCExprTree *ArrayBoundsCheck::getArgumentConstraints(Function & F) {
   }
 
 
-  void ArrayBoundsCheck::printStandardArguments(const Module *M, ostream & out) {
-    for (Module::const_iterator fI = M->begin(), fE = M->end(); fI != fE; ++fI) {
-      if (fI->getName() == "main") {
-        Function::const_arg_iterator formalArgCurrent = fI->arg_begin(), formalArgEnd = fI->arg_end();
-        if (formalArgCurrent != formalArgEnd) {
-          //relyingon front end's ability to get two arguments
-          string argcname = getValueName(formalArgCurrent);
-          ++formalArgCurrent;
-          string argvname = getValueName(formalArgCurrent);
-          out << " && " << argcname << " = " << argvname ;
-          break;
-        }
+void ArrayBoundsCheck::printStandardArguments(const Module *M, ostream & out) {
+  for (Module::const_iterator fI = M->begin(), fE = M->end(); fI != fE; ++fI) {
+    if (fI->getName() == "main") {
+      Function::const_arg_iterator formalArgCurrent = fI->arg_begin(), formalArgEnd = fI->arg_end();
+      if (formalArgCurrent != formalArgEnd) {
+        //relyingon front end's ability to get two arguments
+        string argcname = getValueName(formalArgCurrent);
+        ++formalArgCurrent;
+        string argvname = getValueName(formalArgCurrent);
+        out << " && " << argcname << " = " << argvname ;
+        break;
       }
     }
   }
+}
 
-  void ArrayBoundsCheck::printSymbolicStandardArguments(const Module *M, ostream & out) {
-    for (Module::const_iterator fI = M->begin(), fE = M->end(); fI != fE; ++fI) {
-      if (fI->getName() == "main") {
-        Function::const_arg_iterator formalArgCurrent = fI->arg_begin(), formalArgEnd = fI->arg_end();
-        if (formalArgCurrent != formalArgEnd) {
-          //relyingon front end's ability to get two arguments
-          string argcname = getValueName(formalArgCurrent);//->getName();
-          ++formalArgCurrent;
-          string argvname = getValueName(formalArgCurrent);//->getName();
-          out << "symbolic " << argcname << ";\n";
-          out << "symbolic " << argvname  << ";\n";
-          break;
-        }
+void ArrayBoundsCheck::printSymbolicStandardArguments(const Module *M, ostream & out) {
+  for (Module::const_iterator fI = M->begin(), fE = M->end(); fI != fE; ++fI) {
+    if (fI->getName() == "main") {
+      Function::const_arg_iterator formalArgCurrent = fI->arg_begin(), formalArgEnd = fI->arg_end();
+      if (formalArgCurrent != formalArgEnd) {
+        //relyingon front end's ability to get two arguments
+        string argcname = getValueName(formalArgCurrent);//->getName();
+        ++formalArgCurrent;
+        string argvname = getValueName(formalArgCurrent);//->getName();
+        out << "symbolic " << argcname << ";\n";
+        out << "symbolic " << argvname  << ";\n";
+        break;
       }
     }
   }
+}
 
-  
-  //FIXME doesn't handle any kind of recursion 
-  void ArrayBoundsCheck::checkSafety(Function &F) {
-    if (F.isDeclaration()) return;
-    if (fMap[&F] != 0) {
-      MemAccessInstListType MemAccessInstList = fMap[&F]->getMemAccessInstList();
-      MemAccessInstListIt maI = MemAccessInstList.begin(), maE = MemAccessInstList.end();
-      for (; maI != maE; ++maI) {
-        ABCExprTree *root = fMap[&F]->getSafetyConstraint(maI->first);
-        ABCExprTree * argConstraints = 0;
-        if (maI->second) {
-          argConstraints = getArgumentConstraints(F);
-        }
-        if (argConstraints) {
-          root = new ABCExprTree(root,argConstraints,"&&");
-        }
-        //omega stuff should go in here.
-        Omega(maI->first,root);
+
+//FIXME doesn't handle any kind of recursion 
+void ArrayBoundsCheck::checkSafety(Function &F) {
+  if (F.isDeclaration()) return;
+  if (fMap[&F] != 0) {
+    MemAccessInstListType MemAccessInstList = fMap[&F]->getMemAccessInstList();
+    MemAccessInstListIt maI = MemAccessInstList.begin(), maE = MemAccessInstList.end();
+    for (; maI != maE; ++maI) {
+      ABCExprTree *root = fMap[&F]->getSafetyConstraint(maI->first);
+      ABCExprTree * argConstraints = 0;
+      if (maI->second) {
+        argConstraints = getArgumentConstraints(F);
       }
+      if (argConstraints) {
+        root = new ABCExprTree(root,argConstraints,"&&");
+      }
+      //omega stuff should go in here.
+      Omega(maI->first,root);
     }
   }
+}
 
 #define parentR p2cdes[0]  
 #define childW p2cdes[1]  
