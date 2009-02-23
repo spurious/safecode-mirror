@@ -6,8 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass requires the piNodeinsertion pass.
+// This pass was an old hack in the LLVM 1.x days; it grabbed information from
+// function passes and placed the information into global variables so that it
+// could be used by ModulePass's later on.
 //
+// LLVM 2.x and latet allow a ModulePass to require a FunctionPass, so most of
+// this functionality has been removed.  The loop induction variable code still
+// remains, however.
+//
+//===----------------------------------------------------------------------===//
 
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
@@ -24,12 +31,6 @@ using namespace ABC;
 char ABCPreProcess::ID = 0;
 
 IndVarMap indMap;
-#if 0
-DominatorSet::DomSetMapType dsmt;
-PostDominatorSet::DomSetMapType pdsmt;
-PostDominanceFrontier::DomSetMapType pdfmt;
-DominanceFrontier::DomSetMapType dfmt;
-#endif
 
 void ABCPreProcess::print(ostream &out, const Module * M) const {
   out << " Printing phi nodes which are induction variables ... \n";
@@ -54,61 +55,7 @@ void ABCPreProcess::indVariables(Loop *L) {
 
 bool ABCPreProcess::runOnFunction(Function &F) {
   LoopInfo &LI =  getAnalysis<LoopInfo>();
-#if 0
-  pdf = &getAnalysis<PostDominanceFrontier>();
-  df = &getAnalysis<DominanceFrontier>();
-  //copy it to a global for later use by a module pass
-  PostDominanceFrontier::iterator pdfmI = pdf->begin(), pdfmE = pdf->end();
-  for (; pdfmI != pdfmE; ++pdfmI) {
-    PostDominanceFrontier::DomSetType &dst = pdfmI->second;
-    DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
-    for (; dstI != dstE; ++ dstI) {
-      //Could this be optimized with stl version of set copy?
-      pdfmI->first;
-      pdfmt[pdfmI->first].insert(*dstI);
-    }
-  }
 
-  //copy it to global for later use by a module pass
-  DominanceFrontier::iterator dfmI = df->begin(), dfmE = df->end();
-  for (; dfmI != dfmE; ++dfmI) {
-    DominanceFrontier::DomSetType &dst = dfmI->second;
-    DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
-    for (; dstI != dstE; ++ dstI) {
-      //Could this be optimized with stl version of set copy?
-      dfmI->first;
-      dfmt[dfmI->first].insert(*dstI);
-    }
-  }
-  
-  ds = &getAnalysis<DominatorSet>();
-  //copy it to a global for later use by a module pass
-  DominatorSet::iterator dsmI = ds->begin(), dsmE = ds->end();
-  for (; dsmI != dsmE; ++dsmI) {
-    DominatorSet::DomSetType &dst = dsmI->second;
-    DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
-    for (; dstI != dstE; ++ dstI) {
-      //Could this be optimized with stl version of set copy?
-      dsmt[dsmI->first].insert(*dstI);
-    }
-  }
-
-  
-  pds = &getAnalysis<PostDominatorSet>();
-  //copy it to a global for later use by a module pass
-  PostDominatorSet::iterator pdsmI = pds->begin(), pdsmE = pds->end();
-  for (; dsmI != dsmE; ++dsmI) {
-    DominatorSet::DomSetType &dst = pdsmI->second;
-    DominatorSet::DomSetType::iterator dstI = dst.begin(), dstE = dst.end();
-    for (; dstI != dstE; ++ dstI) {
-      //Could this be optimized with stl version of set copy?
-      pdsmt[pdsmI->first].insert(*dstI);
-    }
-  }
-#endif
-
-
-  
   for (LoopInfo::iterator I = LI.begin(), E = LI.end(); I != E; ++I) {
     Loop *L = *I;
     indVariables(L);
@@ -117,6 +64,6 @@ bool ABCPreProcess::runOnFunction(Function &F) {
 }
 
 RegisterPass<ABCPreProcess> Y("abcpre",
-                              "Array Bounds Checking preprocess pass");
+                              "Array Bounds Checking Pre-process pass");
 
 Pass *createABCPreProcessPass() { return new ABCPreProcess(); }
