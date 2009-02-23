@@ -791,12 +791,23 @@ void ArrayBoundsCheck::printSymbolicStandardArguments(const Module *M, ostream &
 }
 
 
-//FIXME doesn't handle any kind of recursion 
-void ArrayBoundsCheck::checkSafety(Function &F) {
+//
+// Method: checkSafety()
+//
+// Notes:
+//  FIXME: This method doesn't handle any kind of recursion.
+//
+void
+ArrayBoundsCheck::checkSafety(Function &F) {
+  //
+  // Do not process functions that have no body.
+  //
   if (F.isDeclaration()) return;
+
   if (fMap[&F] != 0) {
     MemAccessInstListType MemAccessInstList = fMap[&F]->getMemAccessInstList();
-    MemAccessInstListIt maI = MemAccessInstList.begin(), maE = MemAccessInstList.end();
+    MemAccessInstListIt maI = MemAccessInstList.begin(),
+                        maE = MemAccessInstList.end();
     for (; maI != maE; ++maI) {
       ABCExprTree *root = fMap[&F]->getSafetyConstraint(maI->first);
       ABCExprTree * argConstraints = 0;
@@ -909,9 +920,9 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
     }
   }
 
-  /*
-   * Wait for child processes.
-   */
+  //
+  // Wait for child processes.
+  //
   waitpid (pid, NULL, 0);
   waitpid (perlpid, NULL, 0);
 }
@@ -923,43 +934,62 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   Mang = new Mangler(M);
   
   initialize(M);
-  /* printing preliminaries */
+
+  //
+  // Create the include file that will be passed to the Omega constraint
+  // solver.
+  //
   if (!NoStaticChecks) {
     includeOut.open (OmegaFilename.c_str());
     outputDeclsForOmega(M);
     includeOut.close();
   }
-  //  out << "outputting decls for Omega done" <<endl;
-  
-  
-  //  out << " First Collect Safety Constraints ";
+
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     Function &F = *I;
 
+    //
+    // Skip functions that have no body.
+    //
     if (F.isDeclaration())
       continue;
 
+    //
     // Retrieve dominator information about the function we're processing
+    //
     DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
     PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
     PostDominanceFrontier & PDF = getAnalysis<PostDominanceFrontier>(F);
     domTree = &DTDT;
     postdomTree = &PDTDT;
     postdomFrontier = & PDF;
+
+    //
+    // Create constraints for the function.
+    //
     if (!(F.hasName()) || (KnownFuncDB.find(F.getName()) == KnownFuncDB.end()))
       collectSafetyConstraints(F);
   }
 
-  //  out << " Now checking the constraints  \n ";
+  //
+  // Check the constraints.
+  //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     Function &F = *I;
     if (I->isDeclaration())
       continue;
+
+    //
     // Retrieve dominator information about the function we're processing
+    //
     DominatorTree &DTDT = getAnalysis<DominatorTree>(F);
     PostDominatorTree &PDTDT = getAnalysis<PostDominatorTree>(F);
     domTree = &DTDT;
     postdomTree = &PDTDT;
+
+    //
+    // Run the constraint solver on the function.
+    //
     if (!(provenSafe.count(&F) != 0)) checkSafety(F);
   }
 

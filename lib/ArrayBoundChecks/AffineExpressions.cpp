@@ -59,12 +59,16 @@ LinearExpr::LinearExpr(const Value *Val, Mangler *Mang) {
   }
 }
 
-
+//
+// Method: negate()
+//
+// Description:
+//  Multiply a linear expression by negative one.
+//
 void
 LinearExpr::negate() {
   mulByConstant(-1);
 }
-
 
 void
 LinearExpr::print(ostream &out) {
@@ -86,18 +90,49 @@ LinearExpr::printOmegaSymbols(ostream &out) {
   } 
 }
 
-
+//
+// Method: addLinearExpr()
+//
+// Description:
+//  Add another linear expression to this linear expression.
+//
+// Inputs:
+//  E - A pointer to the linear expression to add to this expression.
+//
+// Return value:
+//  None.
+//
+// Notes:
+//  FIXME: This code does not consider the case where this linear expression
+//         is unknown.
+//
 void
 LinearExpr::addLinearExpr(LinearExpr *E) {
+  //
+  // If the specified expression is not a linear expression, the sum is also
+  // non-linear.
+  //
   if (E->getExprType() == Unknown) {
     exprTy = Unknown;
     return;
   }
+
+  //
+  // Grab the information from the specified expression.
+  //
   offSet = E->getOffSet() + offSet;
   VarList* vl = E->getVarList();
   CoefficientMap* cm = E->getCMap();
   ValStringMap* vsm = E->getVSMap();
   
+  //
+  // For each term in the specified expression, search for a term in this
+  // expression that uses the same variable.  If a matching term is found, add
+  // their coefficients.
+  //
+  // Otherwise, the variable for the term from the new expression does not
+  // appear in this expression; just add the term at the end of the term list.
+  //
   VarListIt vli = vl->begin();
   bool matched;
   for (; vli !=  vl->end(); ++vli) {
@@ -105,14 +140,19 @@ LinearExpr::addLinearExpr(LinearExpr *E) {
     VarListIt vlj = vList->begin();
     for (; vlj != vList->end(); ++vlj) {
       if (*vli == *vlj) {
-        //matched the vars .. now add the coefficients.
+        //
+        // We found a term with a matching variable.  Add the coefficients.
+        //
         (*cMap)[*vli] =  (*cMap)[*vli] + (*cm)[*vlj];
         matched = true;
         break;
       }
     }
+
     if (!matched) {
-      //didnt match any var....
+      //
+      // No term with the variable exists in this expression.
+      //
       vList->push_back(*vli);
       (*cMap)[*vli] = (*cm)[*vli];
       (*vsMap)[*vli] = (*vsm)[*vli];
@@ -120,27 +160,57 @@ LinearExpr::addLinearExpr(LinearExpr *E) {
   }
 }
 
+//
+// Method: mulLinearExpr()
+//
+// Description:
+//  Multiply this linear expression by another linear expression.
+//
+// Notes:
+//  Currently, this method only handles multiplying a linear expression by a
+//  constant.
+//
 LinearExpr *
 LinearExpr::mulLinearExpr(LinearExpr *E) {
+  //
+  // If this expression or the other expression is of an unhandled form, then
+  // the product of the two expressions is also unhandled (i.e., unknown).
+  //
   if ((exprTy == Unknown) || (E->getExprType() == Unknown)) {
     exprTy = Unknown;
     return this;
   }
+
+  //
+  // We only support multiplying an expression by a constant.  If neither
+  // expression is a constant, then make the expression unknown.
+  //
   VarList* vl = E->getVarList();
   if ((vl->size() != 0) && (vList->size() != 0)) {
     exprTy = Unknown;
     return this;
   }
+
+  //
+  // Find the product of the expression and the constant.
+  //
   if (vl->size() == 0) {
-    //The one coming in is a constant
+    // The specified expression is a constant.
     mulByConstant(E->getOffSet());
     return this;
   } else {
+    // This expression is a constant.
     E->mulByConstant(offSet);
     return E;
   }
 }
 
+//
+// Method: mulByConstant()
+//
+// Description:
+//  Multiply a linear expression by a constant.
+//
 void
 LinearExpr::mulByConstant(int E) {
   offSet = offSet * E;
