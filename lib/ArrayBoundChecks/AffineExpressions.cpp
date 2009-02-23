@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines a package of expression analysis utilties:
+// This file defines a package of expression analysis utilties.
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,22 +39,24 @@ LinearExpr::LinearExpr(const Value *Val, Mangler *Mang) {
     vList->push_back(Val);
     string tempstr;
     tempstr = makeNameProper(Mang->getValueName(Val));
-    /*
+#if 0
   } else {
-      int Slot = Tab.getSlot(Val); // slot number 
-      if (Slot >= 0) {
-	tempstr = "l_" + itostr(Slot) + "_" + utostr(Val->getType()->getUniqueID()); 
-      } else {
-	exprTy = Unknown;
-	tempstr = "unknown";
-	return;
-      }
+    int Slot = Tab.getSlot(Val); // slot number 
+    if (Slot >= 0) {
+      tempstr = "l_" + itostr(Slot) + "_" +
+                utostr(Val->getType()->getUniqueID()); 
+    } else {
+      exprTy = Unknown;
+      tempstr = "unknown";
+      return;
     }
-    */
+  }
+#endif
     (*vsMap)[Val] = tempstr;
     (*cMap)[Val] = 1;
+  } else {
+    exprTy =  Unknown;
   }
-  else exprTy =  Unknown;
 }
 
 
@@ -103,14 +105,14 @@ LinearExpr::addLinearExpr(LinearExpr *E) {
     VarListIt vlj = vList->begin();
     for (; vlj != vList->end(); ++vlj) {
       if (*vli == *vlj) {
-	//matched the vars .. now add the coefficients.
-	(*cMap)[*vli] =  (*cMap)[*vli] + (*cm)[*vlj];
-	matched = true;
-	break;
+        //matched the vars .. now add the coefficients.
+        (*cMap)[*vli] =  (*cMap)[*vli] + (*cm)[*vlj];
+        matched = true;
+        break;
       }
     }
     if (!matched) {
-    //didnt match any var....
+      //didnt match any var....
       vList->push_back(*vli);
       (*cMap)[*vli] = (*cm)[*vli];
       (*vsMap)[*vli] = (*vsm)[*vli];
@@ -170,8 +172,7 @@ void
 ABCExprTree::print(ostream &out) {
   if (constraint != 0) {
     constraint->print(out);
-  }
-  else {
+  } else {
     if (logOp == "||")
       out << "((";
     left->print(out);
@@ -190,11 +191,9 @@ void
 ABCExprTree::printOmegaSymbols(ostream &out) {
   if (constraint != 0) {
     constraint->printOmegaSymbols(out);
-  }
-  else {
+  } else {
     left->printOmegaSymbols(out);
     right->printOmegaSymbols(out);
   }
-
 }
 
