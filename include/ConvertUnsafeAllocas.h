@@ -108,6 +108,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
 
       AU.addPreserved<ArrayBoundsCheck>();
       AU.addPreserved<EQTDDataStructures>();
+      AU.setPreservesCFG();
 
       // Does not preserve the BU or TD graphs
 #ifdef LLVA_KERNEL       
