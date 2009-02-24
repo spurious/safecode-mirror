@@ -46,6 +46,7 @@ cl::opt<bool> DisableStackPromote ("disable-stackpromote", cl::Hidden,
 //
 namespace {
   STATISTIC (ConvAllocas,  "Number of converted allocas");
+  STATISTIC (MissingFrees, "Number of frees that we didn't insert");
 
   RegisterPass<ConvertUnsafeAllocas> cua
   ("convalloca", "Converts Unsafe Allocas");
@@ -153,6 +154,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
   DominanceFrontier * dfmt = &DF;
   DominanceFrontier::const_iterator it = dfmt->find(currentBlock);
 
+#if 0
   //
   // If the basic block has a dominance frontier, use it.
   //
@@ -180,6 +182,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
       return;
     }
   }
+#endif
 
   //
   // There is no dominance frontier; insert frees on all returns;
@@ -190,13 +193,23 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
         isa<UnwindInst>(BB->getTerminator()))
       FreePoints.push_back(BB->getTerminator());
 
+  //
   // We have the Free points; now we construct the free instructions at each
   // of the points.
+  //
   std::vector<Instruction*>::iterator fpI = FreePoints.begin(),
                                       fpE = FreePoints.end();
   for (; fpI != fpE ; ++ fpI) {
+    //
+    // Determine whether the allocation dominates the return.  If not, then
+    // don't insert a free instruction for now.
+    //
     Instruction *InsertPt = *fpI;
-    new FreeInst(MI, InsertPt);
+    if (domTree.dominates (MI->getParent(), InsertPt->getParent())) {
+      new FreeInst(MI, InsertPt);
+    } else {
+      ++MissingFrees;
+    }
   }
 }
 
