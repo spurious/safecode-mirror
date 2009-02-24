@@ -29,6 +29,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
@@ -174,6 +175,13 @@ int main(int argc, char **argv) {
 
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
+
+    //
+    // Ensure that all functions have only a single return instruction.  We do
+    // this to make stack-to-heap promotion easier (with a single return
+    // instruction, we know where to free all of the promoted alloca's).
+    //
+    Passes.add(createUnifyFunctionExitNodesPass());
 
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
