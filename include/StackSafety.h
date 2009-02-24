@@ -50,9 +50,17 @@ namespace llvm {
       virtual void releaseMemory () {
         // Clear the set of nodes
         AllocaNodes.clear();
+
+        // Clear the set of reachable nodes; this may have items from the last
+        // execution lying around.
+        reachableAllocaNodes.clear();
       }
 
     private :
+      //
+      // Tracks the DSNodes that have already been analyzed by an invocation of
+      // markReachableAllocas().
+      //
       std::set<DSNode *> reachableAllocaNodes; 
       bool markReachableAllocas(DSNode *DSN, bool start=false);
       bool markReachableAllocasInt(DSNode *DSN, bool start=false);
