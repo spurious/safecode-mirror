@@ -166,31 +166,58 @@ void ArrayBoundsCheck::initialize(Module &M) {
   KnownFuncDB.insert("ceil");
 }
 
-void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
+//
+// Method: outputDeclsForOmega()
+//
+// Description:
+//  Output the variables from the module that will be included in every call to
+//  the Omega compiler.
+//
+void
+ArrayBoundsCheck::outputDeclsForOmega (Module& M) {
+  //
+  // Generate Omega variables for argv and argc.
+  //
+  // FIXME:
+  //  For what purpose is the Unknown variable?
+  //
+  includeOut << "symbolic   Unknown;\n"
+             << "symbolic   argc;\n"
+             << "symbolic   argv;\n";
+
+  //
+  // Create an Omega variable for each global variable.
+  //
+  Module::global_iterator gI = M.global_begin(), gE = M.global_end();
+  for (; gI != gE; ++gI) {
+    includeOut << "symbolic   " << getValueName((gI)) << ";\n";
+    if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
+      printarraytype(getValueName(gI), AT);
+    }
+  }
+
   for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI) {
+    // For sanity, change the iterator into an actual Function pointer
     Function *F = FI;
-    includeOut << "symbolic   Unknown;\n"
-               << "symbolic   argc;\n"
-               << "symbolic   argv;\n"
-               << "symbolic " << getValueName(F) <<"; \n";
 
-    for (Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
-         aE = F->getArgumentList().end(); aI != aE; ++aI) {
-      includeOut << "symbolic   "
-                 << getValueName((aI))
-                 << ";\n";
+    //
+    // Create an Omega variable for the function's name.
+    //
+    includeOut << "symbolic " << getValueName(F) <<"; \n";
+
+    //
+    // Create an Omega variable for each parameter of the function.
+    //
+    Function::ArgumentListType::iterator aI=F->getArgumentList().begin(),
+                                         aE=F->getArgumentList().end();
+    for (; aI != aE; ++aI) {
+      includeOut << "symbolic   " << getValueName((aI)) << ";\n";
     }
 
-    for (Module::global_iterator gI = M.global_begin(), gE = M.global_end();
-         gI != gE; ++gI) {
-      includeOut << "symbolic   "
-                 << getValueName((gI))
-                 << ";\n";
-      if (const ArrayType *AT = dyn_cast<ArrayType>(gI->getType()->getElementType())) {
-        printarraytype(getValueName(gI), AT);
-      }
-    }
-
+    //
+    // Create an Omega variable for each non-void instruction within the
+    // function.
+    //
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if ((&*I)->getType() != Type::VoidTy) {
         includeOut << "symbolic   "
@@ -211,8 +238,27 @@ void ArrayBoundsCheck::outputDeclsForOmega(Module& M) {
   }
 }
 
-string ArrayBoundsCheck::getValueName(const Value *V) {
-  return Mang->getValueName(V);
+//
+// Method: getValueName()
+//
+// Description:
+//  Provide a name for the specified LLVM Value that is acceptable as a
+//  variable name for the Omega Calculator.
+//
+// Inputs:
+//  V - The LLVM value for which to generate a name.
+//
+// Return value:
+//  A managled name that can be used as a variable name in the Omega
+//  Calculator.
+//
+std::string
+ArrayBoundsCheck::getValueName(const Value *V) {
+  //
+  // First mangle the name.  After that, use makeNameProper() to remove
+  // characters that are invalid in variables names for the Omega compiler.
+  //
+  return makeNameProper(Mang->getValueName(V));
 }
 
 void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
