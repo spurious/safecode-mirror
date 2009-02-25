@@ -11,6 +11,15 @@
 // operations are safe.  This pass uses control dependence and post dominance
 // frontier to generate constraints.
 //
+// FIXME:
+//  The interface for this pass should probably be changed so that multiple
+//  implementations can be plugged in providing different tradeoffs between
+//  accuracy and efficiency.  For example, a FunctionPass interface could be
+//  used to query whether a GEP requires a run-time check.  This implementation
+//  would have said FunctionPass query a ModulePass that performs the
+//  constraint solving; other intraprocedural implementations could be
+//  simple FunctionPass'es.
+//
 //===----------------------------------------------------------------------===//
 
 #include <unistd.h>
@@ -269,7 +278,14 @@ void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
   }
 }
 
-ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
+//
+// Method: getReturnValueConstraints()
+//
+// Description:
+//  Get the constraints for the return value of the specified function.
+//
+ABCExprTree*
+ArrayBoundsCheck::getReturnValueConstraints (Function *f) {
   bool localSave = reqArgs;
   const Type* csiType = Type::Int32Ty;
   const ConstantInt * signedzero = ConstantInt::get(csiType,0);
@@ -286,6 +302,14 @@ ABCExprTree* ArrayBoundsCheck::getReturnValueConstraints(Function *f) {
   return root;
 }
 
+//
+// Method: addFormalToActual()
+//
+// Description:
+//  Add constraints to the constraint expression stating that the actual
+//  parameters in the call site match the formal arguments in the function
+//  definition.
+//
 void
 ArrayBoundsCheck::addFormalToActual (Function *Fn,
                                      CallInst *CI,
@@ -308,35 +332,83 @@ ArrayBoundsCheck::addFormalToActual (Function *Fn,
   }
 }
 
-// This is an auxillary function used by getConstraints
-// gets the constraints on the return value interms of its arguments
-// and ands it with the existing rootp!
+//
+// Method: getConstraintsAtCallSite()
+//
+// Description:
+//  This is an auxillary function used by getConstraints().  It gets the
+//  constraints on the return value in terms of its arguments and creates a
+//  conjunction with these new constraints and the constraints specified in
+//  rootp.
+//
+// Inputs:
+//  CI - The Call instruction
+//  rootp - A reference to the pre-defined constraints.
+//
+// Outputs:
+//  rootp - This constraint expression is updated to have the new constraints
+//          discovered by this method.
+//
+// Notes:
+//  FIXME: The astute observer will notice that the code always assumes that
+//         direct function calls to functions with no body are in the set of
+//         pre-defined known functions while the code for indirect function
+//         calls checks to see that the target function is also in KnownFuncDB.
+//         This is probably a bug.
+//
+//  FIXME: Is ignoring recursively called functions safe?
+//
 void
-ArrayBoundsCheck::getConstraintsAtCallSite (CallInst *CI,ABCExprTree **rootp) {
+ArrayBoundsCheck::getConstraintsAtCallSite (CallInst *CI, ABCExprTree **rootp) {
+  //
+  // Process direct and indirect calls differently.
+  //
   if (Function *pf = dyn_cast<Function>(CI->getOperand(0))) {
+    //
+    // If the target function is not defined, it may be a function for which
+    // pre-defined constraints already exist.
+    //
     if (pf->isDeclaration()) {
-      *rootp = new ABCExprTree(*rootp,addConstraintsForKnownFunctions(pf, CI), "&&");
-      addFormalToActual(pf, CI, rootp);
+      *rootp = new ABCExprTree (*rootp,
+                                addConstraintsForKnownFunctions(pf, CI),
+                                "&&");
+      addFormalToActual (pf, CI, rootp);
     } else {
+      //
+      // FIXME:
+      //  Do not process functions that are called recursively i.e., are in
+      //  an SCC.
+      //
       if (buCG->isInSCC(pf)) {
         std::cerr << "Ignoring return values on function in recursion\n";
         return; 
       }
+
+      //
+      // Create new constraints for the return value of the function.
+      //
       *rootp = new ABCExprTree(*rootp,getReturnValueConstraints(pf), "&&");
       addFormalToActual(pf, CI, rootp);
     }
-    //Now get the constraints on the actual arguemnts for the original call site 
+
+    //
+    // Now get the constraints on the actual arguments for the original call
+    // site.
+    //
     for (unsigned i =1; i < CI->getNumOperands(); ++i) 
-      getConstraints(CI->getOperand(i),rootp);
+      getConstraints (CI->getOperand(i), rootp);
   } else {
-    //Indirect Calls
+    // Handle Indirect Calls
+
     ABCExprTree *temproot = 0;
-    // Loop over all of the actually called functions...
+
+    // Loop over all of the possible targets of the call instruction
     EQTDDataStructures::callee_iterator I = cbudsPass->callee_begin(CI),
-                                              E = cbudsPass->callee_end(CI);
+                                        E = cbudsPass->callee_end(CI);
     //    assert((I != E) && "Indirect Call site doesn't have targets ???? ");
     //Actually thats fine, we ignore the return value constraints ;)
-    for(; I != E; ++I) {
+
+    for (; I != E; ++I) {
       // Get the function called by the indirect function call
       Function * Target = (Function *)(*I);
 
@@ -370,8 +442,10 @@ ArrayBoundsCheck::getConstraintsAtCallSite (CallInst *CI,ABCExprTree **rootp) {
     }
     if (temproot) {
       *rootp = new ABCExprTree(*rootp, temproot, "&&");
-      // Now get the constraints on the actual arguemnts for the original
+      //
+      // Now get the constraints on the actual arguments for the original
       // call site 
+      //
       for (unsigned i =1; i < CI->getNumOperands(); ++i) {
         getConstraints(CI->getOperand(i),rootp);
       }
@@ -448,8 +522,24 @@ ArrayBoundsCheck::addControlDependentConditions (BasicBlock *currentBlock,
   }
 }
 
-// adds constraints for known functions 
-ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, CallInst *CI) {
+//
+// Method: addConstraintsForKnownFunctions()
+//
+// Description:
+//  Generates constraints for a call instruction to a pre-defined function
+//  (this function is usually either an LLVM intrinsic or a standard libc
+//  function).
+//
+// Inputs:
+//  kf - The called function (this could be the target of an indirect function
+//       call).
+//  CI - The call instruction (can be an indirect call; hence the need for kf).
+//
+// Return value:
+//  The constraint expression for the call instruction is returned.
+//
+ABCExprTree*
+ArrayBoundsCheck::addConstraintsForKnownFunctions (Function *kf, CallInst *CI) {
   const Type* csiType = Type::Int32Ty;
   const ConstantInt * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
@@ -508,8 +598,15 @@ ABCExprTree* ArrayBoundsCheck::addConstraintsForKnownFunctions(Function *kf, Cal
   return root;
 }
 
-
-void ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
+//
+// Method: getConstraints()
+//
+// Description:
+//  Get constraints on an LLVM Value.  This code sets up the call to the
+//  getConstraintsInternal() method (which does all the real work).
+//
+void
+ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
   string tempName1 = getValueName(v);
   LinearExpr *letemp1 = new LinearExpr(v,Mang);
   Constraint* ctemp1 = new Constraint(tempName1,letemp1,"=");
@@ -522,7 +619,7 @@ void ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
 // Method: getConstraintsInternal()
 //
 // Description:
-//  Get Constraints on an LLVM Value.  This code assumes that the Table is
+//  Get constraints on an LLVM Value.  This code assumes that the Table is
 //  correctly set for the function that is calling this.
 //
 void
@@ -738,10 +835,12 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
     //
     fMap[func]->addLocalConstraint(I,*rootp);
   } else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(v)) {
-    //Its a global variable...
-    //It could be an array
+    //
+    // Generate a constraint if the global variable is a global array.
+    //
     var = getValueName(GV);
-    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
+    if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()
+                                                    ->getElementType())) {
       const Type* csiType = Type::Int32Ty;
       const ConstantInt * signedOne = ConstantInt::get(csiType,1);
       
@@ -752,16 +851,30 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
   }
 }
 
-void ArrayBoundsCheck::generateArrayTypeConstraintsGlobal(string var, const ArrayType *T, ABCExprTree **rootp, unsigned int numElem) {
+void
+ArrayBoundsCheck::generateArrayTypeConstraintsGlobal (string var,
+                                                      const ArrayType *T,
+                                                      ABCExprTree **rootp,
+                                                      unsigned int numElem) {
   string var1 = var + "_i";
   const Type* csiType = Type::Int32Ty;
   if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
+    //
+    // If this is a multi-dimensional array, call this method recursively to
+    // get the constraints of the array inside of this array.
+    //
     const ConstantInt * signedOne = ConstantInt::get(csiType,1);
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
-    generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
+    generateArrayTypeConstraintsGlobal(var1,
+                                       AT,
+                                       rootp,
+                                       T->getNumElements() * numElem);
   } else {
-    const ConstantInt * signedOne = ConstantInt::get(csiType,numElem * T->getNumElements());
+    //
+    // If this is a single dimension array, create a constraint for it.
+    //
+    const ConstantInt * signedOne = ConstantInt::get (csiType, numElem * T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
