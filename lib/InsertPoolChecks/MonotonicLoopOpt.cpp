@@ -158,7 +158,7 @@ namespace {
   // values if it is a monotonic one.
   bool
   MonotonicLoopOpt::isMonotonicLoop(Loop * L, Value * loopVar) {
-    bool HasConstantItCount = isa<SCEVConstant>(scevPass->getIterationCount(L));
+    bool HasConstantItCount = isa<SCEVConstant>(scevPass->getBackedgeTakenCount(L));
 
     SCEVHandle SH = scevPass->getSCEV(loopVar);
     if (SH->hasComputableLoopEvolution(L) ||    // Varies predictably
