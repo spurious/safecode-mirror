@@ -518,49 +518,76 @@ void ArrayBoundsCheck::getConstraints(Value *v, ABCExprTree **rootp) {
   *rootp = new ABCExprTree(*rootp, abctemp1, "&&");
 }
 
-//Get Constraints on a value v, this assumes that the Table is correctly set
-//for the function that is cal ling this 
-void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
+//
+// Method: getConstraintsInternal()
+//
+// Description:
+//  Get Constraints on an LLVM Value.  This code assumes that the Table is
+//  correctly set for the function that is calling this.
+//
+void
+ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
   string var;
-  if ( Instruction *I = dyn_cast<Instruction>(v)) {
-  
-    Function* func = I->getParent()->getParent();
+
+  if (Instruction *I = dyn_cast<Instruction>(v)) {
+    // The basic block in which the instruction is located
     BasicBlock * currentBlock = I->getParent();
 
-    //Here we need to add the post dominator stuff if necessary
-    addControlDependentConditions(currentBlock, rootp);
+    // The function in which the instruction is located
+    Function* func = currentBlock->getParent();
 
+    // Here we need to add the post dominator stuff if necessary
+    addControlDependentConditions (currentBlock, rootp);
+
+    //
+    // Set the name of the variable.  If it is a return instruction, set the
+    // name to the name of the function (as a ReturnInst is not a Value).
+    //
     if (!isa<ReturnInst>(I)) {
       var = getValueName(I);
     } else {
       var = getValueName(func);
     }
-    if  (fMap.count(func)) {
+
+    //
+    // Check to see whether we have already created a constraint expression for
+    // this instruction.  If so, then the constraint of the input Value is the
+    // conjuntion of the given constraint and the constraint already computed
+    // for this Value. 
+    //
+    if (fMap.count(func)) {
       if (fMap[func]->inLocalConstraints(I)) { //checking the cache
         if (fMap[func]->getLocalConstraint(I) != 0) {
-          *rootp = new ABCExprTree(*rootp, fMap[func]->getLocalConstraint(I),"&&");
+          *rootp = new ABCExprTree(*rootp,
+                                   fMap[func]->getLocalConstraint(I),
+                                   "&&");
         }
         return;
       }
     } else {
       fMap[func] = new FuncLocalInfo();
     }
-    fMap[func]->addLocalConstraint(I,0);
+
+    //
+    // No previous constraints exist for the instruction.  Create a new
+    // constraint and record it in the function constraint map (fMap).
+    //
+    fMap[func]->addLocalConstraint (I,0);
     if (isa<SwitchInst>(I)) {
-      //TODO later
+      // TODO later
     } else if (ReturnInst * ri = dyn_cast<ReturnInst>(I)) {
       if (ri->getNumOperands() > 0) {
-      //For getting the constraints on return values 
+        // Constraints on return values 
         LinearExpr *l1 = new LinearExpr(ri->getOperand(0),Mang);
         Constraint *c1 = new Constraint(var,l1,"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
         getConstraints(ri->getOperand(0), rootp);
       }
     } else if (PHINode *p = dyn_cast<PHINode>(I)) {
-      //its a normal PhiNode
+      // Constraints on normal PhiNodes
       if (indMap.count(p) > 0) {
-        //We know that this is the canonical induction variable
-        //First get the upper bound
+        // We know that this is the canonical induction variable
+        // First get the upper bound
         Value *UBound = indMap[p];
         LinearExpr *l1 = new LinearExpr(UBound, Mang);
         Constraint *c1 = new Constraint(var, l1, "<");
@@ -574,39 +601,44 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
         
         getConstraints(UBound, rootp);
       }
-    } else if (isa<CallInst>(I)) {
-      CallInst * CI = dyn_cast<CallInst>(I);
-      //First we have to check if it is an RMalloc
+    } else if (CallInst * CI = dyn_cast<CallInst>(I)) {
+      // Constraints on a calls to the RMalloc function
+
+      //
+      // FIXME: What is RMalloc and why is it important?
+      //
       if (CI->getOperand(0)->getName() == "RMalloc") {
-        //It is an RMalloc, we knoe it has only one argument 
+        // It is an RMalloc, we know it has only one argument 
         Constraint *c = new Constraint(var, SimplifyExpression(I->getOperand(1),rootp),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       } else {
         if (fMap.count(func) == 0) {
           fMap[func] = new FuncLocalInfo();
         }
-        //This also get constraints for arguments of CI
+        // This also get constraints for arguments of CI
         getConstraintsAtCallSite(CI, rootp);
       }
-    }
-    else if (isa<AllocationInst>(I)) {
-      //Note that this is for the local variables which are converted in to
-      //allocas, mallocs , we take care of the RMallocs (CASES work)in the CallInst case
-      AllocationInst *AI = cast<AllocationInst>(I);
+    } else if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+      //
+      // Note that this is for local variables which are converted into
+      // allocas and mallocs.  We take care of the RMallocs (CASES work) in the
+      // CallInst case
+      //
       if (const ArrayType *AT = dyn_cast<ArrayType>(AI->getType()->getElementType())) {
-        //sometime allocas have some array as their allocating constant !!
-        //We then have to generate constraints for all the dimensions
+        // Sometimes allocas have some array as their allocating constant !!
+        // We then have to generate constraints for all the dimensions
         const Type* csiType = Type::Int32Ty;
         const ConstantInt * signedOne = ConstantInt::get(csiType,1);
 
-        Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
+        Constraint *c=new Constraint(var, new LinearExpr(signedOne, Mang),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
         generateArrayTypeConstraints(var, AT, rootp);
       } else {
-        //This is the general case, where the allocas/mallocs are allocated by some
-        //variable
-        //Ugly hack because of the llvm front end's cast of
-        //argument of malloc to uint
+        // This is the general case, where the allocas/mallocs are allocated by
+        // some variable.
+        // Note:
+        //  Ugly hack because of the LLVM front end's cast of argument of
+        //  malloc to uint
         fromMalloc = true;
         Value *sizeVal = I->getOperand(0) ;
         //          if (CastInst *csI = dyn_cast<CastInst>(I->getOperand(0))) {
@@ -616,39 +648,47 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
         //              sizeVal = csI->getOperand(0);
         //          }
         //          }
-        Constraint *c = new Constraint(var, SimplifyExpression(sizeVal,rootp),"=");
+        Constraint *c = new Constraint(var,
+                            SimplifyExpression(sizeVal,rootp),
+                            "=");
         fromMalloc = false;
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       }
-    } else if (isa<GetElementPtrInst>(I)) {
-      GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
+    } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I)) {
       Value *PointerOperand = I->getOperand(0);
       if (const PointerType *pType = dyn_cast<PointerType>(PointerOperand->getType()) ){
-        //this is for arrays inside structs 
+        // This is for arrays inside structs 
         if (const StructType *stype = dyn_cast<StructType>(pType->getElementType())) {
-          //getelementptr *key, long 0, ubyte 0, long 18
+          // getelementptr *key, long 0, ubyte 0, long 18
           if (GEP->getNumOperands() == 4) {
             if (const ArrayType *aType = dyn_cast<ArrayType>(stype->getContainedType(0))) {
               int elSize = aType->getNumElements();
               if (const ConstantInt *CSI = dyn_cast<ConstantInt>(I->getOperand(3))) {
                 elSize = elSize - CSI->getSExtValue();
                 if (elSize == 0) {
-                //Dirty HACK, this doesnt work for more than 2 arrays in a struct!!
+                  //
+                  // FIXME:
+                  //  Dirty HACK.  This doesn't work for more than 2 arrays in
+                  //  a struct!!
+                  //
                   if (const ArrayType *aType2 = dyn_cast<ArrayType>(stype->getContainedType(1))) {
                     elSize = aType2->getNumElements();
                   }
                 }
                 const Type* csiType = Type::Int32Ty;
                 const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
-                Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
+                Constraint *c = new Constraint(var,
+                                               new LinearExpr(signedOne, Mang),
+                                               "=");
                 *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
               }
             }
           }
         }
       }
-      //dunno if this is a special case or need to be generalized
-      //FIXME for now it is a special case.
+
+      // Dunno if this is a special case or needs to be generalized
+      // FIXME for now it is a special case.
       if (I->getNumOperands() == 2) {
         getConstraints(PointerOperand,rootp);
         getConstraints(GEP->getOperand(1),rootp);
@@ -659,11 +699,14 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
         Constraint *c = new Constraint(var, L1,"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
       }
-      //This is added for the special case found in the embedded bench marks
-      //Normally GetElementPtrInst is taken care by the getSafetyConstraints
-      //But sometimes you get a pointer to an array x = &x[0]
-      //z = getelementptr x 0 0
-      //getlelementptr z is equivalent to getelementptr x !
+
+      //
+      // This is added for the special case found in the embedded bench marks
+      // Normally GetElementPtrInst is taken care by the getSafetyConstraints
+      // But sometimes you get a pointer to an array x = &x[0]
+      // z = getelementptr x 0 0
+      // getlelementptr z is equivalent to getelementptr x !
+      //
       if (I->getNumOperands() == 3) {
         if (const PointerType *PT = dyn_cast<PointerType>(PointerOperand->getType())) {
           if (const ArrayType *AT = dyn_cast<ArrayType>(PT->getElementType())) {
@@ -689,7 +732,11 @@ void ArrayBoundsCheck::getConstraintsInternal(Value *v, ABCExprTree **rootp) {
       Constraint *c = new Constraint(var, SimplifyExpression(I,rootp),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     }
-    fMap[func]->addLocalConstraint(I,*rootp); //storing in the cache
+
+    //
+    // Store the new constraint in the function map cache.
+    //
+    fMap[func]->addLocalConstraint(I,*rootp);
   } else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(v)) {
     //Its a global variable...
     //It could be an array
@@ -978,7 +1025,7 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   buCG      = &getAnalysis<BottomUpCallGraph>();
 
   Mang = new Mangler(M);
-  
+
   initialize(M);
 
   //
@@ -1044,10 +1091,14 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
 
 
 void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
+  //
+  // If we have not analyzed this function before, create a new entry for it
+  // in the function map.
+  //
   if (fMap.count(&F) == 0) {
     fMap[&F] = new FuncLocalInfo();
   }
-      
+
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     Instruction *iLocal = &*I;
 
@@ -1061,9 +1112,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
       }
     }
 
-    if (isa<GetElementPtrInst>(iLocal)) {
-      GetElementPtrInst *MAI = cast<GetElementPtrInst>(iLocal);
-
+    if (GetElementPtrInst *MAI = dyn_cast<GetElementPtrInst>(iLocal)) {
       if (const PointerType *PT = dyn_cast<PointerType>(MAI->getPointerOperand()->getType())) {
         if (!isa<StructType>(PT->getElementType())) {
           User::op_iterator mI = MAI->op_begin(), mE = MAI->op_end();
@@ -1071,11 +1120,16 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
             continue;
           }
 
+          //
+          // If static checking is disabled, then assume that this GEP is
+          // unsafe and continue to the next instruction.
+          //
           if (NoStaticChecks) {
             MarkGEPUnsafe (MAI);
             continue;
           }
 
+          // Advance to the first index operand
           mI++;
           ABCExprTree *root;
           string varName = getValueName(MAI->getPointerOperand());
@@ -1085,6 +1139,12 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           Constraint* c2 = new Constraint("0",le,">",true); // 0 > index
           ABCExprTree* abctemp2 = new ABCExprTree(c2);
           root = new ABCExprTree(abctemp1, abctemp2, "||");
+root->print (std::cerr);
+std::cerr << "\n\n";
+
+          //
+          // Process the other indices in the GEP.
+          //
           mI++;
           for (; mI != mE; ++mI) {
             LinearExpr *le = new LinearExpr(*mI,Mang);
@@ -1096,6 +1156,7 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
             ABCExprTree*abctempor = new ABCExprTree(abctemp1,abctemp2,"||"); // abctemp1 || abctemp2
             root = new ABCExprTree(root, abctempor, "||");
           }
+
           //reinitialize mI , now getting the constraints on the indices
           //We need to clear DoneList since we are getting constraints for a
           //new access. (DoneList is the list of basic blocks that are in the
