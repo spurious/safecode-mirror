@@ -31,6 +31,7 @@ AC_CONFIG_MAKEFILE(lib/InsertPoolChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/PointerChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/StackSafety/Makefile)
 AC_CONFIG_MAKEFILE(test/Makefile)
+AC_CONFIG_MAKEFILE(test/BOdiagsuite-20050808/Makefile)
 
 dnl **************************************************************************
 dnl * Determine which system we are building on

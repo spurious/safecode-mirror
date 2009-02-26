@@ -1,0 +1,37 @@
+##===- safecode/test/TEST.safecode.Makefile ----------------*- Makefile -*-===##
+#
+# This file defines how to generate SAFECode files from C programs.
+#
+##===----------------------------------------------------------------------===##
+
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+
+PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
+PA_RT_BC := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+POOLSYSTEM_RT_BC := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
+
+# Pre processing library for DSA
+ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
+
+PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
+
+OPTZN_PASSES := -strip-debug -std-compile-opts $(EXTRA_LOPT_OPTIONS)
+
+%.sc : %.s
+	$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+
+%.s : %.scoptbc
+	$(LLC) $(LLCFLAGS) -f $< -o $@
+
+%.scoptbc : %.scbc
+	$(LLVMLDPROG) -disable-opt -link-as-library $< $(PA_RT_BC) $(POOLSYSTEM_RT_BC) -o $<.ld
+	$(LOPT) $(OPTZN_PASSES) $<.ld -f -o $@
+	rm $<.ld
+
+%.scbc : %.pabc
+	$(SC) $(SCFLAGS) $< -f -o $@
+
+%.pabc : %.bc
+	$(LLVMLDPROG) $(LLVMLDFLAGS) -disable-opt -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC)
+	$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@
+	rm $@.paprert.bc

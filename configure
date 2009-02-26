@@ -1752,6 +1752,9 @@ ac_config_commands="$ac_config_commands lib/StackSafety/Makefile"
 ac_config_commands="$ac_config_commands test/Makefile"
 
 
+ac_config_commands="$ac_config_commands test/BOdiagsuite-20050808/Makefile"
+
+
 
 
 
@@ -3451,6 +3454,7 @@ do
     "lib/PointerChecks/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS lib/PointerChecks/Makefile" ;;
     "lib/StackSafety/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS lib/StackSafety/Makefile" ;;
     "test/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS test/Makefile" ;;
+    "test/BOdiagsuite-20050808/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS test/BOdiagsuite-20050808/Makefile" ;;
     "include/safecode/Config/config.h") CONFIG_HEADERS="$CONFIG_HEADERS include/safecode/Config/config.h" ;;
 
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -3981,6 +3985,8 @@ echo "$as_me: executing $ac_file commands" >&6;}
    ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/lib/StackSafety/Makefile lib/StackSafety/Makefile ;;
     "test/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname test/Makefile`
    ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/test/Makefile test/Makefile ;;
+    "test/BOdiagsuite-20050808/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname test/BOdiagsuite-20050808/Makefile`
+   ${SHELL} ${llvm_src}/autoconf/install-sh -c ${srcdir}/test/BOdiagsuite-20050808/Makefile test/BOdiagsuite-20050808/Makefile ;;
 
   esac
 done # for ac_tag
