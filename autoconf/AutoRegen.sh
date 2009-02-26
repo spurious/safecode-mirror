@@ -5,7 +5,7 @@ die () {
 }
 test -d autoconf && test -f autoconf/configure.ac && cd autoconf
 test -f configure.ac || die "Can't find 'autoconf' dir; please cd into it first"
-autoconf --version | egrep '2\.5[0-9]' > /dev/null
+autoconf --version | egrep '2\.[5-6][0-9]' > /dev/null
 if test $? -ne 0 ; then
 	die "Your autoconf was not detected as being 2.5x"
 fi
@@ -19,12 +19,12 @@ elif test -d ../../llvm/autoconf/m4 ; then
   llvm_m4=`pwd`
   cd $cwd
 else
-  die "Can't find the LLVM autoconf/m4 directory. The project should be checked out to projects directory"
+  die "Can't find the LLVM autoconf/m4 directory. SAFECode should be checked out to projects directory"
 fi
 echo "Regenerating aclocal.m4 with aclocal"
 rm -f aclocal.m4
 aclocal -I $llvm_m4 -I "$llvm_m4/.." || die "aclocal failed"
 echo "Regenerating configure with autoconf 2.5x"
-autoconf --warnings=all -o ../configure configure.ac || die "autoconf failed"
+autoconf --force --warnings=all -o ../configure configure.ac || die "autoconf failed"
 cd ..
 exit 0
