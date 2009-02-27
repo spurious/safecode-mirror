@@ -30,7 +30,7 @@ $(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
                   $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
 	$(Echo) Linking $(BuildMode) executable $(TOOLNAME) $(StripWarnMsg)
-	$(Verb) $(LTLink) -o $@ $(TOOLLINKOPTS) $(ObjectsO) $(ProjLibsOptions) \
+	$(Verb) $(Link) -o $@ $(TOOLLINKOPTS) $(ObjectsO) $(ProjLibsOptions) \
 	$(LLVMLibsOptions) $(ExtraLibs) $(TOOLLINKOPTSB) $(LIBS)
 	$(Echo) ======= Finished Linking $(BuildMode) Executable $(TOOLNAME) \
 					$(StripWarnMsg)
