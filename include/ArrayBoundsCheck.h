@@ -84,7 +84,7 @@ struct ArrayBoundsCheck : public ModulePass {
     PostDominanceFrontier * postdomFrontier;
 
     // This is required for getting the names/unique identifiers for variables.
-    Mangler *Mang;
+    OmegaMangler *Mang;
 
     // for storing local information about a function
     InfoMap fMap; 

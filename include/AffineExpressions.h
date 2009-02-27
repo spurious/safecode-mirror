@@ -47,6 +47,72 @@ typedef std::map<Instruction*, bool> MemAccessInstListType;
 typedef std::map<Instruction*, bool>::const_iterator  MemAccessInstListIt;
 
 //
+// Function: makeNameProper()
+//
+// Description:
+//  This function transforms a name to meet two requirements:
+//    o) There are no invalid symbols.
+//    o) The string length is 18 characters or less.
+//  To do this, we replace symbols such as period, underscore, minus, etc.
+//  with a letter followed by an underscore.
+//
+// Notes:
+//  FIXME: This function always converts "in" to "in__1."  I am not sure why
+//         this is.
+//
+static inline string
+makeNameProper (string x) {
+  string tmp;
+  int len = 0;
+  for (string::iterator sI = x.begin(), sEnd = x.end(); sI != sEnd; sI++) {
+    if (len > 18) return tmp; //have to do something more meaningful
+    len++;
+    switch (*sI) {
+      case '.': tmp += "d_"; len++;break;
+      case ' ': tmp += "s_"; len++;break;
+      case '-': tmp += "D_"; len++;break;
+      case '_': tmp += "l_"; len++;break;
+      default:  tmp += *sI;
+    }
+  }
+
+  if (tmp == "in") return "in__1";
+  return tmp;
+}
+
+//
+// Class: OmegaMangler
+//
+// Description:
+//  This class can be used in place of the LLVM Mangler for mangling LLVM value
+//  names into strings that can be used as variable names in the Omega
+//  calculator.
+//
+// Notes:
+//  Having a single method that properly converts an LLVM Value's name into an
+//  Omega calculator name is less error-prone than having the code call
+//  makeNameProper() directly.
+//
+class OmegaMangler {
+  protected:
+    Mangler * mang;
+
+  public:
+    OmegaMangler (Module & M) {
+      mang = new Mangler (M);
+    }
+
+    virtual ~OmegaMangler () {
+      delete mang;
+    }
+
+    std::string getValueName (const Value *V) {
+      return (makeNameProper (mang->getValueName(V)));
+    }
+};
+
+#
+//
 // Class: LinearExpr
 //
 // Description:
@@ -72,7 +138,7 @@ class LinearExpr {
     inline ValStringMap* getVSMap() { return vsMap; };
 
     // Create a linear expression
-    LinearExpr(const Value *Val, Mangler *Mang);
+    LinearExpr(const Value *Val, OmegaMangler *Mang);
     void negate();
     void addLinearExpr(LinearExpr *);
     LinearExpr * mulLinearExpr(LinearExpr *);
@@ -153,7 +219,7 @@ typedef std::map<const Value *, ABCExprTree *> InstConstraintMapType;
 // Class: FuncLocalInfo
 //
 // Description:
-// This holds the local information of a function.
+//  This class retains constraint information collected for a function.
 //
 class FuncLocalInfo {
     // Local cache for constraints
@@ -212,40 +278,6 @@ class FuncLocalInfo {
       return argConstraints;
     }
 };
-
-//
-// Function: makeNameProper()
-//
-// Description:
-//  This function transforms a name to meet two requirements:
-//    o) There are no invalid symbols.
-//    o) The string length is 18 characters or less.
-//  To do this, we replace symbols such as period, underscore, minus, etc.
-//  with a letter followed by an underscore.
-//
-// Notes:
-//  FIXME: This function always converts "in" to "in__1."  I am not sure why
-//         this is.
-//
-static inline string
-makeNameProper (string x) {
-  string tmp;
-  int len = 0;
-  for (string::iterator sI = x.begin(), sEnd = x.end(); sI != sEnd; sI++) {
-    if (len > 18) return tmp; //have to do something more meaningful
-    len++;
-    switch (*sI) {
-      case '.': tmp += "d_"; len++;break;
-      case ' ': tmp += "s_"; len++;break;
-      case '-': tmp += "D_"; len++;break;
-      case '_': tmp += "l_"; len++;break;
-      default:  tmp += *sI;
-    }
-  }
-
-  if (tmp == "in") return "in__1";
-  return tmp;
-}
 
 #if 0
 static string getValueNames(const Value *V, Mangler *Mang) {

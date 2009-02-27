@@ -21,7 +21,18 @@
 
 using namespace llvm;
 
-LinearExpr::LinearExpr(const Value *Val, Mangler *Mang) {
+//
+// Method: LinearExpr (constructor)
+//
+// Description:
+//  Initialize a new Linear Expression object.
+//
+// Inputs:
+//  Val  - The LLVM value for which to create a linear expression.
+//  Mang - A pointer to the name mangling class to use to mangle LLVM Value
+//         names.
+//
+LinearExpr::LinearExpr (const Value *Val, OmegaMangler *Mang) {
   if (Val) {
     vList = new VarList();
     cMap = new CoefficientMap();

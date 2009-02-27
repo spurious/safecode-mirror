@@ -1137,7 +1137,7 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
   cbudsPass = &getAnalysis<EQTDDataStructures>();
   buCG      = &getAnalysis<BottomUpCallGraph>();
 
-  Mang = new Mangler(M);
+  Mang = new OmegaMangler(M);
 
   initialize(M);
 
