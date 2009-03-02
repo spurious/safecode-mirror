@@ -1,6 +1,6 @@
 //===- PageManager.h - Allocates memory on page boundaries ------*- C++ -*-===//
 // 
-//                     The LLVM Compiler Infrastructure
+//                          The SAFECode Compiler 
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -81,23 +81,6 @@ extern "C" unsigned PageSize;
 /// PPageSize - Contains the size of a single physical page.  This is the
 /// smallest granularity at which virtual memory operations can be performed.
 extern unsigned PPageSize;
-
-//
-// Structure: ConfigData
-//
-// Description:
-//  This structure tells us what the configuration of the runtime is
-//
-struct ConfigData {
-  // Flags whether objects should be remapped
-  bool RemapObjects;
-
-  // Flags whether strict indexing rules should be enforced
-  bool StrictIndexing;
-
-  // Flags whether we should track external memory allocations
-  bool TrackExternalMallocs;
-};
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by getPageSize().

@@ -1,6 +1,6 @@
 /*===- ExactCheck.c - Implementation of exactcheck functions --------------===*/
 /*                                                                            */
-/*                       The LLVM Compiler Infrastructure                     */
+/*                          The SAFECode Compiler                             */
 /*                                                                            */
 /* This file was developed by the LLVM research group and is distributed      */
 /* under the University of Illinois Open Source License. See LICENSE.TXT for  */
@@ -12,8 +12,10 @@
 /*                                                                            */
 /*===----------------------------------------------------------------------===*/
 
+#include "ConfigData.h"
 #include "ExactCheck.h"
 #include "Report.h"
+
 #include "safecode/Config/config.h"
 
 #ifdef LLVA_KERNEL
@@ -64,41 +66,77 @@ exactcheck (int a, int b, void * result) {
   return result;
 }
 
+/*
+ * Function: exactcheck2()
+ *
+ * Description:
+ *  Determine whether a pointer is within the specified bounds of an object.
+ *
+ * Inputs:
+ *  base   - The address of the first byte of a memory object.
+ *  result - The pointer that is being checked.
+ *  size   - The size of the object in bytes.
+ *
+ * Return value:
+ *  If there is no bounds check violation, the result pointer is returned.
+ *  Otherwise, depending upon the configuration of the run-time, either an
+ *  error is returned or a rewritten Out-of-Bounds (OOB) pointer is returned.
+ */
 void *
 exactcheck2 (signed char *base, signed char *result, unsigned size) {
-  if ((result < base) || (result >= (base + size)))
-#ifdef SC_ENABLE_OOB
-    return rewrite_ptr (0, result, "<Unknown>", 0);
-#else
-  {
-    ReportExactCheck ((unsigned)0xbeefdeed,
-                      (uintptr_t)result,
-                      (uintptr_t)__builtin_return_address(0),
-                      (uintptr_t)base,
-                      (unsigned)size,
-                      "<Unknown>",
-                      0);
+  if ((result < base) || (result >= (base + size))) {
+    if (ConfigData.StrictIndexing)
+      ReportExactCheck ((unsigned)0xbeefdeed,
+                        (uintptr_t)result,
+                        (uintptr_t)__builtin_return_address(0),
+                        (uintptr_t)base,
+                        (unsigned)size,
+                        "<Unknown>",
+                        0);
+    else
+      return rewrite_ptr (0, result, "<Unknown>", 0);
   }
-#endif
+
   return result;
 }
 
+/*
+ * Function: exactcheck2_debug()
+ *
+ * Description:
+ *  This function is identical to exactcheck2(), but the caller provides more
+ *  source level information about the run-time check for error reporting if
+ *  the check fails.
+ *
+ * Inputs:
+ *  base   - The address of the first byte of a memory object.
+ *  result - The pointer that is being checked.
+ *  size   - The size of the object in bytes.
+ *
+ * Return value:
+ *  If there is no bounds check violation, the result pointer is returned.
+ *  This forces the call to exactcheck() to be considered live (previous
+ *  optimizations dead-code eliminated it).
+ */
 void *
-exactcheck2_debug (signed char *base, signed char *result, unsigned size, void * SourceFile, unsigned lineno) {
-  if ((result < base) || (result >= (base + size)))
-#ifdef SC_ENABLE_OOB
-    return rewrite_ptr (0, result, SourceFile, lineno);
-#else
-  {
-    ReportExactCheck ((unsigned)0xbeefdeed,
-                      (uintptr_t)result,
-                      (uintptr_t)__builtin_return_address(0),
-                      (uintptr_t)base,
-                      (unsigned)size,
-                      (unsigned char *)(SourceFile),
-                      lineno);
+exactcheck2_debug (signed char *base,
+                   signed char *result,
+                   unsigned size,
+                   void * SourceFile,
+                   unsigned lineno) {
+  if ((result < base) || (result >= (base + size))) {
+    if (ConfigData.StrictIndexing)
+      ReportExactCheck ((unsigned)0xbeefdeed,
+                        (uintptr_t)result,
+                        (uintptr_t)__builtin_return_address(0),
+                        (uintptr_t)base,
+                        (unsigned)size,
+                        (unsigned char *)(SourceFile),
+                        lineno);
+    else
+      return rewrite_ptr (0, result, SourceFile, lineno);
   }
-#endif
+
   return result;
 }
 

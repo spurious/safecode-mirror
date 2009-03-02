@@ -34,6 +34,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ConfigData.h"
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "Report.h"
@@ -78,9 +79,6 @@ unsigned poolmemusage = 0;
 
 /// UNUSED in production version
 FILE * ReportLog = 0;
-
-// Global Configuration Information
-extern ConfigData ConfigData;
 
 // Configuration for C code; flags that we should stop on the first error
 unsigned StopOnError = 0;

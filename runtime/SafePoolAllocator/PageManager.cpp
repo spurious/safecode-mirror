@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ConfigData.h"
 #include "PageManager.h"
 #ifndef _POSIX_MAPPED_FILES
 #define _POSIX_MAPPED_FILES
