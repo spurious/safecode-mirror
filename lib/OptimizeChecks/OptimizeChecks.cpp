@@ -24,11 +24,13 @@
 #include <iostream>
 #include <set>
 
-char llvm::OptimizeChecks::ID = 0;
+char NAMESPACE_SC::OptimizeChecks::ID = 0;
 
 namespace {
   STATISTIC (Removed, "Number of Bounds Checks Removed");
 }
+
+NAMESPACE_SC_BEGIN
 
 //
 // Function: onlyUsedInCompares()
@@ -113,101 +115,102 @@ onlyUsedInCompares (Value * Val) {
   return true;
 }
 
-namespace llvm {
+//
+// Method: processFunction()
+//
+// Description:
+//  Look for calls of the specified function (which is a SAFECode run-time
+//  check), determine whether the call can be eliminated, and eliminate it
+//  if possible.
+//
+// Inputs:
+//  M       - The module in which to search for the function.
+//  name    - The name of the function.
+//  operand - The index of the operand that represents the value being
+//            checked.
+//
+// Return value:
+//  false - No modifications were made to the Module.
+//  true  - One or more modifications were made to the module.
+//
+bool
+OptimizeChecks::processFunction (Module & M,
+                                 std::string name,
+                                 unsigned operand) {
   //
-  // Method: processFunction()
+  // Get the reference to the function.  If the function doesn't exist, then
+  // no modifications are necessary.
   //
-  // Description:
-  //  Look for calls of the specified function (which is a SAFECode run-time
-  //  check), determine whether the call can be eliminated, and eliminate it
-  //  if possible.
-  //
-  // Inputs:
-  //  M       - The module in which to search for the function.
-  //  name    - The name of the function.
-  //  operand - The index of the operand that represents the value being
-  //            checked.
-  //
-  // Return value:
-  //  false - No modifications were made to the Module.
-  //  true  - One or more modifications were made to the module.
-  //
-  bool
-  OptimizeChecks::processFunction (Module & M,
-                                   std::string name,
-                                   unsigned operand) {
-    //
-    // Get the reference to the function.  If the function doesn't exist, then
-    // no modifications are necessary.
-    //
-    Function * F = M.getFunction (name);
-    if (!F) return false;
+  Function * F = M.getFunction (name);
+  if (!F) return false;
 
-    //
-    // Ensure the function has the right number of arguments and that its
-    // result is a pointer type.
-    //
-    assert (operand < (F->getFunctionType()->getNumParams()));
-    assert (isa<PointerType>(F->getReturnType()));
+  //
+  // Ensure the function has the right number of arguments and that its
+  // result is a pointer type.
+  //
+  assert (operand < (F->getFunctionType()->getNumParams()));
+  assert (isa<PointerType>(F->getReturnType()));
 
+  //
+  // Iterate though all calls to the function and determine whether the
+  // specified is only used in comparisons.  If so, then schedule the check
+  // (i.e., the call) for removal.
+  //
+  bool modified = false;
+  std::vector<Instruction *> CallsToDelete;
+  for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
     //
-    // Iterate though all calls to the function and modify the use of the
-    // operand to be the result of the function.
+    // We are only concerned about call instructions; any other use is of
+    // no interest to the organization.
     //
-    bool modified = false;
-    std::vector<Instruction *> CallsToDelete;
-    for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
+    if (CallInst * CI = dyn_cast<CallInst>(FU)) {
       //
-      // We are only concerned about call instructions; any other use is of
-      // no interest to the organization.
+      // If the call instruction has any uses, we cannot remove it.
       //
-      if (CallInst * CI = dyn_cast<CallInst>(FU)) {
-        //
-        // If the call instruction has any uses, we cannot remove it.
-        //
-        if (CI->use_begin() != CI->use_end()) continue;
+      if (CI->use_begin() != CI->use_end()) continue;
 
-        //
-        // Get the operand that needs to be replaced as well as the operand
-        // with all of the casts peeled away.  Increment the operand index by
-        // one because a call instrution's first operand is the function to
-        // call.
-        //
-        std::set<Value *>Chain;
-        Value * Operand = peelCasts (CI->getOperand(operand+1), Chain);
+      //
+      // Get the operand that needs to be replaced as well as the operand
+      // with all of the casts peeled away.  Increment the operand index by
+      // one because a call instruction's first operand is the function to
+      // call.
+      //
+      std::set<Value *>Chain;
+      Value * Operand = peelCasts (CI->getOperand(operand+1), Chain);
 
-        //
-        // If the operand is only used in comparisons, mark the run-time check
-        // for removal.
-        //
-        if (onlyUsedInCompares (Operand)) {
-          CallsToDelete.push_back (CI);
-          ++Removed;
-          modified = true;
-        }
+      //
+      // If the operand is only used in comparisons, mark the run-time check
+      // for removal.
+      //
+      if (onlyUsedInCompares (Operand)) {
+        CallsToDelete.push_back (CI);
+        ++Removed;
+        modified = true;
       }
     }
-
-    //
-    // Remove all of the instructions that we found to be unnecessary.
-    //
-    while (CallsToDelete.size()) {
-      Instruction * I = CallsToDelete.back();
-      CallsToDelete.pop_back();
-      I->eraseFromParent();
-    }
-
-    return modified;
   }
 
-  bool
-  OptimizeChecks::runOnModule (Module & M) {
-    bool modified = false;
-    modified |= processFunction (M, "boundscheck",   2);
-    modified |= processFunction (M, "boundscheckui", 2);
-    modified |= processFunction (M, "exactcheck2",   1);
-
-    return modified;
+  //
+  // Remove all of the instructions that we found to be unnecessary.
+  //
+  while (CallsToDelete.size()) {
+    Instruction * I = CallsToDelete.back();
+    CallsToDelete.pop_back();
+    I->eraseFromParent();
   }
+
+  return modified;
 }
+
+bool
+OptimizeChecks::runOnModule (Module & M) {
+  bool modified = false;
+  modified |= processFunction (M, "boundscheck",   2);
+  modified |= processFunction (M, "boundscheckui", 2);
+  modified |= processFunction (M, "exactcheck2",   1);
+
+  return modified;
+}
+
+NAMESPACE_SC_END
 

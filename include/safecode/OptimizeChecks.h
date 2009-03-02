@@ -17,9 +17,12 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "safecode/Config/config.h"
 
-namespace llvm {
+#include "safecode/SAFECode.h"
+
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
 
 //
 // Pass: OptimizeChecks
@@ -47,5 +50,7 @@ struct OptimizeChecks : public ModulePass {
       AU.setPreservesAll();
     }
 };
-} 
+
+NAMESPACE_SC_END
+
 #endif
