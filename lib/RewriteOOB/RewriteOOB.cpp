@@ -95,7 +95,7 @@ RewriteOOB::processFunction (Module & M, std::string name, unsigned operand) {
       //
       // Get the operand that needs to be replaced as well as the operand
       // with all of the casts peeled away.  Increment the operand index by
-      // one because a call instrution's first operand is the function to
+      // one because a call instruction's first operand is the function to
       // call.
       //
       std::set<Value *>Chain;
@@ -272,8 +272,10 @@ RewriteOOB::runOnModule (Module & M) {
   // we've changed anything.
   //
   bool modified = false;
-  modified |= processFunction (M, "boundscheck",   2);
-  modified |= processFunction (M, "boundscheckui", 2);
+  modified |= processFunction (M, "boundscheck",    2);
+  modified |= processFunction (M, "boundscheckui",  2);
+  modified |= processFunction (M, "exactcheck2",    1);
+  modified |= processFunction (M, "sc.exactcheck2", 1);
 
   //
   // Insert calls so that comparison instructions convert Out of Bound pointers
