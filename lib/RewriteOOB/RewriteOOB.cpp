@@ -136,10 +136,26 @@ RewriteOOB::processFunction (Module & M, std::string name, unsigned operand) {
   return modified;
 }
 
+//
+// Method: addGetActualValues()
+//
+// Description:
+//  Search for comparison instructions which will need to turn an OOB pointer
+//  back into the original pointer value.  Insert calls to getActualValue()
+//  to do the conversion.
+//
+// Inputs:
+//  M - The module in which to add calls to getActualValue().
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was not modified.
+//
 bool
 RewriteOOB::addGetActualValues (Module & M) {
   // Assume that we don't modify anything
   bool modified = false;
+
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
