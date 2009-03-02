@@ -38,8 +38,8 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   REG_FUNC(SC_INTRINSIC_CHECK,	"sc.lscheckalignui",	VoidTy, vpTy, vpTy, Int32Ty);
   REG_FUNC(SC_INTRINSIC_CHECK,	"sc.boundscheck",	VoidTy, vpTy, vpTy, vpTy);
   REG_FUNC(SC_INTRINSIC_CHECK,	"sc.boundscheckui",	VoidTy, vpTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_CHECK,	"sc.exactcheck", 	VoidTy, Int32Ty, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_CHECK,	"sc.exactcheck2", 	VoidTy, vpTy, vpTy, Int32Ty);
+  REG_FUNC(SC_INTRINSIC_CHECK,	"sc.exactcheck", 	vpTy, Int32Ty, Int32Ty);
+  REG_FUNC(SC_INTRINSIC_CHECK,	"sc.exactcheck2", 	vpTy, vpTy, vpTy, Int32Ty);
   REG_FUNC(SC_INTRINSIC_CHECK,	"sc.funccheck", 		VoidTy, Int32Ty, vpTy, vpTy);
   REG_FUNC(SC_INTRINSIC_OOB,		"sc.get_actual_val",	vpTy, vpTy, vpTy);
 
