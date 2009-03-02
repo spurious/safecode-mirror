@@ -17,21 +17,37 @@ PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspe
 
 OPTZN_PASSES := -strip-debug -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 
+#
+# Create the SAFECode'ed executable from the assembly code
+#
 %.sc : %.s
 	$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
 
-%.s : %.scoptbc
+#
+# Generate assembly code from the optimized, SAFECode'd program.
+#
+%.s : %.scopt.bc
 	$(LLC) $(LLCFLAGS) -f $< -o $@
 
-%.scoptbc : %.scbc
+#
+# Take the output of SAFECode, link in the SAFECode run-time, and optimize it.
+#
+%.scopt.bc : %.sc.bc
 	$(LLVMLDPROG) -disable-opt -link-as-library $< $(PA_RT_BC) $(POOLSYSTEM_RT_BC) -o $<.ld
 	$(LOPT) $(OPTZN_PASSES) $<.ld -f -o $@
 	rm $<.ld
 
-%.scbc : %.pabc
+#
+# Run SAFECode on the program.
+#
+%.sc.bc : %.pa.bc
 	$(SC) $(SCFLAGS) $< -f -o $@
 
-%.pabc : %.bc
+#
+# Do initial linking of the SAFECode run-time and optimize the program.
+#
+%.pa.bc : %.bc
 	$(LLVMLDPROG) $(LLVMLDFLAGS) -disable-opt -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC)
 	$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@
 	rm $@.paprert.bc
+
