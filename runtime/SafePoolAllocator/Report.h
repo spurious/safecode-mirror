@@ -208,7 +208,6 @@ ReportExactCheck (unsigned src,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  ReportLog = stderr;
   fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%08x (ExactCheck)\n", id, dest);
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
