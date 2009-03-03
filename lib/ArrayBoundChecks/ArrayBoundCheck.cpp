@@ -66,6 +66,7 @@ using namespace ABC;
 char llvm::ABC::ArrayBoundsCheck::ID = 0;
 
 namespace {
+  STATISTIC(SafeGEPs,    "GEPs proved safe via Omega");
   STATISTIC(SafeStructs, "Structures in GEPs that are deemed safe");
   STATISTIC(TotalStructs, "Total structures used in GEPs");
 
@@ -1100,6 +1101,10 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
       if (result == 1) {
         std::cerr << "proved safe \n";
         std::cerr << maI;
+
+        // Update the statistics
+        ++SafeGEPs;
+
         //        MarkGEPUnsafe(maI);        
         //Omega proved SAFE 
       } else {
