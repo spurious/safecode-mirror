@@ -871,12 +871,29 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     installAllocHooks();
   }
 
+#if SC_DEBUGTOOL  
   //
   // Initialize the dummy pool.
   //
-#if SC_DEBUGTOOL  
   poolinit (&dummyPool, 1);
+
+  //
+  // Initialize the signal handlers for catching errors.
+  //
+  struct sigaction sa;
+  bzero (&sa, sizeof (struct sigaction));
+  sa.sa_sigaction = bus_error_handler;
+  sa.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGBUS, &sa, NULL) == -1) {
+    fprintf (stderr, "sigaction installer failed!");
+    fflush (stderr);
+  }
+  if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+    fprintf (stderr, "sigaction installer failed!");
+    fflush (stderr);
+  }
 #endif
+
   return;
 }
 
@@ -2746,6 +2763,10 @@ poolfree(PoolTy *Pool, void *Node) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
+  if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+    fprintf (stderr, "sigaction installer failed!");
+    fflush (stderr);
+  }
 #endif
 
   return; 
@@ -2847,8 +2868,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     void * start = faultAddr;
     void * tag = 0;
     void * end;
-    fprintf (ReportLog, "faultAddr: %x\n", faultAddr);
-    fflush (ReportLog);
 #if SC_ENABLE_OOB
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
@@ -2904,6 +2923,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   sa.sa_sigaction = bus_error_handler;
   sa.sa_flags = SA_SIGINFO;
   if (sigaction(SIGBUS, &sa, NULL) == -1)
+    printf("sigaction installer failed!");
+  if (sigaction(SIGSEGV, &sa, NULL) == -1)
     printf("sigaction installer failed!");
   
   return;
