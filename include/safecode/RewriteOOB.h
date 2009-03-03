@@ -38,7 +38,7 @@ NAMESPACE_SC_BEGIN
 struct RewriteOOB : public ModulePass {
   private:
     // Private methods
-    bool processFunction (Module & M, std::string name, unsigned operand);
+    bool processFunction (Function * F);
     bool addGetActualValues (Module & M);
     void addGetActualValue (ICmpInst *SCI, unsigned operand);
 

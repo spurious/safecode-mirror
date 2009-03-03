@@ -43,37 +43,27 @@ static RegisterPass<RewriteOOB> P ("oob-rewriter",
 // Method: processFunction()
 //
 // Description:
-//  This method searches for calls to a specified function.  For every such
-//  call, it replaces the use of an operand of the call with the return value
-//  of the call.
+//  This method searches for calls to a specified run-time check.  For every
+//  such call, it replaces the pointer that the call checks with the return
+//  value of the call.
 //
 //  This allows functions like boundscheck() to return a rewrite pointer;
 //  this code changes the program to use the returned rewrite pointer instead
 //  of the original pointer which was passed into boundscheck().
 //
 // Inputs:
-//  M       - The module in which to search for the function.
-//  name    - The name of the function.
-//  operand - The index of the operand that should be replaced.
+//  F       - A pointer to the checking function to process.
 //
 // Return value:
 //  false - No modifications were made to the Module.
 //  true  - One or more modifications were made to the module.
 //
 bool
-RewriteOOB::processFunction (Module & M, std::string name, unsigned operand) {
-  //
-  // Get the reference to the function.  If the function doesn't exist, then
-  // no modifications are necessary.
-  //
-  Function * F = M.getFunction (name);
-  if (!F) return false;
-
+RewriteOOB::processFunction (Function * F) {
   //
   // Ensure the function has the right number of arguments and that its
   // result is a pointer type.
   //
-  assert (operand < (F->getFunctionType()->getNumParams()));
   assert (isa<PointerType>(F->getReturnType()));
 
   //
@@ -99,7 +89,7 @@ RewriteOOB::processFunction (Module & M, std::string name, unsigned operand) {
       // call.
       //
       std::set<Value *>Chain;
-      Value * RealOperand = CI->getOperand(operand+1);
+      Value * RealOperand = intrinPass->getCheckedPointer (CI);
       Value * PeeledOperand = peelCasts (RealOperand, Chain);
 
       //
@@ -284,14 +274,27 @@ RewriteOOB::runOnModule (Module & M) {
   intrinPass = &getAnalysis<InsertSCIntrinsic>();
 
   //
+  // Get the set of GEP checking functions
+  //
+  std::vector<Function *> GEPCheckingFunctions;
+  intrinPass->getGEPCheckingIntrinsics (GEPCheckingFunctions);
+
+  //
   // Transform the code for each type of checking function.  Mark whether
   // we've changed anything.
   //
   bool modified = false;
-  modified |= processFunction (M, "boundscheck",    2);
-  modified |= processFunction (M, "boundscheckui",  2);
-  modified |= processFunction (M, "exactcheck2",    1);
-  modified |= processFunction (M, "sc.exactcheck2", 1);
+  while (GEPCheckingFunctions.size()) {
+    // Remove a function from the set of functions to process
+    Function * F = GEPCheckingFunctions.back();
+    GEPCheckingFunctions.pop_back();
+
+    //
+    // Transform the function so that the pointer it checks is replaced with
+    // its return value.  The return value is the rewritten OOB pointer.
+    //
+    modified |= processFunction (F);
+  }
 
   //
   // Insert calls so that comparison instructions convert Out of Bound pointers
