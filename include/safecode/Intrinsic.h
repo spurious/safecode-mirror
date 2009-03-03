@@ -23,45 +23,57 @@
 
 #include "llvm/Pass.h"
 
+using namespace llvm;
+
 NAMESPACE_SC_BEGIN
 
-class InsertSCIntrinsic : public llvm::ModulePass {
+class InsertSCIntrinsic : public ModulePass {
   public:
     static char ID;
     typedef enum IntrinsicType {
-      SC_INTRINSIC_NO_OP,
-      SC_INTRINSIC_CHECK,
+      SC_INTRINSIC_NO_OP,      // No-op intrinsic
+      SC_INTRINSIC_MEMCHECK,   // Memory check intrinsic
+      SC_INTRINSIC_GEPCHECK,   // Indexing (GEP) check intrinsic
       SC_INTRINSIC_OOB,
       SC_INTRINSIC_POOL_CONTROL,
       SC_INTRINSIC_COUNT
     } IntrinsicType;
 
     typedef struct IntrinsicInfo {
+      // The type of intrinsic check
       IntrinsicType type;
-      llvm::Function * F;
+
+      // The function for the intrinsic
+      Function * F;
+
+      // For checking intrinsics, the operand index of the pointer to check
+      unsigned ptrindex;
     } IntrinsicInfoTy;
 
-    InsertSCIntrinsic() : llvm::ModulePass((intptr_t)&ID),
-                          currentModule(NULL) {}
+    InsertSCIntrinsic() : ModulePass((intptr_t)&ID), currentModule(NULL) {}
     virtual ~InsertSCIntrinsic() {}
-    virtual bool runOnModule(llvm::Module & M);
+    virtual bool runOnModule(Module & M);
     virtual const char * getPassName() const {
       return "Insert declaration of SAFECode Intrinsic";
     }
     void addIntrinsic (IntrinsicType type,
                        const std::string & name,
-                       llvm::FunctionType * FTy);
+                       FunctionType * FTy,
+                       unsigned index=0);
     const IntrinsicInfoTy & getIntrinsic(const std::string & name) const;
-    bool isSCIntrinsic(llvm::Value * inst) const;
-    bool isCheckingIntrinsic(llvm::Value * inst) const;
-    virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+    bool isSCIntrinsic(Value * V) const;
+    bool isCheckingIntrinsic(Value * V) const;
+    bool isGEPCheckingIntrinsic (Value * V) const;
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesCFG();
       AU.setPreservesAll();
     }
+    void getGEPCheckingIntrinsics (std::vector<Function *> & Funcs);
+    Value * getCheckedPointer (CallInst * CI);
 
   private:
-    llvm::Module * currentModule;
-    std::map<llvm::Function *, IntrinsicInfoTy> intrinsicFuncMap;
+    Module * currentModule;
+    std::map<Function *, IntrinsicInfoTy> intrinsicFuncMap;
     std::map<std::string, IntrinsicInfoTy> intrinsicNameMap;
 };
 
