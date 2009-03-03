@@ -15,36 +15,40 @@
 #ifndef DEBUG_INSTRUMENTATION_H
 #define DEBUG_INSTRUMENTATION_H
 
-#include "safecode/Config/config.h"
+#include "safecode/SAFECode.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
 #include "llvm/Value.h"
 
-namespace llvm {
+using namespace llvm;
 
-  struct DebugInstrument : public ModulePass {
-    public:
-      static char ID;
+NAMESPACE_SC_BEGIN
 
-      virtual bool runOnModule(Module &M);
-      DebugInstrument () : ModulePass ((intptr_t) &ID) {
-        return;
-      }
+struct DebugInstrument : public ModulePass {
+  public:
+    static char ID;
 
-      const char *getPassName() const {
-        return "SAFECode Debug Instrumentation Pass";
-      }
+    virtual bool runOnModule(Module &M);
+    DebugInstrument () : ModulePass ((intptr_t) &ID) {
+      return;
+    }
 
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        return;
-      };
+    const char *getPassName() const {
+      return "SAFECode Debug Instrumentation Pass";
+    }
 
-    private:
-      // LLVM type for void pointers (void *)
-      Type * VoidPtrTy;
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      return;
+    };
 
-      // Private methods
-      void transformFunction (Function * F);
-  };
-}
+  private:
+    // LLVM type for void pointers (void *)
+    Type * VoidPtrTy;
+
+    // Private methods
+    void transformFunction (Function * F);
+};
+
+NAMESPACE_SC_END
+
 #endif

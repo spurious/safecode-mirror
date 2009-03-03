@@ -35,7 +35,9 @@
 
 using namespace llvm;
 
-char llvm::DebugInstrument::ID = 0;
+NAMESPACE_SC_BEGIN
+
+char DebugInstrument::ID = 0;
 
 // Register the pass
 static
@@ -187,3 +189,6 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("exactcheck2"));
   return true;
 }
+
+NAMESPACE_SC_END
+
