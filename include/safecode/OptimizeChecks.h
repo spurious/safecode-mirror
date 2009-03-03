@@ -19,6 +19,7 @@
 #include "llvm/Pass.h"
 
 #include "safecode/SAFECode.h"
+#include "safecode/Intrinsic.h"
 
 using namespace llvm;
 
@@ -34,7 +35,14 @@ NAMESPACE_SC_BEGIN
 struct OptimizeChecks : public ModulePass {
   private:
     // Private methods
-    bool processFunction (Module & M, std::string name, unsigned operand);
+    bool processFunction (Function * F);
+    bool onlyUsedInCompares (Value * Val);
+
+    // References to required analysis passes
+    InsertSCIntrinsic * intrinPass;
+
+    // The set of GEP checking functions
+    std::vector<Function *> GEPCheckingFunctions;
 
   public:
     static char ID;
@@ -46,6 +54,9 @@ struct OptimizeChecks : public ModulePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // We need to know about SAFECode intrinsics
+      AU.addRequired<InsertSCIntrinsic>();
+
       // Pretend that we don't modify anything
       AU.setPreservesAll();
     }

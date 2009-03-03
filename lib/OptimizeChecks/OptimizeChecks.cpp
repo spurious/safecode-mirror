@@ -43,8 +43,12 @@ NAMESPACE_SC_BEGIN
 //  true  - The instruction is only used in comparisons.
 //  false - The instruction has some other use besides comparisons.
 //
-static bool
-onlyUsedInCompares (Value * Val) {
+// Preconditions:
+//  This function requires that the intrinPass and GEPCheckingFunctions
+//  variables be initialized.
+//
+bool
+OptimizeChecks::onlyUsedInCompares (Value * Val) {
   // The worklist
   std::vector<Value *> Worklist;
 
@@ -93,13 +97,8 @@ onlyUsedInCompares (Value * Val) {
 
       // Calls to run-time functions are okay; others are not.
       if (CallInst * CI = dyn_cast<CallInst>(U)) {
-        if (Function * F = CI->getCalledFunction()) {
-          std::string name = F->getName();
-          if ((name == "boundscheck") || (name == "boundscheckui") ||
-              (name == "exactcheck2")) {
-            continue;
-          }
-        }
+        if (Value * V = dyn_cast<Value>(CI))
+          if (intrinPass->isCheckingIntrinsic(V)) continue;
       }
 
       //
@@ -124,36 +123,17 @@ onlyUsedInCompares (Value * Val) {
 //  if possible.
 //
 // Inputs:
-//  M       - The module in which to search for the function.
-//  name    - The name of the function.
-//  operand - The index of the operand that represents the value being
-//            checked.
+//  F - The function for the SAFECode run-time check.
 //
 // Return value:
 //  false - No modifications were made to the Module.
 //  true  - One or more modifications were made to the module.
 //
 bool
-OptimizeChecks::processFunction (Module & M,
-                                 std::string name,
-                                 unsigned operand) {
+OptimizeChecks::processFunction (Function * F) {
   //
-  // Get the reference to the function.  If the function doesn't exist, then
-  // no modifications are necessary.
-  //
-  Function * F = M.getFunction (name);
-  if (!F) return false;
-
-  //
-  // Ensure the function has the right number of arguments and that its
-  // result is a pointer type.
-  //
-  assert (operand < (F->getFunctionType()->getNumParams()));
-  assert (isa<PointerType>(F->getReturnType()));
-
-  //
-  // Iterate though all calls to the function and determine whether the
-  // specified is only used in comparisons.  If so, then schedule the check
+  // Iterate though all calls to the function and search for pointers that are
+  // checked but only used in comparisons.  If so, then schedule the check
   // (i.e., the call) for removal.
   //
   bool modified = false;
@@ -175,8 +155,8 @@ OptimizeChecks::processFunction (Module & M,
       // one because a call instruction's first operand is the function to
       // call.
       //
-      std::set<Value *>Chain;
-      Value * Operand = peelCasts (CI->getOperand(operand+1), Chain);
+      std::set<Value *> Chain;
+      Value * Operand = peelCasts (intrinPass->getCheckedPointer (CI), Chain);
 
       //
       // If the operand is only used in comparisons, mark the run-time check
@@ -184,11 +164,15 @@ OptimizeChecks::processFunction (Module & M,
       //
       if (onlyUsedInCompares (Operand)) {
         CallsToDelete.push_back (CI);
-        ++Removed;
         modified = true;
       }
     }
   }
+
+  //
+  // Update the statistics
+  //
+  Removed += CallsToDelete.size();
 
   //
   // Remove all of the instructions that we found to be unnecessary.
@@ -204,10 +188,30 @@ OptimizeChecks::processFunction (Module & M,
 
 bool
 OptimizeChecks::runOnModule (Module & M) {
+  //
+  // Get prerequisite analysis results.
+  //
+  intrinPass = &getAnalysis<InsertSCIntrinsic>();
+
+  //
+  // Get the set of GEP checking functions
+  //
+  intrinPass->getGEPCheckingIntrinsics (GEPCheckingFunctions);
+
+  //
+  // Optimize all of the run-time GEP checks.
+  //
   bool modified = false;
-  modified |= processFunction (M, "boundscheck",   2);
-  modified |= processFunction (M, "boundscheckui", 2);
-  modified |= processFunction (M, "exactcheck2",   1);
+  while (GEPCheckingFunctions.size()) {
+    // Remove a function from the set of functions to process
+    Function * F = GEPCheckingFunctions.back();
+    GEPCheckingFunctions.pop_back();
+
+    //
+    // Transform the function into its debug version.
+    //
+    modified |= processFunction (F);
+  }
 
   return modified;
 }
