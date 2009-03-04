@@ -265,10 +265,10 @@ ArrayBoundsCheck::outputDeclsForOmega (Module& M) {
 std::string
 ArrayBoundsCheck::getValueName(const Value *V) {
   //
-  // First mangle the name.  After that, use makeNameProper() to remove
-  // characters that are invalid in variables names for the Omega compiler.
+  // Mangle the name.  Let the mangler handle the conversion of the name into
+  // a format acceptable for the constraint solver.
   //
-  return makeNameProper(Mang->getValueName(V));
+  return (Mang->getValueName(V));
 }
 
 void ArrayBoundsCheck::printarraytype(string var,const ArrayType  *T) {
