@@ -10,6 +10,22 @@
 // This pass performs necessary transformations to ensure that Out of Bound
 // pointer rewrites work correctly.
 //
+// TODO:
+//  There are several optimizations which may improve performance:
+//
+//  1) The old code did not insert calls to getActualValue() for pointers
+//     compared against a NULL pointer.  We should determine that this
+//     optimization is safe and re-enable it if it is safe.
+//
+//  2) We insert calls to getActualValue() even if the pointer is not checked
+//     by a bounds check (and hence, is never rewritten).  It's a bit tricky,
+//     but we should avoid rewriting a pointer back if its bounds check was
+//     removed because the resulting pointer was always used in comparisons.
+//
+//  3) If done properly, all loads and stores to type-unknown objects have a
+//     run-time check.  Therefore, we should only need OOB pointer rewriting on
+//     type-known memory objects.
+//
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "rewrite-OOB"
@@ -149,27 +165,29 @@ RewriteOOB::addGetActualValues (Module & M) {
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
-        switch (CmpI->getUnsignedPredicate()) {
-          case CmpInst::ICMP_EQ:
-          case CmpInst::ICMP_NE:
-            // Replace all pointer operands with the getActualValue() call
-            assert ((CmpI->getNumOperands() == 2) &&
-                     "nmber of operands for CmpI different from 2 ");
-            if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
-              // we need to insert a call to getactualvalue
-              if ((!isa<ConstantPointerNull>(CmpI->getOperand(0))) &&
-                  (!isa<ConstantPointerNull>(CmpI->getOperand(1)))) {
-                addGetActualValue(CmpI, 0);
-                addGetActualValue(CmpI, 1);
+        //
+        // Determine whether this is an integer comparison.
+        //
+        CmpInst::Predicate Pred = CmpI->getUnsignedPredicate();
+        if ((Pred >= CmpInst::FIRST_ICMP_PREDICATE) &&
+            (Pred <= CmpInst::LAST_ICMP_PREDICATE)) {
+          //
+          // Replace all pointer operands with a call to getActualValue().
+          // This will convert an OOB pointer back into the real pointer value.
+          //
+          assert ((CmpI->getNumOperands() == 2) &&
+                   "Compare instruction does not have two operands\n");
+          if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
+            // Rewrite both operands and flag that we modified the code
+            addGetActualValue(CmpI, 0);
+            modified = true;
+          }
 
-                // Flag that we modified the code
-                modified = true;
-              }
-            }
-            break;
-
-          default:
-            break;
+          if (isa<PointerType>(CmpI->getOperand(1)->getType())) {
+            // Rewrite both operands and flag that we modified the code
+            addGetActualValue(CmpI, 1);
+            modified = true;
+          }
         }
       }
     }
@@ -220,11 +238,17 @@ RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
     return;
     //      abort();
   } else if (!isa<ConstantPointerNull>(op)) {
+    //
+    // FIXME:
+    //  A ConstantPointerNull is a subclass of Constant, so this code is dead.
+    //
+
     //has to be a global
     abort();
   }
 
-  op = SCI->getOperand(operand);
+  if (!PH) std::cerr << *op << "\n" << std::endl;
+  assert (PH && "addGetActualValue: No Pool Handle for operand!\n");
 
   if (!isa<ConstantPointerNull>(op)) {
     if (PH) {
@@ -280,10 +304,18 @@ RewriteOOB::runOnModule (Module & M) {
   intrinPass->getGEPCheckingIntrinsics (GEPCheckingFunctions);
 
   //
+  // Insert calls so that comparison instructions convert Out of Bound pointers
+  // back into their original values.  This should be done *before* rewriting
+  // the program so that pointers are replaced with the return values of bounds
+  // checks; this is because the return values of bounds checks have no DSNode
+  // in the DSA results, and hence, no associated Pool Handle.
+  //
+  bool modified = addGetActualValues (M);
+
+  //
   // Transform the code for each type of checking function.  Mark whether
   // we've changed anything.
   //
-  bool modified = false;
   while (GEPCheckingFunctions.size()) {
     // Remove a function from the set of functions to process
     Function * F = GEPCheckingFunctions.back();
@@ -295,12 +327,6 @@ RewriteOOB::runOnModule (Module & M) {
     //
     modified |= processFunction (F);
   }
-
-  //
-  // Insert calls so that comparison instructions convert Out of Bound pointers
-  // back into their original values.
-  //
-  modified |= addGetActualValues (M);
   return modified;
 }
 
