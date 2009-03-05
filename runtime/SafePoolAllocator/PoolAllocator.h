@@ -159,6 +159,7 @@ extern "C" {
   void * rewrite_ptr (PoolTy *, void * p, void * SrcFile, unsigned lineno);
 
   void * poolalloc_debug (PoolTy *P, unsigned Size, void * SrcFle, unsigned no);
+  void * poolcalloc_debug (PoolTy *P, unsigned Num, unsigned Size, void * S, unsigned no);
   void   poolfree_debug (PoolTy *P, void * ptr, void * SrcFle, unsigned no);
   void   poolcheck_debug (PoolTy *P, void * Node, void * SrcFle, unsigned no);
   void   poolcheckalign_debug (PoolTy *P, void *Node, unsigned Offset, void * SourceFile, unsigned lineno);

@@ -1509,6 +1509,24 @@ poolalloc_debug (PoolTy *Pool,
 }
 
 //
+// Function: poolcalloc_debug()
+//
+// Description:
+//  This is the same as pool_calloc but with source level debugging
+//  information.
+//
+void *
+poolcalloc_debug (PoolTy *Pool,
+                  unsigned Number,
+                  unsigned NumBytes,
+                  void * SourceFilep,
+                  unsigned lineno) {
+  void * New = poolalloc_debug (Pool, Number * NumBytes, SourceFilep, lineno);
+  if (New) bzero (New, Number * NumBytes);
+  return New;
+}
+
+//
 // Function: poolfree_debug()
 //
 // Description:
@@ -1933,13 +1951,15 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
         (((char *) Dest) == (((char *)ObjEnd)+1))) {
       void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
       if (logregs)
-        fprintf (ReportLog, "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
+        fprintf (ReportLog, "boundscheck: rewrite(1): %p %p %p %p at pc=%p to %p\n",
                  ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr);
         fflush (ReportLog);
       return ptr;
     } else {
       unsigned allocPC = 0;
       unsigned allocID = 0;
+      unsigned char * allocSF = (unsigned char *) "<Unknown>";
+      unsigned allocLN = 0;
 #if SC_DEBUGTOOL
       PDebugMetaData debugmetadataptr;
       unsigned freeID = 0;
@@ -1947,6 +1967,8 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
       if (dummyPool.DPTree.find(ObjStart, S, end, debugmetadataptr)) {
         allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
         allocID  = debugmetadataptr->allocID;
+        allocSF  = (unsigned char *) debugmetadataptr->SourceFile;
+        allocLN  = debugmetadataptr->lineno;
       }
 #endif
       ReportBoundsCheck ((uintptr_t)Source,
@@ -1957,7 +1979,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                          (uintptr_t)ObjStart,
                          (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1,
                          (unsigned char *)(SourceFile),
-                         lineno);
+                         lineno,
+                         allocSF,
+                         allocLN);
       return Dest;
     }
   }
@@ -1983,7 +2007,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (unsigned)0,
                            (unsigned)4096,
                            (unsigned char *)(SourceFile),
-                           lineno);
+                           lineno,
+                           (unsigned char *) "<Unknown>",
+                           0);
       }
     }
   }
@@ -2006,7 +2032,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
           void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
           if (logregs)
             fprintf (ReportLog,
-                     "boundscheck: rewrite: %p %p %p %p at pc=%p to %p\n",
+                     "boundscheck: rewrite(2): %p %p %p %p at pc=%p to %p\n",
                      S, end, Source, Dest, (void*)__builtin_return_address(1),
                      ptr);
           fflush (ReportLog);
@@ -2021,7 +2047,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                            (uintptr_t)S,
                            (unsigned)((char*) end - (char*)(S)) + 1,
                            (unsigned char *)(SourceFile),
-                           lineno);
+                           lineno,
+                           (unsigned char *) "<Unknown>",
+                           0);
       }
     }
   }
@@ -2038,7 +2066,9 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                        (uintptr_t)0,
                        (unsigned)0,
                        (unsigned char *)(SourceFile),
-                       lineno);
+                       lineno,
+                       (unsigned char *) "<Unknown>",
+                       0);
   }
 
   return Dest;
@@ -2291,6 +2321,10 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   // return its actual value.
   //
   if (Pool->OOB.find(src, src, end, tag)) {
+    if (logregs) {
+      fprintf (ReportLog, "getActualValue: %x -> %x\n", src, tag);
+      fflush (ReportLog);
+    }
     return tag;
   }
 
@@ -2299,6 +2333,10 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   // pointer, another SAFECode checks should flag a failure.  In this case,
   // just return the pointer.
   //
+  if (logregs) {
+    fprintf (ReportLog, "getActualValue: %x -> %x\n", src, src);
+    fflush (ReportLog);
+  }
   return src;
 #else
   // The function should be disabled at runtime
