@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
     // Try to optimize the checks first as the rewriteOOB pass may make
     // optimization impossible.
     //
-    if (RewritePtrs) {
+    if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
       Passes.add(new RewriteOOB());
     }
