@@ -97,6 +97,20 @@ DSNodePass::getPoolHandle (const Value *V,
   //
   const DSNode *Node = getDSNode (V, FClone);
   if (!Node) {
+    //
+    // If there's no DSNode, we might be able to get the pool handle if it's
+    // a known call to a pool allocator run-time function.
+    //
+    if (const CallInst * CI = dyn_cast<CallInst>(V)) {
+      if (const Function * F = CI->getCalledFunction()) {
+        const std::string name = F->getName();
+        if ((name == "poolalloc") ||
+            (name == "poolrealloc") ||
+            (name == "poolcalloc")) {
+          return (CI->getOperand(1));
+        }
+      }
+    }
     std::cerr << "JTC: getPoolHandle: No DSNode: Function: "
               << FClone->getName() << ", Value: " << *V << std::endl;
     return 0;
