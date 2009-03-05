@@ -135,13 +135,17 @@ ReportLoadStoreCheck (void * ptr,
 //  Generate a report for a bounds check violation.
 //
 // Inputs:
-//  src      - The source pointer for the failed indexing operation.
-//  dest     - The result pointer for the failed indexing operation.
-//  allocID  - The generation number of the object's allocation.
-//  allocPC  - The program counter at which the object was last allocated.
-//  pc       - The program counter of the failed run-time check.
-//  objstart - The start of the object in which the source pointer was found.
-//  objlen   - The length of the object in which the source pointer was found.
+//  src        - The source pointer for the failed indexing operation.
+//  dest       - The result pointer for the failed indexing operation.
+//  allocID    - The generation number of the object's allocation.
+//  allocPC    - The program counter at which the object was last allocated.
+//  pc         - The program counter of the failed run-time check.
+//  objstart   - The start of the object in which the source pointer was found.
+//  objlen     - The length of the object in which the source pointer was found.
+//  SourceFile - The source file in which the check failed.
+//  lineno     - The line number at which the check failed.
+//  allocSF    - The source file in which the object was allocated.
+//  allocLN    - The line number at which the object was allocated.
 //
 // Note:
 //  An objstart and objlen of 0 indicate that the source pointer was not found
@@ -156,7 +160,9 @@ ReportBoundsCheck (unsigned src,
                    unsigned objstart,
                    unsigned objlen,
                    unsigned char * SourceFile,
-                   unsigned lineno) {
+                   unsigned lineno,
+                   unsigned char * allocSF,
+                   unsigned allocLN) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
@@ -171,6 +177,8 @@ ReportBoundsCheck (unsigned src,
     fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%08x \n", id, objstart+objlen);
     fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%08x \n", id, allocPC);
     fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocID);
+    fprintf (ReportLog, "%04d:\tObject allocated in source file       : %s \n", id, allocSF);
+    fprintf (ReportLog, "%04d:\tObject allocated at line number       : %d \n", id, allocLN);
     fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   } else {
     fprintf (ReportLog, "%04d:\tNot found within object\n", id);
