@@ -1142,7 +1142,11 @@ poolallocarray(PoolTy* Pool, unsigned Size) {
 void
 poolargvregister (int argc, char ** argv) {
   for (unsigned index=0; index < argc; ++index) {
-    ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]) + 1);
+    if (logregs) {
+      fprintf (stderr, "poolargvregister: %x %x: %s\n", argv[index], strlen(argv[index]), argv[index]);
+      fflush (stderr);
+    }
+    ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]));
   }
 
   return;
