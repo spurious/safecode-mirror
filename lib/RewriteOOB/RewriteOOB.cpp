@@ -165,6 +165,8 @@ RewriteOOB::addGetActualValues (Module & M) {
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
       if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
+        assert ((CmpI->getNumOperands() == 2) &&
+                 "Compare instruction does not have two operands\n");
         //
         // Determine whether this is an integer comparison.
         //
@@ -175,8 +177,6 @@ RewriteOOB::addGetActualValues (Module & M) {
           // Replace all pointer operands with a call to getActualValue().
           // This will convert an OOB pointer back into the real pointer value.
           //
-          assert ((CmpI->getNumOperands() == 2) &&
-                   "Compare instruction does not have two operands\n");
           if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
             // Rewrite both operands and flag that we modified the code
             addGetActualValue(CmpI, 0);
@@ -221,60 +221,60 @@ RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
   Value *op   = SCI->getOperand(operand);
 
   //
+  // Peel casts off of the operand.
+  //
+  std::set<Value *>Chain;
+  Value * peeledOp = peelCasts (op, Chain);
+
+  //
   // Get the pool handle associated with the pointer.
   //
   Value *PH = 0;
-  if (Argument *arg = dyn_cast<Argument>(op)) {
+  if (Argument *arg = dyn_cast<Argument>(peeledOp)) {
     Function * F = arg->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
-    PH = dsnPass->getPoolHandle(op, F, *FI);
-  } else if (Instruction *Inst = dyn_cast<Instruction>(op)) {
+    PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
+  } else if (Instruction *Inst = dyn_cast<Instruction>(peeledOp)) {
     Function * F = Inst->getParent()->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
-    PH = dsnPass->getPoolHandle(op, F, *FI);
-  } else if (isa<Constant>(op)) {
+    PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
+  } else if (isa<Constant>(peeledOp) || isa<AllocationInst>(peeledOp)) {
+    //
+    // Rewrite pointers are generated from calls to the SAFECode run-time
+    // checks.  Therefore, constants and return values from allocation
+    // functions are known to be the original value.
+    //
     return;
-    //      abort();
-  } else if (!isa<ConstantPointerNull>(op)) {
-    //
-    // FIXME:
-    //  A ConstantPointerNull is a subclass of Constant, so this code is dead.
-    //
-
-    //has to be a global
-    abort();
   }
 
-  if (!PH) std::cerr << *op << "\n" << std::endl;
+  if (!PH) std::cerr << *peeledOp << "\n" << std::endl;
   assert (PH && "addGetActualValue: No Pool Handle for operand!\n");
 
-  if (!isa<ConstantPointerNull>(op)) {
-    if (PH) {
-      if (1) { //HACK fixed
-        const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
-        Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
-        Value * OpVptr = castTo (op,
-                                 VoidPtrType,
-                                 op->getName() + ".casted",
-                                 SCI);
+  //
+  // If we have a pool handle, create a call to getActualValue() to convert
+  // the pointer back to its original value.
+  //
+  if (PH) {
+    const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+    Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
+    Value * OpVptr = castTo (op,
+                             VoidPtrType,
+                             op->getName() + ".casted",
+                             SCI);
 
-        std::vector<Value *> args = make_vector (PHVptr, OpVptr,0);
-        CallInst *CI = CallInst::Create (GetActualValue,
-                                         args.begin(),
-                                         args.end(),
-                                         "getval",
-                                         SCI);
-        Instruction *CastBack = castTo (CI,
-                                        op->getType(),
-                                        op->getName()+".castback",
-                                        SCI);
-        SCI->setOperand (operand, CastBack);
-      }
-    } else {
-      //It shouldn't work if PH is not null
-    }
+    std::vector<Value *> args = make_vector (PHVptr, OpVptr,0);
+    CallInst *CI = CallInst::Create (GetActualValue,
+                                     args.begin(),
+                                     args.end(),
+                                     "getval",
+                                     SCI);
+    Instruction *CastBack = castTo (CI,
+                                    op->getType(),
+                                    op->getName()+".castback",
+                                    SCI);
+    SCI->setOperand (operand, CastBack);
   }
 }
 
