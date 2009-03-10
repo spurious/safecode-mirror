@@ -83,13 +83,16 @@ unsigned PPageSize;
 //
 void
 InitializePageManager() {
-  // Determine the page size.
-  if (!PageSize) {
-    PageSize =  PageMultiplier * sysconf(_SC_PAGESIZE) ;
-  }
+  //
+  // Determine the physical page size.
+  //
+  if (!PPageSize) PPageSize = sysconf(_SC_PAGESIZE);
 
-  if (!PPageSize)
-    PPageSize = sysconf(_SC_PAGESIZE);
+  //
+  // Calculate the page size used by the run-time (which is a multiple of the
+  // machine's physical page size).
+  //
+  if (!PageSize) PageSize =  PageMultiplier * PPageSize;
 }
 
 static unsigned logregs = 0;
