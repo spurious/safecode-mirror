@@ -106,7 +106,8 @@ DSNodePass::getPoolHandle (const Value *V,
         const std::string name = F->getName();
         if ((name == "poolalloc") ||
             (name == "poolrealloc") ||
-            (name == "poolcalloc")) {
+            (name == "poolcalloc") ||
+            (name == "poolstrdup")) {
           return (CI->getOperand(1));
         }
       }
