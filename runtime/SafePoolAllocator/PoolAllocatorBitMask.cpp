@@ -817,6 +817,26 @@ struct StackSlab {
 //===----------------------------------------------------------------------===//
 
 //
+// Function: isRewritePtr()
+//
+// Description:
+//  Determines whether the specified pointer value is a rewritten value for an
+//  Out-of-Bounds pointer value.
+//
+// Return value:
+//  true  - The pointer value is an OOB pointer rewrite value.
+//  false - The pointer value is the actual value of the pointer.
+//
+static bool
+isRewritePtr (void * p) {
+  unsigned ptr = (unsigned) p;
+
+  if ((InvalidLower < ptr ) && (ptr < InvalidUpper))
+    return true;
+  return false;
+}
+
+//
 // Function: pool_init_runtime()
 //
 // Description:
@@ -1906,6 +1926,9 @@ poolcheckui (PoolTy *Pool, void *Node) {
 // Description:
 //  Perform the lookup for a bounds check.
 //
+// Inputs:
+//  Source - The pointer to look up within the set of valid objects.
+//
 // Outputs:
 //  Source - If the object is found within the pool, this is the address of the
 //           first valid byte of the object.
@@ -1945,7 +1968,48 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
                    void * Source, void * Dest, bool CanFail,
                    void * SourceFile, unsigned int lineno) {
   //
-  // First, we know that the pointer is out of bounds.  If we indexed off the
+  // Determine if this is a rewrite pointer that is being indexed.  If so,
+  // compute the original value, re-do the indexing operation, and rewrite the
+  // value back.
+  //
+#if 0
+  if (isRewritePtr (Source)) {
+    //
+    // Get the real pointer value (which is outside the bounds of a valid
+    // object.
+    //
+    void * RealSrc = ObjStart = pchk_getActualValue (Pool, Source);
+
+    //
+    // Compute the real result pointer (the value the GEP would really have on
+    // the original pointer value).
+    //
+    Dest = (void *)((unsigned) RealSrc + ((unsigned) Dest - (unsigned) Source));
+
+    //
+    // Redo the bounds check.  If it succeeds, return the real value.
+    // Otherwise, just continue on with the rest of the failed bounds check
+    // processing as before.
+    //
+    if (boundscheck_lookup (Pool, ObjStart, ObjEnd))
+      if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1))
+        return Dest;
+
+    //
+    // Pretend this was an index off of the original out of bounds pointer
+    // value and continue processing
+    //
+    if (logregs) {
+      fprintf (stderr, "unrewrite: (%x) -> (%x, %x) \n", Source, RealSrc, Dest);
+      fflush (stderr);
+    }
+    found = true;
+    Source = RealSrc;
+  }
+#endif
+
+  //
+  // Now, we know that the pointer is out of bounds.  If we indexed off the
   // beginning or end of a valid object, determine if we can rewrite the
   // pointer into an OOB pointer.  Whether we can or not depends upon the
   // SAFECode configuration.
@@ -2275,7 +2339,7 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   // return the previously rewritten value.  Otherwise, insert a mapping from
   // rewrite pointer to original pointer into the pool.
   //
-  Pool->OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
+  Pool->OOB.insert (invalidptr, ((unsigned char *)(invalidptr))+1, p);
 #if SC_DEBUGTOOL
   //
   // If debugging tool support is enabled, then insert it into the global
@@ -2285,11 +2349,11 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   //
   if (logregs) {
     extern FILE * ReportLog;
-    fprintf (ReportLog, "rewrite: %p -> %p\n", p, invalidptr);
+    fprintf (ReportLog, "rewrite: %p: %p -> %p\n", Pool, p, invalidptr);
     fflush (ReportLog);
   }
 
-  OOBPool.OOB.insert (invalidptr, (unsigned char *)(invalidptr)+1, p);
+  OOBPool.OOB.insert (invalidptr, ((unsigned char *)(invalidptr))+1, p);
   RewriteSourcefile[invalidptr] = SourceFile;
   RewriteLineno[invalidptr] = lineno;
   RewrittenPointers[p] = invalidptr;
@@ -2307,26 +2371,39 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
 //  If src is an out of object pointer, get the original value.
 //
 void *
-pchk_getActualValue (PoolTy * Pool, void * src) {
+pchk_getActualValue (PoolTy * Pool, void * p) {
 #if SC_DEBUGTOOL
   //
   // If the pointer is not within the rewrite pointer range, then it is not a
   // rewritten pointer.  Simply return its current value.
   //
-  if (((uintptr_t)src <= InvalidLower) || ((uintptr_t)src > InvalidUpper)) {
-    return src;
+  if (((uintptr_t)p <= InvalidLower) || ((uintptr_t)p >= InvalidUpper)) {
+    return p;
   }
 
+  void * src = 0;
   void* tag = 0;
-  void * end;
+  void * end = 0;
 
   //
   // Look for the pointer in the pool's OOB pointer list.  If we find it,
   // return its actual value.
   //
-  if (Pool->OOB.find(src, src, end, tag)) {
+  if (Pool->OOB.find(p, src, end, tag)) {
     if (logregs) {
-      fprintf (ReportLog, "getActualValue: %x -> %x\n", src, tag);
+      fprintf (ReportLog, "getActualValue(1): %x: %x -> %x\n", Pool, p, tag);
+      fflush (ReportLog);
+    }
+    return tag;
+  }
+
+  //
+  // If we can't find the pointer in the pool's OOB list, perhaps it's in the
+  // global OOB Pool (this can happen when it's rewritten by an exact check).
+  //
+  if (OOBPool.OOB.find (p, src, end, tag)) {
+    if (logregs) {
+      fprintf (ReportLog, "getActualValue(2): %x: %x -> %x\n", &OOBPool, p, tag);
       fflush (ReportLog);
     }
     return tag;
@@ -2338,10 +2415,10 @@ pchk_getActualValue (PoolTy * Pool, void * src) {
   // just return the pointer.
   //
   if (logregs) {
-    fprintf (ReportLog, "getActualValue: %x -> %x\n", src, src);
+    fprintf (ReportLog, "getActualValue(3): %x: %x -> %x\n", Pool, p, p);
     fflush (ReportLog);
   }
-  return src;
+  return p;
 #else
   // The function should be disabled at runtime
   assert (0 && "This function should be disabled at runtime!"); 
@@ -2914,12 +2991,12 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
       unsigned lineno = RewriteLineno[faultAddr];
-      ReportOOBPointer (program_counter, tag, Filename, lineno);
+      ReportOOBPointer (program_counter, tag, faultAddr, Filename, lineno);
       abort();
     }
 #endif
     extern FILE * ReportLog;
-    fprintf(ReportLog, "signal handler: retrieving debug meta data failed");
+    fprintf(ReportLog, "signal handler: no debug meta data for %x", faultAddr);
     fflush(ReportLog);
     abort();
   }
