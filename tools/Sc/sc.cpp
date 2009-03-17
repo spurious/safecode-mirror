@@ -34,6 +34,7 @@
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
+#include "safecode/BreakConstantGEPs.h"
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
@@ -162,6 +163,9 @@ int main(int argc, char **argv) {
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
     Passes.add(new TargetData(M.get()));
+
+    // Remove all constant GEP expressions
+    Passes.add(new BreakConstantGEPs());
 
     // Ensure that all malloc/free calls are changed into LLVM instructions
     Passes.add(createRaiseAllocationsPass());
