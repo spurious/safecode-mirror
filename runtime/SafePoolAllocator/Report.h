@@ -240,18 +240,26 @@ ReportExactCheck (unsigned src,
 //  Generate a report for the use of an out of bounds (OOB) pointer.
 //
 // Inputs:
-//  pc  - The program counter of the failed run-time check.
-//  ptr - The out of bounds pointer.
+//  pc         - The program counter of the failed run-time check.
+//  ptr        - The out of bounds pointer.
+//  oobp       - The rewritten pointer that caused the fault.
+//  SourceFile - The source file in which the pointer went out of bounds.
+//  lineno     - The line number at which the pointer went out of bounds.
 //
 static void
-ReportOOBPointer (unsigned pc, void * ptr, char * SourceFile, unsigned lineno) {
+ReportOOBPointer (unsigned pc,
+                  void * ptr,
+                  void * oobp,
+                  char * SourceFile,
+                  unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
   fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address 0x%08x\n", id, (unsigned)ptr);
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
-  fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
-  fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
+  fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : 0x%08x \n", id, oobp);
+  fprintf (ReportLog, "%04d:\tSource filename               : %s \n", id, SourceFile);
+  fprintf (ReportLog, "%04d:\tSource line number            : %d \n", id, lineno);
   fflush (ReportLog);
   if (StopOnError) ABORT_PROGRAM();
   return;
