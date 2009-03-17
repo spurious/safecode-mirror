@@ -70,6 +70,13 @@ exactcheck_check (void * ObjStart,
       fflush (ReportLog);
     return ptr;
   } else {
+    //
+    // Determine if this is a rewrite pointer that is being indexed.
+    //
+    if ((logregs) && (((unsigned)Dest > (unsigned)0xc0000000))) {
+      fprintf (stderr, "Was a rewrite: %x\n", Dest);
+      fflush (stderr);
+    }
     ReportExactCheck ((unsigned)0xbeefdeed,
                       (uintptr_t)Dest,
                       (uintptr_t)__builtin_return_address(0),
