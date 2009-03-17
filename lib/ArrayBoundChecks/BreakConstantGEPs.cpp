@@ -238,16 +238,23 @@ BreakConstantGEPs::runOnFunction (Function & F) {
     // instructions because the new instruction must be added to the
     // appropriate predecessor block.
     //
-    if (PHINode * PHI=dyn_cast<PHINode>(I)) {
+    if (PHINode * PHI = dyn_cast<PHINode>(I)) {
       for (unsigned index = 0; index < PHI->getNumIncomingValues(); ++index) {
         //
         // For PHI Nodes, if an operand is a constant expression with a GEP, we
         // want to insert the new instructions in the predecessor basic block.
         //
+        // Note: It seems that it's possible for a phi to have the same
+        // incoming basic block listed multiple times; this seems okay as long
+        // the same value is listed for the incoming block.
+        //
         Instruction * InsertPt = PHI->getIncomingBlock(index)->getTerminator();
         if (ConstantExpr * CE = hasConstantGEP (PHI->getIncomingValue(index))) {
           Instruction * NewInst = convertExpression (CE, InsertPt);
-          PHI->setIncomingValue (index, NewInst);
+          for (unsigned i2 = index; i2 < PHI->getNumIncomingValues(); ++i2) {
+            if ((PHI->getIncomingBlock (i2)) == PHI->getIncomingBlock (index))
+              PHI->setIncomingValue (i2, NewInst);
+          }
           Worklist.push_back (NewInst);
         }
       }
