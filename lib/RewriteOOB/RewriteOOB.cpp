@@ -83,6 +83,17 @@ RewriteOOB::processFunction (Function * F) {
   assert (isa<PointerType>(F->getReturnType()));
 
   //
+  // To avoid recalculating the dominator information each time we process a
+  // use of the specified function F, we will record the function containing
+  // the call instruction to F and the corresponding dominator information; we
+  // will then update this information only when the next use is a call
+  // instruction belonging to a different function.  We are helped by the fact
+  // that iterating through uses often groups uses within the same function.
+  //
+  Function * CurrentFunction = 0;
+  DominatorTree * domTree = 0;
+
+  //
   // Iterate though all calls to the function and modify the use of the
   // operand to be the result of the function.
   //
@@ -109,7 +120,7 @@ RewriteOOB::processFunction (Function * F) {
       Value * PeeledOperand = peelCasts (RealOperand, Chain);
 
       //
-      // Cast the result of the call instruction to match that of the orignal
+      // Cast the result of the call instruction to match that of the original
       // value.
       //
       BasicBlock::iterator i(CI);
@@ -121,8 +132,10 @@ RewriteOOB::processFunction (Function * F) {
       //
       // Get dominator information for the function.
       //
-      Function * F = CI->getParent()->getParent();
-      DominatorTree & domTree = getAnalysis<DominatorTree>(*F);
+      if ((CI->getParent()->getParent()) != CurrentFunction) {
+        CurrentFunction = CI->getParent()->getParent();
+        domTree = &getAnalysis<DominatorTree>(*CurrentFunction);
+      }
 
       //
       // For every use that the call instruction dominates, change the use to
@@ -131,7 +144,7 @@ RewriteOOB::processFunction (Function * F) {
       Value::use_iterator UI = PeeledOperand->use_begin();
       for (; UI != PeeledOperand->use_end(); ++UI) {
         if (Instruction * Use = dyn_cast<Instruction>(UI))
-          if ((CI != Use) && (domTree.dominates (CI, Use))) {
+          if ((CI != Use) && (domTree->dominates (CI, Use))) {
             UI->replaceUsesOfWith (PeeledOperand, CastCI);
             ++Changes;
           }
