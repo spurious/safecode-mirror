@@ -32,7 +32,7 @@ namespace llvm {
     public :
       static char ID;
       checkStackSafety() : ModulePass ((intptr_t) &ID) {}
-      std::vector<DSNode *> AllocaNodes;
+      std::set<DSNode *> AllocaNodes;
       const char *getPassName() const { return "Stack Safety Check";}
       virtual bool runOnModule(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {

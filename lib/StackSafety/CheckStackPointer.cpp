@@ -84,7 +84,7 @@ checkStackSafety::markReachableAllocasInt(DSNode *DSN, bool start) {
   //
   if (!start && DSN->isAllocaNode()) {
     returnValue =  true;
-    AllocaNodes.push_back(DSN);
+    AllocaNodes.insert (DSN);
   }
 
   //
