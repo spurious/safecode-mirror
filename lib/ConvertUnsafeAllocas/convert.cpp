@@ -26,6 +26,7 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/InstIterator.h"
 
 #include <iostream>
 
@@ -99,7 +100,8 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
 
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
-  if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+  if (!DisableStackPromote)
+    TransformCSSAllocasToMallocs (M, cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
 #if 0
   TransformAllocasToMallocs(unsafeAllocaNodes);
@@ -145,13 +147,25 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
 
   //
   // Get the dominance frontier information about the malloc instruction's
-  // basic block.
+  // basic block.  We cache the information in case we end up processing
+  // multiple instructions from the same function.
   //
   BasicBlock *currentBlock = MI->getParent();
   Function * F = currentBlock->getParent();
-  DominanceFrontier & DF = getAnalysis<DominanceFrontier>(*F);
-  DominatorTree & domTree = getAnalysis<DominatorTree>(*F);
-  DominanceFrontier * dfmt = &DF;
+  DominanceFrontier * dfmt = 0;
+  DominatorTree     * domTree = 0;
+  if (DFMap.find(F) == DFMap.end()) {
+    dfmt    = DFMap[F] = &getAnalysis<DominanceFrontier>(*F);
+    domTree = DTMap[F] = &getAnalysis<DominatorTree>(*F);
+  } else {
+#if 0
+    dfmt    = DFMap[F];
+    domTree = DTMap[F];
+#else
+    dfmt    = DFMap[F] = &getAnalysis<DominanceFrontier>(*F);
+    domTree = DTMap[F] = &getAnalysis<DominatorTree>(*F);
+#endif
+  }
   DominanceFrontier::const_iterator it = dfmt->find(currentBlock);
 
 #if 0
@@ -171,7 +185,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
                            SE = pred_end(frontierBlock);
                            SI != SE; ++SI) {
           BasicBlock *predecessorBlock = *SI;
-          if (domTree.dominates (predecessorBlock, currentBlock)) {
+          if (domTree->dominates (predecessorBlock, currentBlock)) {
             // Get the terminator
             Instruction *InsertPt = predecessorBlock->getTerminator();
             new FreeInst(MI, InsertPt);
@@ -205,7 +219,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
     // don't insert a free instruction for now.
     //
     Instruction *InsertPt = *fpI;
-    if (domTree.dominates (MI->getParent(), InsertPt->getParent())) {
+    if (domTree->dominates (MI->getParent(), InsertPt->getParent())) {
       new FreeInst(MI, InsertPt);
     } else {
       ++MissingFrees;
@@ -296,47 +310,101 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 //  allocations.
 //
 void
-ConvertUnsafeAllocas::TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes) {
-  std::vector<DSNode *>::const_iterator iCurrent = cssAllocaNodes.begin(),
-                                        iEnd     = cssAllocaNodes.end();
-  for (; iCurrent != iEnd; ++iCurrent) {
-    DSNode *DSN = *iCurrent;
+ConvertUnsafeAllocas::TransformCSSAllocasToMallocs (Module & M,
+                                                    std::set<DSNode *> & cssAllocaNodes) {
+  for (Module::iterator FI = M.begin(); FI != M.end(); ++FI) {
+    //
+    // Skip functions that have no DSGraph.  These are probably functions with
+    // no function body and are, hence, cannot be analyzed.
+    //
+    if (!(budsPass->hasDSGraph (*FI))) continue;
 
-    if (DSN->isNodeCompletelyFolded())
-      continue;
+    //
+    // Get the DSGraph for the current function.
+    //
+    DSGraph *DSG = budsPass->getDSGraph(*FI);
 
-    // If this is already listed in the unsafeAllocaNode vector, remove it
-    // since we are processing it here
-    std::list<DSNode *>::iterator NodeI = find(unsafeAllocaNodes.begin(),
-                                               unsafeAllocaNodes.end(),
-                                               DSN);
-    if (NodeI != unsafeAllocaNodes.end()) {
-      unsafeAllocaNodes.erase(NodeI);
-    }
-    
-    // Now change the alloca instructions corresponding to this node to mallocs
-    DSGraph *DSG = DSN->getParentGraph();
-    DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
-    Value *MI = 0;
-    for (DSGraph::ScalarMapTy::iterator SMI = SM.begin(), SME = SM.end();
-         SMI != SME; ) {
-      if (SMI->second.getNode() == DSN) {
-        if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
-          // Create a new malloc instruction
-          if (AI->getParent() != 0) { //This check for both stack and array
-            MI = promoteAlloca(AI, DSN);
-            SM.erase(SMI++);
-            AI->getParent()->getInstList().erase(AI);
-            ++ConvAllocas;
-          } else {
-            ++SMI;
+    //
+    // Search for alloca instructions that need promotion and add them to the
+    // worklist.
+    //
+    std::vector<AllocaInst *> Worklist;
+    for (Function::iterator BB = FI->begin(); BB != FI->end(); ++BB) {
+      for (BasicBlock::iterator ii = BB->begin(); ii != BB->end(); ++ii) {
+        Instruction * I = ii;
+
+        if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
+          //
+          // Get the DSNode for the allocation.
+          //
+          DSNode *DSN = DSG->getNodeForValue(AI).getNode();
+          assert (DSN && "No DSNode for alloca!\n");
+
+          //
+          // If the alloca is type-known, we do not need to promote it, so
+          // don't bother with it.
+          //
+          if (DSN->isNodeCompletelyFolded()) continue;
+
+          //
+          // Determine if the DSNode for the alloca is one of those marked as
+          // unsafe by the stack safety analysis pass.  If not, then we do not
+          // need to promote it.
+          //
+          if (cssAllocaNodes.find(DSN) == cssAllocaNodes.end()) continue;
+
+          //
+          // If the DSNode for this alloca is already listed in the
+          // unsafeAllocaNode vector, remove it since we are processing it here
+          //
+          std::list<DSNode *>::iterator NodeI = find (unsafeAllocaNodes.begin(),
+                                                      unsafeAllocaNodes.end(),
+                                                      DSN);
+          if (NodeI != unsafeAllocaNodes.end()) {
+            unsafeAllocaNodes.erase(NodeI);
           }
-        } else {
-          ++SMI;
+
+          //
+          // This alloca needs to be changed to a malloc.  Add it to the
+          // worklist.
+          //
+          Worklist.push_back (AI);
         }
-      } else {
-        ++SMI;
       }
+    }
+
+    //
+    // Get the dominator information for the current function.
+    //
+    DominanceFrontier & dfmt    = getAnalysis<DominanceFrontier>(*FI);
+    DominatorTree     & domTree = getAnalysis<DominatorTree>(*FI);
+
+    //
+    // Update the statistics.
+    //
+    ConvAllocas += Worklist.size();
+
+    //
+    // Convert everything in the worklist into a malloc instruction.
+    //
+    while (Worklist.size()) {
+      //
+      // Grab an alloca from the worklist.
+      //
+      AllocaInst * AI = Worklist.back();
+      Worklist.pop_back();
+
+      //
+      // Get the DSNode for this alloca.
+      //
+      DSNode *DSN = DSG->getNodeForValue(AI).getNode();
+      assert (DSN && "No DSNode for alloca!\n");
+
+      //
+      // Promote the alloca and remove it from the program.
+      //
+      Value * MI = promoteAlloca (AI, DSN, dfmt, domTree);
+      AI->getParent()->getInstList().erase(AI);
     }
   }
 }
@@ -364,8 +432,17 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 //  Rewrite the given alloca instruction into an instruction that performs a
 //  heap allocation of the same size.
 //
+// Inputs:
+//  AI      - The alloca instruction to promote.
+//  Node    - The DSNode of the alloca.
+//  dfmt    - The dominance frontier of the function containing the alloca.
+//  domTree - The dominator tree for the function containing the alloca.
+//
 Value *
-ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
+ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI,
+                                     DSNode * Node,
+                                     DominanceFrontier & dfmt,
+                                     DominatorTree & domTree) {
 #ifndef LLVA_KERNEL
   MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
                                   AI->getArraySize(), AI->getName(), 
@@ -546,7 +623,10 @@ PAConvertUnsafeAllocas::InsertFreesAtEndNew (Value * PH, Instruction * MI) {
 //
 static std::set<Function *> FuncsWithPromotes;
 Value *
-PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
+PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI,
+                                       DSNode * Node,
+                                       DominanceFrontier & dfmt,
+                                       DominatorTree & domTree) {
   // Function in which the allocation lives
   Function * F = AI->getParent()->getParent();
 
@@ -646,7 +726,8 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
 
   unsafeAllocaNodes.clear();
   getUnsafeAllocsFromABC();
-  if (!DisableStackPromote) TransformCSSAllocasToMallocs(cssPass->AllocaNodes);
+  if (!DisableStackPromote)
+    TransformCSSAllocasToMallocs(M, cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
 #if 0
   TransformAllocasToMallocs(unsafeAllocaNodes);

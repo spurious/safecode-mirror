@@ -147,14 +147,23 @@ struct ConvertUnsafeAllocas : public ModulePass {
 
     std::list<DSNode *> unsafeAllocaNodes;
     std::set<DSNode *> reachableAllocaNodes; 
+
+    // Information for recording the last function for which we computed
+    // dominator information.
+    std::map<Function *, DominanceFrontier *> DFMap;
+    std::map<Function *, DominatorTree *>     DTMap;
+
     bool markReachableAllocas(DSNode *DSN);
     bool markReachableAllocasInt(DSNode *DSN);
     void TransformAllocasToMallocs(std::list<DSNode *> & unsafeAllocaNodes);
-    void TransformCSSAllocasToMallocs(std::vector<DSNode *> & cssAllocaNodes);
+    void TransformCSSAllocasToMallocs(Module & M, std::set<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC();
     void TransformCollapsedAllocas(Module &M);
     virtual void InsertFreesAtEnd(MallocInst *MI);
-    virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
+    virtual Value * promoteAlloca(AllocaInst * AI,
+                                  DSNode * Node,
+                                  DominanceFrontier & df,
+                                  DominatorTree & dt);
 };
 
 //
@@ -178,7 +187,10 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
 
   protected:
     virtual void InsertFreesAtEndNew(Value * PH, Instruction  *MI);
-    virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
+    virtual Value * promoteAlloca(AllocaInst * AI,
+                                  DSNode * Node,
+                                  DominanceFrontier & df,
+                                  DominatorTree & dt);
 
   public:
     static char ID;
