@@ -152,20 +152,9 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
   //
   BasicBlock *currentBlock = MI->getParent();
   Function * F = currentBlock->getParent();
-  DominanceFrontier * dfmt = 0;
-  DominatorTree     * domTree = 0;
-  if (DFMap.find(F) == DFMap.end()) {
-    dfmt    = DFMap[F] = &getAnalysis<DominanceFrontier>(*F);
-    domTree = DTMap[F] = &getAnalysis<DominatorTree>(*F);
-  } else {
-#if 0
-    dfmt    = DFMap[F];
-    domTree = DTMap[F];
-#else
-    dfmt    = DFMap[F] = &getAnalysis<DominanceFrontier>(*F);
-    domTree = DTMap[F] = &getAnalysis<DominatorTree>(*F);
-#endif
-  }
+  DominanceFrontier * dfmt = &getAnalysis<DominanceFrontier>(*F);
+  DominatorTree     * domTree = &getAnalysis<DominatorTree>(*F);
+
   DominanceFrontier::const_iterator it = dfmt->find(currentBlock);
 
 #if 0
@@ -403,7 +392,7 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs (Module & M,
       //
       // Promote the alloca and remove it from the program.
       //
-      Value * MI = promoteAlloca (AI, DSN, dfmt, domTree);
+      Value * MI = promoteAlloca (AI, DSN);
       AI->getParent()->getInstList().erase(AI);
     }
   }
@@ -435,14 +424,9 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 // Inputs:
 //  AI      - The alloca instruction to promote.
 //  Node    - The DSNode of the alloca.
-//  dfmt    - The dominance frontier of the function containing the alloca.
-//  domTree - The dominator tree for the function containing the alloca.
 //
 Value *
-ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI,
-                                     DSNode * Node,
-                                     DominanceFrontier & dfmt,
-                                     DominatorTree & domTree) {
+ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
 #ifndef LLVA_KERNEL
   MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
                                   AI->getArraySize(), AI->getName(), 
@@ -623,10 +607,7 @@ PAConvertUnsafeAllocas::InsertFreesAtEndNew (Value * PH, Instruction * MI) {
 //
 static std::set<Function *> FuncsWithPromotes;
 Value *
-PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI,
-                                       DSNode * Node,
-                                       DominanceFrontier & dfmt,
-                                       DominatorTree & domTree) {
+PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   // Function in which the allocation lives
   Function * F = AI->getParent()->getParent();
 
