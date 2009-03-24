@@ -1219,8 +1219,21 @@ poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 
 void
 poolunregister(PoolTy *Pool, void * allocaptr) {
+  //
+  // If no pool was specified, then do nothing.
+  //
   if (!Pool) return;
+
+  //
+  // Remove the object from the pool's splay tree.
+  //
   Pool->Objects.remove(allocaptr);
+
+  //
+  // Remove the object from the dangling pointer detection tree.
+  //
+  dummyPool.DPTree.remove (allocaptr);
+
   if (logregs) {
     fprintf (stderr, "pooluregister: %p\n", allocaptr);
   }
@@ -1530,6 +1543,48 @@ poolalloc_debug (PoolTy *Pool,
 
   // Return the shadow pointer.
   return shadowptr;
+}
+
+//
+// Function: poolregister_debug()
+//
+// Description:
+//  Register the memory starting at the specified pointer of the specified size
+//  with the given Pool.  This version will also record debug information about
+//  the object being registered.
+//
+void
+poolregister_debug (PoolTy *Pool,
+                    void * allocaptr,
+                    unsigned NumBytes,
+                    void * SourceFilep,
+                    unsigned lineno) {
+  // Do some initial casting for type goodness
+  char * SourceFile = (char *)(SourceFilep);
+
+  //
+  // Create the meta data object containing the debug information for this
+  // pointer.
+  //
+  PDebugMetaData debugmetadataPtr;
+  globalallocID++;
+  debugmetadataPtr = createPtrMetaData (globalallocID,
+                                        globalfreeID,
+                                        __builtin_return_address(0),
+                                        0,
+                                        allocaptr, SourceFile, lineno);
+  dummyPool.DPTree.insert (allocaptr,
+                           (char*) allocaptr + NumBytes - 1,
+                           debugmetadataPtr);
+
+  //
+  // Call the real poolregister() function to register the object.
+  //
+  if (logregs) {
+    fprintf (ReportLog, "poolregister_debug: %p: %p %d: %s %d\n", Pool, (void*)allocaptr, NumBytes, SourceFile, lineno);
+    fflush (ReportLog);
+  }
+  poolregister (Pool, allocaptr, NumBytes);
 }
 
 //
@@ -1885,6 +1940,14 @@ poolcheck_debug (PoolTy *Pool, void *Node, void * SourceFilep, unsigned lineno) 
 		}
 	}
 
+  //
+  // If it's a rewrite pointer, convert it back into its original value so
+  // that we can print the real faulting address.
+  //
+  if (isRewritePtr (Node)) {
+    Node = pchk_getActualValue (Pool, Node);
+  }
+
   ReportLoadStoreCheck (Node,
                         __builtin_return_address(0),
                         (char *)SourceFilep,
@@ -2059,8 +2122,8 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
    * within that page.  Loads and stores using such pointers will fault.  This
    * allows indexing of NULL pointers without error.
    */
-  if (Source < (unsigned char *)(4096)) {
-    if (Dest < (unsigned char *)(4096)) {
+  if ((((unsigned char *)0) <= Source) && (Source < (unsigned char *)(4096))) {
+    if ((((unsigned char *)0) <= Dest) && (Dest < (unsigned char *)(4096))) {
       return Dest;
     } else {
       if ((ConfigData.StrictIndexing == false) ||
