@@ -38,6 +38,47 @@ namespace {
 }
 
 ////////////////////////////////////////////////////////////////////////////
+// Static Functions
+////////////////////////////////////////////////////////////////////////////
+
+//
+// Function: findBlocksDominatedBy()
+//
+// Description:
+//  This function recurses through the dominator tree to find all the nodes
+//  domianted by the given node.
+//
+// Inputs:
+//  DTN  - The node which dominates all the nodes which this function will find.
+//
+// Outputs:
+//  List - The set of nodes dominated by the given node.
+//
+static void
+findBlocksDominatedBy (DomTreeNode * DTN, std::set<DomTreeNode *> & List) {
+  //
+  // First, the block dominates itself.
+  //
+  List.insert (DTN);
+
+  //
+  // Add to the set all of the basic blocks immediently domainted by this basic
+  // block.
+  //
+  const std::vector<DomTreeNode*> &children = DTN->getChildren();
+  List.insert (children.begin(), children.end());
+
+  //
+  // Add the children's children to the set as well.
+  //
+  for (std::vector<DomTreeNode*>::const_iterator i = children.begin();
+       i != children.end();
+       ++i) {
+    findBlocksDominatedBy (*i, List);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////
 // RegisterStackObjPass Methods
 ////////////////////////////////////////////////////////////////////////////
  
@@ -54,16 +95,31 @@ RegisterStackObjPass::doInitialization(Module & M) {
 
 bool
 RegisterStackObjPass::runOnFunction(Function & F) {
-  // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
+  //
+  // Get prerequisite analysis information.
+  //
+#if 0
+  paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
+#endif
   TD = &getAnalysis<TargetData>();
   paPass = &getAnalysis<PoolAllocateGroup>();
   dsnPass = &getAnalysis<DSNodePass>();
   DT = &getAnalysis<DominatorTree>();
+
   for (Function::iterator BI = F.begin(); BI != F.end(); ++BI) {
-    DomTreeNode * DTN = DT->getNode(BI);
+    //
+    // Find all of the basic blocks dominated by this basic block.
+    //
+    std::set<DomTreeNode *> Children;
+    findBlocksDominatedBy (DT->getNode(BI), Children);
+
+    //
+    // Search for alloca instructions and add calls to register and unregister
+    // the allocated stack objects.
+    //
     for (BasicBlock::iterator I = BI->begin(); I != BI->end(); ++I) {
       if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
-        registerAllocaInst (AI, AI, DTN);
+        registerAllocaInst (AI, AI, Children);
       }
     }
   }
@@ -71,9 +127,9 @@ RegisterStackObjPass::runOnFunction(Function & F) {
 }
 
 void
-RegisterStackObjPass::registerAllocaInst(AllocaInst *AI,
-                                         AllocaInst *AIOrig,
-                                         DomTreeNode * DTN) {
+RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
+                                          AllocaInst *AIOrig,
+                                          std::set<DomTreeNode *> Children) {
   //
   // Get the function information for this function.
   //
@@ -257,25 +313,29 @@ RegisterStackObjPass::registerAllocaInst(AllocaInst *AI,
   // Insert a call to unregister the object whenever the function can exit.
   //
   // FIXME:
-  //  While the code below fixes some test cases, it is still incomplete. We
-  //  may have a basic block that does not dominate *any* basic block that
-  //  ends with a ret or unwind instruction.  What the code should do (I
-  //  think) is:
+  //  While the code below fixes some test cases, it is still incomplete.  A
+  //  call to return or unwind should unregister all registered stack objects
+  //  regardless of whether the allocation always occurs before the return or
+  //  unwind.
+  //
+  //  What the code should do (I think) is:
   //    a) Insert poolunregister() calls before all return/unwind
   //       instructions dominated by the alloca's basic block
-  //    b) Use the dominance frontier to find other basic blocks which should
-  //       also call poolunregister() to unregister the alloca instruction.
+  //    b) Add PHI functions (using the dominance frontier) so that either a 0
+  //       or the alloca's pointer reach the poolunregister() in basic blocks
+  //       not dominated by the alloca.
   //
-  //  Also, there may be even more issues with alloca's inside of loops.
+  //  There are additional issues with alloca's inside of loops.
   //
   CastedPH=castTo(PH,PointerType::getUnqual(Type::Int8Ty),"allocph",Casted);
   args.clear();
   args.push_back (CastedPH);
   args.push_back (Casted);
-  const std::vector<DomTreeNode*> &children = DTN->getChildren();
-  for (unsigned int i = 0; i < children.size(); ++i) {
-    assert (DT->dominates (AI->getParent(), children[i]->getBlock()) && "Not dominate!\n");
-    iptI = children[i]->getBlock()->getTerminator();
+  for (std::set<DomTreeNode*>::iterator i = Children.begin();
+       i != Children.end();
+       ++i) {
+    DomTreeNode * DTN = *i;
+    iptI = DTN->getBlock()->getTerminator();
     if (isa<ReturnInst>(iptI) || isa<UnwindInst>(iptI))
       CallInst::Create (StackFree, args.begin(), args.end(), "", iptI);
   }

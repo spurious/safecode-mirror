@@ -202,7 +202,9 @@ struct RegisterStackObjPass : public FunctionPass {
     TargetData * TD;
     DSNodePass * dsnPass;
     DominatorTree * DT;
-    void registerAllocaInst(AllocaInst *AI, AllocaInst *AIOrig, DomTreeNode * DTN);
+    void registerAllocaInst(AllocaInst *AI,
+                            AllocaInst *AIOrig,
+                            std::set<DomTreeNode *> Children);
  };
 
  extern ModulePass * createClearCheckAttributesPass();
