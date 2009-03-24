@@ -65,8 +65,8 @@ exactcheck_check (void * ObjStart,
       (((char *) Dest) == (((char *)ObjEnd)+1))) {
     void * ptr = rewrite_ptr (0, Dest, SourceFile, lineno);
     if (logregs)
-      fprintf (ReportLog, "exactcheck: rewrite(1): %p %p %p at pc=%p to %p\n",
-               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(1), ptr);
+      fprintf (ReportLog, "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
+               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(1), ptr, SourceFile, lineno);
       fflush (ReportLog);
     return ptr;
   } else {
