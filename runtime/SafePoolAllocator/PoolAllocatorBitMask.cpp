@@ -1173,6 +1173,27 @@ poolargvregister (int argc, char ** argv) {
 }
 
 //
+// Function: __barebone_poolregister()
+//
+// Description:
+//  This function implements the basic functionality of adding an object to
+//  a pool's splay trees.  It is an internal function used by the poolalloc()
+//  and poolregister() functions for adding an object to a pool.
+//
+static inline void
+__barebone_poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
+  //
+  // If the pool is NULL or the object has zero length, don't do anything.
+  //
+  if ((!Pool) || (NumBytes == 0)) return;
+
+  //
+  // Add the object to the pool's splay of valid objects.
+  //
+  Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
+}
+
+//
 // Function: poolregister()
 //
 // Description:
@@ -1180,43 +1201,41 @@ poolargvregister (int argc, char ** argv) {
 //  with the given Pool.
 //
 void
-poolregister(PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
+poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
+  //
+  // Do the actual registration.
+  //
+  __barebone_poolregister (Pool, allocaptr, NumBytes);
 
-  // If the pool is NULL, don't do anything.
-  if (!Pool) return;
-
-#if 0
-  if (Pool->AllocadPool != -1) {
-    if (Pool->AllocadPool == 0) {
-      printf(" Handle this case later\n");
-      exit(-1);
-    } else {
-      printf(" An allocad pool, you can only allocate once \n");
-      exit(-1);
-    }
-  } else {
-    Pool->AllocadPool = NumBytes;
-    Pool->allocaptr = allocaptr;
-  }
-#else
-#if 0
-  Pool->RegNodes->insert (std::make_pair(allocaptr,NumBytes));
-#endif
-
-   //
-   // If the object has length zero, then don't bother registering it.
-   //
-   if (NumBytes == 0)
-     return;
-
-  Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
+  //
+  // Provide some debugging information on the pool register.
+  //
   if (logregs) {
     fprintf (ReportLog, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
     fflush (ReportLog);
   }
-#endif
 }
 
+//
+// Function: poolunregister()
+//
+// Description:
+//  Remove the specified object from the set of valid objects in the Pool.
+//
+// Inputs:
+//  Pool      - The pool in which the object should belong.
+//  allocaptr - A pointer to the object to remove.
+//
+// Notes:
+//  Note that this function currently deallocates debug information about the
+//  allocation.  This is safe because this function is only called on stack
+//  objects.  This is less-than-ideal because we lose debug information about
+//  the allocation of the stack object if it is later dereferenced outside its
+//  function (dangling pointer), but it is currently too expensive to keep that
+//  much debug information around.
+//
+//  TODO: What are the restrictions on allocaptr?
+//
 void
 poolunregister(PoolTy *Pool, void * allocaptr) {
   //
@@ -1227,12 +1246,18 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   //
   // Remove the object from the pool's splay tree.
   //
-  Pool->Objects.remove(allocaptr);
+  Pool->Objects.remove (allocaptr);
 
   //
-  // Remove the object from the dangling pointer detection tree.
+  // Remove the object from the dangling pointer detection tree.  Deallocate
+  // its debug information, too.
   //
-  dummyPool.DPTree.remove (allocaptr);
+  void * start, * end;
+  PDebugMetaData debugmetadataptr = 0;
+  if (dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr)) {
+    free (debugmetadataptr);
+    dummyPool.DPTree.remove (allocaptr);
+  }
 
   if (logregs) {
     fprintf (stderr, "pooluregister: %p\n", allocaptr);
@@ -1524,7 +1549,7 @@ poolalloc_debug (PoolTy *Pool,
   void * shadowptr = (unsigned char *)(shadowpage) + offset;
 
   // Register the object in the splay tree.
-  poolregister (Pool, shadowptr, NumBytes);
+  __barebone_poolregister (Pool, shadowptr, NumBytes);
 
   //
   // Create the meta data object containing the debug information and the
@@ -1553,6 +1578,11 @@ poolalloc_debug (PoolTy *Pool,
 //  with the given Pool.  This version will also record debug information about
 //  the object being registered.
 //
+// Notes:
+//  This function should never be used to register an object which can be
+//  freed via a heap free function.  The only objects registered with this
+//  function should be globals and stack objects.
+//
 void
 poolregister_debug (PoolTy *Pool,
                     void * allocaptr,
@@ -1564,7 +1594,9 @@ poolregister_debug (PoolTy *Pool,
 
   //
   // Create the meta data object containing the debug information for this
-  // pointer.
+  // pointer.  These pointers will never be shadowed, but we want to record
+  // information about the allocation in case a bounds check on this object
+  // fails.
   //
   PDebugMetaData debugmetadataPtr;
   globalallocID++;
@@ -1584,7 +1616,7 @@ poolregister_debug (PoolTy *Pool,
     fprintf (ReportLog, "poolregister_debug: %p: %p %d: %s %d\n", Pool, (void*)allocaptr, NumBytes, SourceFile, lineno);
     fflush (ReportLog);
   }
-  poolregister (Pool, allocaptr, NumBytes);
+  __barebone_poolregister (Pool, allocaptr, NumBytes);
 }
 
 //
