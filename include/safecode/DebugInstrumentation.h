@@ -16,13 +16,31 @@
 #define DEBUG_INSTRUMENTATION_H
 
 #include "safecode/SAFECode.h"
+#include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
 #include "llvm/Value.h"
 
+#include <utility>
+
 using namespace llvm;
 
 NAMESPACE_SC_BEGIN
+
+class GetSourceInfo {
+  public:
+    virtual std::pair<Value *, Value *> operator() (CallInst * I) = 0;
+};
+
+class LocationSourceInfo : public GetSourceInfo {
+  public:
+    virtual std::pair<Value *, Value *> operator() (CallInst * I);
+};
+
+class VariableSourceInfo : public GetSourceInfo {
+  public:
+    virtual std::pair<Value *, Value *> operator() (CallInst * I);
+};
 
 struct DebugInstrument : public ModulePass {
   public:
@@ -46,7 +64,7 @@ struct DebugInstrument : public ModulePass {
     Type * VoidPtrTy;
 
     // Private methods
-    void transformFunction (Function * F);
+    void transformFunction (Function * F, GetSourceInfo & SI);
 };
 
 NAMESPACE_SC_END

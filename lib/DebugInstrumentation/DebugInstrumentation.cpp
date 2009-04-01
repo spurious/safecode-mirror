@@ -10,6 +10,10 @@
 // This pass modifies calls to the pool allocator and SAFECode run-times to
 // track source level debugging information.
 //
+// Notes:
+//  Some of this code is based off of code from the getLocationInfo() method in
+//  LLVM.
+//
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "DebugAdder"
@@ -64,6 +68,129 @@ namespace {
 ///////////////////////////////////////////////////////////////////////////
 
 //
+// Method: operator()
+//
+// Description:
+//  Return the source information associated with the call instruction by
+//  finding the location within the source code in which the call is made.
+//
+// Inputs:
+//  CI - The call instruction
+//
+// Return value:
+//  A pair of LLVM values.  The first is the source file name; the second is
+//  the line number.  Default values are given if no source line information
+//  can be found.
+//
+std::pair<Value *, Value *>
+LocationSourceInfo::operator() (CallInst * CI) {
+  static int count=0;
+  //
+  // Get the line number and source file information for the call.
+  //
+  const DbgStopPointInst * StopPt = findStopPoint (CI);
+  Value * LineNumber;
+  Value * SourceFile;
+  if (StopPt) {
+    LineNumber = StopPt->getLineValue();
+    SourceFile = StopPt->getFileName();
+  } else {
+    std::string filename = "<unknown>";
+    if (CI->getParent()->getParent()->hasName())
+      filename = CI->getParent()->getParent()->getName();
+    LineNumber = ConstantInt::get (Type::Int32Ty, ++count);
+    Constant * FInit = ConstantArray::get (filename);
+    SourceFile = new GlobalVariable (FInit->getType(),
+                                     true,
+                                     GlobalValue::InternalLinkage,
+                                     FInit,
+                                     "sourcefile",
+                                     CI->getParent()->getParent()->getParent());
+  }
+
+  return std::make_pair (SourceFile, LineNumber);
+}
+
+//
+// Method: operator()
+//
+// Description:
+//  Return the source information associated with a value within the call
+//  instruction.  This is mainly intended to provide better source file
+//  information to poolregister() calls.
+//
+// Inputs:
+//  CI - The call instruction
+//
+// Return value:
+//  A pair of LLVM values.  The first is the source file name; the second is
+//  the line number.  Default values are given if no source line information
+//  can be found.
+//
+std::pair<Value *, Value *>
+VariableSourceInfo::operator() (CallInst * CI) {
+  assert (((CI->getNumOperands()) > 2) &&
+          "Not enough information to get debug info!\n");
+
+  unsigned    LineNo = 0;
+
+  Value * LineNumber;
+  Value * SourceFile;
+
+  //
+  // Create a default line number and source file information for the call.
+  //
+  LineNumber = ConstantInt::get (Type::Int32Ty, 0);
+  Constant * FInit = ConstantArray::get ("<unknown>");
+  SourceFile = new GlobalVariable (FInit->getType(),
+                                   true,
+                                   GlobalValue::InternalLinkage,
+                                   FInit,
+                                   "srcfile",
+                                   CI->getParent()->getParent()->getParent());
+  //
+  // Get the value for which we want debug information.
+  //
+  Value * V = CI->getOperand(2)->stripPointerCasts();
+
+  //
+  // Try to get information about where in the program the value was allocated.
+  //
+  std::string filename;
+  if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
+    if (Value * GVDesc = findDbgGlobalDeclare (GV)) {
+      DIGlobalVariable Var(cast<GlobalVariable>(GVDesc));
+      //Var.getDisplayName(DisplayName);
+      LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
+      Var.getCompileUnit().getFilename(filename);
+      Constant * FInit = ConstantArray::get (filename);
+      SourceFile = new GlobalVariable (FInit->getType(),
+                                       true,
+                                       GlobalValue::InternalLinkage,
+                                       FInit,
+                                       "srcfile",
+                                       CI->getParent()->getParent()->getParent());
+    }
+  } else {
+    if (const DbgDeclareInst *DDI = findDbgDeclare(V)) {
+      DIVariable Var (cast<GlobalVariable>(DDI->getVariable()));
+      LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
+      Var.getCompileUnit().getFilename(filename);
+      Constant * FInit = ConstantArray::get (filename);
+      SourceFile = new GlobalVariable (FInit->getType(),
+                                       true,
+                                       GlobalValue::InternalLinkage,
+                                       FInit,
+                                       "srcfile",
+                                       CI->getParent()->getParent()->getParent());
+    }
+  }
+
+  return std::make_pair (SourceFile, LineNumber);
+}
+
+
+//
 // Method: processFunction()
 //
 // Description:
@@ -73,7 +200,7 @@ namespace {
 //  F - The function to transform into a debug version.  This *can be NULL.
 //
 void
-DebugInstrument::transformFunction (Function * F) {
+DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   // If the function does not exist within the module, it does not need to
   // be transformed.
   if (!F) return;
@@ -116,22 +243,11 @@ DebugInstrument::transformFunction (Function * F) {
     //
     // Get the line number and source file information for the call.
     //
-    const DbgStopPointInst * StopPt = findStopPoint (CI);
     Value * LineNumber;
     Value * SourceFile;
-    if (StopPt) {
-      LineNumber = StopPt->getLineValue();
-      SourceFile = StopPt->getFileName();
-    } else {
-      LineNumber = ConstantInt::get (Type::Int32Ty, 0);
-      Constant * FInit = ConstantArray::get ("<unknown>");
-      SourceFile = new GlobalVariable (FInit->getType(),
-                                       true,
-                                       GlobalValue::InternalLinkage,
-                                       FInit,
-                                       "sourcefile",
-                                       F->getParent());
-    }
+    std::pair<Value *, Value *> Info = SI (CI);
+    SourceFile = Info.first;
+    LineNumber = Info.second;
 
     //
     // If the source filename is in the meta-data section, move it to the
@@ -180,14 +296,17 @@ DebugInstrument::runOnModule (Module &M) {
   //
   // Transform allocations, load/store checks, and bounds checks.
   //
-  transformFunction (M.getFunction ("poolalloc"));
-  transformFunction (M.getFunction ("poolcalloc"));
-  transformFunction (M.getFunction ("poolfree"));
-  transformFunction (M.getFunction ("poolcheck"));
-  transformFunction (M.getFunction ("poolcheckalign"));
-  transformFunction (M.getFunction ("boundscheck"));
-  transformFunction (M.getFunction ("boundscheckui"));
-  transformFunction (M.getFunction ("exactcheck2"));
+  LocationSourceInfo LInfo;
+  VariableSourceInfo VInfo;
+  transformFunction (M.getFunction ("poolalloc"), LInfo);
+  transformFunction (M.getFunction ("poolcalloc"), LInfo);
+  transformFunction (M.getFunction ("poolfree"), LInfo);
+  transformFunction (M.getFunction ("poolcheck"), LInfo);
+  transformFunction (M.getFunction ("poolcheckalign"), LInfo);
+  transformFunction (M.getFunction ("boundscheck"), LInfo);
+  transformFunction (M.getFunction ("boundscheckui"), LInfo);
+  transformFunction (M.getFunction ("exactcheck2"), LInfo);
+  transformFunction (M.getFunction ("poolregister"), LInfo);
   return true;
 }
 
