@@ -708,9 +708,14 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   if (Node && (Node->isExternalNode())) return;
 
   //
-  // Only check pointers to type-unknown objects.
+  // We need to check two types of pointers:
+  //  1) All Type-Unknown pointers.  These can be pointing anywhere.
+  //  2) Type-Known pointers into an array.  If we reach this point in the
+  //     code, then no previous GEP check has verified that this pointer is
+  //     within bounds.  Therefore, a load/store check is needed to ensure that
+  //     the pointer is within bounds.
   //
-  if (Node && Node->isNodeCompletelyFolded()) {
+  if (Node && (Node->isNodeCompletelyFolded() || Node->isArray())) {
     if (dyn_cast<CallInst>(I)) {
       // Do not perform function checks on incomplete nodes
       if (Node->isIncompleteNode()) return;
