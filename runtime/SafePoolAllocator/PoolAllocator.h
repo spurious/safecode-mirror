@@ -15,8 +15,8 @@
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 
-#include "llvm/ADT/hash_set.h"
 #include "safecode/Config/config.h"
+#include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc_runtime/Support/SplayTree.h"
 
 #include <stdarg.h>

@@ -14,10 +14,10 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSSupport.h"
-#include "llvm/ADT/hash_map.h"
 #include "llvm/Function.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
+#include "poolalloc/ADT/HashExtras.h"
 
 #include <set> 
 

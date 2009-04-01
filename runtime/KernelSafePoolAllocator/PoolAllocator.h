@@ -15,7 +15,7 @@
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 
-#include "llvm/ADT/hash_set.h"
+#include "poolalloc/ADT/HashExtras.h"
 #include "PoolCheck.h"
 #include "splay.h"
 
