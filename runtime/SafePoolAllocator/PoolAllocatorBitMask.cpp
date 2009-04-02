@@ -101,6 +101,9 @@ std::map<void *, void*>    RewriteSourcefile;
 std::map<void *, unsigned> RewriteLineno;
 std::map<void *, void *>   RewrittenPointers;
 
+// Record from which object an OOB pointer originates
+std::map<void *, std::pair<void *, void * > > RewrittenObjs;
+
 #ifndef SC_DEBUGTOOL
 /// It should be always zero in production version 
 static /*const*/ unsigned logregs = 0;
@@ -2067,13 +2070,12 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
   // compute the original value, re-do the indexing operation, and rewrite the
   // value back.
   //
-#if 0
   if (isRewritePtr (Source)) {
     //
     // Get the real pointer value (which is outside the bounds of a valid
     // object.
     //
-    void * RealSrc = ObjStart = pchk_getActualValue (Pool, Source);
+    void * RealSrc = pchk_getActualValue (Pool, Source);
 
     //
     // Compute the real result pointer (the value the GEP would really have on
@@ -2082,26 +2084,31 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
     Dest = (void *)((unsigned) RealSrc + ((unsigned) Dest - (unsigned) Source));
 
     //
+    // Retrieve the original bounds of the object.
+    //
+    ObjStart = RewrittenObjs[Source].first;
+    ObjEnd   = RewrittenObjs[Source].second;
+
+    //
     // Redo the bounds check.  If it succeeds, return the real value.
     // Otherwise, just continue on with the rest of the failed bounds check
     // processing as before.
     //
-    if (boundscheck_lookup (Pool, ObjStart, ObjEnd))
-      if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1))
-        return Dest;
+    if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1))
+      return Dest;
 
     //
     // Pretend this was an index off of the original out of bounds pointer
     // value and continue processing
     //
     if (logregs) {
-      fprintf (stderr, "unrewrite: (%x) -> (%x, %x) \n", Source, RealSrc, Dest);
+      fprintf (stderr, "unrewrite: (0x%x) -> (0x%x, 0x%x) \n", Source, RealSrc, Dest);
       fflush (stderr);
     }
+
     found = true;
     Source = RealSrc;
   }
-#endif
 
   //
   // Now, we know that the pointer is out of bounds.  If we indexed off the
@@ -2112,11 +2119,12 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
   if (found) {
     if ((ConfigData.StrictIndexing == false) ||
         (((char *) Dest) == (((char *)ObjEnd)+1))) {
-      void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
-      if (logregs)
-        fprintf (ReportLog, "boundscheck: rewrite(1): %p %p %p %p at pc=%p to %p\n",
-                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr);
+      void * ptr = rewrite_ptr (Pool, Dest, ObjStart, ObjEnd, SourceFile, lineno);
+      if (logregs) {
+        fprintf (ReportLog, "boundscheck: rewrite(1): %p %p %p %p at pc=%p to %p at %s (%d)\n",
+                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr, SourceFile, lineno);
         fflush (ReportLog);
+      }
       return ptr;
     } else {
       unsigned allocPC = 0;
@@ -2156,11 +2164,26 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
    */
   if ((((unsigned char *)0) <= Source) && (Source < (unsigned char *)(4096))) {
     if ((((unsigned char *)0) <= Dest) && (Dest < (unsigned char *)(4096))) {
+      if (logregs) {
+        fprintf (ReportLog, "boundscheck: NULL Index: %p %p %p %p at pc=%p at %s (%d)\n",
+                 0, 4096, Source, Dest, (void*)__builtin_return_address(1), SourceFile, lineno);
+        fflush (ReportLog);
+      }
       return Dest;
     } else {
       if ((ConfigData.StrictIndexing == false) ||
           (((uintptr_t) Dest) == 4096)) {
-        return rewrite_ptr (Pool, Dest, SourceFile, lineno);
+        if (logregs) {
+          fprintf (ReportLog, "boundscheck: rewrite(3): %p %p %p %p at pc=%p at %s (%d)\n",
+                   0, 4096, Source, Dest, (void*)__builtin_return_address(1), SourceFile, lineno);
+          fflush (ReportLog);
+        }
+        return rewrite_ptr (Pool,
+                            Dest,
+                            (void *)0,
+                            (void *)4096,
+                            SourceFile,
+                            lineno);
       } else {
         ReportBoundsCheck ((uintptr_t)Source,
                            (uintptr_t)Dest,
@@ -2192,12 +2215,12 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, PoolTy * Pool,
       } else {
         if ((ConfigData.StrictIndexing == false) ||
             (((char *) Dest) == (((char *)end)+1))) {
-          void * ptr = rewrite_ptr (Pool, Dest, SourceFile, lineno);
+          void * ptr = rewrite_ptr (Pool, Dest, S, end, SourceFile, lineno);
           if (logregs)
             fprintf (ReportLog,
-                     "boundscheck: rewrite(2): %p %p %p %p at pc=%p to %p\n",
+                     "boundscheck: rewrite(2): %p %p %p %p at pc=%p to %p at %s (%d)\n",
                      S, end, Source, Dest, (void*)__builtin_return_address(1),
-                     ptr);
+                     ptr, SourceFile, lineno);
           fflush (ReportLog);
           return ptr;
         }
@@ -2387,15 +2410,21 @@ boundscheckui_debug (PoolTy * Pool,
 // Inputs:
 //  Pool       - The pool in which the pointer should be located (but isn't).
 //               This value can be NULL if the caller doesn't know the pool.
-//
 //  p          - The pointer that needs to be rewritten.
+//  ObjStart   - The address of the first valid byte of the object.
+//  ObjEnd     - The address of the last valid byte of the object.
 //  SourceFile - The name of the source file in which the check requesting the
 //               rewrite is located.
 //  lineno     - The line number within the source file in which the check
 //               requesting the rewrite is located.
 //
 void *
-rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
+rewrite_ptr (PoolTy * Pool,
+             void * p,
+             void * ObjStart,
+             void * ObjEnd,
+             void * SourceFile,
+             unsigned lineno) {
 #if SC_DEBUGTOOL
   //
   // If this pointer has already been rewritten, do not rewrite it again.
@@ -2434,7 +2463,7 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
   // return the previously rewritten value.  Otherwise, insert a mapping from
   // rewrite pointer to original pointer into the pool.
   //
-  Pool->OOB.insert (invalidptr, ((unsigned char *)(invalidptr))+1, p);
+  Pool->OOB.insert (invalidptr, ((unsigned char *)(invalidptr)), p);
 #if SC_DEBUGTOOL
   //
   // If debugging tool support is enabled, then insert it into the global
@@ -2448,10 +2477,11 @@ rewrite_ptr (PoolTy * Pool, void * p, void * SourceFile, unsigned lineno) {
     fflush (ReportLog);
   }
 
-  OOBPool.OOB.insert (invalidptr, ((unsigned char *)(invalidptr))+1, p);
+  OOBPool.OOB.insert (invalidptr, ((unsigned char *)(invalidptr)), p);
   RewriteSourcefile[invalidptr] = SourceFile;
   RewriteLineno[invalidptr] = lineno;
   RewrittenPointers[p] = invalidptr;
+  RewrittenObjs[invalidptr] = std::make_pair(ObjStart, ObjEnd);
 #endif
   return invalidptr;
 #else
@@ -3086,7 +3116,13 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
       unsigned lineno = RewriteLineno[faultAddr];
-      ReportOOBPointer (program_counter, tag, faultAddr, Filename, lineno);
+      ReportOOBPointer (program_counter,
+                        tag,
+                        faultAddr,
+                        RewrittenObjs[faultAddr].first,
+                        RewrittenObjs[faultAddr].second,
+                        Filename,
+                        lineno);
       abort();
     }
 #endif

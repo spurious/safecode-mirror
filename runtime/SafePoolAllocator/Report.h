@@ -243,6 +243,8 @@ ReportExactCheck (unsigned src,
 //  pc         - The program counter of the failed run-time check.
 //  ptr        - The out of bounds pointer.
 //  oobp       - The rewritten pointer that caused the fault.
+//  ObjStart   - The start of the object from which the pointer came.
+//  Objend     - The end of the object from which the pointer came.
 //  SourceFile - The source file in which the pointer went out of bounds.
 //  lineno     - The line number at which the pointer went out of bounds.
 //
@@ -250,6 +252,8 @@ static void
 ReportOOBPointer (unsigned pc,
                   void * ptr,
                   void * oobp,
+                  void * ObjStart,
+                  void * ObjEnd,
                   char * SourceFile,
                   unsigned lineno) {
   // Print the header and get the ID for this report
@@ -258,6 +262,8 @@ ReportOOBPointer (unsigned pc,
   fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address 0x%08x\n", id, (unsigned)ptr);
   fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
   fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : 0x%08x \n", id, oobp);
+  fprintf (ReportLog, "%04d:\tStart of Object               : 0x%08x \n", id, ObjStart);
+  fprintf (ReportLog, "%04d:\tEnd of Object                 : 0x%08x \n", id, ObjEnd);
   fprintf (ReportLog, "%04d:\tSource filename               : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number            : %d \n", id, lineno);
   fflush (ReportLog);

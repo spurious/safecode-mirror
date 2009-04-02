@@ -30,7 +30,12 @@
 struct PoolTy;
 
 /* Function to rewriting pointers to Out Of Bounds (OOB) Pointers */
-extern void * rewrite_ptr (struct PoolTy * P, void * p, void * SF, unsigned l);
+extern void * rewrite_ptr (struct PoolTy * P,
+                           void * p,
+                           void * S,
+                           void * E,
+                           void * SF,
+                           unsigned l);
 
 /* Toggle whether we'll log debug data */
 static int logregs = 0;
@@ -63,7 +68,7 @@ exactcheck_check (void * ObjStart,
    */
   if ((!(ConfigData.StrictIndexing)) ||
       (((char *) Dest) == (((char *)ObjEnd)+1))) {
-    void * ptr = rewrite_ptr (0, Dest, SourceFile, lineno);
+    void * ptr = rewrite_ptr (0, Dest, ObjStart, ObjEnd, SourceFile, lineno);
     if (logregs)
       fprintf (ReportLog, "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
                ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(1), ptr, SourceFile, lineno);
