@@ -173,6 +173,38 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+# Program tests for measuring all the different SAFECode overhead
+progfull::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=full \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               LARGE_PROBLEM_SIZE=1 \
+               report.html report.csv) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=full \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
+                   report.html report.csv; \
+mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
+mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir;  \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=full \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=full \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 progabc::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
