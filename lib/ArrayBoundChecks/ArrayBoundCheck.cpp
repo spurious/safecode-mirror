@@ -1292,10 +1292,6 @@ ArrayBoundsCheck::collectSafetyConstraints (Function &F) {
           Constraint* c2 = new Constraint("0",le,">",true); // 0 > index
           ABCExprTree* abctemp2 = new ABCExprTree(c2);
           root = new ABCExprTree(abctemp1, abctemp2, "||");
-std::cerr << "JTC1: " << getValueName(MAI) << std::endl;
-std::cerr << "JTC2: " << getValueName(MAI->getPointerOperand()) << std::endl;
-root->print (std::cerr);
-std::cerr << "\n\n";
 
           //
           // Process the other indices in the GEP.
