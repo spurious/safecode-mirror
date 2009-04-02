@@ -100,7 +100,7 @@ struct ArrayBoundsCheck : public ModulePass {
     std::set<BasicBlock *> DoneList;
 
     // Initializes the KnownFuncDB
-    void initialize(Module &M);
+    void initialize();
     
     void outputDeclsForOmega(Module &M);
 

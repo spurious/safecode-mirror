@@ -106,7 +106,14 @@ static bool fromMalloc = false;
 // Interprocedural ArrayBoundsCheck pass
 RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
 
-void ArrayBoundsCheck::initialize(Module &M) {
+//
+// Method: initialize()
+//
+// Description:
+//  Perform some preliminary initialization.
+//
+void
+ArrayBoundsCheck::initialize () {
   KnownFuncDB.insert("snprintf"); //added the format string & string check
   KnownFuncDB.insert("strcpy"); //need to add the extra checks 
   KnownFuncDB.insert("memcpy"); //need to add the extra checks 
@@ -1138,13 +1145,33 @@ void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
   waitpid (perlpid, NULL, 0);
 }
 
-bool ArrayBoundsCheck::runOnModule(Module &M) {
+//
+// Method: runOnModule()
+//
+// Description:
+//  This is the entry point for this LLVM analysis pass.
+//
+// Inputs:
+//  M - A reference to the LLVM module to analyze.
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was not modified.
+//
+bool
+ArrayBoundsCheck::runOnModule(Module &M) {
   cbudsPass = &getAnalysis<EQTDDataStructures>();
   buCG      = &getAnalysis<BottomUpCallGraph>();
 
+  //
+  // Create a new name mangler.
+  //
   Mang = new OmegaMangler(M);
 
-  initialize(M);
+  //
+  // Do some preliminary initialization of data structures.
+  //
+  initialize();
 
   //
   // Create the include file that will be passed to the Omega constraint
@@ -1204,11 +1231,19 @@ bool ArrayBoundsCheck::runOnModule(Module &M) {
     if (!(provenSafe.count(&F) != 0)) checkSafety(F);
   }
 
+  //
+  // Free the name mangler.
+  //
+  delete Mang;
+
   return false;
 }
 
-
-void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
+//
+// Method: collectSafetyConstraints()
+//
+void
+ArrayBoundsCheck::collectSafetyConstraints (Function &F) {
   //
   // If we have not analyzed this function before, create a new entry for it
   // in the function map.
@@ -1257,6 +1292,8 @@ void ArrayBoundsCheck::collectSafetyConstraints(Function &F) {
           Constraint* c2 = new Constraint("0",le,">",true); // 0 > index
           ABCExprTree* abctemp2 = new ABCExprTree(c2);
           root = new ABCExprTree(abctemp1, abctemp2, "||");
+std::cerr << "JTC1: " << getValueName(MAI) << std::endl;
+std::cerr << "JTC2: " << getValueName(MAI->getPointerOperand()) << std::endl;
 root->print (std::cerr);
 std::cerr << "\n\n";
 
