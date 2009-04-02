@@ -113,7 +113,7 @@ partest::
 progtest::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=safecode \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                LARGE_PROBLEM_SIZE=1 \
@@ -121,7 +121,7 @@ progtest::
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=safecode \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
@@ -131,12 +131,12 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=safecode \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=safecode \
                    LARGE_PROBLEM_SIZE=1 report) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=safecode \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=safecode \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
@@ -145,7 +145,7 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
 progdebug::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=debug \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=debug \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                LARGE_PROBLEM_SIZE=1 \
@@ -153,7 +153,7 @@ progdebug::
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=debug \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=debug \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
@@ -163,12 +163,12 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=debug \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=debug \
                    LARGE_PROBLEM_SIZE=1 report) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=debug \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=debug \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
@@ -176,22 +176,22 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
 progabc::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=abc \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=abc \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) LARGE_PROBLEM_SIZE=1 report.html) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=abc \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=abc \
                    report.html) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=abc \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=abc \
                    LARGE_PROBLEM_SIZE=1 report) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=abc \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=abc \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
@@ -200,7 +200,7 @@ progabc::
 progvg::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=valgrind \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                LARGE_PROBLEM_SIZE=1\
@@ -208,18 +208,18 @@ progvg::
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=valgrind \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=valgrind \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                    report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=valgrind \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=valgrind \
                    LARGE_PROBLEM_SIZE=1 report) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
-               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=valgrind \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=valgrind \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
