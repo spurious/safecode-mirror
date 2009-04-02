@@ -83,14 +83,13 @@ OptimizeChecks::onlyUsedInCompares (Value * Val) {
       // Compares are okay
       if (isa<CmpInst>(U)) continue;
 
-      // Casts require that we check the result, too.
-      if (isa<CastInst>(U)) {
-        Worklist.push_back(*U);
-        continue;
-      }
-
-      // Phi nodes require that we check the result, too.
-      if (isa<PHINode>(U)) {
+      // Casts, Phi nodes, and GEPs require that we check the result, too.
+      if (isa<CastInst>(U) ||
+          isa<PHINode>(U)  ||
+          isa<BinaryOperator>(U)  ||
+          isa<SelectInst>(U)  ||
+          isa<SwitchInst>(U)  ||
+          isa<GetElementPtrInst>(U)) {
         Worklist.push_back(*U);
         continue;
       }
