@@ -33,7 +33,8 @@ NAMESPACE_SC_BEGIN
 char BreakConstantGEPs::ID = 0;
 
 // Statistics
-STATISTIC (Changes, "Number of Bounds Checks Modified");
+STATISTIC (GEPChanges,   "Number of Converted GEP Constant Expressions");
+STATISTIC (TotalChanges, "Number of Converted Constant Expressions");
 
 // Register the pass
 static RegisterPass<BreakConstantGEPs> P ("break-constgeps",
@@ -93,6 +94,14 @@ convertGEP (ConstantExpr * CE, Instruction * InsertPt) {
     Indices.push_back (CE->getOperand (index));
   }
 
+  //
+  // Update the statistics.
+  //
+  ++GEPChanges;
+
+  //
+  // Make the new GEP instruction.
+  //
   return (GetElementPtrInst::Create (CE->getOperand(0),
                                      Indices.begin(),
                                      Indices.end(),
@@ -178,6 +187,11 @@ convertExpression (ConstantExpr * CE, Instruction * InsertPt) {
       assert (0 && "Unhandled constant expression!\n");
       break;
   }
+
+  //
+  // Update the statistics.
+  //
+  ++TotalChanges;
 
   return NewInst;
 }
