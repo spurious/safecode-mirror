@@ -66,6 +66,8 @@ cl::opt<string> InitFunctionName ("initfunc",
 
 // Pass Statistics
 namespace {
+  STATISTIC (StaticChecks , "GEP Checks Done Statically");
+  STATISTIC (TotalStatic , "GEP Checks Examined Statically");
   STATISTIC (NullChecks ,
                              "Poolchecks with NULL pool descriptor");
   STATISTIC (FullChecks ,
@@ -286,6 +288,94 @@ InsertPoolChecks::addExactCheck2 (Value * BasePointer,
   return;
 }
 
+//
+// Function: isSafe()
+//
+// Description:
+//  Determine whether the GEP will always generate a pointer that lands within
+//  the bounds of the object.
+//
+// Inputs:
+//  TD  - The TargetData pass which should be used for finding type-sizes and
+//        offsets of elements within a derived type.
+//  GEP - The getelementptr instruction to check.
+//
+// Return value:
+//  true  - The GEP never generates a pointer outside the bounds of the object.
+//  false - The GEP may generate a pointer outside the bounds of the object.
+//          There may also be cases where we know that the GEP *will* return an
+//          out-of-bounds pointer; we let pointer rewriting take care of those
+//          cases.
+//
+static bool
+isSafe (TargetData * TD, GetElementPtrInst * GEP) {
+  //
+  // Update the total number of GEPs that we're trying to check statically.
+  //
+  ++TotalStatic;
+
+  //
+  // Determine whether the indices of the GEP are all constant.  If not, then
+  // we don't bother to prove anything.
+  //
+  for (unsigned index = 1; index < GEP->getNumOperands(); ++index) {
+    if (ConstantInt * CI = dyn_cast<ConstantInt>(GEP->getOperand(index))) {
+      if (CI->getSExtValue() < 0) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
+  //
+  // Check to see if we're indexing off the beginning of a known object.  If
+  // so, then find the size of the object.  Otherwise, assume the size is zero.
+  //
+  Value * PointerOperand = GEP->getPointerOperand();
+  unsigned int type_size = 0;
+  if (GlobalVariable * GV = dyn_cast<GlobalVariable>(PointerOperand)) {
+    type_size = TD->getTypePaddedSize (GV->getType()->getElementType());
+  } else if (AllocationInst * AI = dyn_cast<AllocationInst>(PointerOperand)) {
+    type_size = TD->getTypePaddedSize (AI->getAllocatedType());
+    if (AI->isArrayAllocation()) {
+      if (ConstantInt * CI = dyn_cast<ConstantInt>(AI->getArraySize())) {
+        if (CI->getSExtValue() > 0) {
+          type_size *= CI->getSExtValue();
+        } else {
+          return false;
+        }
+      }
+    }
+  }
+
+  //
+  // If the type size is non-zero, then we did, in fact, find an object off of
+  // which the GEP is indexing.  Statically determine if the indexing operation
+  // is always within bounds.
+  //
+  if (type_size) {
+    Value ** Indices = new Value *[GEP->getNumOperands() - 1];
+
+    for (unsigned index = 1; index < GEP->getNumOperands(); ++index) {
+      Indices[index - 1] = GEP->getOperand(index);
+    }
+
+    unsigned offset = TD->getIndexedOffset (PointerOperand->getType(),
+                                            Indices,
+                                            GEP->getNumOperands() - 1);
+
+    if (offset < type_size) {
+      ++StaticChecks;
+      return true;
+    }
+  }
+
+  //
+  // We cannot statically prove that the GEP is safe.
+  //
+  return false;
+}
 
 //
 // Function: insertExactCheck()
@@ -321,6 +411,12 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
     ++AlignChecks;
   }
 #endif
+
+  //
+  // First, attempt to prove that the GEP is safe.
+  //
+  if (isSafe (TD, GEP))
+    return true;
 
   //
   // Attempt to find the object which we need to check.
