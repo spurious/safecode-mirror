@@ -54,9 +54,6 @@
 // Pathname to the Omega compiler
 #define OMEGA "/home/vadve/dhurjati/bin/oc"
 
-// Pathname to the helper script for running the Omega compiler
-#define OMEGASCRIPT "/home/vadve/dhurjati/bin/omega.pl"
-
 // Pathname of include file generated for input into the Omega compiler
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
 
@@ -69,6 +66,8 @@ namespace {
   STATISTIC(SafeGEPs,    "GEPs proved safe via Omega");
   STATISTIC(SafeStructs, "Structures in GEPs that are deemed safe");
   STATISTIC(TotalStructs, "Total structures used in GEPs");
+  STATISTIC(NumGood, "JTC: Number of GEPs that can be proved safe statically");
+  STATISTIC(Total, "JC: Number of GEPs");
 
   cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
                                 cl::init(false),
