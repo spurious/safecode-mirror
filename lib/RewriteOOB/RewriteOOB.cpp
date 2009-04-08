@@ -246,12 +246,10 @@ RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
   if (Argument *arg = dyn_cast<Argument>(peeledOp)) {
     Function * F = arg->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
     PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
   } else if (Instruction *Inst = dyn_cast<Instruction>(peeledOp)) {
     Function * F = Inst->getParent()->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    if (!(paPass->getFuncInfo(*F))) F = paPass->getOrigFunctionFromClone(F);
     PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
   } else if (isa<Constant>(peeledOp) || isa<AllocationInst>(peeledOp)) {
     //
@@ -262,7 +260,9 @@ RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
     return;
   }
 
-  if (!PH) std::cerr << *peeledOp << "\n" << std::endl;
+  if (!PH)
+    std::cerr << "Error: No Pool Handle: " << *peeledOp << "\n" << std::endl;
+
   assert (PH && "addGetActualValue: No Pool Handle for operand!\n");
 
   //
