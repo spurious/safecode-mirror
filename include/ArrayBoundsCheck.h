@@ -65,8 +65,7 @@ struct ArrayBoundsCheck : public ModulePass {
     }
 
     std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;
-    std::set<Instruction*> UnsafeCalls;
-    
+
     std::set<Instruction*> * getUnsafeGEPs (BasicBlock * BB) {
       return UnsafeGetElemPtrs[BB];
     }
@@ -82,6 +81,8 @@ struct ArrayBoundsCheck : public ModulePass {
     DominatorTree * domTree;
     PostDominatorTree * postdomTree;
     PostDominanceFrontier * postdomFrontier;
+
+    std::set<Instruction*> UnsafeCalls;
 
     // This is required for getting the names/unique identifiers for variables.
     OmegaMangler *Mang;
