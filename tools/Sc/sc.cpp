@@ -35,6 +35,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "safecode/BreakConstantGEPs.h"
+#include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
@@ -80,6 +81,9 @@ static bool RewritePtrs = false;
 static cl::opt<bool>
 StopOnFirstError("terminate", cl::init(false),
                               cl::desc("Terminate when an Error Ocurs"));
+
+static cl::opt<bool>
+DisableCStdLib("disable-cstdlib", cl::init(true), cl::desc("Disable transformations that secure C standard library calls"));
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
@@ -224,6 +228,10 @@ int main(int argc, char **argv) {
 
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
+
+    if (!DisableCStdLib) {
+      Passes.add(new StringTransform());
+    }
 
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());

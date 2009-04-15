@@ -16,6 +16,12 @@
 
 NAMESPACE_SC_BEGIN
 
+// Identifier variable for the pass
+char StringTransform::ID = 0;
+
+// Statistics counters
+STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
+
 static RegisterPass<StringTransform> X("string_transform",
                                        "Secure C standard string library calls");
 
@@ -28,6 +34,12 @@ static RegisterPass<StringTransform> X("string_transform",
 bool StringTransform::runOnModule(Module &M) {
   // Flags whether we modified the module
   bool modified = false;
+
+  dsnPass = &getAnalysis<DSNodePass>();
+  assert(dsnPass && "Must run DSNode Pass first!");
+
+  paPass = &getAnalysis<PoolAllocateGroup>();
+  assert(paPass && "Must run Pool Allocation Transform first!");
 
   modified |= strcpyTransform(M);
 
@@ -44,24 +56,23 @@ bool StringTransform::strcpyTransform(Module &M) {
   // Flags whether we modified the module
   bool modified = false;
 
-  std::vector<const Type *> strncpyParameters;
-  strncpyParameters.push_back(PointerType::getUnqual(Type::Int8Ty));
-  strncpyParameters.push_back(PointerType::getUnqual(Type::Int8Ty));
-  strncpyParameters.push_back(PointerType::getUnqual(Type::Int32Ty)); // size_t
+  std::vector<const Type *> ParamTy;
+  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
 
   Function * strcpyFunc = M.getFunction("strcpy");
   if (!strcpyFunc)
     return modified;
   const Type * strncpyRT = strcpyFunc->getReturnType();
-  FunctionType * strncpyFT = FunctionType::get(strncpyRT, strncpyParameters, false);
+  FunctionType * strncpyFT = FunctionType::get(strncpyRT, ParamTy, false);
   Constant * strncpyFunction = M.getOrInsertFunction("strncpy", strncpyFT);
 
   // Scan through the module and replace strcpy() with strncpy().
   for (Module::iterator F=M.begin(); F != M.end(); ++F) {
     for (Function::iterator BB = F->begin(); BB != F->end(); ++BB) {
       for (BasicBlock::iterator I = BB->begin(); I != BB->end(); ++I) {
-        int bounds = 0; // getBounds()
-
         // If this is not a call or invoke instruction, just skip it.
         if (!(isa<CallInst>(I) || isa<InvokeInst>(I)))
           continue;
@@ -78,8 +89,10 @@ bool StringTransform::strcpyTransform(Module &M) {
 
         // Create a strncpy() call.
         std::vector<Value *> Params;
-        Params.push_back( ConstantInt::get(Type::Int32Ty, bounds) );
-        Params.push_back( CI->getOperand(1) );
+        Params.push_back(CI->getOperand(1));
+        Params.push_back(CI->getOperand(2));
+        Params.push_back(CI->getOperand(1));
+        Params.push_back(CI->getOperand(2));
         CallInst * strncpyCallInst = CallInst::Create(strncpyFunction, Params.begin(), Params.end(), "strings", CI);
 
         // Replace all of the uses of the strcpy() call with the new strncpy() call.

@@ -15,13 +15,13 @@
 #ifndef CSTDLIB_H
 #define CSTDLIB_H
 
-#include "llvm/Analysis/Passes.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
 
@@ -29,21 +29,24 @@
 #include "safecode/SAFECode.h"
 
 #include <algorithm>
+#include <iostream> // std::cerr
 #include <vector>
 
 using namespace llvm;
 
 NAMESPACE_SC_BEGIN
 
-// Statistics counters
-STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
-
 /**
  * Pass that secures C standard library string calls via transforms
  */
 class StringTransform : public ModulePass {
 private:
+  // Private methods
   bool strcpyTransform(Module &M);
+
+  // Private variables
+  DSNodePass* dsnPass;
+  PoolAllocateGroup* paPass;
 
 public:
   static char ID;
@@ -51,13 +54,12 @@ public:
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    // Pretend that we don't modify anything
-    AU.setPreservesAll();
-
     // We require these passes to get information on pool handles
     AU.addRequired<DSNodePass>();
     AU.addRequired<PoolAllocateGroup>();
-    AU.addRequired<TDDataStructures>();
+
+    // Pretend that we don't modify anything
+    AU.setPreservesAll();
   }
 
   virtual void print(std::ostream &O, const Module *M) const {}

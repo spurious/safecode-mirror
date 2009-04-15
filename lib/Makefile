@@ -2,6 +2,7 @@ LEVEL = ..
 
 PARALLEL_DIRS = ArrayBoundChecks \
                 ConvertUnsafeAllocas \
+                CStdLib \
                 InsertPoolChecks \
                 OptimizeChecks \
                 StackSafety \
