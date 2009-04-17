@@ -25,24 +25,24 @@ namespace {
   RegisterPass<MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
 
   STATISTIC (MonotonicLoopOptPoolCheck,
-	     "Number of monotonic loop optimization performed for poolcheck");
+       "Number of monotonic loop optimization performed for poolcheck");
   STATISTIC (MonotonicLoopOptPoolCheckUI,
-	     "Number of monotonic loop optimization performed for poolcheckUI");
+       "Number of monotonic loop optimization performed for poolcheckUI");
   STATISTIC (MonotonicLoopOptPoolCheckAlign,
-	     "Number of monotonic loop optimization performed for poolcheckalign");
+       "Number of monotonic loop optimization performed for poolcheckalign");
   STATISTIC (MonotonicLoopOptExactCheck,
-	     "Number of monotonic loop optimization performed for exactcheck");
+       "Number of monotonic loop optimization performed for exactcheck");
   STATISTIC (MonotonicLoopOptExactCheck2,
-	     "Number of monotonic loop optimization performed for exactcheck2");
+       "Number of monotonic loop optimization performed for exactcheck2");
   STATISTIC (MonotonicLoopOptBoundsCheck,
-	     "Number of monotonic loop optimization performed for boundscheck");
+       "Number of monotonic loop optimization performed for boundscheck");
   STATISTIC (MonotonicLoopOptBoundsCheckUI,
-	     "Number of monotonic loop optimization performed for boundscheckUI");
+       "Number of monotonic loop optimization performed for boundscheckUI");
 
   enum {
     CHECK_FUNC_POOLCHECK = 0,
     CHECK_FUNC_POOLCHECKUI,
-		CHECK_FUNC_POOLCHECKALIGN,
+    CHECK_FUNC_POOLCHECKALIGN,
     CHECK_FUNC_EXACTCHECK,
     CHECK_FUNC_EXACTCHECK2,
     CHECK_FUNC_BOUNDSCHECK,
@@ -94,7 +94,7 @@ namespace {
       return dyn_cast<GetElementPtrInst>(inst);
     } else if (isa<BitCastInst>(inst)) {
       return dyn_cast<GetElementPtrInst>
-	(dyn_cast<BitCastInst>(inst)->getOperand(0));
+  (dyn_cast<BitCastInst>(inst)->getOperand(0));
     }
     return NULL;
   }
@@ -113,7 +113,7 @@ namespace {
     typedef GraphTraits<Inverse<BasicBlock*> > InvBasicBlockraits;
     InvBasicBlockraits::ChildIteratorType PI = InvBasicBlockraits::child_begin(H);
     assert(PI != InvBasicBlockraits::child_end(H) &&
-	   "Loop must have at least one backedge!");
+     "Loop must have at least one backedge!");
     Backedge = *PI++;
     if (PI == InvBasicBlockraits::child_end(H)) return 0;  // dead loop
     Incoming = *PI++;
@@ -191,7 +191,7 @@ namespace {
       SCEVHandle startVal = AR->getStart();
       SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
       if (isa<SCEVCouldNotCompute>(startVal) || isa<SCEVCouldNotCompute>(endVal)){
-	return false;
+  return false;
       }
     }
     return true;
@@ -201,7 +201,7 @@ namespace {
 
   void
   MonotonicLoopOpt::insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *
-					  ptIns, int type)
+            ptIns, int type)
   {
     enum {
       LOWER_BOUND,
@@ -230,8 +230,8 @@ namespace {
     newGEP->insertBefore(ptIns);
    
     CastInst * castedNewGEP = CastInst::CreatePointerCast(newGEP,
-							  PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
-							  ptIns);
+                PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
+                ptIns);
 
     CallInst * checkInst = callInst->clone();
     const checkFunctionInfo & info = checkFunctions[checkFunctionId];
@@ -239,9 +239,9 @@ namespace {
     if (info.argSrcPtrPos) {
       // Copy the srcPtr if necessary
       CastInst * newSrcPtr = CastInst::CreatePointerCast
-	(origGEP->getPointerOperand(),
-	 PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
-	 newGEP);
+  (origGEP->getPointerOperand(),
+   PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
+   newGEP);
       checkInst->setOperand(info.argSrcPtrPos, newSrcPtr);
     }
     
@@ -263,7 +263,7 @@ namespace {
     scevPass = &getAnalysis<ScalarEvolution>();
 
     for (Loop::iterator LoopItr = L->begin(), LoopItrE = L->end();
-	 LoopItr != LoopItrE; ++LoopItr) {
+   LoopItr != LoopItrE; ++LoopItr) {
       if (optimizedLoops.find(*LoopItr) == optimizedLoops.end())
         {
           // Handle sub loops first
@@ -295,39 +295,39 @@ namespace {
       //
       std::vector<CallInst*> toBeRemoved;
       for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-	   I != E; ++I) {
-	BasicBlock *BB = *I;
-	if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
+     I != E; ++I) {
+  BasicBlock *BB = *I;
+  if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
 
-	for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
-	     ++it) {
-	  CallInst * callInst = dyn_cast<CallInst>(it);
-	  if (!callInst) continue;
+  for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
+       ++it) {
+    CallInst * callInst = dyn_cast<CallInst>(it);
+    if (!callInst) continue;
 
-	  Function * F = callInst->getCalledFunction();
-	  if (!F) continue;
+    Function * F = callInst->getCalledFunction();
+    if (!F) continue;
 
-	  checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
-	  if (it == checkFuncMap.end()) continue;
+    checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
+    if (it == checkFuncMap.end()) continue;
 
-	  int checkFunctionId = it->second;
-	  GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
+    int checkFunctionId = it->second;
+    GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
 
-	  if (!GEP || !isHoistableGEP(GEP, L)) continue;
+    if (!GEP || !isHoistableGEP(GEP, L)) continue;
           
-	  Instruction *ptIns = Preheader->getTerminator();
+    Instruction *ptIns = Preheader->getTerminator();
 
-	  insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
-	  insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
-	  toBeRemoved.push_back(callInst);
+    insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
+    insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
+    toBeRemoved.push_back(callInst);
 
-	  ++(*(statData[checkFunctionId]));
-	  changed = true;
-	}
+    ++(*(statData[checkFunctionId]));
+    changed = true;
+  }
 
       }
       for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
-	(*it)->eraseFromParent();
+  (*it)->eraseFromParent();
       }
     }
     return changed;
@@ -358,13 +358,13 @@ namespace {
 
 
     for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-	 I != E; ++I) {
+   I != E; ++I) {
       BasicBlock *BB = *I;
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
-	if (CallInst * CI = dyn_cast<CallInst>(I)) {
-	  Function * F = CI->getCalledFunction();
-	  if (F && isCheckingCall(F->getName())) return false;
-	}
+  if (CallInst * CI = dyn_cast<CallInst>(I)) {
+    Function * F = CI->getCalledFunction();
+    if (F && isCheckingCall(F->getName())) return false;
+  }
       }
     }     
     return true;
