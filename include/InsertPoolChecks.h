@@ -160,6 +160,7 @@ struct MonotonicLoopOpt : public LoopPass {
   virtual bool doFinalization(); 
   virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<TargetData>();
     AU.addRequired<LoopInfo>();
     AU.addRequired<ScalarEvolution>();
     AU.addPreserved<EQTDDataStructures>();
@@ -170,6 +171,7 @@ struct MonotonicLoopOpt : public LoopPass {
   private:
   LoopInfo * LI;
   ScalarEvolution * scevPass;
+  TargetData * TD;
   bool isMonotonicLoop(Loop * L, Value * loopVar);
   bool isHoistableGEP(GetElementPtrInst * GEP, Loop * L);
   void insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *

@@ -226,7 +226,7 @@ namespace {
     
     static const char * suffixes[] = {".lower", ".upper"};
 
-    SCEVExpander Rewriter(*scevPass, *LI); 
+    SCEVExpander Rewriter(*scevPass, *LI, *TD); 
     
     GetElementPtrInst *newGEP = origGEP->clone();
     newGEP->setName(origGEP->getName() + suffixes[type]);
@@ -239,7 +239,7 @@ namespace {
       SCEVHandle startVal = AR->getStart();
       SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
       SCEVHandle & val = type == LOWER_BOUND ? startVal : endVal; 
-      Value * boundsVal = Rewriter.expandCodeFor(val, ptIns);
+      Value * boundsVal = Rewriter.expandCodeFor(val, val->getType(), ptIns);
       newGEP->setOperand(i, boundsVal);
     }
     
@@ -277,6 +277,7 @@ namespace {
   MonotonicLoopOpt::runOnLoop(Loop *L, LPPassManager &LPM) {
     LI = &getAnalysis<LoopInfo>();
     scevPass = &getAnalysis<ScalarEvolution>();
+    TD = &getAnalysis<TargetData>();
 
     for (Loop::iterator LoopItr = L->begin(), LoopItrE = L->end();
          LoopItr != LoopItrE; ++LoopItr) {
