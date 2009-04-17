@@ -22,7 +22,8 @@ using namespace llvm;
 NAMESPACE_SC_BEGIN
 
 namespace {
-  RegisterPass<MonotonicLoopOpt> X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
+  RegisterPass<MonotonicLoopOpt>
+  X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
 
   STATISTIC (MonotonicLoopOptPoolCheck,
        "Number of monotonic loop optimization performed for poolcheck");
@@ -67,8 +68,13 @@ namespace {
     const int argPoolHandlePos;
     const int argSrcPtrPos;
     const int argDestPtrPos;
-    explicit checkFunctionInfo(int id, const char * name, int argPoolHandlePos, int argSrcPtrPos, int argDestPtrPos) :
-      id(id), name(name), argPoolHandlePos(argPoolHandlePos), argSrcPtrPos(argSrcPtrPos), argDestPtrPos(argDestPtrPos) {}
+    explicit checkFunctionInfo(int id,
+                               const char * name,
+                               int argPoolHandlePos,
+                               int argSrcPtrPos,
+                               int argDestPtrPos) :
+     id(id), name(name), argPoolHandlePos(argPoolHandlePos),
+     argSrcPtrPos(argSrcPtrPos), argDestPtrPos(argDestPtrPos) {}
   };
   
   static const checkFunctionInfo checkFunctions[] = {
@@ -85,16 +91,22 @@ namespace {
   checkFuncMapType checkFuncMap;
   
 
-  // Try to find the GEP from the call instruction of the checking function
 
-  static GetElementPtrInst * getGEPFromCheckCallInst(int checkFunctionId, CallInst * callInst) {
+  //
+  // Function: getGEPFromCheckCallInst()
+  //
+  // Description:
+  //  Try to find the GEP from the call instruction of the checking function.
+  //
+  static GetElementPtrInst *
+  getGEPFromCheckCallInst(int checkFunctionId, CallInst * callInst) {
     const checkFunctionInfo & info = checkFunctions[checkFunctionId];
     Value * inst = callInst->getOperand(info.argDestPtrPos);
     if (isa<GetElementPtrInst>(inst)) {
       return dyn_cast<GetElementPtrInst>(inst);
     } else if (isa<BitCastInst>(inst)) {
       return dyn_cast<GetElementPtrInst>
-  (dyn_cast<BitCastInst>(inst)->getOperand(0));
+        (dyn_cast<BitCastInst>(inst)->getOperand(0));
     }
     return NULL;
   }
@@ -190,8 +202,9 @@ namespace {
       if (!AR || !AR->isAffine()) return false;
       SCEVHandle startVal = AR->getStart();
       SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
-      if (isa<SCEVCouldNotCompute>(startVal) || isa<SCEVCouldNotCompute>(endVal)){
-  return false;
+      if (isa<SCEVCouldNotCompute>(startVal) ||
+          isa<SCEVCouldNotCompute>(endVal)) {
+        return false;
       }
     }
     return true;
@@ -200,9 +213,12 @@ namespace {
   /// Insert checks for edge condition
 
   void
-  MonotonicLoopOpt::insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *
-            ptIns, int type)
-  {
+  MonotonicLoopOpt::insertEdgeBoundsCheck (int checkFunctionId,
+                                           Loop * L,
+                                           const CallInst * callInst,
+                                           GetElementPtrInst * origGEP,
+                                           Instruction * ptIns,
+                                           int type) {
     enum {
       LOWER_BOUND,
       UPPER_BOUND
@@ -239,9 +255,9 @@ namespace {
     if (info.argSrcPtrPos) {
       // Copy the srcPtr if necessary
       CastInst * newSrcPtr = CastInst::CreatePointerCast
-  (origGEP->getPointerOperand(),
-   PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
-   newGEP);
+        (origGEP->getPointerOperand(),
+          PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
+          newGEP);
       checkInst->setOperand(info.argSrcPtrPos, newSrcPtr);
     }
     
@@ -263,7 +279,7 @@ namespace {
     scevPass = &getAnalysis<ScalarEvolution>();
 
     for (Loop::iterator LoopItr = L->begin(), LoopItrE = L->end();
-   LoopItr != LoopItrE; ++LoopItr) {
+         LoopItr != LoopItrE; ++LoopItr) {
       if (optimizedLoops.find(*LoopItr) == optimizedLoops.end())
         {
           // Handle sub loops first
@@ -295,39 +311,39 @@ namespace {
       //
       std::vector<CallInst*> toBeRemoved;
       for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-     I != E; ++I) {
-  BasicBlock *BB = *I;
-  if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
+           I != E; ++I) {
+        BasicBlock *BB = *I;
+        if (LI->getLoopFor(BB) != L) continue; // Ignore blocks in subloops...
 
-  for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
-       ++it) {
-    CallInst * callInst = dyn_cast<CallInst>(it);
-    if (!callInst) continue;
+        for (BasicBlock::iterator it = BB->begin(), end = BB->end(); it != end;
+             ++it) {
+          CallInst * callInst = dyn_cast<CallInst>(it);
+          if (!callInst) continue;
 
-    Function * F = callInst->getCalledFunction();
-    if (!F) continue;
+          Function * F = callInst->getCalledFunction();
+          if (!F) continue;
 
-    checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
-    if (it == checkFuncMap.end()) continue;
+          checkFuncMapType::iterator it = checkFuncMap.find(F->getName());
+          if (it == checkFuncMap.end()) continue;
 
-    int checkFunctionId = it->second;
-    GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
+          int checkFunctionId = it->second;
+          GetElementPtrInst * GEP = getGEPFromCheckCallInst(checkFunctionId, callInst);
 
-    if (!GEP || !isHoistableGEP(GEP, L)) continue;
-          
-    Instruction *ptIns = Preheader->getTerminator();
+          if (!GEP || !isHoistableGEP(GEP, L)) continue;
+                
+          Instruction *ptIns = Preheader->getTerminator();
 
-    insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
-    insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
-    toBeRemoved.push_back(callInst);
+          insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 0);
+          insertEdgeBoundsCheck(checkFunctionId, L, callInst, GEP, ptIns, 1);
+          toBeRemoved.push_back(callInst);
 
-    ++(*(statData[checkFunctionId]));
-    changed = true;
-  }
+          ++(*(statData[checkFunctionId]));
+          changed = true;
+        }
 
       }
       for (std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
-  (*it)->eraseFromParent();
+        (*it)->eraseFromParent();
       }
     }
     return changed;
@@ -337,7 +353,8 @@ namespace {
   /// A loop should satisfy all these following conditions before optmization:
   /// 1. Have an preheader
   /// 2. There is only *one* exitblock in the loop
-  /// 3. There is no other instructions (actually we only handle call instruction) in the loop change the bounds of the check
+  /// 3. There is no other instructions (actually we only handle call
+  ///    instruction) in the loop change the bounds of the check
   /// TODO: we should run a bottom-up call graph analysis to identify the 
   /// calls that are SAFE, i.e., calls that do not affect the bounds of arrays.
   ///
@@ -358,15 +375,16 @@ namespace {
 
 
     for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-   I != E; ++I) {
+         I != E; ++I) {
       BasicBlock *BB = *I;
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
-  if (CallInst * CI = dyn_cast<CallInst>(I)) {
-    Function * F = CI->getCalledFunction();
-    if (F && isCheckingCall(F->getName())) return false;
-  }
+        if (CallInst * CI = dyn_cast<CallInst>(I)) {
+          Function * F = CI->getCalledFunction();
+          if (F && isCheckingCall(F->getName())) return false;
+        }
       }
     }     
     return true;
   }
+
 NAMESPACE_SC_END
