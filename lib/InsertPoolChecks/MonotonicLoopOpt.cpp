@@ -226,7 +226,7 @@ namespace {
     
     static const char * suffixes[] = {".lower", ".upper"};
 
-    SCEVExpander Rewriter(*scevPass, *LI, *TD); 
+    SCEVExpander Rewriter(*scevPass, *LI); 
     
     GetElementPtrInst *newGEP = origGEP->clone();
     newGEP->setName(origGEP->getName() + suffixes[type]);
