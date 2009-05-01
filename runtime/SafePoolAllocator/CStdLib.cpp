@@ -13,6 +13,7 @@
 
 #include "PoolAllocator.h"
 
+#include <cassert>
 #include <algorithm>
 
 extern "C" {
