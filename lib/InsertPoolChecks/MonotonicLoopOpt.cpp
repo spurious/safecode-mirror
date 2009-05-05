@@ -175,7 +175,7 @@ namespace {
     SCEVHandle SH = scevPass->getSCEV(loopVar);
     if (SH->hasComputableLoopEvolution(L) ||    // Varies predictably
         HasConstantItCount) {
-      SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
+      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
       if (AR && AR->isAffine()) {
         SCEVHandle startVal = AR->getStart();
         SCEVHandle endVal = scevPass->getSCEVAtScope(loopVar, L->getParentLoop());
@@ -198,7 +198,7 @@ namespace {
 
       SCEVHandle SH = scevPass->getSCEV(op);
       if (!SH->hasComputableLoopEvolution(L)) return false;
-      SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
+      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
       if (!AR || !AR->isAffine()) return false;
       SCEVHandle startVal = AR->getStart();
       SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
@@ -235,7 +235,7 @@ namespace {
       if (L->isLoopInvariant(op)) continue;
       
       SCEVHandle SH = scevPass->getSCEV(op);
-      SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
+      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
       SCEVHandle startVal = AR->getStart();
       SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
       SCEVHandle & val = type == LOWER_BOUND ? startVal : endVal; 
