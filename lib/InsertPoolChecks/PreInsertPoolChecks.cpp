@@ -310,7 +310,7 @@ PreInsertPoolChecks::registerGlobalArraysWithGlobalPools(Module &M) {
         Value * AllocSize;
         const Type* csiType = Type::Int32Ty;
         const Type * GlobalType = GV->getType()->getElementType();
-        AllocSize = ConstantInt::get (csiType, TD->getTypePaddedSize(GlobalType));
+        AllocSize = ConstantInt::get (csiType, TD->getTypeAllocSize(GlobalType));
         Constant *PoolRegister = paPass->PoolRegister;
         BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
         //skip the calls to poolinit

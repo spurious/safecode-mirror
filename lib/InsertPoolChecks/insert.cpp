@@ -335,9 +335,9 @@ isSafe (TargetData * TD, GetElementPtrInst * GEP) {
   Value * PointerOperand = GEP->getPointerOperand();
   unsigned int type_size = 0;
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(PointerOperand)) {
-    type_size = TD->getTypePaddedSize (GV->getType()->getElementType());
+    type_size = TD->getTypeAllocSize (GV->getType()->getElementType());
   } else if (AllocationInst * AI = dyn_cast<AllocationInst>(PointerOperand)) {
-    type_size = TD->getTypePaddedSize (AI->getAllocatedType());
+    type_size = TD->getTypeAllocSize (AI->getAllocatedType());
     if (AI->isArrayAllocation()) {
       if (ConstantInt * CI = dyn_cast<ConstantInt>(AI->getArraySize())) {
         if (CI->getSExtValue() > 0) {
@@ -462,7 +462,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
     const ArrayType *AT = dyn_cast<ArrayType>(GlobalType);
     if ((!AT) || (AT->getNumElements())) {
       Value* Size = ConstantInt::get (Type::Int32Ty,
-                                      TD->getTypePaddedSize(GlobalType));
+                                      TD->getTypeAllocSize(GlobalType));
       addExactCheck2 (PointerOperand, GEP, Size, InsertPt);
       return true;
     }
@@ -487,7 +487,7 @@ InsertPoolChecks::insertExactCheck (GetElementPtrInst * GEP) {
 #endif
 
     const Type * AllocaType = AI->getAllocatedType();
-    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getTypePaddedSize(AllocaType));
+    Value *AllocSize=ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize(AllocaType));
 
     if (AI->isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul,
@@ -859,7 +859,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         Value * AllocSize;
         if (AllocationInst * AI = dyn_cast<AllocationInst>(SourcePointer)) {
           AllocSize = ConstantInt::get (Type::Int32Ty,
-                                        TD->getTypePaddedSize(AI->getAllocatedType()));
+                                        TD->getTypeAllocSize(AI->getAllocatedType()));
           if (AI->isArrayAllocation()) {
             AllocSize = BinaryOperator::Create (Instruction::Mul,
                                                AllocSize,
@@ -867,7 +867,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
           }
         } else if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SourcePointer)) {
           AllocSize = ConstantInt::get (Type::Int32Ty,
-                                        TD->getTypePaddedSize(GV->getType()->getElementType()));
+                                        TD->getTypeAllocSize(GV->getType()->getElementType()));
         } else if (CallInst * CI = dyn_cast<CallInst>(SourcePointer)) {
           assert (CI->getCalledFunction() && "Indirect call!\n");
           if (CI->getCalledFunction()->getName() == "poolalloc") {

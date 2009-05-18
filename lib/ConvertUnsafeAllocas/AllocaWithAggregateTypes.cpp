@@ -243,7 +243,7 @@ namespace llvm
           // Create a value that calculates the alloca's size
           const Type * AllocaType = AllocInst->getAllocatedType();
           Value *AllocSize = ConstantInt::get (Type::Int32Ty,
-                                               TD.getTypePaddedSize(AllocaType));
+                                               TD.getTypeAllocSize(AllocaType));
 
           if (AllocInst->isArrayAllocation())
             AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,

@@ -900,7 +900,7 @@ void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType 
     //This will only work one level of arrays and structs
     //If there are arrays inside a struct then this will
     //not help us prove the safety of the access ....
-    unsigned Size = getAnalysis<TargetData>().getTypePaddedSize(ST);
+    unsigned Size = getAnalysis<TargetData>().getTypeAllocSize(ST);
     string var2 = var1 + "_i";
     const Type* csiType = Type::Int32Ty;
     const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
