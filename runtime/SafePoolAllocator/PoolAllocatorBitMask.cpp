@@ -1257,10 +1257,12 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   //
   void * start, * end;
   PDebugMetaData debugmetadataptr = 0;
+#if SC_DEBUGTOOL
   if (dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr)) {
     free (debugmetadataptr);
     dummyPool.DPTree.remove (allocaptr);
   }
+#endif
 
   if (logregs) {
     fprintf (stderr, "pooluregister: %p\n", allocaptr);

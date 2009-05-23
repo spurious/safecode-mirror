@@ -26,12 +26,12 @@
 #define ABORT_PROGRAM() __builtin_trap()
 #endif
 
+extern FILE * ReportLog;
 
 #ifdef SC_DEBUGTOOL
 // Global Configuration Information
 extern unsigned StopOnError;
 
-extern FILE * ReportLog;
 static unsigned alertNum = 0;
 static unsigned initialized = 0;
 
@@ -336,7 +336,9 @@ ReportBoundsCheck (unsigned src,
                    unsigned objstart,
                    unsigned objlen,
                    unsigned char * SourceFile,
-                   unsigned lineno) {
+                   unsigned lineno,
+                   unsigned char * allocSF,
+                   unsigned allocLN) {
   ABORT_PROGRAM();
 }
 
