@@ -1,6 +1,7 @@
 LEVEL = ..
 
-PARALLEL_DIRS = ArrayBoundChecks \
+PARALLEL_DIRS = Support \
+                ArrayBoundChecks \
                 ConvertUnsafeAllocas \
                 CStdLib \
                 InsertPoolChecks \

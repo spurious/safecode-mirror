@@ -18,10 +18,13 @@
 
 #include "safecode/SAFECode.h"
 
+#include "llvm/Pass.h"
+#include "llvm/Module.h"
+#include "llvm/Instructions.h"
+
 #include <set>
 #include <map>
 
-#include "llvm/Pass.h"
 
 using namespace llvm;
 
@@ -36,6 +39,7 @@ class InsertSCIntrinsic : public ModulePass {
       SC_INTRINSIC_GEPCHECK,   // Indexing (GEP) check intrinsic
       SC_INTRINSIC_OOB,
       SC_INTRINSIC_POOL_CONTROL,
+      SC_INTRINSIC_MISC,
       SC_INTRINSIC_COUNT
     } IntrinsicType;
 

@@ -13,6 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "safecode/SAFECode.h"
+#include "safecode/SAFECodeConfig.h"
+#include "safecode/InsertChecks/RegisterBounds.h"
+#include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
 
 #include "llvm/Module.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -67,20 +70,6 @@ FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
 static cl::opt<bool>
 EnableDebugInfo("enable-debuginfo", cl::init(false),
                 cl::desc("Enable Debugging Info in Run-time Errors"));
-
-static cl::opt<bool>
-DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
-
-#ifdef SC_ENABLE_OOB
-static cl::opt<bool>
-RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
-#else
-static bool RewritePtrs = false;
-#endif
-
-static cl::opt<bool>
-StopOnFirstError("terminate", cl::init(false),
-                              cl::desc("Terminate when an Error Ocurs"));
 
 static cl::opt<bool>
 DisableCStdLib("disable-cstdlib", cl::init(true), cl::desc("Disable transformations that secure C standard library calls"));
@@ -164,6 +153,9 @@ int main(int argc, char **argv) {
       return 1;
     }
 
+    // Parse Configuration
+    SCConfig = SAFECodeConfiguration::create();
+
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
     Passes.add(new TargetData(M.get()));
@@ -219,10 +211,12 @@ int main(int argc, char **argv) {
 #endif
     Passes.add(new ABCPreProcess());
     Passes.add(new EmbeCFreeRemoval());
+    Passes.add(new RegisterGlobalVariables());
+    Passes.add(new RegisterMainArgs());
+    Passes.add(new RegisterRuntimeInitializer());
+
     Passes.add(new InsertPoolChecks());
-    Passes.add(new PreInsertPoolChecks (DanglingPointerChecks,
-                                        RewritePtrs,
-                                        StopOnFirstError));
+    
     Passes.add(new RegisterStackObjPass());
     Passes.add(new InitAllocas());
 
@@ -389,12 +383,12 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.boundscheckui",     "boundscheckui" },
       {"sc.exactcheck",       "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
-      {"poolregister",      "poolregister" },
-      {"poolunregister",    "poolunregister" },
+      {"sc.pool_register",      "poolregister" },
+      {"sc.pool_unregister",    "poolunregister" },
+      {"sc.init_pool_runtime", "__sc_bc_pool_init_runtime"},
       {"poolalloc",         "__sc_bc_poolalloc"},
       {"poolfree",          "__sc_bc_poolfree"},
       {"pooldestroy",       "__sc_bc_pooldestroy"},
-      {"pool_init_runtime", "__sc_bc_pool_init_runtime"},
       {"poolinit",          "__sc_bc_poolinit"},
       {"poolrealloc",       "__sc_bc_poolrealloc"},
       {"poolcalloc",        "__sc_bc_poolcalloc"},
@@ -412,6 +406,9 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.exactcheck",      "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
       {"sc.get_actual_val",  "pchk_getActualValue" },
+      {"sc.pool_register",   "poolregister" },
+      {"sc.pool_unregister", "poolunregister" },
+      {"sc.init_pool_runtime", "pool_init_runtime"},
     };
 
 

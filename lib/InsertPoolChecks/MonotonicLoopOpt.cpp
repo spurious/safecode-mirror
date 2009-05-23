@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This pass eliminates redundant checks in monotonic loops.
+// FIXME: This pass is broken right now due to LLVM API changes
 //
 //===----------------------------------------------------------------------===//
 

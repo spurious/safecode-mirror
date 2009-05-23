@@ -13,12 +13,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "safecode/Intrinsic.h"
+#include "safecode/VectorListHelper.h"
+
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
-
-#include "safecode/Intrinsic.h"
-#include "safecode/VectorListHelper.h"
 
 using namespace llvm;
 NAMESPACE_SC_BEGIN
@@ -55,7 +55,12 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.exactcheck", 	 2, vpTy, Int32Ty, Int32Ty, vpTy);
   REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.exactcheck2",  1, vpTy, vpTy, vpTy, Int32Ty);
   REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.funccheck", 	1, VoidTy, Int32Ty, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_OOB,		  "sc.get_actual_val",	0, vpTy, vpTy, vpTy);
+  REG_FUNC(SC_INTRINSIC_OOB,	        "sc.get_actual_val",	0, vpTy, vpTy, vpTy);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_register",	1, VoidTy, vpTy, vpTy, Int32Ty);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_unregister",	1, VoidTy, vpTy, vpTy);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.register_globals",	0, VoidTy);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_runtime",	0, VoidTy);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_pool_runtime" ,0, VoidTy, Int32Ty, Int32Ty, Int32Ty);
 
   // We always change the module.
   return true;
