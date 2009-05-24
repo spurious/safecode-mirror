@@ -12,6 +12,7 @@
 #ifndef ABC_PREPROCESS_H
 #define ABC_PREPROCESS_H
 
+#include "safecode/SAFECode.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -21,11 +22,12 @@
 #include "dsa/DSGraph.h"
 #include "poolalloc/PoolAllocate.h"
 
-namespace llvm {
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
 
 Pass *createABCPreProcessPass();
   
-namespace ABC {
 //This pass is written because the induction var pass  doesnt run properly 
 //after the phi nodes are inserted.
  struct ABCPreProcess : public FunctionPass {
@@ -56,6 +58,6 @@ namespace ABC {
     }
     virtual bool runOnFunction(Function &F);
   };
-}
-}
+
+NAMESPACE_SC_END
 #endif

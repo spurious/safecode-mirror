@@ -618,7 +618,7 @@ InsertPoolChecks::runOnFunction(Function &F) {
     uninitialized = false;
   }
 
-  abcPass = &getAnalysis<ArrayBoundsCheck>();
+  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
 #ifndef LLVA_KERNEL
   paPass = &getAnalysis<PoolAllocateGroup>();
   // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
@@ -652,10 +652,9 @@ InsertPoolChecks::doFinalization(Module &M) {
 void
 InsertPoolChecks::addPoolChecks(Function &F) {
   if (!DisableGEPChecks) {
-    Function::iterator fI = F.begin(), fE = F.end();
-    for ( ; fI != fE; ++fI) {
-      BasicBlock * BB = fI;
-      addGetElementPtrChecks (BB);
+    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+      if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&*I))
+        addGetElementPtrChecks (GEP);
     }
   }
   if (!DisableLSChecks)  addLoadStoreChecks(F);
@@ -972,16 +971,14 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
 #endif
 
 void
-InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
-  std::set<Instruction *> * UnsafeGetElemPtrs = abcPass->getUnsafeGEPs (BB);
-  if (!UnsafeGetElemPtrs)
+InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
+  if (abcPass->isGEPSafe(GEP))
     return;
 
-  std::set<Instruction *>::const_iterator iCurrent = UnsafeGetElemPtrs->begin(),
-                                          iEnd     = UnsafeGetElemPtrs->end();
-  for (; iCurrent != iEnd; ++iCurrent) {
-    if (dsnPass->isValueChecked(*iCurrent))
-      continue;
+  if (dsnPass->isValueChecked(GEP))
+    return;
+
+  Instruction * iCurrent = GEP;
 
     // We have the GetElementPtr
     if (!isa<GetElementPtrInst>(*iCurrent)) {
@@ -1069,9 +1066,8 @@ InsertPoolChecks::addGetElementPtrChecks (BasicBlock * BB) {
         }
       }
 #endif
-      continue;
+      return;
     }
-    GetElementPtrInst *GEP = cast<GetElementPtrInst>(*iCurrent);
     Function *F = GEP->getParent()->getParent();
     // Now we need to decide if we need to pass in the alignmnet
     //for the poolcheck
@@ -1101,12 +1097,12 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 #endif
     if (GetElementPtrInst *GEPNew = dyn_cast<GetElementPtrInst>(Casted)) {
       Value *PH = dsnPass->getPoolHandle(GEP, F, *FI);
-      if (PH && isa<ConstantPointerNull>(PH)) continue;
+      if (PH && isa<ConstantPointerNull>(PH)) return;
       if (insertExactCheck (GEPNew)) {
         DSNode * Node = dsnPass->getDSNode (GEP, F);
         dsnPass->addCheckedDSNode(Node);
         // checked value is inserted by addExactCheck2(), which is called by insertExactCheck()
-        continue;
+        return;
       }
 
       if (!PH) {
@@ -1144,7 +1140,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
               args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
               CallInst::Create(ExactCheck,args.begin(), args.end(), "", Casted);
               DEBUG(std::cerr << "Inserted exact check call Instruction \n");
-              continue;
+              return;
             } else if (GEPNew->getNumOperands() == 3) {
               if (ConstantInt *COP = dyn_cast<ConstantInt>(GEPNew->getOperand(1))) {
                 // FIXME: assuming that the first array index is 0
@@ -1158,7 +1154,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
                 const Type* csiType = Type::Int32Ty;
                 args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
                 CallInst::Create(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
-                continue;
+                return;
               } else {
                 // Handle non constant index two dimensional arrays later
                 abort();
@@ -1166,7 +1162,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
             } else {
               // Handle Multi dimensional cases later
               DEBUG(std::cerr << "WARNING: Handle multi dimensional globals later\n");
-              (*iCurrent)->dump();
+              GEP->dump();
             }
           }
           DEBUG(std::cerr << " Global variable ok \n");
@@ -1175,7 +1171,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         //      These must be real unknowns and they will be handled anyway
         //      std::cerr << " WARNING, DID NOT HANDLE   \n";
         //      (*iCurrent)->dump();
-        continue ;
+        return ;
       } else {
         //
         // Determine if this is a pool belonging to a cloned version of the
@@ -1377,7 +1373,6 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     args.push_back(Casted);
     CallInst * newCI = CallInst::Create(PoolCheckArray, args, "",InsertPt);
 #endif    
-  }
 }
 
 #undef REG_FUNC

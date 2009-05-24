@@ -32,11 +32,10 @@
 
 #include <set>
 
-namespace llvm {
+NAMESPACE_SC_BEGIN
 
 ModulePass *createConvertUnsafeAllocas();
 
-using namespace ABC;
 using namespace CSS;
 
 //
@@ -99,14 +98,14 @@ struct ConvertUnsafeAllocas : public ModulePass {
     const char *getPassName() const { return "Convert Unsafe Allocas"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<ArrayBoundsCheck>();
+      AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
       AU.addRequired<EQTDDataStructures>();
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
 
-      AU.addPreserved<ArrayBoundsCheck>();
+      AU.addPreserved<ArrayBoundsCheckGroup>();
       AU.addPreserved<EQTDDataStructures>();
       AU.setPreservesCFG();
 
@@ -119,17 +118,6 @@ struct ConvertUnsafeAllocas : public ModulePass {
     DSNode * getDSNode(const Value *I, Function *F);
     DSNode * getTDDSNode(const Value *I, Function *F);
 
-    std::map<BasicBlock*,std::set<Instruction *>*> &
-    getUnsafeGetElementPtrsFromABC() {
-      assert(abcPass != 0 && "First run the array bounds pass correctly");
-      return abcPass->UnsafeGetElemPtrs;
-    }  
-
-    std::set<Instruction *> * getUnsafeGetElementPtrsFromABC(BasicBlock * BB) {
-      assert(abcPass != 0 && "First run the array bounds pass correctly");
-      return abcPass->getUnsafeGEPs (BB);
-    }  
-
     // The set of Malloc Instructions that are a result of conversion from
     // alloca's due to static array bounds detection failure
     std::set<const MallocInst *>  ArrayMallocs;
@@ -137,7 +125,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
   protected:
     TargetData         * TD;
     EQTDDataStructures * budsPass;
-    ArrayBoundsCheck   * abcPass;
+    ArrayBoundsCheckGroup   * abcPass;
     checkStackSafety   * cssPass;
 
 #ifdef LLVA_KERNEL
@@ -152,7 +140,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     bool markReachableAllocasInt(DSNode *DSN);
     void TransformAllocasToMallocs(std::list<DSNode *> & unsafeAllocaNodes);
     void TransformCSSAllocasToMallocs(Module & M, std::set<DSNode *> & cssAllocaNodes);
-    void getUnsafeAllocsFromABC();
+    void getUnsafeAllocsFromABC(Module &M);
     void TransformCollapsedAllocas(Module &M);
     virtual void InsertFreesAtEnd(MallocInst *MI);
     virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
@@ -186,14 +174,14 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
     PAConvertUnsafeAllocas () : ConvertUnsafeAllocas ((intptr_t)(&ID)) {}
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<ArrayBoundsCheck>();
+      AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
       AU.addRequired<EQTDDataStructures>();
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
 
-      AU.addPreserved<ArrayBoundsCheck>();
+      AU.addPreserved<ArrayBoundsCheckGroup>();
       AU.addPreserved<PoolAllocateGroup>();
 
       // Does not preserve the BU or TD graphs
@@ -204,5 +192,7 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
 };
 
 }
-} 
+
+NAMESPACE_SC_END
+ 
 #endif

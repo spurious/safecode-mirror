@@ -98,7 +98,7 @@ struct InsertPoolChecks : public FunctionPass {
 //      AU.addRequired<EQTDDataStructures>();
 //      AU.addRequired<TDDataStructures>();
 #ifndef LLVA_KERNEL      
-      AU.addRequired<ArrayBoundsCheck>();
+      AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<TargetData>();
 #else 
       AU.addRequired<TDDataStructures>();
@@ -115,7 +115,7 @@ struct InsertPoolChecks : public FunctionPass {
     };
     private:
     InsertSCIntrinsic * intrinsic;
-      ArrayBoundsCheck * abcPass;
+    ArrayBoundsCheckGroup * abcPass;
 #ifndef  LLVA_KERNEL
   PoolAllocateGroup * paPass;
   TargetData * TD;
@@ -134,7 +134,7 @@ struct InsertPoolChecks : public FunctionPass {
   Function *FunctionCheck;
   void addCheckProto(Module &M);
   void addPoolChecks(Function &F);
-  void addGetElementPtrChecks(BasicBlock * BB);
+  void addGetElementPtrChecks(GetElementPtrInst * GEP);
   bool insertExactCheck (GetElementPtrInst * GEP);
 #if 0
   bool insertExactCheck (Instruction * , Value *, Value *, Instruction *);

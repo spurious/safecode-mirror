@@ -1,4 +1,4 @@
-//===- ArrayBoundsCheck.h - Static Array Bounds Checking Pass for SAFECode ---//
+//===- ArrayBoundsCheck.h ---------------------------------------*- C++ -*----//
 // 
 //                          The SAFECode Compiler 
 //
@@ -12,8 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ARRAY_BOUNDS_CHECK
-#define ARRAY_BOUNDS_CHECK
+#ifndef ARRAY_BOUNDS_CHECK_H_
+#define ARRAY_BOUNDS_CHECK_H_
+
+#include "safecode/SAFECode.h"
 
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -26,14 +28,28 @@
 #include <map>
 #include <set>
 
-namespace llvm {
+using namespace llvm;
 
-ModulePass *createArrayBoundsCheckPass();
+NAMESPACE_SC_BEGIN
 
+/// This class defines the interface of array bounds checking.
+class ArrayBoundsCheckGroup {
+public:
+  static char ID;
+  /// Determine whether a particular GEP instruction is always safe of not.
+  virtual bool isGEPSafe(GetElementPtrInst * GEP) { return false; }
+  virtual ~ArrayBoundsCheckGroup();
+};
 
-namespace ABC {
+/// This is the dummy version of array bounds checking. It simply assumes that
+/// every GEP instruction is unsafe.
+class ArrayBoundsCheckDummy : public ArrayBoundsCheckGroup, public ImmutablePass {
+public:
+  static char ID;
+  ArrayBoundsCheckDummy() : ImmutablePass((intptr_t) &ID) {}
+};
 
-struct ArrayBoundsCheck : public ModulePass {
+struct ArrayBoundsCheck : public ArrayBoundsCheckGroup, public ModulePass {
   public :
     static char ID;
     ArrayBoundsCheck () : ModulePass ((intptr_t) &ID) {}
@@ -66,10 +82,12 @@ struct ArrayBoundsCheck : public ModulePass {
 
     std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;
 
-    std::set<Instruction*> * getUnsafeGEPs (BasicBlock * BB) {
-      return UnsafeGetElemPtrs[BB];
+  
+    virtual bool isGEPSafe(GetElementPtrInst * GEP) { 
+      BasicBlock * BB = GEP->getParent();
+      return UnsafeGetElemPtrs[BB]->count(GEP) == 0;
     }
-
+  
   private :
     // Referenced passes
     EQTDDataStructures *cbudsPass;
@@ -166,6 +184,7 @@ struct ArrayBoundsCheck : public ModulePass {
     void printStandardArguments(const Module *M, ostream & out);
     void Omega(Instruction *maI, ABCExprTree *root );
   };
-}
-}
+
+NAMESPACE_SC_END
+
 #endif

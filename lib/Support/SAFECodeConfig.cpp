@@ -33,6 +33,10 @@ static cl::opt<bool>
 StopOnFirstError("terminate", cl::init(false),
                               cl::desc("Terminate when an Error Ocurs"));
 
+static cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
+                                cl::init(false),
+                                cl::desc("Disable Static Array Bounds Checks"));
+
 NAMESPACE_SC_BEGIN
 
 SAFECodeConfiguration * SCConfig;
@@ -47,6 +51,7 @@ SAFECodeConfiguration::SAFECodeConfiguration() {
   this->DanglingPointerChecks = ::DanglingPointerChecks;
   this->RewriteOOB = ::RewritePtrs;
   this->TerminateOnErrors = ::StopOnFirstError;
+  this->StaticCheckType = ::NoStaticChecks ? ABC_CHECK_NONE : ABC_CHECK_FULL;
 }
 
 NAMESPACE_SC_END

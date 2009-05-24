@@ -209,11 +209,18 @@ int main(int argc, char **argv) {
     // pool allocation,
     Passes.add(new PAConvertUnsafeAllocas());
 #endif
-    Passes.add(new ABCPreProcess());
+
     Passes.add(new EmbeCFreeRemoval());
     Passes.add(new RegisterGlobalVariables());
     Passes.add(new RegisterMainArgs());
     Passes.add(new RegisterRuntimeInitializer());
+    
+    if (SCConfig->StaticCheckType == SAFECodeConfiguration::ABC_CHECK_FULL) {
+      Passes.add(new ABCPreProcess());
+      Passes.add(new ArrayBoundsCheck());
+    } else {
+      Passes.add(new ArrayBoundsCheckDummy());
+    }
 
     Passes.add(new InsertPoolChecks());
     

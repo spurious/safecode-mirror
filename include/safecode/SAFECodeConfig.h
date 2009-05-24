@@ -23,6 +23,13 @@ struct SAFECodeConfiguration {
   bool RewriteOOB;
   bool TerminateOnErrors;
 
+  typedef enum StaticCheckTy {
+    ABC_CHECK_FULL,
+    ABC_CHECK_NONE
+  } StaticCheckTy;
+
+  StaticCheckTy StaticCheckType;
+
   static SAFECodeConfiguration * create();
 private:
   SAFECodeConfiguration();

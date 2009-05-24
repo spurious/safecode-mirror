@@ -26,7 +26,8 @@
 #include "llvm/Constants.h"
 
 using namespace llvm;
-using namespace ABC;
+
+NAMESPACE_SC_BEGIN
 
 char ABCPreProcess::ID = 0;
 
@@ -63,7 +64,10 @@ bool ABCPreProcess::runOnFunction(Function &F) {
   return false;
 }
 
-RegisterPass<ABCPreProcess> Y("abcpre",
+static RegisterPass<ABCPreProcess> Y("abcpre",
                               "Array Bounds Checking Pre-process pass");
-
 Pass *createABCPreProcessPass() { return new ABCPreProcess(); }
+
+NAMESPACE_SC_END
+
+

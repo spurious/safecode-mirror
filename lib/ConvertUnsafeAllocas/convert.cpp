@@ -27,12 +27,15 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Support/InstVisitor.h"
 
 #include <iostream>
 
 using namespace llvm;
+
+NAMESPACE_SC_BEGIN
+
 using namespace CUA;
-using namespace ABC;
 
 //
 // Command line options
@@ -90,7 +93,7 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   //
   budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass = &getAnalysis<checkStackSafety>();
-  abcPass = &getAnalysis<ArrayBoundsCheck>();
+  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
   TD = &getAnalysis<TargetData>();
 
   //
@@ -99,7 +102,7 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   createProtos(M);
 
   unsafeAllocaNodes.clear();
-  getUnsafeAllocsFromABC();
+  getUnsafeAllocsFromABC(M);
   if (!DisableStackPromote)
     TransformCSSAllocasToMallocs (M, cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
@@ -516,6 +519,25 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
     }
   }
 }
+    
+// Helper class to build UnsafeAllocaNodeList
+class UnsafeAllocaNodeListBuilder : public InstVisitor<UnsafeAllocaNodeListBuilder> {
+  public:
+    UnsafeAllocaNodeListBuilder(EQTDDataStructures * budsPass, std::list<DSNode *> & unsafeAllocaNodes) : 
+      budsPass(budsPass), unsafeAllocaNodes(unsafeAllocaNodes) {}
+    void visitGetElementPtrInst(GetElementPtrInst &GEP) {
+      Value *pointerOperand = GEP.getPointerOperand();
+      DSGraph * TDG = budsPass->getDSGraph(*(GEP.getParent()->getParent()));
+      DSNode *DSN = TDG->getNodeForValue(pointerOperand).getNode();
+      //FIXME DO we really need this ?	    markReachableAllocas(DSN);
+      if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
+        unsafeAllocaNodes.push_back(DSN);
+      }
+    }
+  private:
+    EQTDDataStructures * budsPass;
+    std::list<DSNode *> & unsafeAllocaNodes;
+};
 
 //
 // Method: getUnsafeAllocsFromABC()
@@ -535,7 +557,12 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 //  bounds checking pass.
 //
 void
-ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
+ConvertUnsafeAllocas::getUnsafeAllocsFromABC(Module & M) {
+  UnsafeAllocaNodeListBuilder Builder(budsPass, unsafeAllocaNodes);
+  Builder.visit(M);
+#if 0
+  // Haohui: Disable it right now since nobody using the code
+
   std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGEPMap= abcPass->UnsafeGetElemPtrs;
   std::map<BasicBlock *,std::set<Instruction*>*>::const_iterator bCurrent = UnsafeGEPMap.begin(), bEnd = UnsafeGEPMap.end();
   for (; bCurrent != bEnd; ++bCurrent) {
@@ -557,6 +584,7 @@ ConvertUnsafeAllocas::getUnsafeAllocsFromABC() {
       }
     }
   }
+#endif
 }
 
 //=============================================================================
@@ -679,7 +707,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   TD       = &getAnalysis<TargetData>();
   budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass  = &getAnalysis<checkStackSafety>();
-  abcPass  = &getAnalysis<ArrayBoundsCheck>();
+  abcPass  = &getAnalysis<ArrayBoundsCheckGroup>();
   paPass   =  getAnalysisIfAvailable<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
 
@@ -706,7 +734,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   DelStack = M.getOrInsertFunction ("pool_delstack", FuncTy);
 
   unsafeAllocaNodes.clear();
-  getUnsafeAllocsFromABC();
+  getUnsafeAllocsFromABC(M);
   if (!DisableStackPromote)
     TransformCSSAllocasToMallocs(M, cssPass->AllocaNodes);
 #ifndef LLVA_KERNEL
@@ -719,3 +747,4 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   return true;
 }
 
+NAMESPACE_SC_END

@@ -58,9 +58,10 @@
 #define OMEGA_TMP_INCLUDE_FILE "omega_include.ip"
 
 using namespace llvm;
-using namespace ABC;
 
-char llvm::ABC::ArrayBoundsCheck::ID = 0;
+NAMESPACE_SC_BEGIN
+
+char ArrayBoundsCheck::ID = 0;
 
 namespace {
   STATISTIC(SafeGEPs,    "GEPs proved safe via Omega");
@@ -68,10 +69,6 @@ namespace {
   STATISTIC(TotalStructs, "Total structures used in GEPs");
   STATISTIC(NumGood, "JTC: Number of GEPs that can be proved safe statically");
   STATISTIC(Total, "JC: Number of GEPs");
-
-  cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Disable Static Array Bounds Checks"));
 
   cl::opt<bool> NoStructChecks ("disable-structchecks", cl::Hidden,
                                 cl::init(true),
@@ -101,9 +98,10 @@ static bool reqArgs = false;
 // This is not really necessary, as it is checked in the pool allocation
 // run-time library 
 static bool fromMalloc = false;
-
-// Interprocedural ArrayBoundsCheck pass
-RegisterPass<ArrayBoundsCheck> abc1("abc1","Array Bounds Checking pass");
+/*
+static RegisterPass<ArrayBoundsCheck> X ("abc-omega", "Interprocedural Array Bounds Check pass");
+static RegisterAnalysisGroup<ArrayBoundsCheckGroup, true> ABCGroup(X);
+*/
 
 //
 // Method: initialize()
@@ -1176,12 +1174,10 @@ ArrayBoundsCheck::runOnModule(Module &M) {
   // Create the include file that will be passed to the Omega constraint
   // solver.
   //
-  if (!NoStaticChecks) {
-    includeOut.open (OmegaFilename.c_str());
-    outputDeclsForOmega(M);
-    includeOut.close();
-  }
-
+  includeOut.open (OmegaFilename.c_str());
+  outputDeclsForOmega(M);
+  includeOut.close();
+  
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     Function &F = *I;
 
@@ -1272,15 +1268,6 @@ ArrayBoundsCheck::collectSafetyConstraints (Function &F) {
             continue;
           }
 
-          //
-          // If static checking is disabled, then assume that this GEP is
-          // unsafe and continue to the next instruction.
-          //
-          if (NoStaticChecks) {
-            MarkGEPUnsafe (MAI);
-            continue;
-          }
-
           // Advance to the first index operand
           mI++;
           ABCExprTree *root;
@@ -1348,11 +1335,6 @@ ArrayBoundsCheck::collectSafetyConstraints (Function &F) {
         string funcName = FCI->getName();
         DEBUG(std::cerr << "Adding constraints for " << funcName << "\n");
         reqArgs = false;
-
-        if (NoStaticChecks) {
-          UnsafeCalls.insert(CI);
-          continue;
-        }
 
         if (funcName == "read") {
           LinearExpr *le = new LinearExpr(CI->getOperand(3),Mang);
@@ -1862,4 +1844,4 @@ ArrayBoundsCheck::SimplifyExpression (Value *Expr, ABCExprTree **rootp) {
   return 0;
 }
 
-Pass *createArrayBoundsCheckPass() { return new ABC::ArrayBoundsCheck(); }
+NAMESPACE_SC_END

@@ -5,7 +5,7 @@ BUILD_RELINKED=1
 
 LIBRARYNAME=arrayboundcheck
 
-SOURCES := ABCPreProcess.cpp AffineExpressions.cpp BottomUpCallGraph.cpp ArrayBoundCheck.cpp BreakConstantGEPs.cpp
+SOURCES := ABCPreProcess.cpp AffineExpressions.cpp BottomUpCallGraph.cpp ArrayBoundCheck.cpp BreakConstantGEPs.cpp ArrayBoundCheckDummy.cpp 
 
 CFLAGS   += -DOMEGASCRIPT=\"${PROJ_SRC_ROOT}/utils/omega.pl\"
 CPPFLAGS += -DOMEGASCRIPT=\"${PROJ_SRC_ROOT}/utils/omega.pl\"

@@ -43,9 +43,8 @@ namespace {
   STATISTIC (InitedAllocas, "Allocas Initialized");
 }
 
-namespace llvm
-{
-  //
+NAMESPACE_SC_BEGIN
+//
   // Constant: meminitvalue
   //
   // Description:
@@ -263,10 +262,12 @@ namespace llvm
     }
     return modified;
   }
-}
 
 namespace {
   RegisterPass<InitAllocas> Z("initallocas",
                               "Initialize stack allocations with pointers");
 } // end of namespace
+
+NAMESPACE_SC_END
+
 
