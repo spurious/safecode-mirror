@@ -1,4 +1,4 @@
-//===- Intrinsic.cpp - Insert declaration of SAFECode intrinsics -------------//
+//===- Intrinsic.cpp - Insert declaration of SAFECode intrinsics -*- C++ -*---//
 // 
 //                          The SAFECode Compiler 
 //
@@ -24,7 +24,6 @@
 
 #include <set>
 #include <map>
-
 
 using namespace llvm;
 
