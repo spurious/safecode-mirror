@@ -4,6 +4,8 @@
 #ifndef _SPECULATIVE_CHECKING_H_
 #define _SPECULATIVE_CHECKING_H_
 
+#include "safecode/SAFECode.h"
+
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
 #include "dsa/CallTargets.h"
@@ -15,7 +17,9 @@
 
 #define PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
 
-namespace llvm {
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
   struct DSNodePass;
   /**
    * This pass analyzes all call instructions in the program and
@@ -113,6 +117,6 @@ namespace llvm {
     ///
     void transformCheckingCall(CallInst * CI);
   };
-}
+NAMESPACE_SC_END
 
 #endif

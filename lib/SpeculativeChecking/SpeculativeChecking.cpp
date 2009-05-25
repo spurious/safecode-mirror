@@ -23,9 +23,7 @@
 #include "InsertPoolChecks.h"
 
 using namespace llvm;
-
-char SpeculativeCheckingInsertSyncPoints::ID = 0;
-
+NAMESPACE_SC_BEGIN
 
 /// Static Members
 namespace {
@@ -37,7 +35,6 @@ namespace {
   llvm::RegisterPass<ParCheckingCallAnalysis> callAnalysisPass("par-check-call-analysis", "Determine which calls are safe to not inserting sync points before them", true, true);
   llvm::RegisterPass<SpeculativeCheckingInsertSyncPoints> X("par-check-sync-points", "Insert sync points before external functions");
 }
-
 
 // here are the functions are considered as "safe",
 // either we know the semantics of them or they are not handled
@@ -118,7 +115,10 @@ namespace {
 }
 
 
-namespace llvm {
+
+
+char SpeculativeCheckingInsertSyncPoints::ID = 0;
+
   ////////////////////////////////////////////////////////////////////////////
   // SpeculativeCheckingInsertSyncPoints Methods
   ////////////////////////////////////////////////////////////////////////////
@@ -303,4 +303,4 @@ namespace llvm {
     return true;
   }
 
-}
+NAMESPACE_SC_END

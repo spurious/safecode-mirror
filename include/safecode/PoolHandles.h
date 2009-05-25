@@ -20,6 +20,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "safecode/Config/config.h"
+#include "safecode/SAFECodeConfig.h"
 
 #ifndef LLVA_KERNEL
 #include "poolalloc/PoolAllocate.h"
@@ -27,21 +28,28 @@
 
 #include "dsa/DSNode.h"
 
-namespace llvm {
+using namespace llvm;
+
+NAMESPACE_SC_BEGIN
 
 /// Passes that holds DSNode and Pool Handle information
-struct DSNodePass : public ModulePass {
+  struct DSNodePass : public ModulePass {
 	public :
     static char ID;
     DSNodePass () : ModulePass ((intptr_t) &ID) { }
-    virtual ~DSNodePass() {};
+    DSNodePass (intptr_t id) : ModulePass (id) { }
     const char *getPassName() const {
       return "DS Node And Pool Allocation Handle Pass";
     }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifndef LLVA_KERNEL      
+#ifndef LLVA_KERNEL
       AU.addRequiredTransitive<PoolAllocateGroup>();
+      if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
+        AU.addRequired<BasicDataStructures>();
+      } else {
+        AU.addRequired<EQTDDataStructures>();
+      }
 #else 
       AU.addRequired<TDDataStructures>();
 #endif
@@ -91,5 +99,6 @@ struct DSNodePass : public ModulePass {
     // The set of values that already have run-time checks
     std::set<const Value *> CheckedValues;
 };
-}
+
+NAMESPACE_SC_END
 #endif

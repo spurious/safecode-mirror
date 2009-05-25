@@ -18,7 +18,7 @@
 #include "InsertPoolChecks.h"
 #include "llvm/Support/CommandLine.h"
 
-namespace llvm {
+NAMESPACE_SC_BEGIN
 
 char DSNodePass::ID = 0; 
 static RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false, true);
@@ -28,7 +28,6 @@ cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
 
 bool
 DSNodePass::runOnModule(Module & M) {
-//  std::cerr << "Running DSNodePass" << std::endl; 
 #ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
@@ -83,7 +82,6 @@ DSNodePass::getPoolHandle (const Value *V,
                            Function *FClone,
                            PA::FuncInfo &FI,
                            bool collapsed) {
-
   //
   // Ensure that the caller is okay with collapsed pools.  Code below for
   // handling the case when we don't want collapsed pools is disabled to
@@ -112,8 +110,11 @@ DSNodePass::getPoolHandle (const Value *V,
         }
       }
     }
+    /// FIXME: ASM Writer does not handle it very well, so disable it
+#if 0
     std::cerr << "JTC: getPoolHandle: No DSNode: Function: "
               << FClone->getName() << ", Value: " << *V << std::endl;
+#endif
     return 0;
   }
 
@@ -221,6 +222,7 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   // JTC:
   //  If this function has a clone, then try to grab the original.
   //
+
   bool isClone = false;
   Value * Vnew = (Value *)(VOrig);
   if (!(paPass->getFuncInfo(*F))) {
@@ -319,4 +321,4 @@ DSNodePass::isValueChecked(const Value * val) const {
   return CheckedValues.find(val) != CheckedValues.end();
 }
 
-}
+NAMESPACE_SC_END
