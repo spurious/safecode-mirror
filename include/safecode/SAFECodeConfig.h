@@ -28,7 +28,13 @@ struct SAFECodeConfiguration {
     ABC_CHECK_NONE
   } StaticCheckTy;
 
+  typedef enum DSATy {
+    DSA_BASIC,
+    DSA_EQTD
+  } DSATy;
+
   StaticCheckTy StaticCheckType;
+  DSATy DSAType;
 
   static SAFECodeConfiguration * create();
 private:
