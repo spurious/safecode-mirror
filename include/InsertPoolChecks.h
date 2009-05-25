@@ -31,6 +31,8 @@
 #include "poolalloc/PoolAllocate.h"
 #endif
 
+extern bool isSVAEnabled();
+
 NAMESPACE_SC_BEGIN
 
 using namespace CUA;
@@ -66,7 +68,9 @@ struct PreInsertPoolChecks : public ModulePass {
       AU.addRequired<TargetData>();
 #endif
       AU.addRequiredTransitive<PoolAllocateGroup>();
-      AU.addRequiredTransitive<EQTDDataStructures>();
+      if (!isSVAEnabled()) {
+        AU.addRequiredTransitive<EQTDDataStructures>();
+      }
       AU.addRequired<DSNodePass>();
 
       AU.addPreserved<EQTDDataStructures>();

@@ -34,6 +34,8 @@
 #include "llvm/System/Signals.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
+#include "poolalloc/PoolAllocate.h"
+
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
@@ -82,7 +84,7 @@ static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
 enum CheckingRuntimeType {
-  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP 
+  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA 
 };
 
 #ifdef SC_DEBUGTOOL
@@ -100,6 +102,7 @@ CheckingRuntime("runtime", cl::init(DefaultRuntime),
   clEnumVal(RUNTIME_SINGLETHREAD, "Single Thread runtime (Production version)"),
   clEnumVal(RUNTIME_PARALLEL,     "Parallel Checking runtime (Production version)"),
   clEnumVal(RUNTIME_QUEUE_OP,     "Parallel no-op Checking runtime (For testing queue performance)"),
+  clEnumVal(RUNTIME_SVA,     "Runtime for SVA"),
   clEnumValEnd));
 
 static cl::opt<bool>
@@ -110,6 +113,14 @@ static cl::opt<bool>
 EnableCodeDuplication("code-duplication", cl::init(false),
 			 cl::desc("Enable Code Duplication for SAFECode checking"));
 
+
+
+static cl::opt<bool>
+EnableSVA("sva", cl::init(false), 
+          cl::desc("Enable SVA-Kernel specific operations"));
+
+bool isSVAEnabled();
+#define NOT_FOR_SVA(X) do { if (!isSVAEnabled()) X; } while (0);
 
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
 
@@ -155,53 +166,66 @@ int main(int argc, char **argv) {
 
     // Parse Configuration
     SCConfig = SAFECodeConfiguration::create();
+    // FIXME
+    // HACK: we set DSAType of SCConfig here, since we don't have a consistent
+    // uses of parameters. We should sit down and discuss the parameters that
+    // SAFECode should have...
+    SCConfig->DSAType = 
+      isSVAEnabled() ? 
+      SAFECodeConfiguration::DSA_BASIC : 
+      SAFECodeConfiguration::DSA_EQTD;
+
 
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
     Passes.add(new TargetData(M.get()));
 
     // Remove all constant GEP expressions
-    Passes.add(new BreakConstantGEPs());
+    NOT_FOR_SVA(Passes.add(new BreakConstantGEPs()));
 
     // Ensure that all malloc/free calls are changed into LLVM instructions
-    Passes.add(createRaiseAllocationsPass());
+    NOT_FOR_SVA(Passes.add(createRaiseAllocationsPass()));
 
     //
     // Remove indirect calls to malloc and free functions.  This can be done
     // here because none of the SAFECode transforms will add indirect calls to
     // malloc() and free().
     //
-    Passes.add(createIndMemRemPass());
+    NOT_FOR_SVA(Passes.add(createIndMemRemPass()));
 
     // Ensure that all malloc/free calls are changed into LLVM instructions
-    Passes.add(createRaiseAllocationsPass());
+    NOT_FOR_SVA(Passes.add(createRaiseAllocationsPass()));
 
     //
     // Ensure that all functions have only a single return instruction.  We do
     // this to make stack-to-heap promotion easier (with a single return
     // instruction, we know where to free all of the promoted alloca's).
     //
-    Passes.add(createUnifyFunctionExitNodesPass());
+    NOT_FOR_SVA(Passes.add(createUnifyFunctionExitNodesPass()));
 
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     //
     if (CheckingRuntime != RUNTIME_PA)
-      Passes.add(new ConvertUnsafeAllocas());
+      NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
 
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
     // Bottom-Up Call Graph pass doesn't work after pool allocation has
     // been run, and PassManager schedules it after pool allocation for
     // some reason.
-    Passes.add(new BottomUpCallGraph());
+    NOT_FOR_SVA(Passes.add(new BottomUpCallGraph()));
 
-    Passes.add(new ParCheckingCallAnalysis());
+    NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
  
-    if (FullPA)
-      Passes.add(new PoolAllocate(true, true));
-    else
-      Passes.add(new PoolAllocateSimple(true, true));
+    if (isSVAEnabled()) {
+      Passes.add(new PoolAllocateSimple(true, true, false));
+    } else {
+      if (FullPA)
+        Passes.add(new PoolAllocate(true, true));
+      else
+        Passes.add(new PoolAllocateSimple(true, true, true));
+    }
 
 
 #if 0
@@ -209,11 +233,13 @@ int main(int argc, char **argv) {
     // pool allocation,
     Passes.add(new PAConvertUnsafeAllocas());
 #endif
-
-    Passes.add(new EmbeCFreeRemoval());
+    //    Passes.add(new EmbeCFreeRemoval());
     Passes.add(new RegisterGlobalVariables());
-    Passes.add(new RegisterMainArgs());
-    Passes.add(new RegisterRuntimeInitializer());
+
+    if (!isSVAEnabled()) {
+      Passes.add(new RegisterMainArgs());
+      Passes.add(new RegisterRuntimeInitializer());
+    }
     
     if (SCConfig->StaticCheckType == SAFECodeConfiguration::ABC_CHECK_FULL) {
       Passes.add(new ABCPreProcess());
@@ -223,15 +249,14 @@ int main(int argc, char **argv) {
     }
 
     Passes.add(new InsertPoolChecks());
-    
-    Passes.add(new RegisterStackObjPass());
-    Passes.add(new InitAllocas());
+    NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
+    NOT_FOR_SVA(Passes.add(new InitAllocas()));
 
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 
     if (!DisableCStdLib) {
-      Passes.add(new StringTransform());
+      NOT_FOR_SVA(Passes.add(new StringTransform()));
     }
 
     if (!DisableMonotonicLoopOpt)
@@ -471,6 +496,18 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"poolcalloc",        "__sc_barebone_poolcalloc"},
       {"poolstrdup",        "__sc_barebone_poolstrdup"},
     };
+
+  static IntrinsicMappingEntry RuntimeSVA[] = 
+    { {"sc.lscheck",         "poolcheck" },
+      {"sc.lscheckui",       "poolcheck_i" },
+      {"sc.lscheckalign",    "poolcheckalign" },
+      {"sc.lscheckalignui",  "poolcheckalign_i" },
+      {"sc.boundscheck",     "boundscheck" },
+      {"sc.boundscheckui",   "boundscheckui" },
+      {"sc.exactcheck",      "exactcheck" },
+      {"sc.exactcheck2",     "exactcheck2" },
+    };
+
   switch (type) {
   case RUNTIME_PA:
     Passes.add(new LowerSafecodeIntrinsic(RuntimePA, RuntimePA + sizeof(RuntimePA) / sizeof(IntrinsicMappingEntry)));
@@ -491,5 +528,17 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
   case RUNTIME_QUEUE_OP:
     Passes.add(new LowerSafecodeIntrinsic(RuntimeQueuePerformance, RuntimeQueuePerformance+ sizeof(RuntimeQueuePerformance) / sizeof(IntrinsicMappingEntry)));
     break;
+
+  case RUNTIME_SVA:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeSVA, RuntimeSVA + sizeof(RuntimeSVA) / sizeof(IntrinsicMappingEntry)));
+    break;
+
+  default:
+    assert (0 && "Invalid Runtime!");
+  
   }
+}
+
+bool isSVAEnabled() {
+  return EnableSVA;
 }

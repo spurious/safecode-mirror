@@ -903,16 +903,23 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
   //here we check that we only do this on original functions
   //and not the cloned functions, the cloned functions may not have the
   //DSG
+
   bool isClonedFunc = false;
-  if (paPass->getFuncInfo(F))
-    isClonedFunc = false;
-  else
-    isClonedFunc = true;
   Function *Forig = &F;
-  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(F);
-  if (isClonedFunc) {
+  PA::FuncInfo *FI = NULL;
+
+  if (!isSVAEnabled()) {
+    if (paPass->getFuncInfo(F))
+      isClonedFunc = false;
+    else
+      isClonedFunc = true;
+    
+    FI = paPass->getFuncInfoOrClone(F);
+    if (isClonedFunc) {
       Forig = paPass->getOrigFunctionFromClone(&F);
+    }
   }
+
   //we got the original function
 
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
@@ -952,8 +959,11 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
     } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
       if (!isa<Function>(FunctionOp)) {
-        std::cerr << "JTC: Indirect Function Call Check: "
-                  << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
+        if (!isSVAEnabled()) {
+          // The ASM Writer does not handle inline assembly very well
+          llvm::cerr << "JTC: Indirect Function Call Check: "
+                     << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
+        }
         if (isClonedFunc) {
           assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
           const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
