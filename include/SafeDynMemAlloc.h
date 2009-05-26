@@ -61,9 +61,7 @@ using std::set;
 using std::map;
 
 using namespace llvm;
-#ifndef LLVA_KERNEL
 using namespace PA;
-#endif
 Pass* createEmbeCFreeRemovalPass();
 
 namespace {
@@ -105,10 +103,8 @@ namespace llvm {
     void addRuntimeChecks(Function *F, Function *Forig);
     
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifndef LLVA_KERNEL
       AU.addRequired<PoolAllocateGroup>();
       AU.addPreserved<PoolAllocateGroup>();
-#endif      
       AU.addRequired<CallGraph>();
       AU.setPreservesAll();
     }
@@ -123,9 +119,7 @@ namespace llvm {
     Module *CurModule;
 
     TDDataStructures *TDDS;
-#ifndef LLVA_KERNEL    
     PoolAllocateGroup *PoolInfo;
-#endif    
     bool moduleChanged;
     bool hasError;
     

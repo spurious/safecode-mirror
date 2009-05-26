@@ -22,9 +22,7 @@
 #include "safecode/Config/config.h"
 #include "safecode/SAFECodeConfig.h"
 
-#ifndef LLVA_KERNEL
 #include "poolalloc/PoolAllocate.h"
-#endif
 
 #include "dsa/DSNode.h"
 
@@ -43,16 +41,12 @@ NAMESPACE_SC_BEGIN
     }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-#ifndef LLVA_KERNEL
       AU.addRequiredTransitive<PoolAllocateGroup>();
       if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
         AU.addRequired<BasicDataStructures>();
       } else {
         AU.addRequired<EQTDDataStructures>();
       }
-#else 
-      AU.addRequired<TDDataStructures>();
-#endif
       AU.setPreservesAll();
     };
 
@@ -75,17 +69,11 @@ NAMESPACE_SC_BEGIN
 
   public:
     // FIXME: Provide better interfaces
-#ifndef  LLVA_KERNEL
     PoolAllocateGroup * paPass;
-#else
-    TDDataStructures * TDPass;
-#endif
     DSGraph * getDSGraph (Function & F);
     DSNode* getDSNode(const Value *V, Function *F);
     unsigned getDSNodeOffset(const Value *V, Function *F);
-#ifndef LLVA_KERNEL  
     Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
-#endif
 
     void addCheckedDSNode(const DSNode * node);
     void addCheckedValue(const Value * value);

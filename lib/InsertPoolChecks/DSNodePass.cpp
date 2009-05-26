@@ -28,12 +28,10 @@ cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
 
 bool
 DSNodePass::runOnModule(Module & M) {
-#ifndef LLVA_KERNEL  
   paPass = &getAnalysis<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
 #if 0
   efPass = &getAnalysis<EmbeCFreeRemoval>();
-#endif
 #endif
   return false;
 }
@@ -47,14 +45,9 @@ DSNodePass::runOnModule(Module & M) {
 //
 DSGraph *
 DSNodePass::getDSGraph(Function & F) {
-#ifndef LLVA_KERNEL
   return paPass->getDSGraph(F);
-#else  
-  return TDPass->getDSGraph(F);
-#endif  
 }
 
-#ifndef LLVA_KERNEL
 //
 // Method: getPoolHandle()
 //
@@ -200,24 +193,8 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
               << *V << std::endl;
   return 0;
 }
-#else
-Value *
-DSNodePass::getPoolHandle(const Value *V, Function *F) {
-  DSGraph &TDG =  TDPass->getDSGraph(*F);
-  const DSNode *Node = TDG.getNodeForValue((Value *)V).getNode();
-  // Get the pool handle for this DSNode...
-  //  assert(!Node->isUnknownNode() && "Unknown node \n");
-  //  if (Node->isUnknownNode()) {
-  //    return 0;
-  //  }
-  if ((TDG.getPoolDescriptorsMap()).count(Node)) 
-    return (TDG.getPoolDescriptorsMap()[Node]->getMetaPoolValue());
-  return 0;
-}
-#endif
 
 DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
-#ifndef LLVA_KERNEL
   //
   // JTC:
   //  If this function has a clone, then try to grab the original.
@@ -243,9 +220,6 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   //
   const Value * V = (Vnew) ? Vnew : VOrig;
   DSGraph * TDG = paPass->getDSGraph(*F);
-#else  
-  DSGraph * TDG = TDPass->getDSGraph(*F);
-#endif  
   DSNode *DSN = TDG->getNodeForValue(V).getNode();
 
   //
@@ -254,11 +228,7 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   //
   DSGraph * GlobalsGraph;
   if (!DSN) {
-#ifndef LLVA_KERNEL
     GlobalsGraph = paPass->getGlobalsGraph ();
-#else
-    GlobalsGraph = TDPass->getGlobalsGraph ();
-#endif
     DSN = GlobalsGraph->getNodeForValue(V).getNode();
   }
 
@@ -287,11 +257,7 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
 }
 
 unsigned DSNodePass::getDSNodeOffset(const Value *V, Function *F) {
-#ifndef LLVA_KERNEL
   DSGraph *TDG = paPass->getDSGraph(*F);
-#else  
-  DSGraph *TDG = TDPass->getDSGraph(*F);
-#endif  
   return TDG->getNodeForValue((Value *)V).getOffset();
 }
 

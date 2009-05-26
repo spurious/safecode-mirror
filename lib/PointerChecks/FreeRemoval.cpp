@@ -47,7 +47,6 @@
 #include "SCUtils.h"
 #include <iostream>
 using namespace llvm;
-#ifndef LLVA_KERNEL
 
 
 namespace llvm {
@@ -727,10 +726,8 @@ EmbeCFreeRemoval::runOnModule(Module &M) {
 
   // Bottom up on the call graph
   // TODO: Take care of recursion/mutual recursion
-#ifndef LLVA_KERNEL
   PoolInfo = &getAnalysis<PoolAllocateGroup>();
   assert (PoolInfo && "Must run Pool Allocation Pass first!\n");
-#endif  
   CallGraph &CG = getAnalysis<CallGraph>();
   //  BUDS = &getAnalysis<EQTDDataStructures>();
   //  BUDS = PoolInfo->getDataStructures();
@@ -986,5 +983,4 @@ EmbeCFreeRemoval::runOnModule(Module &M) {
 
 }
 Pass *createEmbeCFreeRemovalPass() { return new EmbeCFreeRemoval(); }
-#endif
 

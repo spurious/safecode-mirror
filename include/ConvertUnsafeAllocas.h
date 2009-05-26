@@ -26,9 +26,7 @@
 #include "safecode/Config/config.h"
 #include "safecode/PoolHandles.h"
 
-#ifndef LLVA_KERNEL
 #include "poolalloc/PoolAllocate.h"
-#endif
 
 #include <set>
 
@@ -75,11 +73,7 @@ struct InitAllocas : public FunctionPass {
       AU.addRequired<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
       AU.setPreservesCFG();
-#ifdef LLVA_KERNEL
       AU.setPreservesAll();
-#else
-      AU.setPreservesAll();
-#endif     
     }
 };
 

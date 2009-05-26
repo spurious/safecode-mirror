@@ -76,21 +76,6 @@ namespace {
   STATISTIC (PoolChecks , "Poolchecks Added");
   STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
-#ifdef LLVA_KERNEL
-  STATISTIC (MissChecks ,
-                             "Poolchecks omitted due to bad pool descriptor");
-  STATISTIC (BoundChecks,
-                             "Bounds checks inserted");
-
-  STATISTIC (MissedIncompleteChecks ,
-                               "Poolchecks missed because of incompleteness");
-  STATISTIC (MissedMultDimArrayChecks ,
-                                           "Multi-dimensional array checks");
-
-  STATISTIC (MissedStackChecks  , "Missed stack checks");
-  STATISTIC (MissedGlobalChecks , "Missed global checks");
-  STATISTIC (MissedNullChecks   , "Missed PD checks");
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -134,22 +119,9 @@ isEligableForExactCheck (Value * Pointer, bool IOOkay) {
 
   if (CallInst* CI = dyn_cast<CallInst>(Pointer)) {
     if (CI->getCalledFunction()) {
-#ifdef LLVA_KERNEL
-      if ((CI->getCalledFunction()->getName() == "__vmalloc" ||
-           CI->getCalledFunction()->getName() == "kmalloc" ||
-           CI->getCalledFunction()->getName() == "kmem_cache_alloc" ||
-           CI->getCalledFunction()->getName() == "__alloc_bootmem")) {
-        return true;
-      }
-
-      if (IOOkay && (CI->getCalledFunction()->getName() == "__ioremap")) {
-        return true;
-      }
-#else
       if (CI->getCalledFunction()->getName() == "poolalloc") {
         return true;
       }
-#endif
       if (CI->getCalledFunction()->getName() == "malloc") {
         return true;
       }
@@ -619,12 +591,10 @@ InsertPoolChecks::runOnFunction(Function &F) {
   }
 
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-#ifndef LLVA_KERNEL
   paPass = &getAnalysis<PoolAllocateGroup>();
   // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   TD  = &getAnalysis<TargetData>();
-#endif
   dsnPass = &getAnalysis<DSNodePass>();
 
   //std::cerr << "Running on Function " << F.getName() << std::endl;
@@ -738,7 +708,6 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   }
 }
 
-#ifndef LLVA_KERNEL
 //
 // Method: addLSChecks()
 //
@@ -978,8 +947,6 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
   }
 }
 
-#endif
-
 void
 InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
   if (abcPass->isGEPSafe(GEP))
@@ -996,86 +963,6 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
       //FIXME, get strcpy and others from the backup dir and adjust them for LLVA
       //Right now I just add memset &llva_memcpy for LLVA
       //      std::cerr << " function call \n";
-#ifdef LLVA_KERNEL
-      CallInst *CI = dyn_cast<CallInst>(*iCurrent);
-      if (CI && (!DisableIntrinsicChecks)) {
-        Value *Fop = CI->getOperand(0);
-        Function *F = CI->getParent()->getParent();
-        if (Fop->getName() == "llva_memcpy") {
-          Value *PH = dsnPass->getPoolHandle(CI->getOperand(1), F); 
-          Instruction *InsertPt = CI;
-          if (!PH) {
-            ++NullChecks;
-            ++MissedNullChecks;
-
-            // Don't bother to insert the NULL check unless the user asked
-            if (!EnableNullChecks)
-              continue;
-            PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
-          }
-          CastInst *CastCIUint = 
-            CastInst::CreatePointerCast(CI->getOperand(1), Type::Int32Ty, "node.lscasted", InsertPt);
-          CastInst *CastCIOp3 = 
-            CastInst::CreateZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
-          Instruction *Bop = BinaryOperator::Create(Instruction::Add, CastCIUint,
-                          CastCIOp3, "memcpyadd",InsertPt);
-          
-          // Create instructions to cast the checked pointer and the checked pool
-          // into sbyte pointers.
-          CastInst *CastSourcePointer = 
-            CastInst::CreatePointerCast(CI->getOperand(1), 
-                         PointerType::getUnqual(Type::Int8Ty), "memcpy.1.casted", InsertPt);
-          CastInst *CastCI = 
-            CastInst::CreatePointerCast(Bop, 
-                         PointerType::getUnqual(Type::Int8Ty), "mempcy.2.casted", InsertPt);
-          CastInst *CastPHI = 
-            CastInst::CreatePointerCast(PH, 
-                         PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
-          
-          // Create the call to poolcheck
-          std::vector<Value *> args(1,CastPHI);
-          args.push_back(CastSourcePointer);
-          args.push_back(CastCI);
-          CallInst::Create(PoolCheckArray,args.begin(), args.end(),"", InsertPt);
-#if 0
-        } else if (Fop->getName() == "memset") {
-          Value *PH = getPoolHandle(CI->getOperand(1), F); 
-          Instruction *InsertPt = CI->getNext();
-          if (!PH) {
-            NullChecks++;
-            // Don't bother to insert the NULL check unless the user asked
-            if (!EnableNullChecks)
-              continue;
-            PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
-          }
-          CastInst *CastCIUint = 
-            CastInst::CreatePointerCast(CI, Type::Int32Ty, "node.lscasted", InsertPt);
-          CastInst *CastCIOp3 = 
-            CastInst::CreateZExtOrBitCast(CI->getOperand(3), Type::Int32Ty, "node.lscasted", InsertPt);
-          Instruction *Bop = BinaryOperator::Create(Instruction::Add, CastCIUint,
-                          CastCIOp3, "memsetadd",InsertPt);
-          
-          // Create instructions to cast the checked pointer and the checked pool
-          // into sbyte pointers.
-          CastInst *CastSourcePointer = 
-            CastInst::CreatePointerCast(CI->getOperand(1), 
-                         PointerType::getUnqual(Type::Int8Ty), "memset.1.casted", InsertPt);
-          CastInst *CastCI = 
-            CastInst::CreatePointerCast(Bop, 
-                         PointerType::getUnqual(Type::Int8Ty), "memset.2.casted", InsertPt);
-          CastInst *CastPHI = 
-            CastInst::CreatePointerCast(PH, 
-                         PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", InsertPt);
-          
-          // Create the call to poolcheck
-          std::vector<Value *> args(1,CastPHI);
-          args.push_back(CastSourcePointer);
-          args.push_back(CastCI);
-          CallInst::Create(PoolCheckArray,args,"", InsertPt);
-#endif
-        }
-      }
-#endif
       return;
     }
     Function *F = GEP->getParent()->getParent();
@@ -1088,7 +975,6 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
     //       continue;
     //     }
     
-#ifndef LLVA_KERNEL    
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     Instruction *Casted = GEP;
 #if 0
@@ -1229,264 +1115,6 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         DEBUG(std::cerr << "inserted instrcution \n");
       }
     }
-#else
-    //
-    // Get the pool handle associated with the pointer operand.
-    //
-    Value *PH = dsnPass->getPoolHandle(GEP->getPointerOperand(), F);
-    GetElementPtrInst *GEPNew = GEP;
-    Instruction *Casted = GEP;
-
-    DSGraph * TDG = TDPass->getDSGraph(*F);
-    DSNode * Node = TDG->getNodeForValue(GEP).getNode();
-
-    DEBUG(std::cerr << "LLVA: addGEPChecks: Pool " << PH << " Node ");
-    DEBUG(std::cerr << Node << std::endl);
-
-    Value *PointerOperand = GEPNew->getPointerOperand();
-    if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
-      if (cExpr->getOpcode() == Instruction::Cast)
-        PointerOperand = cExpr->getOperand(0);
-    }
-    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(PointerOperand)) {
-      if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-        // we need to insert an actual check
-        // It could be a select instruction
-        // First get the size
-        // This only works for one or two dimensional arrays
-        if (GEPNew->getNumOperands() == 2) {
-          Value *secOp = GEPNew->getOperand(1);
-          if (secOp->getType() != Type::Int32Ty) {
-            secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
-                                 secOp->getName()+".ec3.casted", Casted);
-          }
-          
-          std::vector<Value *> args(1,secOp);
-          const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-          args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-          CallInst *newCI = CallInst::Create(ExactCheck,args,"", Casted);
-          ++BoundChecks;
-          //	    DEBUG(std::cerr << "Inserted exact check call Instruction \n");
-          continue;
-        } else if (GEPNew->getNumOperands() == 3) {
-          if (ConstantInt *COP = dyn_cast<ConstantInt>(GEPNew->getOperand(1))) {
-            //FIXME assuming that the first array index is 0
-            assert((COP->getZExtValue() == 0) && "non zero array index\n");
-            Value * secOp = GEPNew->getOperand(2);
-            if (secOp->getType() != Type::Int32Ty) {
-              secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
-                                   secOp->getName()+".ec4.casted", Casted);
-            }
-            std::vector<Value *> args(1,secOp);
-            const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-            args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-            CallInst *newCI = CallInst::Create(ExactCheck,args,"", Casted->getNext());
-            ++BoundChecks;
-            continue;
-          } else {
-            //Handle non constant index two dimensional arrays later
-            abort();
-          }
-        } else {
-          //Handle Multi dimensional cases later
-          std::cerr << "WARNING: Handle multi dimensional globals later\n";
-          (*iCurrent)->dump();
-          ++MissedMultDimArrayChecks;
-        }
-        DEBUG(std::cerr << " Global variable ok \n");
-      }
-    }
-
-#if 0
-    //No checks for incomplete nodes 
-    if (!EnableIncompleteChecks) {
-      if (Node->isIncomplete()) {
-        ++MissedNullChecks;
-        continue;
-      }
-    }
-#endif
-
-    //
-    // We cannot insert an exactcheck().  Insert a pool check.
-    //
-    if (!PH) {
-      DEBUG(std::cerr << "missing GEP check: Null PH: " << GEP << "\n");
-      ++NullChecks;
-      if (!PH) ++MissedNullChecks;
-
-      // Don't bother to insert the NULL check unless the user asked
-      if (!EnableNullChecks)
-      {
-        continue;
-      }
-      PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
-    } else {
-      //
-      // Determine whether the pool handle dominates the pool check.
-      // If not, then don't insert it.
-      //
-
-      //
-      // FIXME:
-      //  This domination check is too restrictive; it eliminates pools that do
-      //  dominate but are outside of the current basic block.
-      //
-      // Only add the pool check if the pool is a global value or it belongs
-      // to the same basic block.
-      //
-      if (isa<GlobalValue>(PH)) {
-        ++FullChecks;
-      } else if (isa<Instruction>(PH)) {
-        Instruction * IPH = (Instruction *)(PH);
-        if (IPH->getParent() == Casted->getParent()) {
-          //
-          // If the instructions belong to the same basic block, ensure that
-          // the pool dominates the load/store.
-          //
-          Instruction * IP = IPH;
-          for (IP=IPH; (IP->isTerminator()) || (IP==Casted); IP=IP->getNext()) {
-            ;
-          }
-          if (IP == Casted)
-            ++FullChecks;
-          else {
-            ++MissChecks;
-            continue;
-          }
-        } else {
-          ++MissChecks;
-          continue;
-        }
-      } else {
-        ++MissChecks;
-        continue;
-      }
-    }
-
-    //
-    // Regardless of the node type, always perform an accurate bounds check.
-    //
-    Instruction *InsertPt = Casted->getNext();
-    if (Casted->getType() != PointerType::getUnqual(Type::Int8Ty)) {
-      Casted = CastInst::CreatePointerCast(Casted,PointerType::getUnqual(Type::Int8Ty),
-                            (Casted)->getName()+".pc2.casted",InsertPt);
-    }
-    Instruction *CastedPointerOperand = CastInst::CreatePointerCast(PointerOperand,
-                                         PointerType::getUnqual(Type::Int8Ty),
-                                         PointerOperand->getName()+".casted",InsertPt);
-    Instruction *CastedPH = CastInst::CreatePointerCast(PH,
-                                         PointerType::getUnqual(Type::Int8Ty),
-                                         "ph",InsertPt);
-    std::vector<Value *> args(1, CastedPH);
-    args.push_back(CastedPointerOperand);
-    args.push_back(Casted);
-    CallInst * newCI = CallInst::Create(PoolCheckArray, args, "",InsertPt);
-#endif    
 }
-
-#undef REG_FUNC
-
-/// CODE for LLVA_KERNEL
-
-#ifdef LLVA_KERNEL
-//
-// Method: addLSChecks()
-//
-// Description:
-//  Insert a poolcheck() into the code for a load or store instruction.
-//
-void InsertPoolChecks::addLSChecks(Value *V, Instruction *I, Function *F) {
-  DSGraph * TDG = TDPass->getDSGraph(*F);
-  DSNode * Node = TDG->getNodeForValue(V).getNode();
-  
-  if (Node && Node->isNodeCompletelyFolded()) {
-    if (!EnableIncompleteChecks) {
-      if (Node->isIncomplete()) {
-        ++MissedIncompleteChecks;
-        return;
-      }
-    }
-    // Get the pool handle associated with this pointer.  If there is no pool
-    // handle, use a NULL pointer value and let the runtime deal with it.
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    Value *PH = dsnPass->getPoolHandle(V, F, *FI);
-#ifdef DEBUG
-std::cerr << "LLVA: addLSChecks: Pool " << PH << " Node " << Node << std::endl;
-#endif
-    // FIXME: We cannot handle checks to global or stack positions right now.
-    if ((!PH) || (Node->isAllocaNode()) || (Node->isGlobalNode())) {
-      ++NullChecks;
-      if (!PH) ++MissedNullChecks;
-      if (Node->isAllocaNode()) ++MissedStackChecks;
-      if (Node->isGlobalNode()) ++MissedGlobalChecks;
-
-      // Don't bother to insert the NULL check unless the user asked
-      if (!EnableNullChecks)
-        return;
-      PH = Constant::getNullValue(PointerType::getUnqual(Type::Int8Ty));
-    } else {
-      //
-      // Only add the pool check if the pool is a global value or it
-      // belongs to the same basic block.
-      //
-      if (isa<GlobalValue>(PH)) {
-        ++FullChecks;
-      } else if (isa<Instruction>(PH)) {
-        Instruction * IPH = (Instruction *)(PH);
-        if (IPH->getParent() == I->getParent()) {
-          //
-          // If the instructions belong to the same basic block, ensure that
-          // the pool dominates the load/store.
-          //
-          Instruction * IP = IPH;
-          for (IP=IPH; (IP->isTerminator()) || (IP == I); IP=IP->getNext()) {
-            ;
-          }
-          if (IP == I)
-            ++FullChecks;
-          else {
-            ++MissChecks;
-            return;
-          }
-        } else {
-          ++MissChecks;
-          return;
-        }
-      } else {
-        ++MissChecks;
-        return;
-      }
-    }      
-    // Create instructions to cast the checked pointer and the checked pool
-    // into sbyte pointers.
-    CastInst *CastVI = 
-      CastInst::CreatePointerCast(V, 
-		   PointerType::getUnqual(Type::Int8Ty), "node.lscasted", I);
-    CastInst *CastPHI = 
-      CastInst::CreatePointerCast(PH, 
-		   PointerType::getUnqual(Type::Int8Ty), "poolhandle.lscasted", I);
-
-    // Create the call to poolcheck
-    std::vector<Value *> args(1,CastPHI);
-    args.push_back(CastVI);
-    CallInst::Create(PoolCheck,args,"", I);
-  }
-}
-
-void
-InsertPoolChecks::addLoadStoreChecks(Function &F) {
-    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-    if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-      Value *P = LI->getPointerOperand();
-      addLSChecks(P, LI, F);
-    } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
-      Value *P = SI->getPointerOperand();
-      addLSChecks(P, SI, F);
-    }
-  }
-}
-
-#endif
 
 NAMESPACE_SC_END

@@ -26,70 +26,14 @@
 #include "ConvertUnsafeAllocas.h"
 #include "safecode/Intrinsic.h"
 
-#ifndef LLVA_KERNEL
 #include "SafeDynMemAlloc.h"
 #include "poolalloc/PoolAllocate.h"
-#endif
 
 extern bool isSVAEnabled();
 
 NAMESPACE_SC_BEGIN
 
 using namespace CUA;
-
-struct PreInsertPoolChecks : public ModulePass {
-    friend struct InsertPoolChecks;
-    private :
-    // Flags whether we want to do dangling checks
-    bool DanglingChecks;
-
-    // Flags whether we should rewrite Out of Bound pointers or just fail them
-    bool RewriteOOB;
-
-    // Flags whether SAFECode should terminate on the first error
-    bool Terminate;
-
-    public :
-    static char ID;
-    PreInsertPoolChecks (bool DPChecks = false,
-                         bool RewritePtrs=false,
-                         bool StopOnFirst=false)
-      : ModulePass ((intptr_t) &ID) {
-      DanglingChecks = DPChecks;
-      RewriteOOB     = RewritePtrs;
-      Terminate      = StopOnFirst;
-    }
-    const char *getPassName() const { return "Register Global variable into pools"; }
-    virtual bool runOnModule(Module &M);
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<InsertSCIntrinsic>();
-      AU.addPreserved<InsertSCIntrinsic>();
-#ifndef LLVA_KERNEL      
-      AU.addRequired<TargetData>();
-#endif
-      AU.addRequiredTransitive<PoolAllocateGroup>();
-      if (!isSVAEnabled()) {
-        AU.addRequiredTransitive<EQTDDataStructures>();
-      }
-      AU.addRequired<DSNodePass>();
-
-      AU.addPreserved<EQTDDataStructures>();
-      AU.addPreserved<PoolAllocateGroup>();
-      AU.addPreserved<DSNodePass>();
-      AU.setPreservesCFG();
-    };
-    private :
-    InsertSCIntrinsic * intrinsic;
-#ifndef  LLVA_KERNEL
-  PoolAllocateGroup * paPass;
-  TargetData * TD;
-#endif
-  DSNodePass * dsnPass;
-#ifndef LLVA_KERNEL  
-  void registerGlobalArraysWithGlobalPools(Module &M);
-#endif  
-  void insertInitCalls (Module & M, bool DPChecks, bool RewriteOOB, bool Term);
-};
 
 struct InsertPoolChecks : public FunctionPass {
     public :
@@ -101,12 +45,8 @@ struct InsertPoolChecks : public FunctionPass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 //      AU.addRequired<EQTDDataStructures>();
 //      AU.addRequired<TDDataStructures>();
-#ifndef LLVA_KERNEL      
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<TargetData>();
-#else 
-      AU.addRequired<TDDataStructures>();
-#endif
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequiredTransitive<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
@@ -120,12 +60,8 @@ struct InsertPoolChecks : public FunctionPass {
     private:
     InsertSCIntrinsic * intrinsic;
     ArrayBoundsCheckGroup * abcPass;
-#ifndef  LLVA_KERNEL
   PoolAllocateGroup * paPass;
   TargetData * TD;
-#else
-  TDDataStructures * TDPass;
-#endif  
   DSNodePass * dsnPass;
   Function *PoolCheck;
   Function *PoolCheckUI;
@@ -147,12 +83,8 @@ struct InsertPoolChecks : public FunctionPass {
   void addLoadStoreChecks(Function &F);
   void addExactCheck2 (Value * B, Value * R, Value * C, Instruction * InsertPt);
   void insertAlignmentCheck (LoadInst * LI);
-#ifndef LLVA_KERNEL  
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
   void registerGlobalArraysWithGlobalPools(Module &M);
-#else
-  void addLSChecks(Value *V, Instruction *I, Function *F);
-#endif  
 };
 
 /// Monotonic Loop Optimization
