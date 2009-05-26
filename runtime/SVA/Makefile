@@ -1,6 +1,6 @@
 LEVEL = ../..
 BYTECODE_LIBRARY=1
-LIBRARYNAME=kpoolcheck_rt
+LIBRARYNAME=runtime-sva
 
 include $(LEVEL)/Makefile.common
 

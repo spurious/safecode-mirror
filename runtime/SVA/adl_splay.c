@@ -2,7 +2,7 @@
 
 #ifndef USE_RB
 
-#include "safecode/Runtime/PoolSystem.h"
+#include "PoolSystem.h"
 
 typedef struct tree_node Tree;
 struct tree_node {

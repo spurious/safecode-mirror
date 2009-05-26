@@ -14,6 +14,32 @@
 #ifndef POOLCHECK_RUNTIME_H
 #define POOLCHECK_RUNTIME_H
 
+#include "safecode/Config/config.h"
+
+extern unsigned long __sva_save_iflag(void);
+extern void __sva_restore_iflag(unsigned long enable);
+
+
+static unsigned long
+disable_irqs ()
+{
+  unsigned long is_set;
+  is_set = __sva_save_iflag ();
+  __sva_restore_iflag (0);
+  return is_set;
+}
+
+static void
+enable_irqs (unsigned long is_set)
+{
+  __sva_restore_iflag (is_set);
+}
+
+#define PCLOCK() unsigned pc_i = disable_irqs();
+#define PCLOCK2() pc_i = disable_irqs();
+#define PCUNLOCK() enable_irqs(pc_i);
+
+
 typedef struct MetaPoolTy {
   /* A splay of Pools, useful for registration tracking */
   void* Slabs;
@@ -42,6 +68,16 @@ typedef struct MetaPoolTy {
   unsigned int length[4];
   void * cache[4];
 #endif
+ 
+
+#ifdef SVA_IO
+  /* A splay for I/O objects */
+  void * IOObjs;
+#endif
+
+#ifdef SVA_MMU 
+  unsigned TK;
+#endif
 
 } MetaPoolTy;
 
@@ -66,9 +102,16 @@ extern "C" {
   void pchk_drop_obj(MetaPoolTy* MP, void* addr);
   void pchk_reg_pool(MetaPoolTy* MP, void* PoolID, void* MPLoc);
   void pchk_drop_pool(MetaPoolTy* MP, void* PoolID);
-  
+  void pchk_reg_pages (MetaPoolTy* MP, void* addr, unsigned order);
+  void pchk_drop_pages (MetaPoolTy* MP, void* addr);
+
+  /* Register and Deregister Integer State buffers */
+  void pchk_reg_int (void* addr);
+  void pchk_drop_int (void * addr);
+
   /* check that addr exists in pool MP */
-  void poolcheck(MetaPoolTy* MP, void* addr);
+  void * poolcheck   (MetaPoolTy* MP, void* addr) __attribute__ ((pure));
+  void * poolcheck_i (MetaPoolTy* MP, void* addr) __attribute__ ((pure));
 
   /* check that src and dest are same obj or slab */
   void poolcheckarray(MetaPoolTy* MP, void* src, void* dest);
@@ -76,6 +119,10 @@ extern "C" {
   /* check that src and dest are same obj or slab */
   /* if src and dest do not exist in the pool, pass */
   void poolcheckarray_i(MetaPoolTy* MP, void* src, void* dest);
+
+  /* I/O Poolchecks */
+  void * poolcheckio   (MetaPoolTy* MP, void* addr);
+  void * poolcheckio_i (MetaPoolTy* MP, void* addr);
 
   /* if src is an out of object pointer, get the original value */
   void* pchk_getActualValue(MetaPoolTy* MP, void* src);
@@ -98,6 +145,11 @@ extern "C" {
   void * getBegin (void * node) __attribute__ ((weak));
   void * getEnd (void * node) __attribute__ ((weak));
 
+  unsigned int pchk_check_int (void * addr);
+
+  void   pchk_declarestack (void * MP, unsigned char * addr, unsigned size);
+  void   pchk_releasestack (void * addr);
+  void * pchk_checkstack   (void * addr, unsigned int * size);
   void pchk_profile(MetaPoolTy* MP, void* pc, long time);
 
 #ifdef __cpluscplus

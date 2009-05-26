@@ -13,7 +13,7 @@
 /*===----------------------------------------------------------------------===*/
 
 #include "PoolCheck.h"
-#include "safecode/Runtime/PoolSystem.h"
+#include "PoolSystem.h"
 #include "adl_splay.h"
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
@@ -21,11 +21,19 @@
 #define DEBUG(x) 
 
 /* Flag whether to print error messages on bounds violations */
-int ec_do_fail = 1;
+int ec_do_fail = 0;
+
+/* Flags whether we're ready to do run-time checks */
+extern int pchk_ready;
 
 extern int stat_exactcheck;
 extern int stat_exactcheck2;
 extern int stat_exactcheck3;
+
+extern int stat_poolcheck;
+
+/* Global splay for holding the integer states */
+extern MetaPoolTy IntegerStatePool;
 
 void * exactcheck(int a, int b, void * result) {
   ++stat_exactcheck;
@@ -39,7 +47,9 @@ void * exactcheck(int a, int b, void * result) {
 void * exactcheck2(signed char *base, signed char *result, unsigned size) {
   ++stat_exactcheck2;
   if ((result < base) || (result >= base + size )) {
-    if(ec_do_fail) poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2: ", (unsigned)base, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2: ", (unsigned)result, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2: ", (unsigned)size, (void*)__builtin_return_address(0));
   }
   return result;
 }
@@ -47,16 +57,35 @@ void * exactcheck2(signed char *base, signed char *result, unsigned size) {
 void * exactcheck2a(signed char *base, signed char *result, unsigned size) {
   ++stat_exactcheck2;
   if (result >= base + size ) {
-    if(ec_do_fail) poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2a: ", (unsigned)base, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2a: ", (unsigned)result, (void*)__builtin_return_address(0));
+    if (ec_do_fail) poolcheckfail("exactcheck2a: ", (unsigned)size, (void*)__builtin_return_address(0));
   }
   return result;
 }
 
-void * exactcheck3(signed char *base, signed char *result, signed char * end) {
+void *
+exactcheck3(signed char *base, signed char *result, signed char * end) {
   ++stat_exactcheck3;
   if ((result < base) || (result > end )) {
-    if(ec_do_fail) poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+    if (ec_do_fail) {
+#if 0
+      poolcheckfail("Array bounds violation detected ", (unsigned)base, (void*)__builtin_return_address(0));
+#else
+      poolcheckfail("exactcheck3: ", (unsigned)base, (void*)__builtin_return_address(0));
+      poolcheckfail("exactcheck3: ", (unsigned)result, (void*)__builtin_return_address(0));
+      poolcheckfail("exactcheck3: ", (unsigned)end, (void*)__builtin_return_address(0));
+    }
+#endif
   }
+
+  /*
+   * Ensure that the result is not within an Integer State.
+   */
+#ifdef SVA_KSTACKS
+  if (pchk_check_int (result))
+    poolcheckfail ("Pointer within Integer State detected ", (unsigned)base, (void*)__builtin_return_address(0));
+#endif
   return result;
 }
 
