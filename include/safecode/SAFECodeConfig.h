@@ -22,6 +22,7 @@ struct SAFECodeConfiguration {
   bool DanglingPointerChecks;
   bool RewriteOOB;
   bool TerminateOnErrors;
+  bool SVAEnabled;
 
   typedef enum StaticCheckTy {
     ABC_CHECK_FULL,

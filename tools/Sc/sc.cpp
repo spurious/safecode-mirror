@@ -113,14 +113,7 @@ static cl::opt<bool>
 EnableCodeDuplication("code-duplication", cl::init(false),
 			 cl::desc("Enable Code Duplication for SAFECode checking"));
 
-
-
-static cl::opt<bool>
-EnableSVA("sva", cl::init(false), 
-          cl::desc("Enable SVA-Kernel specific operations"));
-
-bool isSVAEnabled();
-#define NOT_FOR_SVA(X) do { if (!isSVAEnabled()) X; } while (0);
+#define NOT_FOR_SVA(X) do { if (!SCConfig->SVAEnabled) X; } while (0);
 
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
 
@@ -171,7 +164,7 @@ int main(int argc, char **argv) {
     // uses of parameters. We should sit down and discuss the parameters that
     // SAFECode should have...
     SCConfig->DSAType = 
-      isSVAEnabled() ? 
+      SCConfig->SVAEnabled ? 
       SAFECodeConfiguration::DSA_BASIC : 
       SAFECodeConfiguration::DSA_EQTD;
 
@@ -218,7 +211,7 @@ int main(int argc, char **argv) {
 
     NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
  
-    if (isSVAEnabled()) {
+    if (SCConfig->SVAEnabled) {
       Passes.add(new PoolAllocateSimple(true, true, false));
     } else {
       if (FullPA)
@@ -236,7 +229,7 @@ int main(int argc, char **argv) {
     //    Passes.add(new EmbeCFreeRemoval());
     Passes.add(new RegisterGlobalVariables());
 
-    if (!isSVAEnabled()) {
+    if (!SCConfig->SVAEnabled) {
       Passes.add(new RegisterMainArgs());
       Passes.add(new RegisterRuntimeInitializer());
     }
@@ -502,10 +495,13 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.lscheckui",       "poolcheck_i" },
       {"sc.lscheckalign",    "poolcheckalign" },
       {"sc.lscheckalignui",  "poolcheckalign_i" },
-      {"sc.boundscheck",     "boundscheck" },
-      {"sc.boundscheckui",   "boundscheckui" },
+      {"sc.boundscheck",     "pchk_bounds" },
+      {"sc.boundscheckui",   "pchk_bounds_i" },
       {"sc.exactcheck",      "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
+      {"sc.pool_register",   "pchk_reg_obj" },
+      {"sc.pool_unregister", "pchk_drop_obj" },
+      {"poolinit",           "__sva_pool_init" },
     };
 
   switch (type) {
@@ -535,10 +531,5 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
 
   default:
     assert (0 && "Invalid Runtime!");
-  
   }
-}
-
-bool isSVAEnabled() {
-  return EnableSVA;
 }
