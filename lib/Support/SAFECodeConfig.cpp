@@ -15,8 +15,6 @@
 
 #include "llvm/Support/CommandLine.h"
 
-extern bool isSVAEnabled();
-
 using namespace llvm;
 
 static cl::opt<bool>
@@ -37,6 +35,10 @@ static cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable Static Array Bounds Checks"));
 
+static cl::opt<bool>
+EnableSVA("sva", cl::init(false), 
+          cl::desc("Enable SVA-Kernel specific operations"));
+
 NAMESPACE_SC_BEGIN
 
 SAFECodeConfiguration * SCConfig;
@@ -52,6 +54,8 @@ SAFECodeConfiguration::SAFECodeConfiguration() {
   this->RewriteOOB = ::RewritePtrs;
   this->TerminateOnErrors = ::StopOnFirstError;
   this->StaticCheckType = ::NoStaticChecks ? ABC_CHECK_NONE : ABC_CHECK_FULL;
+  // TODO: DSAType
+  this->SVAEnabled = ::EnableSVA;
 }
 
 NAMESPACE_SC_END
