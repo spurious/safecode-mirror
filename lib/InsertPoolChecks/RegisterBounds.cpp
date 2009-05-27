@@ -19,7 +19,10 @@
 
 
 #include "safecode/InsertChecks/RegisterBounds.h"
+#include "safecode/Support/AllocatorInfo.h"
 #include "dsa/DSGraph.h"
+
+#include <tr1/functional>
 
 using namespace llvm;
 
@@ -137,26 +140,40 @@ RegisterMainArgs::runOnModule(Module & M) {
 
 
 ///
-/// Helper class to abstract the semantics of customized allocators
-/// TODO: Move it to DSA
-///
-
-class AllocatorInfo {
-public:
-  virtual ~AllocatorInfo() {}
-  virtual Value * getAllocSize(Value * AllocSite) const;
-  virtual Value * getFreedPointer(Value * FreeSite) const;
-};
-
-///
 /// Methods for RegisterCustomizedAllocations
 ///
+
+void
+RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info) {
+  Function * allocFunc = M->getFunction(info->getAllocCallName());
+  if (allocFunc) {
+    for (Value::use_iterator it = allocFunc->use_begin(), 
+           end = allocFunc->use_end(); it != end; ++it)
+      if (CallInst * CI = dyn_cast<CallInst>(*it))
+        registerAllocationSite(CI, info);
+  }
+  
+  Function * freeFunc = M->getFunction(info->getFreeCallName());
+  if (freeFunc) {
+    for (Value::use_iterator it = freeFunc->use_begin(),
+           end = freeFunc->use_end(); it != end; ++it)
+      if (CallInst * CI = dyn_cast<CallInst>(*it))
+        registerFreeSite(CI, info);
+  }
+}
 
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
   init(M);
+  dsnPass = &getAnalysis<DSNodePass>();
+  paPass = &getAnalysis<PoolAllocateGroup>();
+
   PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
-  // FIXME: Write the functionality
+  std::for_each
+    (SCConfig->alloc_begin(), SCConfig->alloc_end(),
+     std::tr1::bind
+     (&RegisterCustomizedAllocation::proceedAllocator,
+      this, &M, std::tr1::placeholders::_1));
   return true;
 }
 
@@ -197,8 +214,13 @@ RegisterCustomizedAllocation::registerFreeSite(CallInst * FreeSite, AllocatorInf
     CastInst::CreatePointerCast
     (ptr, PointerType::getUnqual(Type::Int8Ty), 
      ptr->getName()+".casted", FreeSite);
+  Instruction * PHCasted = 
+    CastInst::CreatePointerCast
+    (PH, PointerType::getUnqual(Type::Int8Ty), 
+     PH->getName()+".casted", FreeSite);
+
   std::vector<Value *> args;
-  args.push_back (PH);
+  args.push_back (PHCasted);
   args.push_back (Casted);
   CallInst::Create(PoolUnregisterFunc, 
                    args.begin(), args.end(), "", FreeSite); 
@@ -206,9 +228,6 @@ RegisterCustomizedAllocation::registerFreeSite(CallInst * FreeSite, AllocatorInf
 
 Instruction *
 RegisterVariables::CreateRegistrationFunction(Function * F) {
-/*  F->setDoesNotThrow();
-  F->setLinkage(GlobalValue::InternalLinkage);
-*/
   //
   // Add a call in the new constructor function to the SAFECode initialization
   // function.

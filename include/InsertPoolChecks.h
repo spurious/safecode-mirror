@@ -43,8 +43,12 @@ struct InsertPoolChecks : public FunctionPass {
     virtual bool doFinalization(Module &M);
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-//      AU.addRequired<EQTDDataStructures>();
+      if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
+        AU.addRequired<BasicDataStructures>();
+      } else {
+        AU.addRequired<EQTDDataStructures>();
 //      AU.addRequired<TDDataStructures>();
+      }
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();

@@ -16,6 +16,7 @@
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/InsertChecks/RegisterBounds.h"
 #include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
+#include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/Module.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -132,6 +133,17 @@ GetFileNameRoot(const std::string &InputFilename) {
   return outputFilename;
 }
 
+// AllocatorInfo
+namespace {
+  // vmalloc
+  SimpleAllocatorInfo AllocatorVMalloc("vmalloc", "vfree", 1, 1);
+  // kmalloc
+  SimpleAllocatorInfo AllocatorKMalloc("kmalloc", "kfree", 1, 1);
+  // __alloc_bootmem
+  SimpleAllocatorInfo AllocatorBootmem("__alloc_bootmem", "", 1, 1);
+}
+
+
 // main - Entry point for the sc compiler.
 //
 int main(int argc, char **argv) {
@@ -168,6 +180,12 @@ int main(int argc, char **argv) {
       SAFECodeConfiguration::DSA_BASIC : 
       SAFECodeConfiguration::DSA_EQTD;
 
+
+    if (SCConfig->SVAEnabled) {
+      SCConfig->allocators.push_back(&AllocatorVMalloc);
+      SCConfig->allocators.push_back(&AllocatorKMalloc);
+      SCConfig->allocators.push_back(&AllocatorBootmem);
+    }
 
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
@@ -232,6 +250,8 @@ int main(int argc, char **argv) {
     if (!SCConfig->SVAEnabled) {
       Passes.add(new RegisterMainArgs());
       Passes.add(new RegisterRuntimeInitializer());
+    } else {
+      Passes.add(new RegisterCustomizedAllocation());      
     }
     
     if (SCConfig->StaticCheckType == SAFECodeConfiguration::ABC_CHECK_FULL) {

@@ -111,6 +111,7 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<DSNodePass>();
+    AU.addRequiredTransitive<PoolAllocateGroup>();
     AU.setPreservesAll();
   }
 
@@ -120,6 +121,7 @@ private:
   PoolAllocateGroup * paPass;
   void registerAllocationSite(llvm::CallInst * AllocSite, AllocatorInfo * info);
   void registerFreeSite(llvm::CallInst * FreeSite, AllocatorInfo * info);
+  void proceedAllocator(llvm::Module * M, AllocatorInfo * info);
 };
 
 NAMESPACE_SC_END
