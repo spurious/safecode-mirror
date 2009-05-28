@@ -49,6 +49,26 @@ public:
   ArrayBoundsCheckDummy() : ImmutablePass((intptr_t) &ID) {}
 };
 
+/// ArrayBoundsCheckLocal - It tries to prove a GEP is safe only based on local
+/// information, that is, the size of global variables and the size of objects
+/// being allocated inside a function.
+class ArrayBoundsCheckLocal : public ArrayBoundsCheckGroup, public FunctionPass {
+public:
+  static char ID;
+  ArrayBoundsCheckLocal() : FunctionPass((intptr_t) &ID) {}
+  virtual bool isGEPSafe(GetElementPtrInst * GEP);
+  virtual void getAnalysisUsage(AnalysisUsage & AU) const {
+    AU.addRequired<TargetData>();
+    AU.setPreservesAll();  
+  }
+  virtual bool runOnFunction(Function & F);
+private:
+  TargetData * TD;
+  int getObjectSize(Value * V);
+  bool isConstantIndexGEP(GetElementPtrInst * GEP);
+};
+
+
 struct ArrayBoundsCheck : public ArrayBoundsCheckGroup, public ModulePass {
   public :
     static char ID;

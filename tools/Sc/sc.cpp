@@ -253,15 +253,22 @@ int main(int argc, char **argv) {
     } else {
       Passes.add(new RegisterCustomizedAllocation());      
     }
-    
-    if (SCConfig->StaticCheckType == SAFECodeConfiguration::ABC_CHECK_FULL) {
+
+    switch (SCConfig->StaticCheckType) {
+    case SAFECodeConfiguration::ABC_CHECK_NONE:
+      Passes.add(new ArrayBoundsCheckDummy());
+      break;
+    case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+      Passes.add(new ArrayBoundsCheckLocal());
+      break;
+    case SAFECodeConfiguration::ABC_CHECK_FULL:
       Passes.add(new ABCPreProcess());
       Passes.add(new ArrayBoundsCheck());
-    } else {
-      Passes.add(new ArrayBoundsCheckDummy());
+      break;
     }
 
     Passes.add(new InsertPoolChecks());
+
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
 
@@ -293,10 +300,12 @@ int main(int argc, char **argv) {
       Passes.add(new RewriteOOB());
     }
 
+#if 0
     //
     // Run the LICM pass to hoist checks out of loops.
     //
     Passes.add (createLICMPass());
+#endif
 
     //
     // Remove special attributes for loop hoisting that were added by previous

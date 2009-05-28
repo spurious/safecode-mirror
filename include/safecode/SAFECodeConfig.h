@@ -31,6 +31,7 @@ struct SAFECodeConfiguration {
 
   typedef enum StaticCheckTy {
     ABC_CHECK_FULL,
+    ABC_CHECK_LOCAL,
     ABC_CHECK_NONE
   } StaticCheckTy;
 
