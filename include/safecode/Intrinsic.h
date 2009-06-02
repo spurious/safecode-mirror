@@ -10,6 +10,9 @@
 // This file implements a module pass to insert declarations of the SAFECode
 // intrinsics into the bitcode file. It also provides interfaces for later
 // passes which use these intrinsics.
+// FIXME:
+// This pass is a utility pass now since it contains various good stuffs
+// here. Rename required.
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,6 +24,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
 #include "llvm/Instructions.h"
+#include "llvm/Target/TargetData.h"
 
 #include <set>
 #include <map>
@@ -68,16 +72,22 @@ class InsertSCIntrinsic : public ModulePass {
     bool isCheckingIntrinsic(Value * V) const;
     bool isGEPCheckingIntrinsic (Value * V) const;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<TargetData>();
       AU.setPreservesCFG();
       AU.setPreservesAll();
     }
-    void getGEPCheckingIntrinsics (std::vector<Function *> & Funcs);
     Value * getCheckedPointer (CallInst * CI);
+    typedef std::vector<IntrinsicInfoTy> IntrinsicInfoListTy;
+    typedef IntrinsicInfoListTy::const_iterator intrinsic_const_iterator;
+    intrinsic_const_iterator intrinsic_begin() const { return intrinsics.begin(); }
+    intrinsic_const_iterator intrinsic_end() const { return intrinsics.end(); }
+    Value * getObjectSize(Value * V);
 
   private:
+    TargetData * TD;
     Module * currentModule;
-    std::map<Function *, IntrinsicInfoTy> intrinsicFuncMap;
-    std::map<std::string, IntrinsicInfoTy> intrinsicNameMap;
+    IntrinsicInfoListTy intrinsics;
+    std::map<std::string, uint32_t> intrinsicNameMap;
 };
 
 NAMESPACE_SC_END

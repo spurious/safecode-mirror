@@ -15,10 +15,13 @@
 
 #include "safecode/Intrinsic.h"
 #include "safecode/VectorListHelper.h"
+#include "safecode/SAFECodeConfig.h"
+#include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
+#include "llvm/Constants.h"
 
 using namespace llvm;
 NAMESPACE_SC_BEGIN
@@ -42,6 +45,7 @@ NAMESPACE_SC_BEGIN
 bool
 InsertSCIntrinsic::runOnModule(Module & M) {
   currentModule = &M;
+  TD = &getAnalysis<TargetData>();
   static const Type * VoidTy = Type::VoidTy;
   static const Type * Int32Ty = Type::Int32Ty;
   static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
@@ -104,15 +108,15 @@ InsertSCIntrinsic::addIntrinsic (IntrinsicType type,
   //
   // Map the function name and LLVM Function pointer to its SAFECode attributes.
   //
-  intrinsicNameMap.insert (std::make_pair (name, info));
-  intrinsicFuncMap.insert (std::make_pair (info.F, info));
+  intrinsics.push_back (info);
+  intrinsicNameMap.insert (std::make_pair (name, intrinsics.size() - 1));
 }
 
 const InsertSCIntrinsic::IntrinsicInfoTy &
 InsertSCIntrinsic::getIntrinsic(const std::string & name) const {
-  std::map<std::string, IntrinsicInfoTy>::const_iterator it = intrinsicNameMap.find(name);
+  std::map<std::string, uint32_t>::const_iterator it = intrinsicNameMap.find(name);
   assert(it != intrinsicNameMap.end() && "Intrinsic should be defined before uses!");
-  return it->second;
+  return intrinsics[it->second];
 }
 
 //
@@ -135,12 +139,14 @@ InsertSCIntrinsic::isSCIntrinsic(Value * inst) const {
   if (!isa<CallInst>(inst)) 
     return false;
 
-  CallInst * CI = dyn_cast<CallInst>(inst);
+  CallInst * CI = cast<CallInst>(inst);
   Function * F= CI->getCalledFunction();
   if (!F)
     return false;
 
-  return intrinsicFuncMap.find(F) != intrinsicFuncMap.end();
+  const std::string & name = F->getName();
+
+  return intrinsicNameMap.find(name) != intrinsicNameMap.end();
 }
 
 //
@@ -217,29 +223,10 @@ InsertSCIntrinsic::isGEPCheckingIntrinsic (Value * V) const {
   return (info.type == SC_INTRINSIC_GEPCHECK);
 }
 
-//
-// Method: getGEPCheckingIntrinsics()
-//
-// Description:
-//  Return the set of functions that are used for checking GEP instructions.
-//
-// Outputs:
-//  Funcs - A set of functions that are used for doing run-time checks on GEPs.
-//
-void
-InsertSCIntrinsic::getGEPCheckingIntrinsics (std::vector<Function *> & Funcs) {
-  std::map<llvm::Function *, IntrinsicInfoTy>::iterator i, e;
-  for (i = intrinsicFuncMap.begin(), e = intrinsicFuncMap.end(); i != e; ++i) {
-    IntrinsicInfoTy Info = i->second;
-    if (Info.type == SC_INTRINSIC_GEPCHECK)
-      Funcs.push_back (i->first);
-  }
-}
-
 Value *
 InsertSCIntrinsic::getCheckedPointer (CallInst * CI) {
   if (isCheckingIntrinsic (CI)) {
-    const IntrinsicInfoTy & info = intrinsicFuncMap[CI->getCalledFunction()];
+    const IntrinsicInfoTy & info = intrinsics[intrinsicNameMap[CI->getCalledFunction()->getName()]];
 
     //
     // Return the checked pointer in the call.  We use ptrindex + 1 because the
@@ -250,6 +237,50 @@ InsertSCIntrinsic::getCheckedPointer (CallInst * CI) {
   }
 
   return 0;
+}
+
+
+//
+// Check to see if we're indexing off the beginning of a known object.  If
+// so, then find the size of the object.  Otherwise, return NULL.
+//
+Value *
+InsertSCIntrinsic::getObjectSize(Value * V) {
+  if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
+    return ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
+  }
+
+  if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
+    unsigned int type_size = TD->getTypeAllocSize (AI->getAllocatedType());
+    if (AI->isArrayAllocation()) {
+      if (ConstantInt * CI = dyn_cast<ConstantInt>(AI->getArraySize())) {
+        if (CI->getSExtValue() > 0) {
+          type_size *= CI->getSExtValue();
+        } else {
+          return NULL;
+        }
+      }
+    }
+    return ConstantInt::get(Type::Int32Ty, type_size);
+  }
+
+  // Customized allocators
+
+  if (CallInst * CI = dyn_cast<CallInst>(V)) {
+    Function * F = CI->getCalledFunction();
+    if (!F)
+      return NULL;
+
+    const std::string & name = F->getName();
+    for (SAFECodeConfiguration::alloc_iterator it = SCConfig->alloc_begin(),
+           end = SCConfig->alloc_end(); it != end; ++it) {
+      if ((*it)->isAllocSizeMayConstant(CI) && (*it)->getAllocCallName() == name) {
+        return (*it)->getAllocSize(CI);
+      }
+    }
+  }
+
+  return NULL;
 }
 
 char InsertSCIntrinsic::ID = 0;

@@ -33,53 +33,9 @@ char ArrayBoundsCheckLocal::ID = 0;
 
 bool
 ArrayBoundsCheckLocal::runOnFunction(Function & F) {
+  intrinsicPass = &getAnalysis<InsertSCIntrinsic>();
   TD = &getAnalysis<TargetData>();
   return false;
-}
-
-//
-// Check to see if we're indexing off the beginning of a known object.  If
-// so, then find the size of the object.  Otherwise, return -1.
-//
-int
-ArrayBoundsCheckLocal::getObjectSize(Value * V) {
-  if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
-    return TD->getTypeAllocSize (GV->getType()->getElementType());
-  }
-
-  if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
-    unsigned int type_size = TD->getTypeAllocSize (AI->getAllocatedType());
-    if (AI->isArrayAllocation()) {
-      if (ConstantInt * CI = dyn_cast<ConstantInt>(AI->getArraySize())) {
-        if (CI->getSExtValue() > 0) {
-          type_size *= CI->getSExtValue();
-        } else {
-          return -1;
-        }
-      }
-    }
-  }
-
-  // Customized allocators
-
-  if (CallInst * CI = dyn_cast<CallInst>(V)) {
-    Function * F = CI->getCalledFunction();
-    if (!F)
-      return -1;
-
-    const std::string & name = F->getName();
-    for (SAFECodeConfiguration::alloc_iterator it = SCConfig->alloc_begin(),
-           end = SCConfig->alloc_end(); it != end; ++it) {
-      if ((*it)->isAllocSizeMayConstant(CI) && (*it)->getAllocCallName() == name) {
-        Value * size = (*it)->getAllocSize(CI);
-        if (ConstantInt * C = dyn_cast<ConstantInt>(size)) {
-          return C->getSExtValue();
-        }
-      }
-    }
-  }
-
-  return -1;
 }
 
 // Determine whether the indices of the GEP are all constant.
@@ -126,8 +82,13 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   // so, then find the size of the object.  Otherwise, assume the size is zero.
   //
   Value * PointerOperand = GEP->getPointerOperand();
-  unsigned int type_size = getObjectSize(PointerOperand);
-
+  Value * TypeSize = intrinsicPass->getObjectSize(PointerOperand);
+  unsigned int type_size = 0;
+  if (TypeSize && isa<ConstantInt>(TypeSize)) {
+    ConstantInt * C = cast<ConstantInt>(TypeSize);
+    type_size = C->getSExtValue();
+  }
+  
   //
   // If the type size is non-zero, then we did, in fact, find an object off of
   // which the GEP is indexing.  Statically determine if the indexing operation

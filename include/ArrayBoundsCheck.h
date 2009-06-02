@@ -16,6 +16,7 @@
 #define ARRAY_BOUNDS_CHECK_H_
 
 #include "safecode/SAFECode.h"
+#include "safecode/Intrinsic.h"
 
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -59,12 +60,13 @@ public:
   virtual bool isGEPSafe(GetElementPtrInst * GEP);
   virtual void getAnalysisUsage(AnalysisUsage & AU) const {
     AU.addRequired<TargetData>();
+    AU.addRequired<InsertSCIntrinsic>();
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
 private:
+  InsertSCIntrinsic * intrinsicPass;
   TargetData * TD;
-  int getObjectSize(Value * V);
   bool isConstantIndexGEP(GetElementPtrInst * GEP);
 };
 
