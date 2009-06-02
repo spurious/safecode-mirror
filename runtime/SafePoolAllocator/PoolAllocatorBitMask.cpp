@@ -1205,6 +1205,22 @@ __barebone_poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
 //
 void
 poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
+    //
+    // Record information about this allocation in the global debugging
+    // structure.
+#if SC_DEBUGTOOL
+    PDebugMetaData debugmetadataPtr;
+    globalallocID++;
+    debugmetadataPtr = createPtrMetaData (globalallocID,
+                                          globalfreeID,
+                                          __builtin_return_address(0),
+                                          0,
+                                          globalTemp, "<unknown>", 0);
+    dummyPool.DPTree.insert (allocaptr,
+                             (char*) allocaptr + NumBytes - 1,
+                             debugmetadataPtr);
+#endif
+
   //
   // Do the actual registration.
   //
@@ -1251,16 +1267,88 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   //
   Pool->Objects.remove (allocaptr);
 
-  //
-  // Remove the object from the dangling pointer detection tree.  Deallocate
-  // its debug information, too.
-  //
-  void * start, * end;
-  PDebugMetaData debugmetadataptr = 0;
+  // Canonical pointer for the pointer we're freeing
+  void * CanonNode = Node;
+
 #if SC_DEBUGTOOL
-  if (dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr)) {
-    free (debugmetadataptr);
+  //
+  // Increment the ID number for this deallocation.
+  //
+  globalfreeID++;
+
+  // The start and end of the object as registered in the dangling pointer
+  // object metapool
+  void * start, * end;
+
+  // FIXME: figure what NumPPAge and len are for
+  unsigned len = 1;
+  unsigned NumPPage = 0;
+  unsigned offset = (unsigned)((long)allocaptr & (PPageSize - 1));
+  PDebugMetaData debugmetadataptr = 0;
+  
+  //
+  // Retrieve the debug information about the node.  This will include a
+  // pointer to the canonical page.
+  //
+  bool found = dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr);
+
+  //
+  // If we cannot find the meta-data for this pointer, then the free is
+  // invalid.  Report it as an error and then continue executing if possible.
+  //
+  if (!found) {
+    ReportInvalidFree ((unsigned)__builtin_return_address(0),
+                       allocaptr,
+                       "<Unknown>",
+                       0);
+    return;
+  }
+
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  assert ((!found || (found && debugmetadataptr)) &&
+          "poolfree: No debugmetadataptr\n");
+
+  if (logregs) {
+    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
+    fprintf(stderr, "poolfree:1388: len = %d\n", len);
+    fflush (stderr);
+  }
+
+  //
+  // If dangling pointer detection is not enabled, remove the object from the
+  // dangling pointer splay tree.  The memory object's memory will be reused,
+  // and we don't want to match it for subsequently allocated objects.
+  //
+  if (!(ConfigData.RemapObjects)) {
     dummyPool.DPTree.remove (allocaptr);
+  }
+
+  // figure out how many pages does this object span to
+  //  protect the pages. First we sum the offset and len
+  //  to get the total size we originally remapped.
+  //  Then, we determine if this sum is a multiple of
+  //  physical page size. If it is not, then we increment
+  //  the number of pages to protect.
+  //  FIXME!!!
+  NumPPage = (len / PPageSize) + 1;
+  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
+    NumPPage++;
+
+  //
+  // If this is a remapped pointer, find its canonical address.
+  //
+  if (ConfigData.RemapObjects) {
+    CanonNode = debugmetadataptr->canonAddr;
+    updatePtrMetaData (debugmetadataptr,
+                       globalfreeID,
+                       __builtin_return_address(0));
+  }
+
+  if (logregs) {
+    fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
+    fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
+    fflush (stderr);
   }
 #endif
 
@@ -1336,33 +1424,6 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
     // Allocate the memory.
     //
     retAddress = poolallocarray(Pool, NodesToAllocate);
-
-    //
-    // Record information about this allocation in the global debugging
-    // structure.
-#if SC_DEBUGTOOL
-    PDebugMetaData debugmetadataPtr;
-    globalallocID++;
-    debugmetadataPtr = createPtrMetaData (globalallocID,
-                                          globalfreeID,
-                                          __builtin_return_address(0),
-                                          0,
-                                          globalTemp, "<unknown>", 0);
-    dummyPool.DPTree.insert (retAddress,
-                             (char*) retAddress + NumBytes - 1,
-                             debugmetadataPtr);
-#endif
-    if (logregs) {
-      fprintf(stderr, " poolalloc:856: after inserting to dummyPool\n");
-      fflush (stderr);
-    }
-
-    // Register the object in the splay tree.  Keep track of its debugging data
-    // with the splay node tag so that we can quickly map shadow address back
-    // to the canonical address.
-    //
-    // globalTemp is the canonical page address
-    Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
     
     //if ((unsigned)retAddress > 0x2f000000 && logregs == 0)
     //  logregs = 1;
@@ -1399,19 +1460,6 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
       PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
       retAddress = (void*) ((char*)PS + offset);
 
-#if SC_DEBUGTOOL
-      //
-      // Record information about the allocation for use in debugging error
-      // messages.
-      //
-      globalallocID++;
-      PDebugMetaData debugmetadataPtr;
-      debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
-                          __builtin_return_address(0), 0, globalTemp);
-      dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
-#endif
-      
-      Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
       if (logregs) {
         fprintf(stderr, " poolalloc:900: Pool=%p, retAddress = 0x%p, NumBytes = %d\n", (void*)(Pool), (void*)retAddress, NumBytes);
       }
@@ -1432,25 +1480,10 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
         
         globalTemp = PS->getElementAddress(Element, NodeSize);
         offset = (uintptr_t)globalTemp & (PPageSize - 1);
-        //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
       
         // remap page to get a shadow page for dangling pointer library
         PS = (PoolSlab *) RemapObject(globalTemp, NumBytes);
         retAddress = (void*) ((char*)PS + offset);
-
-#if SC_DEBUGTOOL
-        //
-        // Record information about the allocation for use in debugging error
-        // messages.
-        //
-        globalallocID++;
-        PDebugMetaData debugmetadataPtr;
-        debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID,
-                            __builtin_return_address(0), 0, globalTemp);
-        dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
-#endif
-        
-        Pool->Objects.insert(retAddress, (char*) retAddress + NumBytes - 1);
         if (logregs) {
           fprintf (stderr, " poolalloc:932: PS = 0x%p, retAddress = 0x%p, NumBytes = %d, offset = 0x%08x\n",
                 (void*)PS, (void*)retAddress, NumBytes, offset);
@@ -1497,25 +1530,12 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (logregs) {
     fprintf(stderr, " poolalloc:973: element at 0x%p, offset=0x%08x\n", (void*)globalTemp, offset);
   }
-  //adl_splay_insert(&(Pool->Objects), globalTemp, NumBytes, (Pool));
   
   // remap  page to get a shadow page for dangling pointer library
   New = (PoolSlab *) RemapObject(globalTemp, NumBytes);
   offset = (uintptr_t)globalTemp & (PPageSize - 1);
   retAddress = (void*) ((char*)New + offset);
 
-#if SC_DEBUGTOOL
-  //
-  // Record information about the allocation for use in debugging error
-  // messages.
-  //
-  globalallocID++;
-  PDebugMetaData debugmetadataPtr;
-  debugmetadataPtr = createPtrMetaData(globalallocID, globalfreeID, __builtin_return_address(0), 0, globalTemp);
-  dummyPool.DPTree.insert(retAddress, (char*) retAddress + NumBytes - 1, debugmetadataPtr);
-#endif
-  
-  Pool->Objects.insert(retAddress, (char*)retAddress + NumBytes - 1);
   if (logregs) {
     fprintf (stderr, " poolalloc:990: New = 0x%p, retAddress = 0x%p, NumBytes = %d, offset = 0x%08x pc=0x%p\n",
           (void*)New, (void*)retAddress, NumBytes, offset, __builtin_return_address(0));
@@ -2808,93 +2828,6 @@ poolfree(PoolTy *Pool, void *Node) {
   // Canonical pointer for the pointer we're freeing
   void * CanonNode = Node;
 
-#if SC_DEBUGTOOL
-  //
-  // Increment the ID number for this deallocation.
-  //
-  globalfreeID++;
-
-  // The start and end of the object as registered in the dangling pointer
-  // object metapool
-  void * start, * end;
-
-  // FIXME: figure what NumPPAge and len are for
-  unsigned len = 1;
-  unsigned NumPPage = 0;
-  unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
-  PDebugMetaData debugmetadataptr = 0;
-  
-  //
-  // Retrieve the debug information about the node.  This will include a
-  // pointer to the canonical page.
-  //
-  bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
-
-  //
-  // If we cannot find the meta-data for this pointer, then the free is
-  // invalid.  Report it as an error and then continue executing if possible.
-  //
-  if (!found) {
-    ReportInvalidFree ((unsigned)__builtin_return_address(0),
-                       Node,
-                       "<Unknown>",
-                       0);
-    return;
-  }
-
-  // Assert that we either didn't find the object or we found the object *and*
-  // it has meta-data associated with it.
-  assert ((!found || (found && debugmetadataptr)) &&
-          "poolfree: No debugmetadataptr\n");
-
-  if (logregs) {
-    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
-    fprintf(stderr, "poolfree:1388: len = %d\n", len);
-    fflush (stderr);
-  }
-
-  //
-  // If dangling pointer detection is not enabled, remove the object from the
-  // dangling pointer splay tree.  The memory object's memory will be reused,
-  // and we don't want to match it for subsequently allocated objects.
-  //
-  if (!(ConfigData.RemapObjects)) {
-    dummyPool.DPTree.remove (Node);
-  }
-
-  // figure out how many pages does this object span to
-  //  protect the pages. First we sum the offset and len
-  //  to get the total size we originally remapped.
-  //  Then, we determine if this sum is a multiple of
-  //  physical page size. If it is not, then we increment
-  //  the number of pages to protect.
-  //  FIXME!!!
-  NumPPage = (len / PPageSize) + 1;
-  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
-    NumPPage++;
-
-  //
-  // If this is a remapped pointer, find its canonical address.
-  //
-  if (ConfigData.RemapObjects) {
-    CanonNode = debugmetadataptr->canonAddr;
-    updatePtrMetaData (debugmetadataptr,
-                       globalfreeID,
-                       __builtin_return_address(0));
-  }
-
-  if (logregs) {
-    fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
-    fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
-    fflush (stderr);
-  }
-#endif
-
-  //
-  // Allow the poolcheck runtime to finish the bookkeping it needs to do.
-  //
-  Pool->Objects.remove(Node);
-  
   if (1) {                  // THIS SHOULD BE SET FOR SAFECODE!
     unsigned TheIndex;
     PS = SearchForContainingSlab(Pool, CanonNode, TheIndex);
@@ -2911,17 +2844,6 @@ poolfree(PoolTy *Pool, void *Node) {
 
     if (PS->isSingleArray) {
       PS->unlinkFromList();
-#if SC_DEBUGTOOL
-      // works done to update the DebugMetaData struct for
-      //  dangling pointer runtime
-      globalfreeID++;
-      void * mykey, *end;
-      PDebugMetaData debugmetadataptr;
-      mykey = Node;
-      // Haohui: redirect the query from Pool->DPTree to dummyPool  
-      Pool->DPTree.find(Node, mykey, end, debugmetadataptr);
-      updatePtrMetaData(debugmetadataptr, globalfreeID, __builtin_return_address(0));     
-#endif 
       return;
     }
 

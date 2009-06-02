@@ -141,6 +141,8 @@ namespace {
   SimpleAllocatorInfo AllocatorKMalloc("__kmalloc", "kfree", 1, 1);
   // __alloc_bootmem
   SimpleAllocatorInfo AllocatorBootmem("__alloc_bootmem", "", 1, 1);
+  // pool allocator used by user space programs
+  SimpleAllocatorInfo AllocatorPoolAlloc("poolalloc", "poolfree", 2, 2);
 }
 
 
@@ -185,6 +187,8 @@ int main(int argc, char **argv) {
       SCConfig->allocators.push_back(&AllocatorVMalloc);
       SCConfig->allocators.push_back(&AllocatorKMalloc);
       SCConfig->allocators.push_back(&AllocatorBootmem);
+    } else {
+      SCConfig->allocators.push_back(&AllocatorPoolAlloc);
     }
 
     // Build up all of the passes that we want to do to the module...
