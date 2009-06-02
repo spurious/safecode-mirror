@@ -192,10 +192,11 @@ OptimizeChecks::runOnModule (Module & M) {
   //
   intrinPass = &getAnalysis<InsertSCIntrinsic>();
 
-  //
-  // Get the set of GEP checking functions
-  //
-  intrinPass->getGEPCheckingIntrinsics (GEPCheckingFunctions);
+  InsertSCIntrinsic::intrinsic_const_iterator i, e;
+  for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
+    if (i->type == InsertSCIntrinsic::SC_INTRINSIC_GEPCHECK)
+      GEPCheckingFunctions.push_back (i->F);
+  }
 
   //
   // Optimize all of the run-time GEP checks.

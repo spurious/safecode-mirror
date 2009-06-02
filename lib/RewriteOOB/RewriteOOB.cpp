@@ -314,7 +314,11 @@ RewriteOOB::runOnModule (Module & M) {
   // Get the set of GEP checking functions
   //
   std::vector<Function *> GEPCheckingFunctions;
-  intrinPass->getGEPCheckingIntrinsics (GEPCheckingFunctions);
+  InsertSCIntrinsic::intrinsic_const_iterator i, e;
+  for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
+    if (i->type == InsertSCIntrinsic::SC_INTRINSIC_GEPCHECK)
+      GEPCheckingFunctions.push_back (i->F);
+  }
 
   //
   // Insert calls so that comparison instructions convert Out of Bound pointers
