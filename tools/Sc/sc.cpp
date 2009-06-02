@@ -138,7 +138,7 @@ namespace {
   // vmalloc
   SimpleAllocatorInfo AllocatorVMalloc("vmalloc", "vfree", 1, 1);
   // kmalloc
-  SimpleAllocatorInfo AllocatorKMalloc("kmalloc", "kfree", 1, 1);
+  SimpleAllocatorInfo AllocatorKMalloc("__kmalloc", "kfree", 1, 1);
   // __alloc_bootmem
   SimpleAllocatorInfo AllocatorBootmem("__alloc_bootmem", "", 1, 1);
 }
@@ -268,6 +268,7 @@ int main(int argc, char **argv) {
     }
 
     Passes.add(new InsertPoolChecks());
+    Passes.add(new ExactCheckOpt());
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
