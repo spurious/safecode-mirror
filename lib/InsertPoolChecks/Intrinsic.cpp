@@ -62,8 +62,8 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   REG_FUNC(SC_INTRINSIC_OOB,	        "sc.get_actual_val",	0, vpTy, vpTy, vpTy);
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_register",	1, VoidTy, vpTy, vpTy, Int32Ty);
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_unregister",	1, VoidTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.register_globals",	0, VoidTy);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_runtime",	0, VoidTy);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.register_globals",	0, VoidTy,);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_runtime",	0, VoidTy,);
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_pool_runtime" ,0, VoidTy, Int32Ty, Int32Ty, Int32Ty);
 
   // We always change the module.
