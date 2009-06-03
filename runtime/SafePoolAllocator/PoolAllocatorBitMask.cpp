@@ -1268,7 +1268,7 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   Pool->Objects.remove (allocaptr);
 
   // Canonical pointer for the pointer we're freeing
-  void * CanonNode = Node;
+  void * CanonNode = allocaptr;
 
 #if SC_DEBUGTOOL
   //

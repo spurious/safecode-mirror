@@ -50,7 +50,7 @@ namespace {
     local = SAFECodeConfiguration::ABC_CHECK_LOCAL, 
     full  = SAFECodeConfiguration::ABC_CHECK_FULL;
   
-  cl::opt<enum SAFECodeConfiguration::StaticCheckTy>
+  cl::opt<SAFECodeConfiguration::StaticCheckTy>
   StaticChecks("static-abc", cl::init(SAFECodeConfiguration::ABC_CHECK_NONE),
                cl::desc("Static array bounds check analysis"),
                cl::values
