@@ -167,11 +167,34 @@ namespace {
     return false;
   }
 
-  // Check whether specific loop is monotonic, and returns the start and end
-  // values if it is a monotonic one.
+  //
+  // Method: isMonotonicLoop()
+  //
+  // Description:
+  //  Determines whether the given loop is monotonic and, if so, whether the
+  //  starting and ending values of the loop variable can be computed.
+  //
+  // Inputs:
+  //  L       - The loop to verify.
+  //  loopVar - The loop induction variable.
+  //
+  // Return value:
+  //  true  - The loop is monotonic and the start and end values of the loop
+  //          induction variable can be determined.
+  //  false - The loop is not monotonic and/or the start and/or end values of
+  //          the loop induction variable cannot be determined.
+  //
   bool
   MonotonicLoopOpt::isMonotonicLoop(Loop * L, Value * loopVar) {
     bool HasConstantItCount = isa<SCEVConstant>(scevPass->getBackedgeTakenCount(L));
+
+    //
+    // Determine whether ScalarEvolution can provide information on the loop
+    // induction variable.  If it cannot, then just assume that the loop is
+    // non-monotonic.
+    //
+    if (!(scevPass->isSCEVable(loopVar->getType())))
+      return false;
 
     SCEVHandle SH = scevPass->getSCEV(loopVar);
     if (SH->hasComputableLoopEvolution(L) ||    // Varies predictably
