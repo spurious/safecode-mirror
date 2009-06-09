@@ -20,28 +20,32 @@ using namespace llvm;
 NAMESPACE_SC_BEGIN
 
 namespace {
-
   cl::opt<bool>
-  DanglingPointerChecks("dpchecks", cl::init(false), cl::desc("Perform Dangling Pointer Checks"));
+  DPChecks("dpchecks",
+           cl::init(false),
+           cl::desc("Perform Dangling Pointer Checks"));
 
 #ifdef SC_ENABLE_OOB
   cl::opt<bool>
-  RewritePtrs("rewrite-oob", cl::init(false), cl::desc("Rewrite Out of Bound (OOB) Pointers"));
+  RewritePtrs("rewrite-oob",
+              cl::init(false),
+              cl::desc("Rewrite Out of Bound (OOB) Pointers"));
 #else
   bool RewritePtrs = false;
 #endif
   
   cl::opt<bool>
-  StopOnFirstError("terminate", cl::init(false),
+  StopOnFirstError("terminate",
+                   cl::init(false),
                    cl::desc("Terminate when an Error Ocurs"));
   
   cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable Static Array Bounds Checks"));
 
-  cl::opt<bool>
-  EnableSVA("sva", cl::init(false), 
-            cl::desc("Enable SVA-Kernel specific operations"));
+  cl::opt<bool> EnableSVA("sva",
+                          cl::init(false), 
+                          cl::desc("Enable SVA-Kernel specific operations"));
 }
 
 namespace {
@@ -72,7 +76,7 @@ SAFECodeConfiguration::create() {
 
 SAFECodeConfiguration::SAFECodeConfiguration() {
   // TODO: Move all cl::opt to this file and parse them here
-  this->DanglingPointerChecks = DanglingPointerChecks;
+  this->DanglingPointerChecks = DPChecks;
   this->RewriteOOB = RewritePtrs;
   this->TerminateOnErrors = StopOnFirstError;
   this->StaticCheckType = StaticChecks;
