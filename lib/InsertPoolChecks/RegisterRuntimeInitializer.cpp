@@ -59,8 +59,10 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   CallInst::Create (PoolInit, "", BB); 
 
   std::vector<Value *> args;
-  args.push_back 
-    (ConstantInt::get(Type::Int32Ty, SCConfig->DanglingPointerChecks));
+  if (SCConfig->DanglingPointerChecks)
+    args.push_back (ConstantInt::get(Type::Int32Ty, 1));
+  else
+    args.push_back (ConstantInt::get(Type::Int32Ty, 0));
   args.push_back
     (ConstantInt::get(Type::Int32Ty, SCConfig->RewriteOOB));
   args.push_back
