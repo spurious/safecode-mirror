@@ -1,0 +1,235 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+                      "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>SAFECode Users Guide</title>
+  <link rel="stylesheet" href="llvm.css" type="text/css">
+</head>
+
+<body>
+
+<div class="doc_title">
+SAFECode Users Guide
+</div>
+
+<!-- ********************************************************************** -->
+<!-- * Table of Contents                                                  * -->
+<!-- ********************************************************************** -->
+<ul>
+  <li><a href="#overview">Overview</a></li>
+  <li><a href="#sc">The sc tool</a></li>
+</ul>
+
+<!-- ********************************************************************** -->
+<!-- * Authors                                                            * -->
+<!-- ********************************************************************** -->
+<div class="doc_author">
+  <p>Written by the LLVM Research Group</p>
+</div>
+
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="overview"><b>Overview</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+This manual provides information on using the tools that come with the SAFECode
+compiler.  There are two primary tools provided in the SAFECode distribution:
+the first is the SAFECode compiler itself, also known as the sc tool or sc.
+The second tool is a fault injection tool named injectf.
+</p>
+
+<p>
+All of these tools operate on LLVM bitcode, meaning that you must first compile
+your program to an LLVM bitcode file, feed that bitcode file through the sc or
+injectf tools, and then generate native code from the output of the sc/inject
+tool.  Furthermore, the sc tool utilizes <i>whole-program analysis</i>: this
+means that you must compile your program into separate LLVM bitcode files, link
+these files together into a single bitcode file, process the complete bitcode
+file with sc, and then generate native code.  You <i>cannot</i> run individiual
+bitcode object files through sc and then link them together.
+</p>
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="sc"><b>The sc Tool</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+The sc tool is the SAFECode compiler.  It takes a whole program in LLVM bitcode
+form, transforms it to be memory safe, and outputs instrumented LLVM bitcode.
+The output of the sc tool can be converted to native code via the LLVM llc tool
+and linked with the SAFECode run-time library.
+</p>
+
+<p>
+The steps for compiling a program with SAFECode are as follows:
+</p>
+
+<ol>
+  <li>
+  Compile the program into a single LLVM bitcode file:
+  <ol>
+    <li>Compile the program's source file into LLVM bitcode.</li>
+    <li>Link the LLVM bitcode files together into a single bitcode file.</li>
+  </ol>
+  </li>
+  <li>Process the single bitcode file with the sc tool.</li>
+  <li>Generate native code for the program.</li>
+  <li>Link the native code with the SAFECode run-time library.</li>
+</ol>
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_subsection">
+  <a name="sc"><b>Compiling a Program Into a Single Bitcode File</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+Compiling a program into a single bitcode file requires that one first compile
+each source file into an LLVM bitcode file and then link these bitcode files
+together into a single bitcode file.  To compile source files into an LLVM
+bitcode file instead of into a native object file, using the -emit-llvm option
+to llvm-gcc:
+</p>
+
+<ul>
+  <li><tt>llvm-gcc -emit-llvm -c <i>srcfilename</i>.c</tt></li>
+</ul>
+
+<p>
+Once all of the the source files have been compiled, they can be linked
+together into a single bitcode file.  The llvm-ld tool can be used to do this;
+other options include the new Gold linker and extensions to the Mac OS X linker
+(both of these have been extended to link together LLVM bitcode files).
+</p>
+
+<p>
+To link files together using llvm-ld, do the following:
+</p>
+
+<ul>
+  <li><tt>llvm-ld -o <i>output_filename</i>.bc <i>file1</i>.bc <i>file2</i>.bc
+...</tt></li>
+</ul>
+
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_subsection">
+  <a name="sc"><b>Using the sc Tool</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+The sc tool takes as input a bitcode file representing a whole program and
+outputs an instrumented bitcode file.  Invoke the sc tool as follows:
+</p>
+
+<ul>
+  <li><tt>sc <i>options</i> -o <i>output_filename</i>.bc
+<i>input_filename</i>.bc</tt></li>
+</ul>
+
+Options to the sc tool include:
+
+<ul>
+  <li>
+  <tt>-f</tt>:
+  Overwrite the output file if it already exists.  By default, the sc tool will
+  not overwrite a pre-existing file given in the -o option.
+  </li>
+
+  <li>
+  <tt>-terminate</tt>:
+  By default, SAFECode reports errors in a separate log file and permits the
+  application to continue execution.  This option will cause the generated
+  program to terminate on the first memory safety error.
+  </li>
+
+  <li>
+  <tt>-pa</tt>:
+  Use automatic pool allocation instead of simple pool allocation.  Automatic
+  pool allocation can increase the performance of SAFECode but is still
+  experimental.
+  </li>
+
+  <li>
+  <tt>-rewrite-oob</tt>:
+  Enable Out of Bounds (OOB) pointer rewriting.  The C standard permits
+  pointers to go out of bounds as long as they are only used in comparisons.
+  Some non-standards-compliant programs may also create Out of Bounds pointers
+  but never dereference them.  This option eases the restrictions on pointer
+  indexing to allow such shenanigans.
+  </li>
+
+  <li>
+  <tt>-dpchecks</tt>:
+  Enable dangling pointer detection.  By default, the sc tool outputs a program
+  that <i>tolerates</i> dangling pointer dereferences.  This option ensures,
+  with additional run-time overhead, that dangling pointer dereferences are
+  detected at run-time.
+  </li>
+
+  <li>
+  <tt>-enable-debuginfo</tt>:
+  Enable debug information.  If the program has debug information compiled into
+  it (i.e., the -g option was used on the llvm-gcc command line when creating
+  the bitcode input files), then memory safety errors reported at run-time will
+  attempt to print out the source file name and line number of where the error
+  occurred.
+  </li>
+
+  <li>
+  <tt>-help</tt>:
+  Prints available options.
+  </li>
+</ul>
+
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_subsection">
+  <a name="link"><b>Creating an Executable</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+Creating an executable from the output of the sc tool requires that one
+generate the native code for the output bitcode and link in the run-time
+library implementing the SAFECode run-time checks.  Generating native code can
+be done using the LLVM llc tool:
+</p>
+
+<ul>
+  <li><tt>llc -f -o <i>output_filename.s</i> <i>output_from_sc</i>.bc</tt></li>
+</ul>
+
+<p>
+Creating the final executable can be done using GCC (<i>Configuration</i> is
+either Release, Debug, or Profile depending upon whether you built a Release,
+Debug, or Profile version of SAFECode):
+</p>
+
+<ul>
+  <li><tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
+<i>Configuration</i>/lib/poolalloc_safe_rt.o
+<i>Configuration</i>/lib/UserPoolSystem.o</tt></li>
+</ul>
+
