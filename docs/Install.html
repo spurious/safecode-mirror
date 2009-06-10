@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+                      "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>SAFECode Install Guide</title>
+  <link rel="stylesheet" href="llvm.css" type="text/css">
+</head>
+
+<body>
+
+<div class="doc_title">
+SAFECode Install Guide
+</div>
+
+<!-- ********************************************************************** -->
+<!-- * Table of Contents                                                  * -->
+<!-- ********************************************************************** -->
+<ul>
+  <li><a href="#overview">Overview</a></li>
+  <li><a href="#requirements">Requirements</a></li>
+  <li><a href="#download">Getting the Source Code</a></li>
+  <li><a href="#configure">Configuring the Source Code</a></li>
+  <li><a href="#compile">Compiling SAFECode</a></li>
+</ul>
+
+<!-- ********************************************************************** -->
+<!-- * Authors                                                            * -->
+<!-- ********************************************************************** -->
+<div class="doc_author">
+  <p>Written by the LLVM Research Group</p>
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="overview"><b>Overview</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+Welcome to the SAFECode compiler!  This manual provides instructions for
+downloading and compiling SAFECode.  It also provides information on software
+that you must have in order to install SAFECode.
+</p>
+
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="requirements"><b>Requirements</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+SAFECode depends upon several other pieces of software.  SAFECode is built
+using the <a href="http://llvm.org">LLVM Compiler Infrastructure</a>, so you
+must have LLVM.  SAFECode also uses libraries from the
+Automatic Pool Allocation project.  Directions on how to download these will be
+provided with the directions on downloading SAFECode.
+</p>
+
+<p>
+SAFECode comes only as source code; you will need the proper tools (namely GCC
+and GNU make) to compile it.  The necessary requirements are those needed by
+LLVM and are listed
+<a href="http://llvm.org/docs/GettingStarted.html#requirements">here</a>
+</p>
+
+<p>
+SAFECode is currently supported on Linux and Mac OS X running on x86
+processors (only 32-bit code is known to work).
+</p>
+
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="download"><b>Getting the Source Code</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+SAFECode is stored in a CVS repository.  You will need to use CVS over ssh to
+check out the source code.  Before you begin, set the CVS_RSH environment
+variable to "ssh" so that CVS uses SSH to log into llvm.org.
+</p>
+
+<p>
+You will need to get the LLVM source code from the Subversion repository.  You
+will then need to put Automatic Pool Allocation and SAFECode into the projects
+subdirectory of the LLVM source distribution.  The following commands should do
+the trick:
+</p>
+
+<ul>
+  <li><tt>cd <i>where-you-want-llvm-to-live</i></tt></li>
+  <li><tt>svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm</tt></li>
+  <li><tt>cd llvm/projects</tt></li>
+  <li><tt>
+  svn co  http://llvm.org/svn/llvm-project/poolalloc/trunk poolalloc
+  </tt></li>
+  <li><tt>  
+  cvs -d  :ext:<i>username</i>@llvm.org:/home/vadve/shared/InternalCVS co safecode
+  </tt></li>
+</ul>
+
+<p>
+You may optionally want to get the LLVM Test Suite (llvm-test) source code:
+</p>
+
+<ul>
+  <li><tt>cd llvm/projects</tt></li>
+  <li><tt>
+  svn co svn co http://llvm.org/svn/llvm-project/test-suite/trunk llvm-test
+  </tt></li>
+</ul>
+
+<p>
+If you use the LLVM Test Suite, you will also need the LLVM GCC front-end, and
+you will need to configure LLVM so that it knows where to find llvm-gcc and
+llvm-g++.  Directions for downloading and installing the front-end can be found
+in the
+<a href="http://llvm.org/docs/GettingStarted.html">
+LLVM Getting Started Guide
+</a>.
+</p>
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="configure"><b>Configuring the Source Code</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+Once you have the source code checked out, you should be able to configure LLVM
+and the related projects using just the top level LLVM configure script.  You
+will need to add the following options to the command line when running
+<tt>configure</tt> in order to configure Automatic Pool Allocation and SAFECode
+correctly:
+</p>
+
+<ul>
+  <li>
+  <tt>--with-llvmsrc=<i>directory</i></tt>:
+  Specifies the location of the LLVM source directory.  This option is used by
+  the Automatic Pool Allocation and SAFECode build systems to find the LLVM
+  source tree; it is ignored by the LLVM configure script but passed to the
+  Automatic Pool Allocation and SAFECode configure scripts.
+  </li>
+
+  <li>
+  <tt>--with-llvmobj=<i>directory</i></tt>:
+  Specifies the location of the LLVM object directory. This option is used by
+  the Automatic Pool Allocation and SAFECode build systems to find the LLVM
+  object tree; it is ignored by the LLVM configure script but passed to the
+  Automatic Pool Allocation and SAFECode configure scripts.
+  </li>
+</ul>
+
+<p>
+Additional options include:
+</p>
+
+<ul>
+  <li><tt>--enable-oob-ptr</tt>:
+  Enable support for out-of-bounds pointer rewriting.
+  </li>
+
+  <li><tt>--enable-debugtool</tt>:
+  Enable support for printing source line information when run-time checks fail.
+  </li>
+</ul>
+
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="compile"><b>Compiling SAFECode</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+To build SAFECode, first compile the LLVM tools, then Automatic Pool
+Allocation, and then SAFECode itself:
+</p>
+
+<ul>
+  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
+  <li><tt>make tools-only</tt></li>
+  <li><tt>cd projects/poolalloc</tt></li>
+  <li><tt>make</tt></li>
+  <li><tt>cd ../safecode</tt></li>
+  <li><tt>make</tt></li>
+</ul>
+
+SAFECode will, by default, perform the same type of build that LLVM does.  For
+example, if LLVM is configured to do a Release build by default, SAFECode will
+do a Release build by default as well.
+
+There are three types of builds:
+
+<ul>
+  <li>
+  Debug:
+  The SAFECode libraries and tools are placed in <tt>Debug/lib</tt> and
+  <tt>Debug/bin</tt> in the SAFECode object tree.  The libraries and programs
+  are compiled with debug symbols enabled.  The tools may operate more slowly
+  due to the extra debug information.
+  </li>
+
+  <li>
+  Release:
+  The SAFECode libraries and tools are placed in <tt>Release/lib</tt> and
+  <tt>Release/bin</tt> in the SAFECode object tree.  The libraries and programs
+  are compiled at a higher optimization level and debug symbols are stripped
+  from executables, making the SAFECode tools faster.
+  </li>
+
+  <li>
+  Profile:
+  The SAFECode libraries and tools are placed in <tt>Profile/lib</tt> and
+  <tt>Profile/bin</tt> in the SAFECode object tree.  The libraries and programs
+  are compiled to generate profiling information which can be used to find
+  performance bottlenecks.
+  </li>
+</ul>
+
+<p>
+If you only want to use SAFECode, use a Release build.  If you are doing
+development work on SAFECode, use the Debug or Profile builds as appropriate.
+</p>
+
+</div>
+
