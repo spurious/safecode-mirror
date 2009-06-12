@@ -58,22 +58,39 @@ ExactCheckOpt::runOnModule(Module & M) {
 //  Attempts to rewrite an extensive check into an efficient, accurate array
 //  bounds check which will not use meta-data information
 //
+// Inputs:
+//  CI - A pointer to the instruction that performs a run-time check.
+//
 // Return value:
 //  true  - Successfully rewrite the check into an exact check.
 //  false - Cannot perform the optimization.
 //
 bool
 ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
+  //
+  // Get the pointer that is checked by this run-time check.
+  //
   Value * CheckPtr = intrinsic->getCheckedPointer(CI);
+
+  //
+  // Strip off all casts and GEPs to try to find the source of the pointer.
+  //
   bool indexed;
   Value * BasePtr = getBasePtr(CheckPtr, indexed);
-  Value * Size = intrinsic->getObjectSize(BasePtr);
-  if (Size) {
+
+  //
+  // Attempt to get the size of the pointer.  If a size is returned, we know
+  // that the base pointer points to the beginning of an object, and we can do
+  // a run-time check without a lookup.
+  //
+  if (Value * Size = intrinsic->getObjectSize(BasePtr)) {
     rewriteToExactCheck(CI, BasePtr, CheckPtr, Size);
+    return true;
   }
-  /*
-   * We were not able to insert a call to exactcheck().
-   */
+
+  //
+  // We were not able to insert a call to exactcheck().
+  //
   return false;
 }
 
@@ -81,7 +98,7 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
 // Function: rewriteToExactCheck()
 //
 // Description:
-// Rewrite a check into an exact check
+//  Rewrite a check into an exact check
 //
 // Inputs:
 //  BasePointer   - An LLVM Value representing the base of the object to check.
@@ -141,7 +158,7 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
 //  be used in an exactcheck().
 //
 // Outputs:
-//  indexed - Flags whether the data flow went through a indexing operation
+//  indexed - Flags whether the data flow went through an indexing operation
 //            (i.e. a GEP).  This value is always written.
 //
 Value *
