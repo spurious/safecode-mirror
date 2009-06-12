@@ -22,7 +22,9 @@
 #include "safecode/Support/AllocatorInfo.h"
 #include "dsa/DSGraph.h"
 
+#if 0
 #include <tr1/functional>
+#endif
 
 using namespace llvm;
 
@@ -169,11 +171,22 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   paPass = &getAnalysis<PoolAllocateGroup>();
 
   PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
+#if 0
+  // Unfortunaly, our machines only have gcc3, which does not support
+  // TR1..
   std::for_each
     (SCConfig->alloc_begin(), SCConfig->alloc_end(),
      std::tr1::bind
      (&RegisterCustomizedAllocation::proceedAllocator,
       this, &M, std::tr1::placeholders::_1));
+#else
+  for (SAFECodeConfiguration::alloc_iterator it = SCConfig->alloc_begin(),
+      end = SCConfig->alloc_end(); it != end; ++it) {
+    proceedAllocator(&M, *it);
+  }
+
+#endif
+
   return true;
 }
 
