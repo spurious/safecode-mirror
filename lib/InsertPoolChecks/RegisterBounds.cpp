@@ -35,11 +35,14 @@ char RegisterGlobalVariables::ID = 0;
 char RegisterMainArgs::ID = 0;
 char RegisterCustomizedAllocation::ID = 0;
 
-static llvm::RegisterPass<RegisterGlobalVariables> X1 ("reg-globals", "Register globals into pools");
+static llvm::RegisterPass<RegisterGlobalVariables>
+X1 ("reg-globals", "Register globals into pools");
 
-static llvm::RegisterPass<RegisterMainArgs> X2 ("reg-globals", "Register argv[] into pools");
+static llvm::RegisterPass<RegisterMainArgs>
+X2 ("reg-argv", "Register argv[] into pools");
 
-static llvm::RegisterPass<RegisterCustomizedAllocation> X3 ("reg-custom-alloc", "Register customized allocators");
+static llvm::RegisterPass<RegisterCustomizedAllocation>
+X3 ("reg-custom-alloc", "Register customized allocators");
 
 void
 RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBefore) {
