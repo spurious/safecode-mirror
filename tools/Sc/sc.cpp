@@ -254,9 +254,11 @@ int main(int argc, char **argv) {
     if (!SCConfig->SVAEnabled) {
       Passes.add(new RegisterMainArgs());
       Passes.add(new RegisterRuntimeInitializer());
-    } else {
-      Passes.add(new RegisterCustomizedAllocation());      
     }
+
+    // Register all customized allocators, such as vmalloc() / kmalloc() in
+    // kernel, or poolalloc() in pool allocation
+    Passes.add(new RegisterCustomizedAllocation());      
 
     switch (SCConfig->StaticCheckType) {
     case SAFECodeConfiguration::ABC_CHECK_NONE:
@@ -326,14 +328,14 @@ int main(int argc, char **argv) {
     //
     Passes.add (new OptimizeChecks());
 
-    // Lower the checking intrinsics into appropriate runtime function calls.
-    // It should be the last pass
-    addLowerIntrinsicPass(Passes, CheckingRuntime);
-
 #ifdef SC_DEBUGTOOL
     if (EnableDebugInfo)
       Passes.add (new DebugInstrument());
 #endif
+
+    // Lower the checking intrinsics into appropriate runtime function calls.
+    // It should be the last pass
+    addLowerIntrinsicPass(Passes, CheckingRuntime);
 
     // Verify the final result
     Passes.add(createVerifierPass());
@@ -465,9 +467,15 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.exactcheck",      "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
       {"sc.get_actual_val",  "pchk_getActualValue" },
-      {"sc.pool_register",   "poolregister" },
-      {"sc.pool_unregister", "poolunregister" },
+      {"sc.pool_register",   "__sc_dbg_poolregister" },
+      {"sc.pool_unregister", "__sc_dbg_poolunregister" },
       {"sc.init_pool_runtime", "pool_init_runtime"},
+      {"sc.pool_register_debug", "__sc_dbg_src_poolregister"},
+      {"sc.poolcheck_debug","poolcheck_debug"},
+      {"sc.poolcheckalign_debug","poolcheckalign_debug"},
+      {"sc.boundscheck_debug","boundscheck_debug"},
+      {"sc.boundscheckui_debug","boundscheckui_debug"},
+      {"sc.exactcheck2_debug","exactcheck2_debug"},
     };
 
 
