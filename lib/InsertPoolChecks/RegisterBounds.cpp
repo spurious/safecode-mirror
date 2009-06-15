@@ -21,6 +21,7 @@
 #include "safecode/InsertChecks/RegisterBounds.h"
 #include "safecode/Support/AllocatorInfo.h"
 #include "dsa/DSGraph.h"
+#include "SCUtils.h"
 
 #if 0
 #include <tr1/functional>
@@ -196,8 +197,6 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
 void
 RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, AllocatorInfo * info) {
   Function * F = AllocSite->getParent()->getParent();
-  DSNode * Node = dsnPass->getDSNode(AllocSite, F);
-  assert (Node && "Allocation site should have a DSNode!");
 
   //
   // Get the pool handle for the node.
@@ -209,37 +208,50 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   BasicBlock::iterator InsertPt = AllocSite;
   ++InsertPt;
 
-  RegisterVariableIntoPool(PH, AllocSite, info->getAllocSize(AllocSite), InsertPt);
+  RegisterVariableIntoPool (PH, AllocSite, info->getAllocSize(AllocSite), InsertPt);
 }
 
 void
-RegisterCustomizedAllocation::registerFreeSite(CallInst * FreeSite, AllocatorInfo * info) {
+RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
+                                                AllocatorInfo * info) {
+  // Function containing the call to the deallocator
   Function * F = FreeSite->getParent()->getParent();
-  DSNode * Node = dsnPass->getDSNode(FreeSite, F);
-  assert (Node && "Allocation site should have a DSNode!");
 
   //
-  // Get the pool handle for the node.
+  // Get the pointer being deallocated.  Strip away casts as these may have
+  // been inserted after the DSA pass was executed and may, therefore, not have
+  // a pool handle.
+  //
+  Value * ptr = info->getFreedPointer(FreeSite)->stripPointerCasts();
+
+  //
+  // Get the pool handle for the freed pointer.
   //
   PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-  Value *PH = dsnPass->getPoolHandle(FreeSite, F, *FI);
+  Value *PH = dsnPass->getPoolHandle(ptr, F, *FI);
   assert (PH && "Pool handle is missing!");
 
-  Value * ptr = info->getFreedPointer(FreeSite);
-  Instruction * Casted = 
-    CastInst::CreatePointerCast
-    (ptr, PointerType::getUnqual(Type::Int8Ty), 
-     ptr->getName()+".casted", FreeSite);
-  Instruction * PHCasted = 
-    CastInst::CreatePointerCast
-    (PH, PointerType::getUnqual(Type::Int8Ty), 
-     PH->getName()+".casted", FreeSite);
+  //
+  // Cast the pointer being unregistered and the pool handle into void pointer
+  // types.
+  //
+  Value * Casted = castTo (ptr,
+                           PointerType::getUnqual(Type::Int8Ty),
+                           ptr->getName()+".casted",
+                           FreeSite);
 
+  Value * PHCasted = castTo (PH,
+                             PointerType::getUnqual(Type::Int8Ty), 
+                             PH->getName()+".casted",
+                             FreeSite);
+
+  //
+  // Create a call that will unregister the object.
+  //
   std::vector<Value *> args;
   args.push_back (PHCasted);
   args.push_back (Casted);
-  CallInst::Create(PoolUnregisterFunc, 
-                   args.begin(), args.end(), "", FreeSite); 
+  CallInst::Create (PoolUnregisterFunc, args.begin(), args.end(), "", FreeSite);
 }
 
 Instruction *
