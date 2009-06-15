@@ -254,7 +254,7 @@ RemapPages (void * va, unsigned length) {
 */
 }
 #else
-void *
+static void *
 RemapPages (void * va, unsigned length) {
   void *  target_addr = 0;
   void *  source_addr;
