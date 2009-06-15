@@ -140,6 +140,7 @@ extern "C" {
   void poolargvregister (int argc, char ** argv);
   void poolregister(PoolTy *Pool, void *allocaptr, unsigned NumBytes);
   void poolunregister(PoolTy *Pool, void *allocaptr);
+  void pool_protect_object (void * Node);
   void poolfree(PoolTy *Pool, void *Node);
   void poolcheck(PoolTy *Pool, void *Node);
   void poolcheckui(PoolTy *Pool, void *Node);

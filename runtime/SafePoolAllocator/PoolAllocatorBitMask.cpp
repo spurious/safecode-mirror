@@ -1357,6 +1357,57 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
   }
 }
 
+//
+// Function: pool_protect_object()
+//
+// Description:
+//  This function modifies the page protections of an object so that it is no
+//  longer writeable.
+//
+// Inputs:
+//  Node - A pointer to the beginning of the object that should be marked as
+//         read-only.
+// Notes:
+//  This function should only be called when dangling pointer detection is
+//  enabled.
+//
+void
+pool_protect_object (void * Node) {
+  // The start and end of the object as registered in the dangling pointer
+  // object metapool
+  void * start, * end;
+
+  //
+  // Retrieve the debug information about the node.  This will include a
+  // pointer to the canonical page.
+  //
+  PDebugMetaData debugmetadataptr = 0;
+  bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
+
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  assert ((!found || (found && debugmetadataptr)) &&
+          "poolfree: No debugmetadataptr\n");
+
+  //
+  // If the object is not found, return.
+  //
+  if (!found) return;
+
+  //
+  // Determine the number of pages that the object occupies.
+  //
+  unsigned len = (unsigned)end - (unsigned)start;
+  unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
+  unsigned NumPPage = (len / PPageSize) + 1;
+  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
+    NumPPage++;
+
+  // Protect the shadow pages of the object
+  ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+  return;
+}
+
 extern "C" void frag(PoolTy * Pool);
 void
 frag(PoolTy * Pool) {
@@ -1651,6 +1702,22 @@ poolregister_debug (PoolTy *Pool,
 //  This is the same as pool_calloc but with source level debugging
 //  information.
 //
+// Inputs:
+//  Pool        - The pool from which to allocate the elements.
+//  Number      - The number of elements to allocate.
+//  NumBytes    - The size of each element in bytes.
+//  SourceFilep - A pointer to the source filename in which the caller is
+//                located.
+//  lineno      - The line number at which the call occurs in the source code.
+//
+// Return value:
+//  NULL - The allocation did not succeed.
+//  Otherwise, a fresh pointer to the allocated memory is returned.
+//
+// Notes:
+//  Note that this function calls poolregister() directly because the SAFECode
+//  transforms do not add explicit calls to poolregister().
+//
 void *
 poolcalloc_debug (PoolTy *Pool,
                   unsigned Number,
@@ -1658,7 +1725,10 @@ poolcalloc_debug (PoolTy *Pool,
                   void * SourceFilep,
                   unsigned lineno) {
   void * New = poolalloc_debug (Pool, Number * NumBytes, SourceFilep, lineno);
-  if (New) bzero (New, Number * NumBytes);
+  if (New) {
+    bzero (New, Number * NumBytes);
+    poolregister (Pool, New, Number * NumBytes);
+  }
   return New;
 }
 
@@ -1694,24 +1764,80 @@ poolfree_debug (PoolTy *Pool,
 
 void *
 poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
-  if (Node == 0) return poolalloc(Pool, NumBytes);
+  //
+  // If the object has never been allocated before, allocate it now.
+  //
+  if (Node == 0) {
+    void * New = poolalloc(Pool, NumBytes);
+    poolregister (Pool, New, NumBytes);
+    return New;
+  }
+
+  //
+  // Reallocate an object to 0 bytes means that we wish to free it.
+  //
   if (NumBytes == 0) {
+    pool_protect_object (Node);
+    poolunregister(Pool, Node);
     poolfree(Pool, Node);
     return 0;
   }
 
-  void *New = poolalloc(Pool, NumBytes);
-  //    unsigned Size =
-  //FIXME the following may not work in all cases  
+  //
+  // Otherwise, we need to change the size of the allocated object.  For now,
+  // we will simply allocate a new object and copy the data from the old object
+  // into the new object.
+  //
+  void *New;
+  if ((New = poolalloc(Pool, NumBytes)) == 0)
+    return 0;
+
+  //
+  // Register the new object with the pool.
+  //
+  poolregister (Pool, New, NumBytes);
+
+  //
+  // FIXME:
+  //  The code below assumes that the old object and the new object are the
+  //  same size (which is probably never true).  This should be fixed to copy
+  //  the minumum of the old and new object sizes.
+  //
   memcpy(New, Node, NumBytes);
+
+  pool_protect_object (Node);
+  poolunregister(Pool, Node);
   poolfree(Pool, Node);
   return New;
 }
 
+//
+// Function: poolcalloc()
+//
+// Description:
+//  This function is the pool allocation equivalent of calloc().  It allocates
+//  an array of elements and zeros out the memory.
+//
+// Inputs:
+//  Pool     - The pool from which to allocate the elements.
+//  Number   - The number of elements to allocate.
+//  NumBytes - The size of each element in bytes.
+//
+// Return value:
+//  NULL - The allocation did not succeed.
+//  Otherwise, a fresh pointer to the allocated memory is returned.
+//
+// Notes:
+//  Note that this function calls poolregister() directly because the SAFECode
+//  transforms do not add explicit calls to poolregister().
+//
 void *
 poolcalloc (PoolTy *Pool, unsigned Number, unsigned NumBytes) {
   void * New = poolalloc (Pool, Number * NumBytes);
-  if (New) bzero (New, Number * NumBytes);
+  if (New) {
+    bzero (New, Number * NumBytes);
+    poolregister (Pool, New, Number * NumBytes);
+  }
   return New;
 }
 
@@ -2912,8 +3038,17 @@ poolfree(PoolTy *Pool, void *Node) {
   }
  
 #if SC_DEBUGTOOL
+  //
+  // FIXME: The code to mark the shadow page as read-only needs to occur in
+  //        poolunregister().  However, that, in turn, requires that
+  //        poolunregister() be able to differentiate between stack objects
+  //        (which should not be marked inaccessible) and heap objects (which
+  //        should be marked inaccessible).
+  //  
+#if 0
   // Protect the shadow pages
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+#endif
   
   //
   // An object has been freed.  Set up a signal handler to catch any dangling
