@@ -16,6 +16,7 @@
 #define DEBUG_INSTRUMENTATION_H
 
 #include "safecode/SAFECode.h"
+#include "safecode/Intrinsic.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
@@ -30,6 +31,7 @@ NAMESPACE_SC_BEGIN
 class GetSourceInfo {
   public:
     virtual std::pair<Value *, Value *> operator() (CallInst * I) = 0;
+    virtual ~GetSourceInfo();
 };
 
 class LocationSourceInfo : public GetSourceInfo {
@@ -56,7 +58,9 @@ struct DebugInstrument : public ModulePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      return;
+      AU.addRequired<InsertSCIntrinsic>();
+      AU.setPreservesCFG();
+      AU.setPreservesAll();
     };
 
   private:
