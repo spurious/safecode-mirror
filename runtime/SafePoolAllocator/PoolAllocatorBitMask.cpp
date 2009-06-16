@@ -99,7 +99,13 @@ static PoolTy OOBPool;
 // Map between rewrite pointer and source file information
 std::map<void *, void*>    RewriteSourcefile;
 std::map<void *, unsigned> RewriteLineno;
+
+// Map between a real value and its rewritten value
 std::map<void *, void *>   RewrittenPointers;
+
+// Map between the start of a real object and the set of OOB pointers
+// associated with it
+std::map<void *, std::vector<void*> > RewrittenStart;
 
 // Record from which object an OOB pointer originates
 std::map<void *, std::pair<void *, void * > > RewrittenObjs;
@@ -1193,7 +1199,12 @@ __barebone_poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   //
   // Add the object to the pool's splay of valid objects.
   //
-  Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
+  if (!(Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1))) {
+    fprintf (stderr, "Object Already Registered: %x: %d\n", allocaptr, NumBytes);
+    fflush (stderr);
+    assert (0 && "__barebone_poolregister: Object Already Registered!\n");
+    abort();
+  }
 }
 
 //
@@ -1230,7 +1241,7 @@ poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   // Provide some debugging information on the pool register.
   //
   if (logregs) {
-    fprintf (ReportLog, "poolregister: %p %p %d\n", Pool, (void*)allocaptr, NumBytes);
+    fprintf (ReportLog, "poolregister: %p %p %x\n", Pool, (void*)allocaptr, NumBytes);
     fflush (ReportLog);
   }
 }
@@ -1349,6 +1360,26 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
     fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
     fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
     fflush (stderr);
+  }
+#endif
+
+#if 0
+  //
+  // Remove rewrite pointers for this object.
+  //
+  if (RewrittenStart.find (allocaptr) != RewrittenStart.end()) {
+    for (unsigned index=0; index < RewrittenStart[allocaptr].size(); ++index) {
+      void * invalidptr = RewrittenStart[allocaptr][index];
+      if (logregs) {
+        fprintf (stderr, "Removing write ptr %x -> %x\n", allocaptr, invalidptr);
+        fflush (stderr);
+      }
+      Pool->OOB.remove (invalidptr);
+      OOBPool.OOB.remove (invalidptr); 
+      RewrittenPointers.erase (allocaptr);
+    }
+
+    RewrittenStart.erase (allocaptr);
   }
 #endif
 
@@ -1603,6 +1634,10 @@ poolalloc(PoolTy *Pool, unsigned NumBytes) {
 //  This function is just like poolalloc() except that it associates a source
 //  file and line number with the allocation.
 //
+// Notes:
+//  This function does *not* register the allocated object within the splay
+//  tree.  That is done by poolregister().
+//
 void *
 poolalloc_debug (PoolTy *Pool,
                  unsigned NumBytes,
@@ -1624,9 +1659,6 @@ poolalloc_debug (PoolTy *Pool,
   void * shadowpage = RemapObject (canonptr, NumBytes);
   void * shadowptr = (unsigned char *)(shadowpage) + offset;
 
-  // Register the object in the splay tree.
-  __barebone_poolregister (Pool, shadowptr, NumBytes);
-
   //
   // Create the meta data object containing the debug information and the
   // mapping from shadow address to canonical address.
@@ -1641,6 +1673,11 @@ poolalloc_debug (PoolTy *Pool,
   dummyPool.DPTree.insert (shadowptr,
                            (char*) shadowptr + NumBytes - 1,
                            debugmetadataPtr);
+
+  if (logregs) {
+    fprintf(stderr, "poolalloc_debug: Pool=%p, addr=%p, size=%d, %s, %d\n", Pool, shadowptr, NumBytes, SourceFile, lineno);
+    fflush (stderr);
+  }
 
   // Return the shadow pointer.
   return shadowptr;
@@ -1729,6 +1766,10 @@ poolcalloc_debug (PoolTy *Pool,
     bzero (New, Number * NumBytes);
     poolregister (Pool, New, Number * NumBytes);
   }
+  if (logregs) {
+    fprintf (ReportLog, "poolcalloc_debug: %p: %p %x: %s %d\n", Pool, (void*)New, Number * NumBytes, SourceFilep, lineno);
+    fflush (ReportLog);
+  }
   return New;
 }
 
@@ -1747,9 +1788,15 @@ poolfree_debug (PoolTy *Pool,
   PDebugMetaData debugmetadataptr = 0;
   void * start, * end;
 
+  if (logregs) {
+    fprintf(stderr, "poolfree_debug: Pool=%p, addr=%p, %s, %d\n", Pool, Node, SourceFile, lineno);
+    fflush (stderr);
+  }
+
   //
   // Check whether the pointer is valid.
   //
+#if 0
   if (!dummyPool.DPTree.find (Node, start, end, debugmetadataptr)) {
     ReportInvalidFree ((unsigned)__builtin_return_address(0),
                        Node,
@@ -1759,6 +1806,9 @@ poolfree_debug (PoolTy *Pool,
   } else {
     poolfree (Pool, Node);
   }
+#else
+  poolfree (Pool, Node);
+#endif
 }
 #endif
 
@@ -1793,18 +1843,36 @@ poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
     return 0;
 
   //
+  // Get the bounds of the old object.  If we cannot get the bounds, then
+  // simply fail the allocation.
+  //
+  void * S, * end;
+  if ((!(Pool->Objects.find (Node, S, end))) || (S != Node)) {
+    return 0;
+  }
+
+  //
   // Register the new object with the pool.
   //
   poolregister (Pool, New, NumBytes);
 
   //
-  // FIXME:
-  //  The code below assumes that the old object and the new object are the
-  //  same size (which is probably never true).  This should be fixed to copy
-  //  the minumum of the old and new object sizes.
+  // Determine the number of bytes to copy into the new object.
   //
-  memcpy(New, Node, NumBytes);
+  unsigned length = NumBytes;
+  if ((((unsigned)(end)) - ((unsigned)(S)) + 1) < NumBytes) {
+    length = ((unsigned)(end)) - ((unsigned)(S)) + 1;
+  }
 
+  //
+  // Copy the contents of the old object into the new object.
+  //
+  memcpy(New, Node, length);
+
+  //
+  // Invalidate the old object and its bounds and return the pointer to the
+  // new object.
+  //
   pool_protect_object (Node);
   poolunregister(Pool, Node);
   poolfree(Pool, Node);
@@ -2630,6 +2698,21 @@ rewrite_ptr (PoolTy * Pool,
   RewriteLineno[invalidptr] = lineno;
   RewrittenPointers[p] = invalidptr;
   RewrittenObjs[invalidptr] = std::make_pair(ObjStart, ObjEnd);
+
+#if 0
+  //
+  // Record the mapping between the start of an object and the set of rewrite
+  // pointers created from it.  This is used to invalidate the rewrite pointers
+  // when the object is freed.
+  //
+  if (RewrittenStart.find (ObjStart) != RewrittenStart.end ()) {
+    RewrittenStart[ObjStart].push_back (invalidptr);
+  } else {
+    std::vector<void*> v;
+    v.push_back(invalidptr);
+    RewrittenStart[ObjStart] = v;
+  }
+#endif
 #endif
   return invalidptr;
 #else
