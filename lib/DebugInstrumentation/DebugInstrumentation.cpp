@@ -67,6 +67,8 @@ namespace {
 // Class Methods
 ///////////////////////////////////////////////////////////////////////////
 
+GetSourceInfo::~GetSourceInfo() {}
+
 //
 // Method: operator()
 //
@@ -290,6 +292,8 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 //
 bool
 DebugInstrument::runOnModule (Module &M) {
+  InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
+
   // Create the void pointer type
   VoidPtrTy = PointerType::getUnqual(Type::Int8Ty); 
 
@@ -298,15 +302,16 @@ DebugInstrument::runOnModule (Module &M) {
   //
   LocationSourceInfo LInfo;
   VariableSourceInfo VInfo;
+  // FIXME: Technically it should user intrinsic everywhere..
   transformFunction (M.getFunction ("poolalloc"), LInfo);
   transformFunction (M.getFunction ("poolcalloc"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
-  transformFunction (M.getFunction ("poolcheck"), LInfo);
-  transformFunction (M.getFunction ("poolcheckalign"), LInfo);
-  transformFunction (M.getFunction ("boundscheck"), LInfo);
-  transformFunction (M.getFunction ("boundscheckui"), LInfo);
-  transformFunction (M.getFunction ("exactcheck2"), LInfo);
-  transformFunction (M.getFunction ("poolregister"), LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheckalign").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.boundscheck").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.exactcheck2").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_register").F, LInfo);
   return true;
 }
 
