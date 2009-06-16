@@ -148,6 +148,6 @@ void
 installAllocHooks (void) {
   return;
 }
+#endif
 
 NAMESPACE_SC_END
-#endif
