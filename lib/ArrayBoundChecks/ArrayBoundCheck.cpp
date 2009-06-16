@@ -293,7 +293,7 @@ ABCExprTree*
 ArrayBoundsCheck::getReturnValueConstraints (Function *f) {
   bool localSave = reqArgs;
   const Type* csiType = Type::Int32Ty;
-  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+  const Constant * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -546,7 +546,7 @@ ArrayBoundsCheck::addControlDependentConditions (BasicBlock *currentBlock,
 ABCExprTree*
 ArrayBoundsCheck::addConstraintsForKnownFunctions (Function *kf, CallInst *CI) {
   const Type* csiType = Type::Int32Ty;
-  const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+  const Constant * signedzero = ConstantInt::get(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -569,7 +569,7 @@ ArrayBoundsCheck::addConstraintsForKnownFunctions (Function *kf, CallInst *CI) {
   } else if (funcName == "strlen") {
     string var = getValueName(CI);
     const Type* csiType = Type::Int32Ty;
-    const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+    const Constant * signedzero = ConstantInt::get(csiType,0);
     
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -696,7 +696,7 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
         const Type* csiType = Type::Int32Ty;
-        const ConstantInt * signedzero = ConstantInt::get(csiType,0);
+        const Constant * signedzero = ConstantInt::get(csiType,0);
         LinearExpr *l2 = new LinearExpr(signedzero, Mang);
         Constraint *c2 = new Constraint(var, l2, ">=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
@@ -730,7 +730,7 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
         // Sometimes allocas have some array as their allocating constant !!
         // We then have to generate constraints for all the dimensions
         const Type* csiType = Type::Int32Ty;
-        const ConstantInt * signedOne = ConstantInt::get(csiType,1);
+        const Constant * signedOne = ConstantInt::get(csiType,1);
 
         Constraint *c=new Constraint(var, new LinearExpr(signedOne, Mang),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -778,7 +778,7 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
                   }
                 }
                 const Type* csiType = Type::Int32Ty;
-                const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                const Constant * signedOne = ConstantInt::get(csiType,elSize);
                 Constraint *c = new Constraint(var,
                                                new LinearExpr(signedOne, Mang),
                                                "=");
@@ -819,7 +819,7 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
                     //Now add the constraint
 
                     const Type* csiType = Type::Int32Ty;
-                    const ConstantInt * signedOne = ConstantInt::get(csiType,AT->getNumElements());
+                    const Constant * signedOne = ConstantInt::get(csiType,AT->getNumElements());
                     Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
                     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
                     
@@ -847,7 +847,7 @@ ArrayBoundsCheck::getConstraintsInternal (Value *v, ABCExprTree **rootp) {
     if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()
                                                     ->getElementType())) {
       const Type* csiType = Type::Int32Ty;
-      const ConstantInt * signedOne = ConstantInt::get(csiType,1);
+      const Constant * signedOne = ConstantInt::get(csiType,1);
       
       Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -868,7 +868,7 @@ ArrayBoundsCheck::generateArrayTypeConstraintsGlobal (string var,
     // If this is a multi-dimensional array, call this method recursively to
     // get the constraints of the array inside of this array.
     //
-    const ConstantInt * signedOne = ConstantInt::get(csiType,1);
+    const Constant * signedOne = ConstantInt::get(csiType,1);
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     generateArrayTypeConstraintsGlobal(var1,
@@ -879,7 +879,7 @@ ArrayBoundsCheck::generateArrayTypeConstraintsGlobal (string var,
     //
     // If this is a single dimension array, create a constraint for it.
     //
-    const ConstantInt * signedOne = ConstantInt::get (csiType, numElem * T->getNumElements());
+    const Constant * signedOne = ConstantInt::get (csiType, numElem * T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
@@ -889,7 +889,7 @@ ArrayBoundsCheck::generateArrayTypeConstraintsGlobal (string var,
 void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType *T, ABCExprTree **rootp) {
   string var1 = var + "_i";
   const Type* csiType = Type::Int32Ty;
-  const ConstantInt * signedOne = ConstantInt::get(csiType,T->getNumElements());
+  const Constant * signedOne = ConstantInt::get(csiType,T->getNumElements());
   Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
   *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
@@ -901,7 +901,7 @@ void ArrayBoundsCheck::generateArrayTypeConstraints(string var, const ArrayType 
     unsigned Size = getAnalysis<TargetData>().getTypeAllocSize(ST);
     string var2 = var1 + "_i";
     const Type* csiType = Type::Int32Ty;
-    const ConstantInt * signedOne = ConstantInt::get(csiType,Size);
+    const Constant * signedOne = ConstantInt::get(csiType,Size);
     Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
@@ -1803,7 +1803,7 @@ ArrayBoundsCheck::SimplifyExpression (Value *Expr, ABCExprTree **rootp) {
                       }
                       string varName = getValueName(I);
                       const Type* csiType = Type::Int32Ty;
-                      const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                      const Constant * signedOne = ConstantInt::get(csiType,elSize);
                       LinearExpr *l1 = new LinearExpr(signedOne, Mang);
                       return l1;
                     }
@@ -1822,7 +1822,7 @@ ArrayBoundsCheck::SimplifyExpression (Value *Expr, ABCExprTree **rootp) {
                     }
                     string varName = getValueName(I);
                     const Type* csiType = Type::Int32Ty;
-                    const ConstantInt * signedOne = ConstantInt::get(csiType,elSize);
+                    const Constant * signedOne = ConstantInt::get(csiType,elSize);
                     LinearExpr *l1 = new LinearExpr(signedOne, Mang);
                     return l1;
                   }
