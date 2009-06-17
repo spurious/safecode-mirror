@@ -17,5 +17,6 @@ USEDLIBS        := faultinject.a
 
 include $(LEVEL)/Makefile.common
 
-LDFLAGS += $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
+LIBS += -L$(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
+					-lLLVMDataStructure -lLLVMipo -lLLVMInstrumentation -lLLVMScalarOpts -lLLVMTransformUtils -lLLVMipa -lLLVMAnalysis -lLLVMTarget -lLLVMBitWriter -lLLVMBitReader -lLLVMCore -lLLVMSupport -lLLVMSystem
 

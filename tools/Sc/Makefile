@@ -20,9 +20,9 @@ USEDLIBS := CStdLib.a faultinject.a oob.a optchecks.a \
 						arrayboundcheck.a pointerchecks.a stackcheck.a \
 						indirectcalls.a debuginstr.a sc-support.a
 
+
 include $(LEVEL)/Makefile.common
 
-LDFLAGS += 	$(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.a \
-						$(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
-
+LIBS += -L$(POOLALLOC_OBJDIR)/$(BuildMode)/lib -lpoolalloc \
+					-lLLVMDataStructure -lLLVMSupport -lLLVMSystem
 
