@@ -13,42 +13,16 @@ TOOLNAME=sc
 # Initialize the USEDLIBS so we can add to it
 
 LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
-                    nativecodegen
-USEDLIBS        := CStdLib faultinject oob optchecks
+										nativecodegen
+
+USEDLIBS := CStdLib.a faultinject.a oob.a optchecks.a \
+						convert.a addchecks.a speculativechecking.a \
+						arrayboundcheck.a pointerchecks.a stackcheck.a \
+						indirectcalls.a debuginstr.a sc-support.a
 
 include $(LEVEL)/Makefile.common
 
-$(ToolBuildPath): $(ObjectsO) $(ProjLibsPaths) $(LLVMLibsPaths) \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/speculativechecking.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/debuginstr.o \
-                  $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/sc-support.o \
-                  $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
-                  $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
-	$(Echo) Linking $(BuildMode) executable $(TOOLNAME) $(StripWarnMsg)
-	$(Verb) $(Link) -o $@ $(TOOLLINKOPTS) $(ObjectsO) $(ProjLibsOptions) \
-	$(LLVMLibsOptions) $(ExtraLibs) $(TOOLLINKOPTSB) $(LIBS)
-	$(Echo) ======= Finished Linking $(BuildMode) Executable $(TOOLNAME) \
-					$(StripWarnMsg)
+LDFLAGS += 	$(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.a \
+						$(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
 
-LDFLAGS += $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/convert.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/addchecks.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/speculativechecking.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/arrayboundcheck.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/pointerchecks.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/stackcheck.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/indirectcalls.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/debuginstr.o \
-           $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/sc-support.o \
-           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.o \
-           $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.o
-
-# Include this here so we can get the configuration of the targets
-# that have been configured for construction. We have to do this 
-# early so we can set up USEDLIBS properly before includeing Makefile.rules
 

@@ -10,7 +10,7 @@
 LEVEL = ../..
 TOOLNAME=queue_speed
 
-USEDLIBS        := poolalloc_safe_rt
+USEDLIBS        := poolalloc_safe_rt.a
 
 include $(LEVEL)/Makefile.common
 
