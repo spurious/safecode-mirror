@@ -13,14 +13,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "abc"
+#define DEBUG_TYPE "abc-local"
 
 #include "ArrayBoundsCheck.h"
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/Support/AllocatorInfo.h"
 
+#include "llvm/ADT/Statistic.h"
+
 using namespace llvm;
 
+
+namespace {
+  STATISTIC (allGEPs ,  "Total Number of GEPs Queried");
+  STATISTIC (safeGEPs , "Number of GEPs Proven Safe Statically");
+}
 
 NAMESPACE_SC_BEGIN
 
@@ -74,6 +81,11 @@ ArrayBoundsCheckLocal::isConstantIndexGEP(GetElementPtrInst * GEP) {
 //
 bool
 ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
+  //
+  // Update the count of GEPs queried.
+  //
+  ++allGEPs;
+
   if (!isConstantIndexGEP(GEP))
     return false;
 
@@ -108,6 +120,8 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
     delete[] Indices;
 
     if (offset < type_size) {
+      // The GEP is safe; update statistics and return true.
+      ++safeGEPs;
       return true;
     }
   }
