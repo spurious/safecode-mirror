@@ -13,6 +13,7 @@ PARALLEL_DIRS = Support \
                 FaultInjector \
                 IndirectCallChecks \
                 DebugInstrumentation \
+                CStdLib \
 
 include $(LEVEL)/Makefile.common
 
