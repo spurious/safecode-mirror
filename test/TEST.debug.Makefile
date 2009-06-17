@@ -20,7 +20,7 @@ SCOPTS  := -disable-staticchecks -enable-debuginfo -terminate -check-every-gep-u
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/addchecks.o
+PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
 
 # Pool allocator runtime library
 PA_RT_O  :=
@@ -40,8 +40,8 @@ POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 else
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.a
+POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
 
 # TODO: Test whether it works
 #PA_PRE_RT_O := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.o
