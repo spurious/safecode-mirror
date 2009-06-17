@@ -18,6 +18,7 @@
 #endif
 #include "poolalloc/Support/MallocAllocator.h"
 #include "poolalloc/MMAPSupport.h"
+#include "safecode/Runtime/BitmapAllocator.h"
 
 #include <unistd.h>
 

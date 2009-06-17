@@ -68,6 +68,12 @@ struct ConfigData ConfigData = {false, true, false};
 // Record from which object an OOB pointer originates
 std::map<void *, std::pair<const void *, const void * > > RewrittenObjs;
 
+// Invalid address range
+#if !defined(__linux__)
+unsigned InvalidUpper = 0x00000000;
+unsigned InvalidLower = 0x00000003;
+#endif
+
 NAMESPACE_SC_END
 
 using namespace NAMESPACE_SC;
@@ -83,7 +89,6 @@ FILE * ReportLog = 0;
 
 // Configuration for C code; flags that we should stop on the first error
 unsigned StopOnError = 0;
-
 
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);
@@ -639,6 +644,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
 
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
+  // Cast parameters to the desired type
+  ucontext_t * mycontext = (ucontext_t *) context;
   program_counter = mycontext->uc_mcontext->__ss.__eip;
 #endif
   alloc_pc = ((unsigned) (debugmetadataptr->allocPC)) - 5;

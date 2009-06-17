@@ -41,6 +41,9 @@ NAMESPACE_SC_BEGIN
 #if defined(__linux__)
 static const unsigned InvalidUpper = 0xf0000000;
 static const unsigned InvalidLower = 0xc0000000;
+#else
+extern unsigned InvalidUpper;
+extern unsigned InvalidLower;
 #endif
 
 /// Special implemetation for dangling pointer detection

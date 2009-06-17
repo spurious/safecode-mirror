@@ -21,11 +21,11 @@
 
 #include <string>
 
-NAMESPACE_SC_BEGIN
-
 /// It should be always zero in production version 
 /* Set to 1 to log object registrations */
 static /*const*/ __attribute__((unused)) unsigned logregs = 0;
+
+NAMESPACE_SC_BEGIN
 
 /// This structure is intended to be used by inheritance (synatatic sugar from
 /// C++), but it does not have a virtual destructor for it. Therefore you should
