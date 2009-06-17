@@ -35,7 +35,7 @@ NAMESPACE_SC_BEGIN
 //  rewriting.  This involves modifying all uses of a checked pointer to use
 //  the return value of the run-time check.
 //
-struct RewriteOOB : public ModulePass {
+class RewriteOOB : public ModulePass {
   private:
     // Private methods
     bool processFunction (Function * F);
