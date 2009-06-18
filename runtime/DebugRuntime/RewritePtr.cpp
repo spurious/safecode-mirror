@@ -16,6 +16,8 @@
 #include "PoolAllocator.h"
 #include "Report.h"
 
+using namespace NAMESPACE_SC; 
+
 NAMESPACE_SC_BEGIN
 
 DebugPoolTy OOBPool;
@@ -114,6 +116,8 @@ rewrite_ptr (DebugPoolTy * Pool,
 #endif
 }
 
+NAMESPACE_SC_END
+
 //
 // Function: getActualValue()
 //
@@ -169,5 +173,3 @@ pchk_getActualValue (DebugPoolTy * Pool, void * p) {
   }
   return p;
 }
-
-NAMESPACE_SC_END
