@@ -83,20 +83,22 @@ extern "C" {
   void poolcheckui(NAMESPACE_SC::DebugPoolTy * Pool, void *Node);
   void poolcheckoptim(NAMESPACE_SC::DebugPoolTy * Pool, void *Node);
   void * boundscheck   (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
-  int boundscheckui_lookup (NAMESPACE_SC::DebugPoolTy * Pool, void * Source) __attribute__ ((const, noinline));
-  void * boundscheckui_check (int len, NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest) __attribute__ ((noinline));
   void * boundscheckui (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
   const char * SFile, unsigned int lineno);
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
 
+  void * __sc_dbg_src_poolcalloc (NAMESPACE_SC::DebugPoolTy * Pool,
+                                unsigned Number, unsigned NumBytes,
+                                const char * SourceFilep,
+                                unsigned lineno);
+  void * __sc_dbg_poolcalloc (NAMESPACE_SC::DebugPoolTy *Pool, unsigned Number, unsigned NumBytes);
 
-  void * poolalloc_debug (NAMESPACE_SC::DebugPoolTy * P, unsigned Size, void * SrcFle, unsigned no);
-  void * poolcalloc_debug (NAMESPACE_SC::DebugPoolTy * P, unsigned Num, unsigned Size, void * S, unsigned no);
+  void * __sc_dbg_src_poolalloc (NAMESPACE_SC::DebugPoolTy * P, unsigned Size, const char * SrcFle, unsigned no);
   void __sc_dbg_src_poolregister (NAMESPACE_SC::DebugPoolTy * P, void * p,
   unsigned size, const char * SF, unsigned lineno);
-  void   poolfree_debug (NAMESPACE_SC::DebugPoolTy * P, void * ptr, void * SrcFle, unsigned no);
+  void   __sc_dbg_src_poolfree (NAMESPACE_SC::DebugPoolTy * P, void * ptr, const char * SrcFle, unsigned no);
   void   poolcheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * Node, void * SrcFle, unsigned no);
   void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, void * SourceFile, unsigned lineno);
   void * boundscheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,

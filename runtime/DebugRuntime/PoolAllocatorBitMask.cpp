@@ -455,7 +455,7 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
 void *
 __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
                  unsigned NumBytes,
-                 void * SourceFilep,
+                 const char * SourceFilep,
                  unsigned lineno) {
   //
   // Ensure that we're allocating at least one byte.
@@ -482,9 +482,9 @@ __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
 //  debug information to the error reporting routines.
 //
 void
-__sc_dbg_poolfree (DebugPoolTy *Pool,
+__sc_dbg_src_poolfree (DebugPoolTy *Pool,
                 void * Node,
-                void * SourceFile,
+                const char * SourceFile,
                 unsigned lineno) {
   PDebugMetaData debugmetadataptr = 0;
   void * start, * end;
@@ -666,4 +666,168 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     printf("sigaction installer failed!");
   
   return;
+}
+
+//
+// Function: pool_protect_object()
+//
+// Description:
+//  This function modifies the page protections of an object so that it is no
+//  longer writeable.
+//
+// Inputs:
+//  Node - A pointer to the beginning of the object that should be marked as
+//         read-only.
+// Notes:
+//  This function should only be called when dangling pointer detection is
+//  enabled.
+//
+void
+pool_protect_object (void * Node) {
+  // The start and end of the object as registered in the dangling pointer
+  // object metapool
+  void * start, * end;
+
+  //
+  // Retrieve the debug information about the node.  This will include a
+  // pointer to the canonical page.
+  //
+  PDebugMetaData debugmetadataptr = 0;
+  bool found = dummyPool.DPTree.find (Node, start, end, debugmetadataptr);
+
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  assert ((!found || (found && debugmetadataptr)) &&
+          "poolfree: No debugmetadataptr\n");
+
+  //
+  // If the object is not found, return.
+  //
+  if (!found) return;
+
+  //
+  // Determine the number of pages that the object occupies.
+  //
+  unsigned len = (unsigned)end - (unsigned)start;
+  unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
+  unsigned NumPPage = (len / PPageSize) + 1;
+  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
+    NumPPage++;
+
+  // Protect the shadow pages of the object
+  ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+  return;
+}
+
+//
+// Function: poolcalloc_debug()
+//
+// Description:
+//  This is the same as pool_calloc but with source level debugging
+//  information.
+//
+// Inputs:
+//  Pool        - The pool from which to allocate the elements.
+//  Number      - The number of elements to allocate.
+//  NumBytes    - The size of each element in bytes.
+//  SourceFilep - A pointer to the source filename in which the caller is
+//                located.
+//  lineno      - The line number at which the call occurs in the source code.
+//
+// Return value:
+//  NULL - The allocation did not succeed.
+//  Otherwise, a fresh pointer to the allocated memory is returned.
+//
+// Notes:
+//  Note that this function calls poolregister() directly because the SAFECode
+//  transforms do not add explicit calls to poolregister().
+//
+void *
+__sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
+                  unsigned Number,
+                  unsigned NumBytes,
+                  const char * SourceFilep,
+                  unsigned lineno) {
+  void * New = __sc_dbg_src_poolalloc (Pool, Number * NumBytes, SourceFilep, lineno);
+  if (New) {
+    bzero (New, Number * NumBytes);
+    __sc_dbg_src_poolregister (Pool, New, Number * NumBytes, SourceFilep, lineno);
+  }
+  if (logregs) {
+    fprintf (ReportLog, "poolcalloc_debug: %p: %p %x: %s %d\n", (void*) Pool, (void*)New, Number * NumBytes, SourceFilep, lineno);
+    fflush (ReportLog);
+  }
+  return New;
+}
+
+void *
+__sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
+  return __sc_dbg_src_poolcalloc (Pool, Number, NumBytes, "<unknown>", 0);
+}
+
+void *
+__sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
+  //
+  // If the object has never been allocated before, allocate it now.
+  //
+  if (Node == 0) {
+    void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
+    __sc_dbg_poolregister (Pool, New, NumBytes);
+    return New;
+  }
+
+  //
+  // Reallocate an object to 0 bytes means that we wish to free it.
+  //
+  if (NumBytes == 0) {
+    pool_protect_object (Node);
+    __sc_dbg_poolunregister(Pool, Node);
+    __pa_bitmap_poolfree(Pool, Node);
+    return 0;
+  }
+
+  //
+  // Otherwise, we need to change the size of the allocated object.  For now,
+  // we will simply allocate a new object and copy the data from the old object
+  // into the new object.
+  //
+  void *New;
+  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
+    return 0;
+
+  //
+  // Get the bounds of the old object.  If we cannot get the bounds, then
+  // simply fail the allocation.
+  //
+  void * S, * end;
+  if ((!(Pool->Objects.find (Node, S, end))) || (S != Node)) {
+    return 0;
+  }
+
+  //
+  // Register the new object with the pool.
+  //
+  __sc_dbg_poolregister (Pool, New, NumBytes);
+
+  //
+  // Determine the number of bytes to copy into the new object.
+  //
+  unsigned length = NumBytes;
+  if ((((unsigned)(end)) - ((unsigned)(S)) + 1) < NumBytes) {
+    length = ((unsigned)(end)) - ((unsigned)(S)) + 1;
+  }
+
+  //
+  // Copy the contents of the old object into the new object.
+  //
+  memcpy(New, Node, length);
+
+  //
+  // Invalidate the old object and its bounds and return the pointer to the
+  // new object.
+  //
+  pool_protect_object (Node);
+  __sc_dbg_poolunregister(Pool, Node);
+  __pa_bitmap_poolfree(Pool, Node);
+  return New;
 }
