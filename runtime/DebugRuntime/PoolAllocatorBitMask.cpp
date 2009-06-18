@@ -567,9 +567,7 @@ static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
   signal(SIGBUS, NULL);
 
-#if SC_ENABLE_OOB
-    unsigned program_counter = 0;
-#endif
+  unsigned program_counter = 0;
 
   //
   // Get the address causing the fault.

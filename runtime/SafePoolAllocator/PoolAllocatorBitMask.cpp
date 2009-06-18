@@ -1404,6 +1404,7 @@ poolunregister(PoolTy *Pool, void * allocaptr) {
 //
 void
 pool_protect_object (void * Node) {
+#if SC_DEBUGTOOL
   // The start and end of the object as registered in the dangling pointer
   // object metapool
   void * start, * end;
@@ -1436,6 +1437,7 @@ pool_protect_object (void * Node) {
 
   // Protect the shadow pages of the object
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+#endif
   return;
 }
 

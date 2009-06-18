@@ -51,7 +51,7 @@ rewrite_ptr (DebugPoolTy * Pool,
              unsigned lineno) {
 
 #if SC_ENABLE_OOB
-static unsigned char * invalidptr = 0;
+  static unsigned char * invalidptr = 0;
 #endif
 
   //
@@ -110,7 +110,7 @@ static unsigned char * invalidptr = 0;
   RewrittenObjs[invalidptr] = std::make_pair(ObjStart, ObjEnd);
   return invalidptr;
 #else
-  return p;
+  return (void *) p;
 #endif
 }
 
