@@ -50,6 +50,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   static const Type * Int32Ty = Type::Int32Ty;
   static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
 
+
   REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheck",		1, VoidTy, vpTy, vpTy);
   REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheckui",	1, VoidTy, vpTy, vpTy);
   REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheckalign", 1, VoidTy, vpTy, vpTy, Int32Ty);
@@ -65,6 +66,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.register_globals",	0, VoidTy,);
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_runtime",	0, VoidTy,);
   REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_pool_runtime" ,0, VoidTy, Int32Ty, Int32Ty, Int32Ty);
+  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_argvregister" ,0, VoidTy, Int32Ty, PointerType::getUnqual(vpTy));
 
   // We always change the module.
   return true;

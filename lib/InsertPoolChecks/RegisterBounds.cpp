@@ -132,11 +132,8 @@ RegisterMainArgs::runOnModule(Module & M) {
   // Register all of the argv strings
   //
   // FIXME: Should use the intrinsic interface
-  Constant * RegisterArgv = M.getOrInsertFunction ("poolargvregister",
-                                                   Type::VoidTy, 
-                                                   Type::Int32Ty,
-                                                   Argv->getType(),
-                                                   NULL); 
+  Function * RegisterArgv = intrinsic->getIntrinsic("sc.pool_argvregister").F;
+
   std::vector<Value *> fargs;
   fargs.push_back (Argc);
   fargs.push_back (Argv);
