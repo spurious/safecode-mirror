@@ -35,7 +35,7 @@ PA_PRE_RT_BC :=
 PA_PRE_RT_O  := 
 
 ifeq ($(ENABLE_LTO),1)
-PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+PA_RT_BC := libsc_dbg_rt.bca libpoolalloc_bitmap.bca 
 POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
@@ -46,6 +46,8 @@ POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
 # TODO: Test whether it works
 #PA_PRE_RT_O := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.o
 endif
+
+PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/, $(PA_RT_BC))
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
