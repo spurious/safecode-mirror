@@ -38,7 +38,7 @@ extern "C" {
 unsigned PageSize = 0;
 }
 
-extern unsigned poolmemusage;
+static unsigned poolmemusage = 0;
 
 // Physical page size
 unsigned PPageSize;

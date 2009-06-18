@@ -82,8 +82,6 @@ using namespace NAMESPACE_SC;
 static unsigned globalallocID = 0;
 static unsigned globalfreeID = 0;
 
-unsigned poolmemusage = 0;
-
 /// UNUSED in production version
 FILE * ReportLog = 0;
 
@@ -148,6 +146,13 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   new (&(GlobalPool->DPTree)) RangeSplayMap<PDebugMetaData>();
 #endif
 
+  //
+  // Initialize the Global Pool
+  //
+  __pa_bitmap_poolinit(GlobalPool, 1);
+
+  //
+  // Initialize the signal handlers for catching errors.
   ConfigData.RemapObjects = Dangling;
   ConfigData.StrictIndexing = !(RewriteOOB);
   StopOnError = Terminate;

@@ -152,7 +152,8 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
   // of the specified size.
   //
   unsigned NodeSize = Pool->NodeSize;
-  unsigned NodesToAllocate = (NumBytes + NodeSize - 1)/NodeSize;
+  assert (NodeSize && "__pa_bitmap_poolalloc: Node Size is zero!\n");
+  unsigned NodesToAllocate = (NumBytes + NodeSize - 1) / NodeSize;
   
   // Call a helper function if we need to allocate more than 1 node.
   if (NodesToAllocate > 1) {
