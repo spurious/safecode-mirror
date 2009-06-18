@@ -86,25 +86,21 @@ findBlocksDominatedBy (DomTreeNode * DTN, std::set<DomTreeNode *> & List) {
 static Constant * StackFree;
 
 bool
-RegisterStackObjPass::doInitialization(Module & M) {
-  static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
-  FunctionType *StackFreeTy = FunctionType::get(vpTy, args<const Type*>::list(vpTy, vpTy), false);
-  StackFree = M.getOrInsertFunction("poolunregister", StackFreeTy);
-  return false;
-}
-
-bool
 RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Get prerequisite analysis information.
   //
-#if 0
-  paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
-#endif
   TD = &getAnalysis<TargetData>();
   paPass = &getAnalysis<PoolAllocateGroup>();
   dsnPass = &getAnalysis<DSNodePass>();
   DT = &getAnalysis<DominatorTree>();
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
+
+  //
+  // Get pointers to the functions for registering and unregistering pointers.
+  //
+  PoolRegister = intrinsic->getIntrinsic("sc.pool_register").F;  
+  StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
 
   for (Function::iterator BI = F.begin(); BI != F.end(); ++BI) {
     //
@@ -301,12 +297,13 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
   //
   Instruction *Casted = castTo (AI, PointerType::getUnqual(Type::Int8Ty),
                                 AI->getName()+".casted", iptI);
-  Value * CastedPH = PH;
+  Value * CastedPH = castTo (PH, PointerType::getUnqual(Type::Int8Ty),
+                             PH->getName() + "casted", iptI);
   std::vector<Value *> args;
   args.push_back (CastedPH);
   args.push_back (Casted);
   args.push_back (AllocSize);
-  Constant *PoolRegister = paPass->PoolRegister;
+
   CallInst::Create (PoolRegister, args.begin(), args.end(), "", iptI);
 
   //
