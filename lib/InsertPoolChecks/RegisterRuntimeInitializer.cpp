@@ -44,7 +44,7 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   Function * RuntimeCtor = intrinsic->getIntrinsic("sc.init_runtime").F;
   Function * RuntimeInit = intrinsic->getIntrinsic("sc.init_pool_runtime").F;
   Function * RegGlobals  = intrinsic->getIntrinsic("sc.register_globals").F;
-  Function * PoolInit = M.getFunction("poolalloc.init");
+//  Function * PoolInit = M.getFunction("poolalloc.init");
 
   // Make the runtime constructor compatible with other ctors
   RuntimeCtor->setDoesNotThrow();
@@ -55,8 +55,10 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   // function.
   //
   BasicBlock * BB = BasicBlock::Create ("entry", RuntimeCtor);
-  
-  CallInst::Create (PoolInit, "", BB); 
+ 
+  // Delegate the responbilities of initializing pool descriptor to the 
+  // SAFECode runtime initializer
+//  CallInst::Create (PoolInit, "", BB); 
 
   std::vector<Value *> args;
   if (SCConfig->DanglingPointerChecks)
