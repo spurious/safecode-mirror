@@ -124,7 +124,6 @@ struct RegisterStackObjPass : public FunctionPass {
   static char ID;
   RegisterStackObjPass() : FunctionPass((intptr_t) &ID) {};
   virtual ~RegisterStackObjPass() {};
-  virtual bool doInitialization(Module & M);
   virtual bool runOnFunction(Function &F);
   virtual const char * getPassName() const { return "Register stack variables into pool"; }
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -134,15 +133,23 @@ struct RegisterStackObjPass : public FunctionPass {
 
     AU.addRequired<DominatorTree>();
     AU.addRequired<TargetData>();
+    AU.addRequired<InsertSCIntrinsic>();
 
+    AU.addPreserved<InsertSCIntrinsic>();
     AU.setPreservesAll();
   };
 
   private:
+    // References to other LLVM passes
     PoolAllocateGroup * paPass;
     TargetData * TD;
     DSNodePass * dsnPass;
     DominatorTree * DT;
+    InsertSCIntrinsic * intrinsic;
+
+    // The pool registration function
+    Constant *PoolRegister;
+
     void registerAllocaInst(AllocaInst *AI,
                             AllocaInst *AIOrig,
                             std::set<DomTreeNode *> Children);
