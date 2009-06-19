@@ -495,17 +495,10 @@ __sc_dbg_src_poolfree (DebugPoolTy *Pool,
   void * start, * end;
 
   //
-  // Check whether the pointer is valid.
+  // Free the object within the pool; the poolunregister() function will
+  // detect invalid frees.
   //
-  if (!dummyPool.DPTree.find (Node, start, end, debugmetadataptr)) {
-    ReportInvalidFree ((unsigned)__builtin_return_address(0),
-                       Node,
-                       (char *) SourceFile,
-                       lineno);
-    return;
-  } else {
-    __pa_bitmap_poolfree (Pool, Node);
-  }
+  __pa_bitmap_poolfree (Pool, Node);
 }
 
 
@@ -749,10 +742,10 @@ pool_protect_object (void * Node) {
 //
 void *
 __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
-                  unsigned Number,
-                  unsigned NumBytes,
-                  const char * SourceFilep,
-                  unsigned lineno) {
+                         unsigned Number,
+                         unsigned NumBytes,
+                         const char * SourceFilep,
+                         unsigned lineno) {
   void * New = __sc_dbg_src_poolalloc (Pool, Number * NumBytes, SourceFilep, lineno);
   if (New) {
     bzero (New, Number * NumBytes);
