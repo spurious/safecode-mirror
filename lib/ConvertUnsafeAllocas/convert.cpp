@@ -366,12 +366,6 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs (Module & M,
     }
 
     //
-    // Get the dominator information for the current function.
-    //
-    DominanceFrontier & dfmt    = getAnalysis<DominanceFrontier>(*FI);
-    DominatorTree     & domTree = getAnalysis<DominatorTree>(*FI);
-
-    //
     // Update the statistics.
     //
     ConvAllocas += Worklist.size();
@@ -395,7 +389,7 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs (Module & M,
       //
       // Promote the alloca and remove it from the program.
       //
-      Value * MI = promoteAlloca (AI, DSN);
+      promoteAlloca (AI, DSN);
       AI->getParent()->getInstList().erase(AI);
     }
   }
@@ -454,6 +448,14 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   // point to heap objects.
   //
   Node->setHeapMarker();
+
+#if 1
+  //
+  // Update the scalar map so that we know what the DSNode is for this new
+  // instruction.
+  //
+  Node->getParentGraph()->getScalarMap().replaceScalar (AI, MI);
+#endif
 
   //
   // Replace all uses of the old alloca instruction with the new heap
