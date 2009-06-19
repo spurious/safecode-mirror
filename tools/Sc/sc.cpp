@@ -478,12 +478,13 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.exactcheck2_debug","exactcheck2_debug"},
       {"sc.pool_argvregister", "__sc_dbg_poolargvregister"},
 
-      {"poolalloc_debug",        "__sc_dbg_src_poolalloc"},
+      {"poolalloc_debug",       "__sc_dbg_src_poolalloc"},
       {"poolfree_debug",        "__sc_dbg_src_poolfree"},
 
       // These functions register objects in the splay trees
-      {"poolcalloc",        "__sc_dbg_poolcalloc"},
-      {"poolrealloc",       "__sc_dbg_poolrealloc"},
+      {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},
+      {"poolcalloc",            "__sc_dbg_poolcalloc"},
+      {"poolrealloc",           "__sc_dbg_poolrealloc"},
     };
 
 
