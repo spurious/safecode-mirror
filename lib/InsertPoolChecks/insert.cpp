@@ -66,14 +66,10 @@ cl::opt<string> InitFunctionName ("initfunc",
 
 // Pass Statistics
 namespace {
-  STATISTIC (StaticChecks , "GEP Checks Done Statically");
-  STATISTIC (TotalStatic , "GEP Checks Examined Statically");
-  STATISTIC (NullChecks ,
-                             "Poolchecks with NULL pool descriptor");
-  STATISTIC (FullChecks ,
-                             "Poolchecks with non-NULL pool descriptor");
+  STATISTIC (NullChecks ,    "Poolchecks with NULL pool descriptor");
+  STATISTIC (FullChecks ,    "Poolchecks with non-NULL pool descriptor");
 
-  STATISTIC (PoolChecks , "Poolchecks Added");
+  STATISTIC (PoolChecks ,    "Poolchecks Added");
   STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
 }
