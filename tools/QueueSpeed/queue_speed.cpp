@@ -16,12 +16,18 @@ int main() {
   __sc_par_poolinit(&Pool, 128);
   __sc_par_cachepool_0(&Pool);
   char* obj1 = (char*)__sc_par_poolalloc(&Pool, 128);
+#if 0
   char* obj2 = (char*)__sc_par_poolalloc(&Pool, 128);
+#else
+  (char*)__sc_par_poolalloc(&Pool, 128);
+#endif
   for (unsigned x = 0; x < 100000000; ++x) {
     __sc_par_poolcheck_0(obj1 + (x % 128));
     __sc_par_boundscheck_0(obj1, obj1 + (x % 128));
-    //    __sc_par_poolcheck(&Pool, obj2 + (x % 128));
-    //    __sc_par_boundscheck(&Pool, obj2, obj2 + (x % 128));
+#if 0
+    __sc_par_poolcheck(&Pool, obj2 + (x % 128));
+    __sc_par_boundscheck(&Pool, obj2, obj2 + (x % 128));
+#endif
   }
   __sc_par_wait_for_completion();
   return 0;
