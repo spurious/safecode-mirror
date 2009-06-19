@@ -42,24 +42,24 @@ extern "C" {
  * @param   size     Number of characters to copy
  * @return  Number of characters copied
  */
-size_t strncpy_asm(char *dst, const char *src, size_t size) {
+static size_t strncpy_asm(char *dst, const char *src, size_t size) {
   long copied;
 
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   __asm__ __volatile__(
-    ".0: xorl      %%ecx, %%ecx      \n"
+    "0: xorl      %%ecx, %%ecx      \n"
     "    cmpl      %%edi, %%ecx      \n"
     "    adcl      $0, %%ecx         \n"
     "    decl      %%edi             \n"
     "    testl     %%ecx, %%ecx      \n"
-    "    je        .1                \n"
+    "    je        1f                \n"
     "    movsbl    (%%edx), %%ecx    \n"
     "    movb      %%cl, (%%eax)     \n"
     "    incl      %%eax             \n"
     "    incl      %%edx             \n"
     "    testl     %%ecx, %%ecx      \n"
-    "    jne       .0                \n"
-    ".1: subl      %%esi, %%eax      \n"
+    "    jne       0b                \n"
+    "1: subl      %%esi, %%eax      \n"
     : "=a"(copied)
     : "a"(dst), "S"(dst), "d"(src), "D"(size)
     : "%ecx", "memory"
