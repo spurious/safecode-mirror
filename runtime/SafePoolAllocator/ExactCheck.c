@@ -71,7 +71,7 @@ exactcheck_check (void * ObjStart,
     void * ptr = rewrite_ptr (0, Dest, ObjStart, ObjEnd, SourceFile, lineno);
     if (logregs)
       fprintf (ReportLog, "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
-               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(1), ptr, SourceFile, lineno);
+               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(1), ptr, (unsigned char *)SourceFile, lineno);
       fflush (ReportLog);
     return ptr;
   } else {
@@ -79,7 +79,7 @@ exactcheck_check (void * ObjStart,
     // Determine if this is a rewrite pointer that is being indexed.
     //
     if ((logregs) && (((unsigned)Dest > (unsigned)0xc0000000))) {
-      fprintf (stderr, "Was a rewrite: %x\n", Dest);
+      fprintf (stderr, "Was a rewrite: %p\n", Dest);
       fflush (stderr);
     }
     ReportExactCheck ((unsigned)0xbeefdeed,

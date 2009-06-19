@@ -491,9 +491,6 @@ __sc_dbg_src_poolfree (DebugPoolTy *Pool,
                 void * Node,
                 const char * SourceFile,
                 unsigned lineno) {
-  PDebugMetaData debugmetadataptr = 0;
-  void * start, * end;
-
   //
   // Free the object within the pool; the poolunregister() function will
   // detect invalid frees.

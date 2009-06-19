@@ -16,6 +16,7 @@
 #define _REPORT_H_
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include "safecode/Config/config.h"
 
@@ -118,9 +119,9 @@ ReportLoadStoreCheck (void * ptr,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Load/Store violation to memory address %08p\n", id, ptr);
-  fprintf (ReportLog, "%04d:                     at program counter %08p\n", id, pc);
-  fprintf (ReportLog, "%04d:\tAddress                : %08p \n", id, ptr);
+  fprintf (ReportLog, "%04d: Load/Store violation to memory address %p\n", id, ptr);
+  fprintf (ReportLog, "%04d:                     at program counter %p\n", id, pc);
+  fprintf (ReportLog, "%04d:\tAddress                : %p \n", id, ptr);
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
@@ -260,10 +261,10 @@ ReportOOBPointer (unsigned pc,
   unsigned id = printAlertHeader();
 
   fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address 0x%08x\n", id, (unsigned)ptr);
-  fprintf (ReportLog, "%04d:                 at program counter 0x%08x\n", id, pc);
-  fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : 0x%08x \n", id, oobp);
-  fprintf (ReportLog, "%04d:\tStart of Object               : 0x%08x \n", id, ObjStart);
-  fprintf (ReportLog, "%04d:\tEnd of Object                 : 0x%08x \n", id, ObjEnd);
+  fprintf (ReportLog, "%04d:                 at program counter 0x08%p\n", id, pc);
+  fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : 0x%p \n", id, oobp);
+  fprintf (ReportLog, "%04d:\tStart of Object               : 0x%p \n", id, ObjStart);
+  fprintf (ReportLog, "%04d:\tEnd of Object                 : 0x%p \n", id, ObjEnd);
   fprintf (ReportLog, "%04d:\tSource filename               : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number            : %d \n", id, lineno);
   fflush (ReportLog);
