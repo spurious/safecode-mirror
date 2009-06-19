@@ -67,8 +67,6 @@ namespace {
   STATISTIC(SafeGEPs,    "GEPs proved safe via Omega");
   STATISTIC(SafeStructs, "Structures in GEPs that are deemed safe");
   STATISTIC(TotalStructs, "Total structures used in GEPs");
-  STATISTIC(NumGood, "JTC: Number of GEPs that can be proved safe statically");
-  STATISTIC(Total, "JC: Number of GEPs");
 
   cl::opt<bool> NoStructChecks ("disable-structchecks", cl::Hidden,
                                 cl::init(true),

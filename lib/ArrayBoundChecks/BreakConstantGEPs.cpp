@@ -225,7 +225,7 @@ BreakConstantGEPs::runOnFunction (Function & F) {
       //
       Instruction * I = i;
       for (unsigned index = 0; index < I->getNumOperands(); ++index) {
-        if (ConstantExpr * CE = hasConstantGEP (I->getOperand(index))) {
+        if (hasConstantGEP (I->getOperand(index))) {
           Worklist.push_back (I);
         }
       }

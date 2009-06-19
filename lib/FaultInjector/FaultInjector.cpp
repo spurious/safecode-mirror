@@ -605,7 +605,7 @@ FaultInjector::insertUninitializedUse (Function & F) {
     // Now my evil plan is complete!  Dereference this pointer and take the
     // first step into oblivion!
     //
-    LoadInst * FaultingLoad = new LoadInst (BadPtr, "shouldfault", InsertPt);
+    new LoadInst (BadPtr, "shouldfault", InsertPt);
 
     //
     // Update the statistics.

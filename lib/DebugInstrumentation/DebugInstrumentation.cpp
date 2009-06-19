@@ -134,8 +134,6 @@ VariableSourceInfo::operator() (CallInst * CI) {
   assert (((CI->getNumOperands()) > 2) &&
           "Not enough information to get debug info!\n");
 
-  unsigned    LineNo = 0;
-
   Value * LineNumber;
   Value * SourceFile;
 
