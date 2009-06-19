@@ -16,7 +16,7 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SCOPTS  := -disable-staticchecks -enable-debuginfo -terminate -check-every-gep-use -disable-structchecks=false
+SCOPTS  := -enable-debuginfo -terminate -check-every-gep-use -disable-structchecks=false
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
