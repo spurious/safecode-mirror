@@ -42,6 +42,7 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
+  MultiSource/Benchmarks/Olden \
   External/Namd \
   External/Povray \
   External/SPEC/CINT2000 \
@@ -158,8 +159,7 @@ progdebug::
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
                    report.html report.csv; \
-mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
-mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
+      ) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \
