@@ -14,6 +14,7 @@
 /*===----------------------------------------------------------------------===*/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/mman.h>
 
@@ -25,7 +26,7 @@
 void
 poolcheckfail (const char * msg, int i, void* p)
 {
-  fprintf (stderr, "poolcheckfail: %s: %x : %x\n", msg, i, p);
+  fprintf (stderr, "poolcheckfail: %s: %x : %p\n", msg, i, p);
   fflush (stderr);
 }
 
@@ -58,7 +59,6 @@ void *
 poolcheckmalloc (unsigned int power)
 {
   void * Addr;
-  int fd;
   Addr = mmap(0, 4096*(1U << power), PROT_READ|PROT_WRITE,
                                      MAP_SHARED|MAP_ANONYMOUS, -1, 0);
   if (Addr != (void *)-1) pcmsize += 4096*(1U << power);
