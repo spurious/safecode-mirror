@@ -96,6 +96,7 @@ extern "C" {
   void * __sc_dbg_poolcalloc (NAMESPACE_SC::DebugPoolTy *Pool, unsigned Number, unsigned NumBytes);
 
   void * __sc_dbg_src_poolalloc (NAMESPACE_SC::DebugPoolTy * P, unsigned Size, const char * SrcFle, unsigned no);
+  void * __sc_dbg_poolrealloc(NAMESPACE_SC::DebugPoolTy *Pool, void *Node, unsigned NumBytes);
   void __sc_dbg_src_poolregister (NAMESPACE_SC::DebugPoolTy * P, void * p,
   unsigned size, const char * SF, unsigned lineno);
   void   __sc_dbg_src_poolfree (NAMESPACE_SC::DebugPoolTy * P, void * ptr, const char * SrcFle, unsigned no);
