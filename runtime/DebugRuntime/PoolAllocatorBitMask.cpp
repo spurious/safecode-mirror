@@ -253,7 +253,7 @@ void
 __sc_dbg_poolargvregister (int argc, char ** argv) {
   for (int index=0; index < argc; ++index) {
     if (logregs) {
-      fprintf (stderr, "poolargvregister: %p %x: %s\n", argv[index], strlen(argv[index]), argv[index]);
+      fprintf (stderr, "poolargvregister: %p %d: %s\n", argv[index], strlen(argv[index]), argv[index]);
       fflush (stderr);
     }
     ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]));
@@ -681,7 +681,7 @@ void
 pool_protect_object (void * Node) {
   // The start and end of the object as registered in the dangling pointer
   // object metapool
-  void * start, * end;
+  void * start = 0, * end = 0;
 
   //
   // Retrieve the debug information about the node.  This will include a

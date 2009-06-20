@@ -95,7 +95,7 @@ RemapPages (void * va, unsigned length) {
   //}
 
   if (logregs) {
-    fprintf (stderr, " RemapPage:117: source_addr = 0x%016p, offset = 0x%016x, NumPPage = %d\n", (void*)source_addr, offset, NumPPage);
+    fprintf (stderr, " RemapPage:117: source_addr = 0x%p, offset = 0x%016x, NumPPage = %d\n", (void*)source_addr, offset, NumPPage);
     fflush(stderr);
   }
 
@@ -131,7 +131,9 @@ RemapPages (void * va, unsigned length) {
     fprintf(stderr, " failed to remap %dB of memory from source_addr = 0x%08x\n", byteToMap, (unsigned)source_addr);
     //printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
     fprintf(stderr, "%s\n", mach_error_string(kr));
-    mach_error("mach_vm_remap:",kr); // just to make sure I've got this error right
+    // Mach don't modify and don't mark the string as constants..
+    // So I use a cast to get rid of compiler warnings.
+    mach_error(const_cast<char*>("mach_vm_remap:"), kr); // just to make sure I've got this error right
     fflush(stderr);
     //goto repeat;
     //abort();
