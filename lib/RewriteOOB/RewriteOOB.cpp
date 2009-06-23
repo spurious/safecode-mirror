@@ -159,9 +159,9 @@ RewriteOOB::processFunction (Function * F) {
 // Method: addGetActualValues()
 //
 // Description:
-//  Search for comparison instructions which will need to turn an OOB pointer
-//  back into the original pointer value.  Insert calls to getActualValue()
-//  to do the conversion.
+//  Search for comparison or pointer to integer cast instructions which will
+//  need to turn an OOB pointer back into the original pointer value.  Insert
+//  calls to getActualValue() to do the conversion.
 //
 // Inputs:
 //  M - The module in which to add calls to getActualValue().
@@ -203,6 +203,18 @@ RewriteOOB::addGetActualValues (Module & M) {
           }
         }
       }
+
+      if (PtrToIntInst * CastInst = dyn_cast<PtrToIntInst>(&*I)) {
+        //
+        // Replace all pointer operands with a call to getActualValue().
+        // This will convert an OOB pointer back into the real pointer value.
+        //
+        if (isa<PointerType>(CastInst->getOperand(0)->getType())) {
+          // Rewrite both operands and flag that we modified the code
+          addGetActualValue(CastInst, 0);
+          modified = true;
+        }
+      }
     }
   }
 
@@ -218,13 +230,12 @@ RewriteOOB::addGetActualValues (Module & M) {
 //  potentially Out of Bound pointer back into its original value.
 //
 // Inputs:
-//  ICmpInst - The comparison instruction that has arguments requiring
-//             conversion.
-//  operand  - The index of the operand to the compare instruction that
-//             requires conversion.
+//  SCI     - The instruction that has arguments requiring conversion.
+//  operand - The index of the operand to the instruction that requires
+//            conversion.
 //
 void
-RewriteOOB::addGetActualValue (ICmpInst *SCI, unsigned operand) {
+RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Get a reference to the getactualvalue() function.
   //

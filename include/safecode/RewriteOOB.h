@@ -40,7 +40,7 @@ class RewriteOOB : public ModulePass {
     // Private methods
     bool processFunction (Function * F);
     bool addGetActualValues (Module & M);
-    void addGetActualValue (ICmpInst *SCI, unsigned operand);
+    void addGetActualValue (Instruction *SCI, unsigned operand);
 
     // Private variables
     PoolAllocateGroup * paPass;
