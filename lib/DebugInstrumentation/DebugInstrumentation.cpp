@@ -16,7 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "DebugAdder"
+#define DEBUG_TYPE "debug-instrumentation"
 
 #include "safecode/DebugInstrumentation.h"
 
@@ -56,6 +56,8 @@ namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
   ///////////////////////////////////////////////////////////////////////////
+  STATISTIC (FoundSrcInfo,   "Number of Source Information Locations Found");
+  STATISTIC (QueriedSrcInfo, "Number of Source Information Locations Queried");
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -87,6 +89,12 @@ GetSourceInfo::~GetSourceInfo() {}
 std::pair<Value *, Value *>
 LocationSourceInfo::operator() (CallInst * CI) {
   static int count=0;
+
+  //
+  // Update the number of source locations queried.
+  //
+  ++QueriedSrcInfo;
+
   //
   // Get the line number and source file information for the call.
   //
@@ -96,6 +104,7 @@ LocationSourceInfo::operator() (CallInst * CI) {
   if (StopPt) {
     LineNumber = StopPt->getLineValue();
     SourceFile = StopPt->getFileName();
+    ++FoundSrcInfo;
   } else {
     std::string filename = "<unknown>";
     if (CI->getParent()->getParent()->hasName())
