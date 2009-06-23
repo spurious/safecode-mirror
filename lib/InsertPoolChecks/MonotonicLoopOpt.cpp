@@ -196,13 +196,13 @@ namespace {
     if (!(scevPass->isSCEVable(loopVar->getType())))
       return false;
 
-    SCEVHandle SH = scevPass->getSCEV(loopVar);
+    const SCEV * SH = scevPass->getSCEV(loopVar);
     if (SH->hasComputableLoopEvolution(L) ||    // Varies predictably
         HasConstantItCount) {
       const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
       if (AR && AR->isAffine()) {
-        SCEVHandle startVal = AR->getStart();
-        SCEVHandle endVal = scevPass->getSCEVAtScope(loopVar, L->getParentLoop());
+        const SCEV * startVal = AR->getStart();
+        const SCEV * endVal = scevPass->getSCEVAtScope(loopVar, L->getParentLoop());
         if (!isa<SCEVCouldNotCompute>(startVal) && !isa<SCEVCouldNotCompute>(endVal)){
           // Success
           return true;
@@ -220,12 +220,12 @@ namespace {
       Value * op = GEP->getOperand(i);
       if (L->isLoopInvariant(op)) continue;
 
-      SCEVHandle SH = scevPass->getSCEV(op);
+      const SCEV * SH = scevPass->getSCEV(op);
       if (!SH->hasComputableLoopEvolution(L)) return false;
       const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
       if (!AR || !AR->isAffine()) return false;
-      SCEVHandle startVal = AR->getStart();
-      SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
+      const SCEV * startVal = AR->getStart();
+      const SCEV * endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
       if (isa<SCEVCouldNotCompute>(startVal) ||
           isa<SCEVCouldNotCompute>(endVal)) {
         return false;
@@ -258,11 +258,11 @@ namespace {
       Value * op = origGEP->getOperand(i);
       if (L->isLoopInvariant(op)) continue;
       
-      SCEVHandle SH = scevPass->getSCEV(op);
+      const SCEV * SH = scevPass->getSCEV(op);
       const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SH);
-      SCEVHandle startVal = AR->getStart();
-      SCEVHandle endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
-      SCEVHandle & val = type == LOWER_BOUND ? startVal : endVal; 
+      const SCEV * startVal = AR->getStart();
+      const SCEV * endVal = scevPass->getSCEVAtScope(op, L->getParentLoop());
+      const SCEV * & val = type == LOWER_BOUND ? startVal : endVal; 
       Value * boundsVal = Rewriter.expandCodeFor(val, val->getType(), ptIns);
       newGEP->setOperand(i, boundsVal);
     }
