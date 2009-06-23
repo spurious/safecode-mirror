@@ -213,8 +213,8 @@ Options to the sc tool include:
 <p>
 Creating an executable from the output of the sc tool requires that one
 generate the native code for the output bitcode and link in the run-time
-library implementing the SAFECode run-time checks.  Generating native code can
-be done using the LLVM llc tool:
+libraries implementing the memory allocator and the SAFECode run-time checks.
+Generating native code can be done using the LLVM llc tool:
 </p>
 
 <ul>
@@ -228,8 +228,11 @@ Debug, or Profile version of SAFECode):
 </p>
 
 <ul>
-  <li><tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
-<i>Configuration</i>/lib/poolalloc_safe_rt.o
-<i>Configuration</i>/lib/UserPoolSystem.o</tt></li>
+  <li>
+  <tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
+  <i>Configuration</i>/lib/libsc_dbg_rt.a
+  <i>Configuration</i>/lib/libpoolalloc_safe_rt.a
+  <i>Configuration</i>/lib/libUserPoolSystem.a</tt>
+  </li>
 </ul>
 
