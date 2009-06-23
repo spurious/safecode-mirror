@@ -169,6 +169,7 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
      fflush (stderr);
      assert(0 && "valloc failed\n");
   }
+  //memset (Addr, 0x00, invalidsize);
   madvise (Addr, invalidsize, MADV_FREE);
   InvalidLower = (unsigned int) Addr;
   InvalidUpper = (unsigned int) Addr + invalidsize;
@@ -415,6 +416,7 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   // and we don't want to match it for subsequently allocated objects.
   //
   if (!(ConfigData.RemapObjects)) {
+    free (debugmetadataptr);
     dummyPool.DPTree.remove (allocaptr);
   }
 
@@ -608,7 +610,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     }
 #endif
     extern FILE * ReportLog;
-    fprintf(ReportLog, "signal handler: no debug meta data for %p\n", faultAddr);
+    fprintf(ReportLog, "signal handler: no debug meta data for %p: eip=%p\n", faultAddr, program_counter);
     fflush(ReportLog);
     abort();
   }

@@ -261,15 +261,20 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
     // Otherwise, just continue on with the rest of the failed bounds check
     // processing as before.
     //
-    if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1))
+    if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1)) {
+      if (logregs) {
+        fprintf (stderr, "unrewrite(1): (0x%p) -> (0x%p, 0x%p) \n", Source, RealSrc, Dest);
+        fflush (stderr);
+      }
       return Dest;
+    }
 
     //
     // Pretend this was an index off of the original out of bounds pointer
     // value and continue processing
     //
     if (logregs) {
-      fprintf (stderr, "unrewrite: (0x%p) -> (0x%p, 0x%p) \n", Source, RealSrc, Dest);
+      fprintf (stderr, "unrewrite(2): (0x%p) -> (0x%p, 0x%p) \n", Source, RealSrc, Dest);
       fflush (stderr);
     }
 
@@ -289,7 +294,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
       void * ptr = rewrite_ptr (Pool, Dest, ObjStart, ObjEnd, SourceFile, lineno);
       if (logregs) {
         fprintf (ReportLog, "boundscheck: rewrite(1): %p %p %p %p at pc=%p to %p at %s (%d)\n",
-                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(1), ptr, SourceFile, lineno);
+                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(0), ptr, SourceFile, lineno);
         fflush (ReportLog);
       }
       return ptr;
@@ -311,7 +316,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
                          (uintptr_t)Dest,
                          (unsigned)allocID,
                          (unsigned)allocPC,
-                         (uintptr_t)__builtin_return_address(1),
+                         (uintptr_t)__builtin_return_address(0),
                          (uintptr_t)ObjStart,
                          (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1,
                          (unsigned char *)(SourceFile),
@@ -331,7 +336,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
     if ((((unsigned char *)0) <= Dest) && (Dest < (unsigned char *)(4096))) {
       if (logregs) {
         fprintf (ReportLog, "boundscheck: NULL Index: %x %x %p %p at pc=%p at %s (%d)\n",
-                 0, 4096, (void*)Source, (void*)Dest, (void*)__builtin_return_address(1), SourceFile, lineno);
+                 0, 4096, (void*)Source, (void*)Dest, (void*)__builtin_return_address(0), SourceFile, lineno);
         fflush (ReportLog);
       }
       return Dest;
@@ -340,7 +345,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
           (((uintptr_t) Dest) == 4096)) {
         if (logregs) {
           fprintf (ReportLog, "boundscheck: rewrite(3): %x %x %p %p at pc=%p at %s (%d)\n",
-                   0, 4096, (void*)Source, (void*)Dest, (void*)__builtin_return_address(1), SourceFile, lineno);
+                   0, 4096, (void*)Source, (void*)Dest, (void*)__builtin_return_address(0), SourceFile, lineno);
           fflush (ReportLog);
         }
         return rewrite_ptr (Pool,
@@ -354,7 +359,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
                            (uintptr_t)Dest,
                            (unsigned)0,
                            (unsigned)0,
-                           (uintptr_t)__builtin_return_address(1),
+                           (uintptr_t)__builtin_return_address(0),
                            (unsigned)0,
                            (unsigned)4096,
                            (unsigned char *)(SourceFile),
@@ -384,7 +389,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
           if (logregs)
             fprintf (ReportLog,
                      "boundscheck: rewrite(2): %p %p %p %p at pc=%p to %p at %s (%d)\n",
-                     S, end, Source, Dest, (void*)__builtin_return_address(1),
+                     S, end, Source, Dest, (void*)__builtin_return_address(0),
                      ptr, SourceFile, lineno);
           fflush (ReportLog);
           return ptr;
@@ -394,7 +399,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
                            (uintptr_t)Dest,
                            (unsigned)0,
                            (unsigned)0,
-                           (uintptr_t)__builtin_return_address(1),
+                           (uintptr_t)__builtin_return_address(0),
                            (uintptr_t)S,
                            (unsigned)((char*) end - (char*)(S)) + 1,
                            (unsigned char *)(SourceFile),
@@ -413,7 +418,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
                        (uintptr_t)Dest,
                        (unsigned)0,
                        (unsigned)0,
-                       (uintptr_t)__builtin_return_address(1),
+                       (uintptr_t)__builtin_return_address(0),
                        (uintptr_t)0,
                        (unsigned)0,
                        (unsigned char *)(SourceFile),
