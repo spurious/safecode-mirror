@@ -13,9 +13,9 @@
 
 #include "SafeCodeRuntime.h"
 
-#include <cstring>
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+#include <cstring>
 
 using namespace NAMESPACE_SC;
 
@@ -34,8 +34,8 @@ extern "C" {
 }
 
 /**
- * Optimized inline assembly versions of strncpy that returns the number of
- * characters copied (including \0)
+ * Optimized inline assembly implementation of strncpy that returns the number
+ * of characters copied (including \0)
  *
  * @param   dst      Destination string pointer
  * @param   src      Source string pointer
@@ -48,17 +48,17 @@ static size_t strncpy_asm(char *dst, const char *src, size_t size) {
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   __asm__ __volatile__(
     "0: xorl      %%ecx, %%ecx      \n"
-    "    cmpl      %%edi, %%ecx      \n"
-    "    adcl      $0, %%ecx         \n"
-    "    decl      %%edi             \n"
-    "    testl     %%ecx, %%ecx      \n"
-    "    je        1f                \n"
-    "    movsbl    (%%edx), %%ecx    \n"
-    "    movb      %%cl, (%%eax)     \n"
-    "    incl      %%eax             \n"
-    "    incl      %%edx             \n"
-    "    testl     %%ecx, %%ecx      \n"
-    "    jne       0b                \n"
+    "   cmpl      %%edi, %%ecx      \n"
+    "   adcl      $0, %%ecx         \n"
+    "   decl      %%edi             \n"
+    "   testl     %%ecx, %%ecx      \n"
+    "   je        1f                \n"
+    "   movsbl    (%%edx), %%ecx    \n"
+    "   movb      %%cl, (%%eax)     \n"
+    "   incl      %%eax             \n"
+    "   incl      %%edx             \n"
+    "   testl     %%ecx, %%ecx      \n"
+    "   jne       0b                \n"
     "1: subl      %%esi, %%eax      \n"
     : "=a"(copied)
     : "a"(dst), "S"(dst), "d"(src), "D"(size)
@@ -102,4 +102,28 @@ char *pool_strcpy(DebugPoolTy *srcPool, DebugPoolTy *dstPool, const char *src, c
   assert(!dst[copied] && "CStdLib (pool_strcpy): Copy violated destination bounds!\n");
 
   return dst;
+}
+
+/**
+ * Secure runtime wrapper function to replace strlen()
+ *
+ * @param   stringPool  Pool handle for the string
+ * @param   string      String pointer
+ * @return  Length of the string
+ */
+size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
+  size_t len = 0, maxlen = 0;
+  void *stringBegin = (char *)string, *stringEnd = NULL;
+
+  assert(stringPool && string && "CStdLib (pool_strlen): Null pool parameters!\n");
+
+  bool foundString = stringPool->Objects.find(stringBegin, stringBegin, stringEnd);
+  assert(foundString && "CStdLib (pool_strlen): String not found in pool!\n");
+  assert((stringBegin <= stringEnd) && "CStdLib (pool_strlen): String pointer out of bounds!\n");
+
+  maxlen = (char *)stringEnd - (char *)string;
+  len = strnlen(string, maxlen);
+  assert(((len < maxlen) || !string[maxlen]) && "CStdLib (pool_strlen): String not terminated within bounds!\n");
+
+  return len;
 }
