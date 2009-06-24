@@ -40,7 +40,8 @@ POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 else
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.a
+PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libsc_dbg_rt.a \
+            $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_bitmap.a
 POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
 
 # TODO: Test whether it works
