@@ -25,9 +25,7 @@
 #include "llvm/Module.h"
 #include "llvm/Instructions.h"
 #include "llvm/Target/TargetData.h"
-
-#include <set>
-#include <map>
+#include "llvm/ADT/StringMap.h"
 
 using namespace llvm;
 
@@ -36,19 +34,25 @@ NAMESPACE_SC_BEGIN
 class InsertSCIntrinsic : public ModulePass {
   public:
     static char ID;
-    typedef enum IntrinsicType {
-      SC_INTRINSIC_NO_OP,      // No-op intrinsic
-      SC_INTRINSIC_MEMCHECK,   // Memory check intrinsic
-      SC_INTRINSIC_GEPCHECK,   // Indexing (GEP) check intrinsic
-      SC_INTRINSIC_OOB,
-      SC_INTRINSIC_POOL_CONTROL,
-      SC_INTRINSIC_MISC,
-      SC_INTRINSIC_COUNT
-    } IntrinsicType;
+    enum IntrinsicFlags {
+      SC_INTRINSIC_NO_OP	    	= 0,      // No-op intrinsic
+      SC_INTRINSIC_HAS_POOL_HANDLE      = 1,
+      SC_INTRINSIC_HAS_VALUE_POINTER    = 1 << 1,
+      SC_INTRINSIC_CHECK         	= 1 << 2,
+      // Memory check intrinsic
+      SC_INTRINSIC_MEMCHECK     	= 1 << 3,
+      // Indexing (GEP) check intrinsic
+      SC_INTRINSIC_BOUNDSCHECK     	= 1 << 4,
+      // Out-of-bounds pointer rewriting
+      SC_INTRINSIC_REGISTRATION        	= 1 << 5,
+      SC_INTRINSIC_OOB                  = 1 << 6,
+      SC_INTRINSIC_POOL_CONTROL         = 1 << 7,
+      SC_INTRINSIC_MISC                 = 1 << 8
+    } IntrinsicFlags;
 
     typedef struct IntrinsicInfo {
       // The type of intrinsic check
-      IntrinsicType type;
+      unsigned int flag;
 
       // The function for the intrinsic
       Function * F;
@@ -63,20 +67,19 @@ class InsertSCIntrinsic : public ModulePass {
     virtual const char * getPassName() const {
       return "Insert declaration of SAFECode Intrinsic";
     }
-    void addIntrinsic (IntrinsicType type,
-                       const std::string & name,
-                       FunctionType * FTy,
-                       unsigned index=0);
-    const IntrinsicInfoTy & getIntrinsic(const std::string & name) const;
-    bool isSCIntrinsic(Value * V) const;
-    bool isCheckingIntrinsic(Value * V) const;
-    bool isGEPCheckingIntrinsic (Value * V) const;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
       AU.setPreservesCFG();
       AU.setPreservesAll();
     }
-    Value * getCheckedPointer (CallInst * CI);
+
+    void addIntrinsic (const char * name,
+                       unsigned int flag,
+                       FunctionType * FTy,
+                       unsigned index = 0);
+    const IntrinsicInfoTy & getIntrinsic(const std::string & name) const;
+    bool isSCIntrinsicWithFlags(Value * inst, unsigned flag) const;
+    Value * getValuePointer (CallInst * CI);
     typedef std::vector<IntrinsicInfoTy> IntrinsicInfoListTy;
     typedef IntrinsicInfoListTy::const_iterator intrinsic_const_iterator;
     intrinsic_const_iterator intrinsic_begin() const { return intrinsics.begin(); }
@@ -87,7 +90,7 @@ class InsertSCIntrinsic : public ModulePass {
     TargetData * TD;
     Module * currentModule;
     IntrinsicInfoListTy intrinsics;
-    std::map<std::string, uint32_t> intrinsicNameMap;
+    StringMap<uint32_t> intrinsicNameMap;
 };
 
 NAMESPACE_SC_END

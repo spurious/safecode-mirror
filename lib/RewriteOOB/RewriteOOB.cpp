@@ -116,7 +116,7 @@ RewriteOOB::processFunction (Function * F) {
       // call.
       //
       std::set<Value *>Chain;
-      Value * RealOperand = intrinPass->getCheckedPointer (CI);
+      Value * RealOperand = intrinPass->getValuePointer (CI);
       Value * PeeledOperand = peelCasts (RealOperand, Chain);
 
       //
@@ -327,7 +327,7 @@ RewriteOOB::runOnModule (Module & M) {
   std::vector<Function *> GEPCheckingFunctions;
   InsertSCIntrinsic::intrinsic_const_iterator i, e;
   for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
-    if (i->type == InsertSCIntrinsic::SC_INTRINSIC_GEPCHECK)
+    if (i->flag & InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK)
       GEPCheckingFunctions.push_back (i->F);
   }
 

@@ -97,7 +97,7 @@ OptimizeChecks::onlyUsedInCompares (Value * Val) {
       // Calls to run-time functions are okay; others are not.
       if (CallInst * CI = dyn_cast<CallInst>(U)) {
         if (Value * V = dyn_cast<Value>(CI))
-          if (intrinPass->isCheckingIntrinsic(V)) continue;
+          if (intrinPass->isSCIntrinsicWithFlags(V, InsertSCIntrinsic::SC_INTRINSIC_CHECK)) continue;
       }
 
       //
@@ -155,7 +155,7 @@ OptimizeChecks::processFunction (Function * F) {
       // call.
       //
       std::set<Value *> Chain;
-      Value * Operand = peelCasts (intrinPass->getCheckedPointer (CI), Chain);
+      Value * Operand = peelCasts (intrinPass->getValuePointer (CI), Chain);
 
       //
       // If the operand is only used in comparisons, mark the run-time check
@@ -194,7 +194,7 @@ OptimizeChecks::runOnModule (Module & M) {
 
   InsertSCIntrinsic::intrinsic_const_iterator i, e;
   for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
-    if (i->type == InsertSCIntrinsic::SC_INTRINSIC_GEPCHECK)
+    if (i->flag & InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK)
       GEPCheckingFunctions.push_back (i->F);
   }
 

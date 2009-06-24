@@ -24,9 +24,8 @@
 #include "llvm/Constants.h"
 
 using namespace llvm;
-NAMESPACE_SC_BEGIN
 
-#define REG_FUNC(type, name, index, ret,  ...) do { addIntrinsic(type, name, FunctionType::get(ret, args<const Type*>::list(__VA_ARGS__), false), index); } while (0)
+NAMESPACE_SC_BEGIN
 
 //
 // Method: runOnModule()
@@ -46,27 +45,129 @@ bool
 InsertSCIntrinsic::runOnModule(Module & M) {
   currentModule = &M;
   TD = &getAnalysis<TargetData>();
-  static const Type * VoidTy = Type::VoidTy;
-  static const Type * Int32Ty = Type::Int32Ty;
-  static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type * VoidTy = Type::VoidTy;
+  const Type * Int32Ty = Type::Int32Ty;
+  const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
 
+  FunctionType * LSCheckTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(vpTy, vpTy), false);
 
-  REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheck",		1, VoidTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheckui",	1, VoidTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheckalign", 1, VoidTy, vpTy, vpTy, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.lscheckalignui", 1, VoidTy, vpTy, vpTy, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.boundscheck",	 2, vpTy, vpTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.boundscheckui",2, vpTy, vpTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.exactcheck", 	 2, vpTy, Int32Ty, Int32Ty, vpTy);
-  REG_FUNC(SC_INTRINSIC_GEPCHECK,	"sc.exactcheck2",  1, vpTy, vpTy, vpTy, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_MEMCHECK,	"sc.funccheck", 	1, VoidTy, Int32Ty, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_OOB,	        "sc.get_actual_val",	0, vpTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_register",	1, VoidTy, vpTy, vpTy, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_unregister",	1, VoidTy, vpTy, vpTy);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.register_globals",	0, VoidTy,);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_runtime",	0, VoidTy,);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.init_pool_runtime" ,0, VoidTy, Int32Ty, Int32Ty, Int32Ty);
-  REG_FUNC(SC_INTRINSIC_MISC,		"sc.pool_argvregister" ,0, VoidTy, Int32Ty, PointerType::getUnqual(vpTy));
+  FunctionType * LSCheckAlignTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(vpTy, vpTy, Int32Ty), false);
+
+  FunctionType * BoundsCheckTy = FunctionType::get
+    (vpTy, args<const Type*>::list(vpTy, vpTy, vpTy), false);
+
+  FunctionType * ExactCheck2Ty = FunctionType::get
+    (vpTy, args<const Type*>::list(vpTy, vpTy, Int32Ty), false);
+
+  FunctionType * FuncCheckTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(Int32Ty, vpTy, vpTy), false);
+
+  FunctionType * GetActualValTy = FunctionType::get
+    (vpTy, args<const Type*>::list(vpTy, vpTy), false);
+
+  FunctionType * PoolRegTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(vpTy, vpTy, Int32Ty), false);
+
+  FunctionType * PoolUnregTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(vpTy, vpTy), false);
+
+  FunctionType * PoolArgRegTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(Int32Ty, PointerType::getUnqual(vpTy)), false);
+
+  FunctionType * RegisterGlobalsTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(), false);
+
+  FunctionType * InitRuntimeTy = RegisterGlobalsTy;
+
+  FunctionType * InitPoolRuntimeTy = FunctionType::get
+    (VoidTy, args<const Type*>::list(Int32Ty, Int32Ty, Int32Ty), false);
+
+  addIntrinsic
+    ("sc.lscheck",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_MEMCHECK,
+     LSCheckTy, 1);
+
+  addIntrinsic
+    ("sc.lscheckui",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_MEMCHECK,
+     LSCheckTy, 1);
+
+  addIntrinsic
+    ("sc.lscheckalign",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_MEMCHECK,
+     LSCheckAlignTy, 1);
+
+  addIntrinsic
+    ("sc.lscheckalignui",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_MEMCHECK,
+     LSCheckAlignTy, 1);
+
+  addIntrinsic
+    ("sc.boundscheck",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_BOUNDSCHECK,
+     BoundsCheckTy, 2);
+  
+  addIntrinsic
+    ("sc.boundscheckui",
+    SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_BOUNDSCHECK,
+     BoundsCheckTy, 2);
+
+  addIntrinsic
+    ("sc.exactcheck2",
+    SC_INTRINSIC_HAS_VALUE_POINTER
+    | SC_INTRINSIC_CHECK | SC_INTRINSIC_BOUNDSCHECK,
+     ExactCheck2Ty, 1);
+
+  addIntrinsic
+    ("sc.funccheck",
+     SC_INTRINSIC_HAS_VALUE_POINTER |
+     SC_INTRINSIC_CHECK | SC_INTRINSIC_MEMCHECK,
+     FuncCheckTy, 1);
+
+  addIntrinsic
+    ("sc.get_actual_val",
+     SC_INTRINSIC_OOB,
+     GetActualValTy, 1);
+
+  addIntrinsic
+    ("sc.pool_register",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolRegTy, 1);
+
+  addIntrinsic
+    ("sc.pool_unregister",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolUnregTy, 1);
+
+  addIntrinsic
+    ("sc.pool_argvregister",
+     SC_INTRINSIC_REGISTRATION,
+     PoolArgRegTy, 1);
+
+  addIntrinsic
+    ("sc.register_globals",
+     SC_INTRINSIC_REGISTRATION,
+     RegisterGlobalsTy);
+
+  addIntrinsic
+    ("sc.init_runtime",
+     SC_INTRINSIC_MISC,
+     InitRuntimeTy);
+
+  addIntrinsic
+    ("sc.init_pool_runtime",
+     SC_INTRINSIC_MISC,
+     InitPoolRuntimeTy);
 
   // We always change the module.
   return true;
@@ -88,10 +189,10 @@ InsertSCIntrinsic::runOnModule(Module & M) {
 //
 //
 void
-InsertSCIntrinsic::addIntrinsic (IntrinsicType type,
-                                 const std::string & name,
+InsertSCIntrinsic::addIntrinsic (const char * name,
+                                 unsigned int flag,
                                  FunctionType * FTy,
-                                 unsigned ptrindex) {
+                                 unsigned ptrindex /* = 0 */) {
   //
   // Check that this pass has already analyzed an LLVM Module.
   //
@@ -103,7 +204,7 @@ InsertSCIntrinsic::addIntrinsic (IntrinsicType type,
   //
   // Create the new intrinsic function and configure its SAFECode attributes.
   //
-  info.type = type;
+  info.flag = flag;
   info.F = dyn_cast<Function> (currentModule->getOrInsertFunction(name, FTy));
   info.ptrindex = ptrindex;
 
@@ -111,12 +212,13 @@ InsertSCIntrinsic::addIntrinsic (IntrinsicType type,
   // Map the function name and LLVM Function pointer to its SAFECode attributes.
   //
   intrinsics.push_back (info);
-  intrinsicNameMap.insert (std::make_pair (name, intrinsics.size() - 1));
+  intrinsicNameMap.insert
+    (StringMapEntry<uint32_t>::Create(name, name + strlen(name), intrinsics.size() - 1));
 }
 
 const InsertSCIntrinsic::IntrinsicInfoTy &
 InsertSCIntrinsic::getIntrinsic(const std::string & name) const {
-  std::map<std::string, uint32_t>::const_iterator it = intrinsicNameMap.find(name);
+  StringMap<uint32_t>::const_iterator it = intrinsicNameMap.find(name);
   assert(it != intrinsicNameMap.end() && "Intrinsic should be defined before uses!");
   return intrinsics[it->second];
 }
@@ -131,13 +233,14 @@ InsertSCIntrinsic::getIntrinsic(const std::string & name) const {
 // Inputs:
 //  inst - The LLVM Value to check.  It can be any value, including
 //         non-instruction values.
+//  flag - Indicate the property in the desired intrinsic
 //
 // Return value:
 //  true  - The LLVM value is a call to a SAFECode run-time function.
 //  false - The LLVM value is not a call to a SAFECode run-time function.
 //
 bool
-InsertSCIntrinsic::isSCIntrinsic(Value * inst) const {
+InsertSCIntrinsic::isSCIntrinsicWithFlags(Value * inst, unsigned flag) const {
   if (!isa<CallInst>(inst)) 
     return false;
 
@@ -148,86 +251,19 @@ InsertSCIntrinsic::isSCIntrinsic(Value * inst) const {
 
   const std::string & name = F->getName();
 
-  return intrinsicNameMap.find(name) != intrinsicNameMap.end();
-}
 
-//
-// Method: isCheckingIntrinsic()
-//
-// Description:
-//  Determine whether the specified LLVM value is a call instruction to a
-//  SAFECode run-time check.
-//
-// Inputs:
-//  inst - An LLVM value which may be a call instruction.  It can be any LLVM
-//         value (including non-instruction values).
-//
-// Return value:
-//  true  - The LLVM value is a call instruction to a SAFECode run-time check.
-//  false - The LLVM value is not a call instruction to a SAFECode run-time
-//          check.
-//
-bool
-InsertSCIntrinsic::isCheckingIntrinsic (Value * inst) const {
-  //
-  // Determine whether the instruction is a call to a SAFECode intrinsic.  If
-  // if isn't, we know it's not a checking instruction.
-  //
-  if (!isSCIntrinsic(inst))
+  StringMap<uint32_t>::const_iterator it = intrinsicNameMap.find(name);
+
+  if (it == intrinsicNameMap.end())
     return false;
 
-  CallInst * CI = dyn_cast<CallInst>(inst);
-  assert (CI && "Change in API; Intrinsic is not a CallInst!");
-
-  std::string name = CI->getCalledFunction()->getName();
-  const IntrinsicInfoTy & info = getIntrinsic(name);
-
-  //
-  // Memory checks and GEP checks are both SAFECode checking intrinsics.
-  //
-  return (info.type == SC_INTRINSIC_MEMCHECK) ||
-         (info.type == SC_INTRINSIC_GEPCHECK);
-}
-
-//
-// Method: isGEPCheckingIntrinsic()
-//
-// Description:
-//  Determine whether the specified LLVM value is a call instruction to a
-//  SAFECode run-time check that does a bounds check.
-//
-// Inputs:
-//  V - An LLVM value which may be a call instruction.  It can be any LLVM
-//      value (including non-instruction values).
-//
-// Return value:
-//  true  - The LLVM value is a call instruction to a SAFECode GEP check.
-//  false - The LLVM value is not a call instruction to a SAFECode GEP check.
-//
-bool
-InsertSCIntrinsic::isGEPCheckingIntrinsic (Value * V) const {
-  //
-  // Determine whether the instruction is a call to a SAFECode intrinsic.  If
-  // if isn't, we know it's not a checking instruction.
-  //
-  if (!isSCIntrinsic(V))
-    return false;
-
-  CallInst * CI = dyn_cast<CallInst>(V);
-  assert (CI && "Change in API; Intrinsic is not a CallInst!");
-
-  std::string name = CI->getCalledFunction()->getName();
-  const IntrinsicInfoTy & info = getIntrinsic(name);
-
-  //
-  // Memory checks and GEP checks are both SAFECode checking intrinsics.
-  //
-  return (info.type == SC_INTRINSIC_GEPCHECK);
+  const IntrinsicInfoTy & info = intrinsics[it->getValue()];
+  return info.flag && flag;
 }
 
 Value *
-InsertSCIntrinsic::getCheckedPointer (CallInst * CI) {
-  if (isCheckingIntrinsic (CI)) {
+InsertSCIntrinsic::getValuePointer (CallInst * CI) {
+  if (isSCIntrinsicWithFlags (CI, SC_INTRINSIC_HAS_VALUE_POINTER)) {
     const IntrinsicInfoTy & info = intrinsics[intrinsicNameMap[CI->getCalledFunction()->getName()]];
 
     //
@@ -238,7 +274,7 @@ InsertSCIntrinsic::getCheckedPointer (CallInst * CI) {
     return (CI->getOperand(info.ptrindex+1));
   }
 
-  return 0;
+  return NULL;
 }
 
 

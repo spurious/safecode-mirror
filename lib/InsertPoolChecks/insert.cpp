@@ -111,7 +111,9 @@ InsertPoolChecks::addCheckProto(Module &M) {
   PoolCheckAlignUI 	= intrinsic->getIntrinsic("sc.lscheckalignui").F;
   PoolCheckArray 	= intrinsic->getIntrinsic("sc.boundscheck").F;
   PoolCheckArrayUI 	= intrinsic->getIntrinsic("sc.boundscheckui").F;
+#if 0
   ExactCheck		= intrinsic->getIntrinsic("sc.exactcheck").F;
+#endif
   FunctionCheck 	= intrinsic->getIntrinsic("sc.funccheck").F;
 
   //
@@ -511,6 +513,8 @@ std::cerr << "Ins   : " << *GEP << std::endl;
       Value *PH = dsnPass->getPoolHandle(GEP, F, *FI);
       if (PH && isa<ConstantPointerNull>(PH)) return;
 
+      assert (PH && "Every GEP should have a pool handle!");
+#if 0
       if (!PH) {
         Value *PointerOperand = GEPNew->getPointerOperand();
         if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
@@ -579,6 +583,8 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         //      (*iCurrent)->dump();
         return ;
       } else {
+#endif
+        {
         //
         // Determine if this is a pool belonging to a cloned version of the
         // function.  If so, do not add a pool check.

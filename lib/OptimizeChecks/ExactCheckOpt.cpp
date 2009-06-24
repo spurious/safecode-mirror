@@ -29,9 +29,8 @@ ExactCheckOpt::runOnModule(Module & M) {
 
   InsertSCIntrinsic::intrinsic_const_iterator i, e;
   for (i = intrinsic->intrinsic_begin(), e = intrinsic->intrinsic_end(); i != e; ++i) {
-    // FIXME: the code is actually in Intrinsic.cpp, refactor required here.
-    if (i->type == InsertSCIntrinsic::SC_INTRINSIC_GEPCHECK
-        || i->type == InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK) {
+    if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK
+                   | InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK)) {
       checkingIntrinsicsToBeRemoved.clear();
       Function * F = i->F;
       for (Value::use_iterator UI = F->use_begin(), E = F->use_end(); UI != E; ++UI) {
@@ -70,7 +69,7 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
   //
   // Get the pointer that is checked by this run-time check.
   //
-  Value * CheckPtr = intrinsic->getCheckedPointer(CI);
+  Value * CheckPtr = intrinsic->getValuePointer(CI);
 
   //
   // Strip off all casts and GEPs to try to find the source of the pointer.
