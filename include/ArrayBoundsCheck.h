@@ -70,7 +70,6 @@ private:
   InsertSCIntrinsic * intrinsicPass;
   TargetData * TD;
   ScalarEvolution * SE;
-  bool isConstantIndexGEP(GetElementPtrInst * GEP);
 };
 
 
