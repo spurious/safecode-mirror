@@ -16,6 +16,8 @@
 #include "PoolAllocator.h"
 #include "Report.h"
 
+#include "llvm/ADT/DenseMap.h"
+
 using namespace NAMESPACE_SC; 
 
 NAMESPACE_SC_BEGIN
@@ -23,9 +25,12 @@ NAMESPACE_SC_BEGIN
 DebugPoolTy OOBPool;
 
 // Map between rewrite pointer and source file information
-std::map<void *, const char*>    RewriteSourcefile;
-std::map<void *, unsigned> RewriteLineno;
-std::map<const void *, const void *>   RewrittenPointers;
+llvm::DenseMap<void *, const char*>    RewriteSourcefile;
+llvm::DenseMap<void *, unsigned> RewriteLineno;
+llvm::DenseMap<const void *, const void *>   RewrittenPointers;
+
+// Record from which object an OOB pointer originates
+llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
 
 //
 // Function: rewrite_ptr()

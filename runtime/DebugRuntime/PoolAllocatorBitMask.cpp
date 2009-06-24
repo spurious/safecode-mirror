@@ -65,9 +65,6 @@ DebugPoolTy dummyPool;
 // Structure defining configuration data
 struct ConfigData ConfigData = {false, true, false};
 
-// Record from which object an OOB pointer originates
-std::map<void *, std::pair<const void *, const void * > > RewrittenObjs;
-
 // Invalid address range
 #if !defined(__linux__)
 unsigned InvalidUpper = 0x00000000;

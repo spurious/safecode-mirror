@@ -23,11 +23,12 @@
 #include <unistd.h>
 
 #include <cassert>
+#include <cstring>
 #include <iostream>
 #include <vector>
-#include <map>
 #include <utility>
-#include <string.h>
+
+#include "llvm/ADT/DenseMap.h"
 
 // this is for dangling pointer detection in Mac OS X
 #if defined(__APPLE__)
@@ -53,7 +54,7 @@ struct ShadowInfo {
 };
 
 // Map canonical pages to their shadow pages
-std::map<void *,std::vector<struct ShadowInfo> > ShadowPages;
+llvm::DenseMap<void *,std::vector<struct ShadowInfo> > ShadowPages;
 
 // If not compiling on Mac OS X, define types and values to make the same code
 // work on multiple platforms.
@@ -318,14 +319,14 @@ void *AllocatePage() {
     }
 
     // Place the shadow pages into the shadow cache
-    std::vector<struct ShadowInfo> Shadows(NumShadows);
     for (unsigned i = 0; i != NumToAllocate; ++i) {
       char * PagePtr = Ptr+i*PageSize;
+      std::vector<struct ShadowInfo> & Shadows = ShadowPages[(void*)PagePtr];
+      Shadows.reserve(NumShadows);
       for (unsigned j=0; j < NumShadows; ++j) {
         Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);
         Shadows[j].InUse       = 0;
       }
-      ShadowPages.insert(std::make_pair((void *)PagePtr,Shadows));
     }
   }
 

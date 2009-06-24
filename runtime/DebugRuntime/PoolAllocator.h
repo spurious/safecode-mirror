@@ -17,7 +17,7 @@
 
 #include "SafeCodeRuntime.h"
 
-#include <map>
+#include "llvm/ADT/DenseMap.h"
 
 NAMESPACE_SC_BEGIN
 
@@ -31,12 +31,12 @@ extern RangeSplaySet<> ExternalObjects;
 extern DebugPoolTy OOBPool;
 
 // Map between rewrite pointer and source file information
-extern std::map<void *, const char*>    RewriteSourcefile;
-extern std::map<void *, unsigned> RewriteLineno;
-extern std::map<const void *, const void *>   RewrittenPointers;
+extern llvm::DenseMap<void *, const char*>    RewriteSourcefile;
+extern llvm::DenseMap<void *, unsigned> RewriteLineno;
+extern llvm::DenseMap<const void *, const void *>   RewrittenPointers;
 
 // Record from which object an OOB pointer originates
-extern std::map<void *, std::pair<const void *, const void * > > RewrittenObjs;
+extern llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
 
 
 NAMESPACE_SC_END
