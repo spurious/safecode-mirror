@@ -88,7 +88,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
     if ((GV->getSection()) == "llvm.metadata") continue;
 
     if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
-    if (strncmp(name.c_str(), "poolalloc.", 10) == 0) continue;
+    if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
    
     if (SCConfig->SVAEnabled) {
       // Linking fails when registering objects in section exitcall.exit
