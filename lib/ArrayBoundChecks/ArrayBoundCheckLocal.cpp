@@ -79,12 +79,13 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   if (!objSize)
     return false;
 
-  const SCEV * GEPBase = SE->getSCEV(GEP->getOperand(0));
-
+  const SCEV * GEPBase = SE->getSCEV(PointerOperand);
   const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(GEP), GEPBase);
   const SCEV * bounds = SE->getSCEV(objSize);
+  const SCEV * diff = SE->getMinusSCEV(bounds, offset);
+  const SCEV * zero = SE->getSCEV(ConstantInt::getNullValue(Type::Int32Ty));
 
-  if (SE->getSMaxExpr(offset, bounds) == bounds) {
+  if (SE->getSMaxExpr(diff, zero) == diff) {
     ++safeGEPs;
     return true;
   }
