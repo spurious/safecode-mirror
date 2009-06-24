@@ -304,7 +304,9 @@ int main(int argc, char **argv) {
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
-      Passes.add(new RewriteOOB());
+      if (SCConfig->RewriteOOB) {
+        Passes.add(new RewriteOOB());
+      }
     }
 
 #if 0
