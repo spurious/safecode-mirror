@@ -243,11 +243,30 @@ InsertSCIntrinsic::getCheckedPointer (CallInst * CI) {
 
 
 //
+// Attempt to look for the originally allocated object by scanning the data
+// flow up.
+//
+static Value * findObject(Value * obj) {
+  Value * oldObj;
+  do {
+    oldObj = obj;
+    if (isa<CastInst>(obj)) {
+      obj = cast<CastInst>(obj)->getOperand(0);
+    } else if (isa<GetElementPtrInst>(obj)) {
+      obj = cast<GetElementPtrInst>(obj)->getPointerOperand();
+    }
+  } while (oldObj != obj);
+  return obj;
+}
+
+//
 // Check to see if we're indexing off the beginning of a known object.  If
 // so, then find the size of the object.  Otherwise, return NULL.
 //
 Value *
 InsertSCIntrinsic::getObjectSize(Value * V) {
+  V = findObject(V);
+
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
     return ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
   }
