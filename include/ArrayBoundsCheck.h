@@ -20,6 +20,7 @@
 
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
 #include "llvm/Pass.h"
@@ -61,12 +62,14 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage & AU) const {
     AU.addRequired<TargetData>();
     AU.addRequired<InsertSCIntrinsic>();
+    AU.addRequired<ScalarEvolution>();
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
 private:
   InsertSCIntrinsic * intrinsicPass;
   TargetData * TD;
+  ScalarEvolution * SE;
   bool isConstantIndexGEP(GetElementPtrInst * GEP);
 };
 
