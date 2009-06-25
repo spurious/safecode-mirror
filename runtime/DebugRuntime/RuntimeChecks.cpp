@@ -97,33 +97,7 @@ isRewritePtr (void * p) {
 
 
 void
-poolcheck (DebugPoolTy *Pool, void *Node) {
-  if (_barebone_poolcheck (Pool, Node))
-    return;
-
-  //
-  // Look for the object within the splay tree of external objects.
-  //
-  int fs = 0;
-  void * S, *end;
-	if (1) {
-		S = Node;
-		fs = ExternalObjects.find (Node, S, end);
-		if ((fs) && (S <= Node) && (Node <= end)) {
-			return;
-		}
-	}
-
-  //
-  // We cannot find the pointer anywhere!  Time to fail a load/store check!
-  //
-  ReportLoadStoreCheck (Node, __builtin_return_address(0), "<Unknown>", 0);
-
-  return;
-}
-
-void
-poolcheck_debug (DebugPoolTy *Pool, void *Node, void * SourceFilep, unsigned lineno) {
+poolcheck_debug (DebugPoolTy *Pool, void *Node, const char * SourceFilep, unsigned lineno) {
   if (_barebone_poolcheck (Pool, Node))
     return;
  
@@ -202,7 +176,7 @@ poolcheckui (DebugPoolTy *Pool, void *Node) {
 // Return value:
 //  Returns true if the object is found.
 //
-bool 
+static bool 
 boundscheck_lookup (DebugPoolTy * Pool, void * & Source, void * & End ) {
   // Search for object for Source in splay tree, return length 
   return Pool->Objects.find(Source, Source, End);
@@ -226,7 +200,7 @@ boundscheck_lookup (DebugPoolTy * Pool, void * & Source, void * & End ) {
 //  If ObjLen is zero, then the lookup says that Source was not found within
 //  any valid object.
 //
-void *
+static void *
 boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Pool,
                    void * Source, void * Dest, bool CanFail,
                    const char * SourceFile, unsigned int lineno) {
@@ -431,36 +405,6 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
 }
 
 //
-// Function: boundscheck()
-//
-// Description:
-//  Perform a precise bounds check.  Ensure that Source is within a valid
-//  object within the pool and that Dest is within the bounds of the same
-//  object.
-//
-void *
-boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
-  // This code is inlined at all boundscheck() calls
-
-  // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source, * ObjEnd;
-  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
-
-  // Check if destination lies in the same object
-  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
-                        ((Dest <= ObjEnd))), 1)) {
-    return Dest;
-  } else {
-    //
-    // Either:
-    //  1) A valid object was not found in splay tree, or
-    //  2) Dest is not within the valid object in which Source was found
-    //
-    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true, NULL, 0);  
-  }
-}
-
-//
 // Function: boundscheck_debug()
 //
 // Description:
@@ -486,39 +430,6 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * 
     //  2) Dest is not within the valid object in which Source was found
     //
     return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, true, SourceFile, lineno);  
-  }
-}
-
-//
-// Function: boundscheckui()
-//
-// Description:
-//  Perform a bounds check (with lookup) on the given pointers.
-//
-// Inputs:
-//  Pool - The pool to which the pointers (Source and Dest) should belong.
-//  Source - The Source pointer of the indexing operation (the GEP).
-//  Dest   - The result of the indexing operation (the GEP).
-//
-void *
-boundscheckui (DebugPoolTy * Pool, void * Source, void * Dest) {
-  // This code is inlined at all boundscheckui calls
-
-  // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source, * ObjEnd;
-  bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
-
-  // Check if destination lies in the same object
-  if (__builtin_expect ((ret && (ObjStart <= Dest) &&
-                        ((Dest <= ObjEnd))), 1)) {
-    return Dest;
-  } else {
-    //
-    // Either:
-    //  1) A valid object was not found in splay tree, or
-    //  2) Dest is not within the valid object in which Source was found
-    //
-    return boundscheck_check (ret, ObjStart, ObjEnd, Pool, Source, Dest, false, NULL, 0);
   }
 }
 
@@ -571,3 +482,36 @@ boundscheckui_debug (DebugPoolTy * Pool,
   }
 }
 
+void
+poolcheck (DebugPoolTy *Pool, void *Node) {
+  poolcheck_debug(Pool, Node, "<unknown>", 0);
+}
+
+//
+// Function: boundscheck()
+//
+// Description:
+//  Perform a precise bounds check.  Ensure that Source is within a valid
+//  object within the pool and that Dest is within the bounds of the same
+//  object.
+//
+void *
+boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
+  return boundscheck_debug(Pool, Source, Dest, "<unknown>", 0);
+}
+
+//
+// Function: boundscheckui()
+//
+// Description:
+//  Perform a bounds check (with lookup) on the given pointers.
+//
+// Inputs:
+//  Pool - The pool to which the pointers (Source and Dest) should belong.
+//  Source - The Source pointer of the indexing operation (the GEP).
+//  Dest   - The result of the indexing operation (the GEP).
+//
+void *
+boundscheckui (DebugPoolTy * Pool, void * Source, void * Dest) {
+  return boundscheckui_debug (Pool, Source, Dest, "<unknown>", 0);
+}
