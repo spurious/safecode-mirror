@@ -54,6 +54,9 @@
 #include <iostream>
 #include <memory>
 
+namespace llvm {
+  extern ModulePass * createSteensgaardPass();
+}
 using namespace llvm;
 using namespace NAMESPACE_SC;
 
@@ -329,6 +332,8 @@ int main(int argc, char **argv) {
     // Attempt to optimize the checks.
     //
     Passes.add (new OptimizeChecks());
+
+    Passes.add (new PoolRegisterElimination());
 
 #ifdef SC_DEBUGTOOL
     if (EnableDebugInfo)

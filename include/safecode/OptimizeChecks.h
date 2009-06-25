@@ -19,10 +19,15 @@
 #include "safecode/PoolHandles.h"
 
 #include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
+
+namespace llvm {
+  class AliasSetTracker;
+}
 
 NAMESPACE_SC_BEGIN
 
@@ -99,6 +104,41 @@ struct ExactCheckOpt : public ModulePass {
                              Value * ResultPointer, Value * Bounds);
     Value * getBasePtr (Value * PointerOperand, bool & indexed);
     std::vector<CallInst*> checkingIntrinsicsToBeRemoved;
+};
+
+//
+// Pass: PoolRegisterElimination
+//
+// Description:
+//  This pass eliminate unnessary poolregister() / poolunregister() in the
+//  code. Redundant poolregister() happens when there are no boundscheck() /
+//  poolcheck() on a certain GEP, possibly all of these checks are lowered to
+//  exact checks.
+//
+struct PoolRegisterElimination : public ModulePass {
+ public:
+  static char ID;
+  PoolRegisterElimination() : ModulePass((intptr_t)(&ID)) {}
+  virtual bool runOnModule (Module & M);
+  const char *getPassName() const {
+    return "Pool Register Elimination";
+  }
+  
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    // We need to know about SAFECode intrinsics
+    AU.addRequired<InsertSCIntrinsic>();
+    AU.addRequired<AliasAnalysis>();
+    // Pretend that we don't modify anything
+    AU.setPreservesAll();
+  }
+
+ private:
+  // References to required analysis passes
+  InsertSCIntrinsic * intrinsic;
+  AliasAnalysis * AA;
+  AliasSetTracker * AST;
+  void markUsedAliasSet(const char * name);
+  void removeUnusedRegistration(const char * name);
 };
 
 NAMESPACE_SC_END
