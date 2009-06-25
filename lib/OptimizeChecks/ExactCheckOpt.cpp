@@ -14,16 +14,27 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "exactcheck-opt"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/Support/AllocatorInfo.h"
 #include "SCUtils.h"
 
+#include "llvm/ADT/Statistic.h"
+
 NAMESPACE_SC_BEGIN
+
+static RegisterPass<ExactCheckOpt> X ("exactcheck-opt", "Exact check optimization");
+
+// Pass Statistics
+namespace {
+  STATISTIC (ExactChecks ,    "The number of checks lowered to exactcheck");
+}
 
 char ExactCheckOpt::ID = 0;
 
 bool
 ExactCheckOpt::runOnModule(Module & M) {
+  ExactChecks = 0;
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   ExactCheck2 = intrinsic->getIntrinsic("sc.exactcheck2").F;
 
@@ -40,6 +51,7 @@ ExactCheckOpt::runOnModule(Module & M) {
         }
       }
 
+      ExactChecks += checkingIntrinsicsToBeRemoved.size();
       // Remove checking intrinsics that have been optimized
       for (std::vector<CallInst*>::const_iterator i = checkingIntrinsicsToBeRemoved.begin(), e = checkingIntrinsicsToBeRemoved.end(); i != e; ++i) {
         (*i)->eraseFromParent();
