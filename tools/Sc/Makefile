@@ -23,6 +23,7 @@ USEDLIBS := CStdLib.a faultinject.a oob.a optchecks.a \
 
 include $(LEVEL)/Makefile.common
 
-LIBS += -L$(POOLALLOC_OBJDIR)/$(BuildMode)/lib -lpoolalloc \
-					-lLLVMDataStructure -lLLVMSupport -lLLVMSystem
+LIBS += $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.a \
+        $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a \
+        -lLLVMSupport -lLLVMSystem
 
