@@ -23,6 +23,9 @@
 #include "llvm/Instructions.h"
 #include "llvm/Constants.h"
 
+#include <set>
+#include <queue>
+
 using namespace llvm;
 
 NAMESPACE_SC_BEGIN
@@ -283,16 +286,31 @@ InsertSCIntrinsic::getValuePointer (CallInst * CI) {
 // flow up.
 //
 static Value * findObject(Value * obj) {
-  Value * oldObj;
-  do {
-    oldObj = obj;
-    if (isa<CastInst>(obj)) {
-      obj = cast<CastInst>(obj)->getOperand(0);
-    } else if (isa<GetElementPtrInst>(obj)) {
-      obj = cast<GetElementPtrInst>(obj)->getPointerOperand();
+  std::set<Value *> exploredObjects;
+  std::set<Value *> objects;
+  std::queue<Value *> queue;
+  queue.push(obj);
+  while (!queue.empty()) {
+    Value * o = queue.front();
+    queue.pop();
+    if (exploredObjects.count(o)) continue;
+
+    exploredObjects.insert(o);
+
+    if (isa<CastInst>(o)) {
+      queue.push(cast<CastInst>(o)->getOperand(0));
+    } else if (isa<GetElementPtrInst>(o)) {
+      queue.push(cast<GetElementPtrInst>(o)->getPointerOperand());
+    } else if (isa<PHINode>(o)) {
+      PHINode * p = cast<PHINode>(o);
+      for(unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
+        queue.push(p->getIncomingValue(i));
+      }
+    } else {
+      objects.insert(o);
     }
-  } while (oldObj != obj);
-  return obj;
+  }
+  return objects.size() == 1 ? *(objects.begin()) : NULL;
 }
 
 //
@@ -302,6 +320,9 @@ static Value * findObject(Value * obj) {
 Value *
 InsertSCIntrinsic::getObjectSize(Value * V) {
   V = findObject(V);
+  if (!V) {
+    return NULL;
+  }
 
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
     return ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
