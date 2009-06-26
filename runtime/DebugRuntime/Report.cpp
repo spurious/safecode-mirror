@@ -83,11 +83,11 @@ ReportDanglingPointer (void * addr,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Dangling pointer access to memory address 0x%p \n", id, addr);
-  fprintf (ReportLog, "%04d:                        at program counter 0x%p\n", id, (void*)pc);
-  fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%p \n", id, (void*)allocpc);
+  fprintf (ReportLog, "%04d: Dangling pointer access to memory address %p \n", id, addr);
+  fprintf (ReportLog, "%04d:                        at program counter %p\n", id, (void*)pc);
+  fprintf (ReportLog, "%04d:\tObject allocated at program counter   : %p \n", id, (void*)allocpc);
   fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocgen);
-  fprintf (ReportLog, "%04d:\tObject freed at program counter       : 0x%p \n", id, (void*)freepc);
+  fprintf (ReportLog, "%04d:\tObject freed at program counter       : %p \n", id, (void*)freepc);
   fprintf (ReportLog, "%04d:\tObject free generation number         : %d \n", id, freegen);
   fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   if (StopOnError) ABORT_PROGRAM();
@@ -160,16 +160,16 @@ ReportBoundsCheck (unsigned src,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%p\n", id, (void*)dest);
-  fprintf (ReportLog, "%04d:                 at program counter 0x%p\n", id, (void*)pc);
-  fprintf (ReportLog, "%04d:\tIndex source pointer : 0x%p \n", id, (void*)src);
-  fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%p \n", id, (void*)dest);
+  fprintf (ReportLog, "%04d: Bounds violation to memory address %p\n", id, (void*)dest);
+  fprintf (ReportLog, "%04d:                 at program counter %p\n", id, (void*)pc);
+  fprintf (ReportLog, "%04d:\tIndex source pointer : %p \n", id, (void*)src);
+  fprintf (ReportLog, "%04d:\tIndex result pointer : %p \n", id, (void*)dest);
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   if (objstart || objlen) {
-    fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%p \n", id, (void*)objstart);
-    fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%p \n", id, (void*)(objstart+objlen));
-    fprintf (ReportLog, "%04d:\tObject allocated at program counter   : 0x%p \n", id, (void*)allocPC);
+    fprintf (ReportLog, "%04d:\tObject lower bound   : %p \n", id, (void*)objstart);
+    fprintf (ReportLog, "%04d:\tObject upper bound   : %p \n", id, (void*)(objstart+objlen));
+    fprintf (ReportLog, "%04d:\tObject allocated at program counter   : %p \n", id, (void*)allocPC);
     fprintf (ReportLog, "%04d:\tObject allocation generation number   : %d \n", id, allocID);
     fprintf (ReportLog, "%04d:\tObject allocated in source file       : %s \n", id, allocSF);
     fprintf (ReportLog, "%04d:\tObject allocated at line number       : %d \n", id, allocLN);
@@ -210,14 +210,14 @@ ReportExactCheck (unsigned src,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Bounds violation to memory address 0x%p (ExactCheck)\n", id, (void*)dest);
-  fprintf (ReportLog, "%04d:                 at program counter 0x%p\n", id, (void*)pc);
+  fprintf (ReportLog, "%04d: Bounds violation to memory address %p (ExactCheck)\n", id, (void*)dest);
+  fprintf (ReportLog, "%04d:                 at program counter %p\n", id, (void*)pc);
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
-  fprintf (ReportLog, "%04d:\tIndex result pointer : 0x%p \n", id, (void*) dest);
+  fprintf (ReportLog, "%04d:\tIndex result pointer   : %p \n", id, (void*)dest);
   if (objstart || objlen) {
-    fprintf (ReportLog, "%04d:\tObject lower bound   : 0x%p \n", id, (void*) objstart);
-    fprintf (ReportLog, "%04d:\tObject upper bound   : 0x%p \n", id, (void*) (objstart+objlen));
+    fprintf (ReportLog, "%04d:\tObject lower bound   : %p \n", id, (void*) objstart);
+    fprintf (ReportLog, "%04d:\tObject upper bound   : %p \n", id, (void*) (objstart+objlen));
     fprintf(ReportLog, "=======+++++++    end of runtime error report    +++++++=======\n");
   } else {
     fprintf (ReportLog, "%04d:\tNot found within object\n", id);
@@ -253,11 +253,11 @@ ReportOOBPointer (unsigned pc,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address 0x%p\n", id, (void*)ptr);
-  fprintf (ReportLog, "%04d:                 at program counter 0x%p\n", id, (void*)pc);
-  fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : 0x%p \n", id, oobp);
-  fprintf (ReportLog, "%04d:\tStart of Object               : 0x%p \n", id, ObjStart);
-  fprintf (ReportLog, "%04d:\tEnd of Object                 : 0x%p \n", id, ObjEnd);
+  fprintf (ReportLog, "%04d: Load/Store violation to out of bounds memory address %p\n", id, (void*)ptr);
+  fprintf (ReportLog, "%04d:                 at program counter %p\n", id, (void*)pc);
+  fprintf (ReportLog, "%04d:\tOut of Bounds rewrite pointer : %p \n", id, oobp);
+  fprintf (ReportLog, "%04d:\tStart of Object               : %p \n", id, ObjStart);
+  fprintf (ReportLog, "%04d:\tEnd of Object                 : %p \n", id, ObjEnd);
   fprintf (ReportLog, "%04d:\tSource filename               : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number            : %d \n", id, lineno);
   fflush (ReportLog);
@@ -285,9 +285,9 @@ ReportInvalidFree (unsigned pc,
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();
 
-  fprintf (ReportLog, "%04d: Invalid free of address 0x%p\n", id,
+  fprintf (ReportLog, "%04d: Invalid free of address %p\n", id,
                                                                 (void*)ptr);
-  fprintf (ReportLog, "%04d:      at program counter 0x%p\n", id, (void*)pc);
+  fprintf (ReportLog, "%04d:      at program counter %p\n", id, (void*)pc);
   fprintf (ReportLog, "%04d:\tSource filename        : %s \n", id, SourceFile);
   fprintf (ReportLog, "%04d:\tSource line number     : %d \n", id, lineno);
   fflush (ReportLog);
