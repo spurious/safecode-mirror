@@ -174,8 +174,18 @@ convertExpression (ConstantExpr * CE, Instruction * InsertPt) {
       break;
     }
 
-    case Instruction:: ICmp:
     case Instruction:: FCmp:
+    case Instruction:: ICmp: {
+      Instruction::OtherOps Op = (Instruction::OtherOps)(CE->getOpcode());
+      NewInst = CmpInst::Create (Op,
+                                 CE->getPredicate(),
+                                 CE->getOperand(0),
+                                 CE->getOperand(1),
+                                 CE->getName(),
+                                 InsertPt);
+      break;
+    }
+
     case Instruction:: Select:
     case Instruction:: ExtractElement:
     case Instruction:: InsertElement:
