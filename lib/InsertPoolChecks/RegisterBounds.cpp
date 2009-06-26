@@ -222,6 +222,13 @@ RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
   Value * ptr = info->getFreedPointer(FreeSite)->stripPointerCasts();
 
   //
+  // If the pointer is a constant NULL pointer, then don't bother inserting
+  // an unregister call.
+  //
+  if (isa<ConstantPointerNull>(ptr))
+    return;
+
+  //
   // Get the pool handle for the freed pointer.
   //
   PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
