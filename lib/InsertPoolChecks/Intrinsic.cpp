@@ -337,6 +337,8 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
         } else {
           return NULL;
         }
+      } else {
+        return NULL;
       }
     }
     return ConstantInt::get(Type::Int32Ty, type_size);
