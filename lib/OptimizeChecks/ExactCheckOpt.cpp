@@ -32,19 +32,35 @@ namespace {
 
 char ExactCheckOpt::ID = 0;
 
+//
+// Method: runOnModule()
+//
+// Description:
+//  This method is the entry point for the transform pass.
+//
+// Inputs:
+//  M - The LLVM module to transform.
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was not modified.
+//
 bool
 ExactCheckOpt::runOnModule(Module & M) {
   ExactChecks = 0;
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   ExactCheck2 = intrinsic->getIntrinsic("sc.exactcheck2").F;
 
-  InsertSCIntrinsic::intrinsic_const_iterator i, e;
-  for (i = intrinsic->intrinsic_begin(), e = intrinsic->intrinsic_end(); i != e; ++i) {
+  InsertSCIntrinsic::intrinsic_const_iterator i = intrinsic->intrinsic_begin();
+  InsertSCIntrinsic::intrinsic_const_iterator e = intrinsic->intrinsic_end();
+  for (; i != e; ++i) {
     if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK
                    | InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK)) {
       checkingIntrinsicsToBeRemoved.clear();
       Function * F = i->F;
-      for (Value::use_iterator UI = F->use_begin(), E = F->use_end(); UI != E; ++UI) {
+      for (Value::use_iterator UI = F->use_begin(), E = F->use_end();
+           UI != E;
+           ++UI) {
         CallInst * CI = dyn_cast<CallInst>(*UI);
         if (CI) {
           visitCheckingIntrinsic(CI);
@@ -52,14 +68,20 @@ ExactCheckOpt::runOnModule(Module & M) {
       }
 
       ExactChecks += checkingIntrinsicsToBeRemoved.size();
+
+      //
       // Remove checking intrinsics that have been optimized
+      //
       for (std::vector<CallInst*>::const_iterator i = checkingIntrinsicsToBeRemoved.begin(), e = checkingIntrinsicsToBeRemoved.end(); i != e; ++i) {
         (*i)->eraseFromParent();
       }
     }
   }
 
-  return false;
+  //
+  // Conservatively assume that we have changed something in the module.
+  //
+  return true;
 }
 
 //
