@@ -317,14 +317,20 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   if (Node && (Node->isExternalNode())) return;
 
   //
-  // We need to check two types of pointers:
+  // Determine whether a load/store check (or an indirect call check) is
+  // required on the pointer.  These checks are required in the following
+  // circumstances:
+  //
   //  1) All Type-Unknown pointers.  These can be pointing anywhere.
   //  2) Type-Known pointers into an array.  If we reach this point in the
   //     code, then no previous GEP check has verified that this pointer is
   //     within bounds.  Therefore, a load/store check is needed to ensure that
   //     the pointer is within bounds.
+  //  3) Pointers that may have been integers casted into pointers.
   //
-  if (Node && (Node->isNodeCompletelyFolded() || Node->isArray())) {
+  if (Node &&
+      (Node->isNodeCompletelyFolded() || Node->isArray() ||
+       Node->isIntToPtrNode())) {
     // I am amazed the check here since the commet says that I is an load/store
     // instruction! 
     if (dyn_cast<CallInst>(I)) {
