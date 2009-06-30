@@ -78,14 +78,14 @@ EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
       if (CallInst *CI = dyn_cast<CallInst>(*UI)) {
         if (Function *calledF = dyn_cast<Function>(CI->getOperand(0))) {
           if (calledF == F) {
-            int operandNo;
+            int operandNo = 0;
             for (unsigned int i = 1; i < CI->getNumOperands(); i++)
               if (CI->getOperand(i) == V) {
                 operandNo = i;
                 break;
               }
             
-            Value *formalParam;
+            Value *formalParam = 0;
             int opi = 0;
             for (Function::arg_iterator I = calledF->arg_begin(), 
                                         E = calledF->arg_end();
@@ -106,7 +106,7 @@ EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
             // the pool pointer is passed to the called function
       
             // Find the formal parameter corresponding to the parameter V
-            int operandNo;
+            int operandNo = 0;
             unsigned int limit = CI->getNumOperands();
             for (unsigned int i = 1; i < limit; i++)
               if (CI->getOperand(i) == V) {
@@ -170,7 +170,7 @@ EmbeCFreeRemoval::checkPoolSSAVarUses(Function *F, Value *V,
           }
         } else {
           // Find the formal parameter corresponding to the parameter V
-          int operandNo;
+          int operandNo = 0;
           for (unsigned int i = 1; i < CI->getNumOperands(); i++)
             if (CI->getOperand(i) == V)
               operandNo = i;
@@ -238,7 +238,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
         if (calledF == F) {
           // Quick check for the common case
           // Find the formal parameter corresponding to the parameter V
-          int operandNo;
+          int operandNo = 0;
           for (unsigned int i = 1; i < CI->getNumOperands(); i++)
             if (CI->getOperand(i) == V) {
               operandNo = i;
@@ -267,7 +267,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
           // the pool pointer is passed to the called function
     
           // Find the formal parameter corresponding to the parameter V
-          int operandNo;
+          int operandNo = 0;
           for (unsigned int i = 1; i < CI->getNumOperands(); i++)
             if (CI->getOperand(i) == V) {
               operandNo = i;
@@ -290,7 +290,7 @@ EmbeCFreeRemoval::propagateCollapsedInfo (Function *F, Value *V) {
         //  std::pair<EQTDDataStructures::ActualCalleesTy::const_iterator, EQTDDataStructures::ActualCalleesTy::const_iterator> Callees = AC.equal_range(CI);
   
         // Find the formal parameter corresponding to the parameter V
-        int operandNo;
+        int operandNo = 0;
         for (unsigned int i = 1; i < CI->getNumOperands(); i++)
           if (CI->getOperand(i) == V)
             operandNo = i;
