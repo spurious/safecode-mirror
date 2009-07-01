@@ -19,6 +19,7 @@
 #include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/Module.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/PassManager.h"
 #include "llvm/Pass.h"
@@ -154,6 +155,7 @@ namespace {
 int main(int argc, char **argv) {
   std::string mt;
   std::string & msg = mt;
+  LLVMContext Context;
   llvm_shutdown_obj ShutdownObject;
 
   try {
@@ -165,7 +167,7 @@ int main(int argc, char **argv) {
     std::string ErrorMessage;
     if (MemoryBuffer *Buffer
           = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
-      M.reset(ParseBitcodeFile(Buffer, &ErrorMessage));
+      M.reset(ParseBitcodeFile(Buffer, &Context, &ErrorMessage));
       delete Buffer;
     }
 
