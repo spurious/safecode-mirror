@@ -45,7 +45,8 @@ PoolRegisterElimination::runOnModule(Module & M) {
   AA = &getAnalysis<AliasAnalysis>();
   AST = new AliasSetTracker(*AA);
 
-  // TODO: This should be tagged at the intrinsic pass
+  // FIXME: The list of intrinsics should be selected via scanning through the
+  // intrinsic lists with specified flags.
 
   const char * splayTreeCheckIntrinsics[] = 
     {"sc.lscheck", "sc.lscheckui", "sc.lscheckalign", "sc.lscheckalignui",
@@ -56,7 +57,7 @@ PoolRegisterElimination::runOnModule(Module & M) {
   }
 
   const char * registerIntrinsics[] = 
-    {"sc.pool_register", "sc.pool_unregister"};
+    {"sc.pool_register", "sc.pool_unregister", "sc.pool_argvregister"};
 
   for (size_t i = 0; i < sizeof(registerIntrinsics) / sizeof (const char*); ++i) {
     removeUnusedRegistration(registerIntrinsics[i]);
