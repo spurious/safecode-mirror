@@ -44,7 +44,7 @@ namespace {
 }
 
 NAMESPACE_SC_BEGIN
-//
+  //
   // Constant: meminitvalue
   //
   // Description:
