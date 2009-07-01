@@ -138,7 +138,7 @@ poolcheckui (DebugPoolTy *Pool, void *Node) {
   // Look for the object within the splay tree of external objects.
   //
   int fs = 0;
-  void * S, *end;
+  void * S, *end = 0;
 	if (ConfigData.TrackExternalMallocs) {
 		S = Node;
 		fs = ExternalObjects.find (Node, S, end);
@@ -416,7 +416,7 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * 
   // This code is inlined at all boundscheck() calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source, * ObjEnd;
+  void * ObjStart = Source, * ObjEnd = 0;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object
@@ -457,7 +457,7 @@ boundscheckui_debug (DebugPoolTy * Pool,
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
-  void * ObjStart = Source, * ObjEnd;
+  void * ObjStart = Source, * ObjEnd = 0;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   // Check if destination lies in the same object

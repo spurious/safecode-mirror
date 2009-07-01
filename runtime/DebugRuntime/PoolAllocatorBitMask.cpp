@@ -251,7 +251,7 @@ void
 __sc_dbg_poolargvregister (int argc, char ** argv) {
   for (int index=0; index < argc; ++index) {
     if (logregs) {
-      fprintf (stderr, "poolargvregister: %p %d: %s\n", argv[index], strlen(argv[index]), argv[index]);
+      fprintf (stderr, "poolargvregister: %p %u: %s\n", argv[index], strlen(argv[index]), argv[index]);
       fflush (stderr);
     }
     ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]));
@@ -607,7 +607,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     }
 #endif
     extern FILE * ReportLog;
-    fprintf(ReportLog, "signal handler: no debug meta data for %p: eip=%p\n", faultAddr, program_counter);
+    fprintf(ReportLog, "signal handler: no debug meta data for %p: eip=%p\n", faultAddr, (void*)program_counter);
     fflush(ReportLog);
     abort();
   }
