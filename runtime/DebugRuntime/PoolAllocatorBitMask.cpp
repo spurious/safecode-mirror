@@ -251,7 +251,8 @@ void
 __sc_dbg_poolargvregister (int argc, char ** argv) {
   for (int index=0; index < argc; ++index) {
     if (logregs) {
-      fprintf (stderr, "poolargvregister: %p %u: %s\n", argv[index], strlen(argv[index]), argv[index]);
+      fprintf (stderr, "poolargvregister: %p %u: %s\n", argv[index],
+               (unsigned)strlen(argv[index]), argv[index]);
       fflush (stderr);
     }
     ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]));
