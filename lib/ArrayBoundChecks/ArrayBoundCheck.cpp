@@ -1040,7 +1040,7 @@ ArrayBoundsCheck::checkSafety(Function &F) {
 void ArrayBoundsCheck::Omega(Instruction *maI, ABCExprTree *root ) {
   int p2cdes[2];
   int c2pdes[2];
-  pid_t pid, perlpid;
+  pid_t pid, perlpid = 0;
   pipe(p2cdes);
   pipe(c2pdes);
 
