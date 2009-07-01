@@ -39,7 +39,9 @@ PoolSlab::create(BitmapPoolTy *Pool) {
     }
 
   // Add the slab to the list...
-  PS->addToList((PoolSlab**)&Pool->Ptr1);
+  PoolSlab * P = (PoolSlab*)Pool->Ptr1;
+  PS->addToList(&P);
+  Pool->Ptr1 = P;
   //  printf(" creating a slab %x\n", PS);
   return PS;
 }
@@ -68,21 +70,23 @@ PoolSlab::createSingleArray(BitmapPoolTy *Pool, unsigned NumNodes) {
     Pool->SlabAddressArray[Pool->NumSlabs] = PS;
   }
   Pool->NumSlabs++;
-  
-  PS->addToList((PoolSlab**)&Pool->LargeArrays);
+
+  PoolSlab * P = (PoolSlab*)Pool->LargeArrays;
+  PS->addToList(&P);
+  Pool->LargeArrays = P;
 
   PS->allocated   = 0xffffffff;    // No bytes allocated.
   PS->isSingleArray = 1;
   PS->NumNodesInSlab = NodesPerSlab;
   PS->SizeOfSlab     = (NumPages * PageSize);
-  *(unsigned*)&PS->FirstUnused = NumPages;
+  PS->FirstUnused = NumPages;
   return PS->getElementAddress(0, 0);
 }
 
 void
 PoolSlab::destroy() {
   if (isSingleArray)
-    for (unsigned NumPages = *(unsigned*)&FirstUnused; NumPages != 1;--NumPages)
+    for (unsigned NumPages = FirstUnused; NumPages != 1;--NumPages)
       FreePage((char*)this + (NumPages-1)*PageSize);
 
   FreePage(this);
