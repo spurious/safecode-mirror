@@ -17,9 +17,9 @@ LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
 
 USEDLIBS := CStdLib.a faultinject.a oob.a optchecks.a \
 						convert.a addchecks.a speculativechecking.a \
-						arrayboundcheck.a pointerchecks.a stackcheck.a \
+						arrayboundcheck.a stackcheck.a \
 						indirectcalls.a debuginstr.a sc-support.a
-
+#pointerchecks.a 
 
 include $(LEVEL)/Makefile.common
 

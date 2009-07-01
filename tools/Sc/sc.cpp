@@ -273,8 +273,11 @@ int main(int argc, char **argv) {
       Passes.add(new ArrayBoundsCheckLocal());
       break;
     case SAFECodeConfiguration::ABC_CHECK_FULL:
+      assert (0 && "Omega pass is not working right now!");
+#if 0
       Passes.add(new ABCPreProcess());
       Passes.add(new ArrayBoundsCheck());
+#endif
       break;
     }
 

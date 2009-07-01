@@ -7,13 +7,13 @@ PARALLEL_DIRS = Support \
                 InsertPoolChecks \
                 OptimizeChecks \
                 StackSafety \
-                PointerChecks \
                 SpeculativeChecking \
                 RewriteOOB \
                 FaultInjector \
                 IndirectCallChecks \
                 DebugInstrumentation \
                 CStdLib \
+#                PointerChecks \
 
 include $(LEVEL)/Makefile.common
 
