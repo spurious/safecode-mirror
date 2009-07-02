@@ -107,7 +107,7 @@ ReportDanglingPointer (void * addr,
 void
 ReportLoadStoreCheck (void * ptr,
                       void * pc,
-                      char * SourceFile,
+                      const char * SourceFile,
                       unsigned lineno) {
   // Print the header and get the ID for this report
   unsigned id = printAlertHeader();

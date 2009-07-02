@@ -63,6 +63,7 @@ struct DebugPoolTy : public BitmapPoolTy {
 
 void * rewrite_ptr (DebugPoolTy * Pool, const void * p, const void * ObjStart,
 const void * ObjEnd, const char * SourceFile, unsigned lineno);
+void installAllocHooks (void);
 
 NAMESPACE_SC_END
 
@@ -109,6 +110,5 @@ extern "C" {
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,
   const char *, unsigned);
-
 }
 #endif

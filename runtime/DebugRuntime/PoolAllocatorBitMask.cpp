@@ -183,7 +183,6 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // Install hooks for catching allocations outside the scope of SAFECode.
   //
   if (ConfigData.TrackExternalMallocs) {
-    extern void installAllocHooks(void);
     installAllocHooks();
   }
 
