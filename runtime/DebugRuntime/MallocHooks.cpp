@@ -60,6 +60,10 @@ installAllocHooks (void) {
   // Install intercept routines.
   //
   default_zone->malloc = track_malloc;
+  default_zone->calloc  = track_calloc;
+  default_zone->valloc  = track_valloc;
+  default_zone->realloc = track_realloc;
+  default_zone->free    = track_free;
 }
 
 static void *
