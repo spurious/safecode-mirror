@@ -14,12 +14,13 @@
 #include "SafeCodeRuntime.h"
 #include "PageManager.h"
 #include "PoolAllocator.h"
-#include "Report.h"
+#include "DebugReport.h"
 
 #include "llvm/ADT/DenseMap.h"
 
 #include <map>
 
+extern FILE * ReportLog;
 using namespace NAMESPACE_SC; 
 
 NAMESPACE_SC_BEGIN

@@ -1,4 +1,4 @@
-/*===- ExactCheck.c - Implementation of exactcheck functions --------------===*/
+/*===- ExactCheck.cpp - Implementation of exactcheck functions ------------===*/
 /*                                                                            */
 /*                          The SAFECode Compiler                             */
 /*                                                                            */
@@ -12,110 +12,20 @@
 /*                                                                            */
 /*===----------------------------------------------------------------------===*/
 
-#include "SafeCodeRuntime.h"
+#include "DebugReport.h"
 #include "ConfigData.h"
-#include "Report.h"
 
 #include "safecode/Config/config.h"
 #include "safecode/Runtime/BitmapAllocator.h"
 
-#include <cstddef>
-
-#define DEBUG(x) 
+extern FILE * ReportLog;
 
 using namespace NAMESPACE_SC;
 
-/*
- * Function: exactcheck_check()
- *
- * Description:
- *  This is the slow path for an exactcheck.  It handles pointer rewriting
- *  and error reporting when an exactcheck fails.
- *
- * Inputs:
- *  ObjStart - The address of the first valid byte of the object.
- *  ObjEnd   - The address of the last valid byte of the object.
- *  Dest     - The result pointer of the indexing operation (the GEP).
- *  SourceFile - The name of the file in which the check occurs.
- *  lineno     - The line number within the file in which the check occurs.
- */
-void *
-exactcheck_check (const void * ObjStart,
-                  const void * ObjEnd,
-                  const void * Dest,
-                  const char * SourceFile,
-                  unsigned int lineno) {
-  /*
-   * First, we know that the pointer is out of bounds.  If we indexed off the
-   * beginning or end of a valid object, determine if we can rewrite the
-   * pointer into an OOB pointer.  Whether we can or not depends upon the
-   * SAFECode configuration.
-   */
-  if ((!(ConfigData.StrictIndexing)) ||
-      (((char *) Dest) == (((char *)ObjEnd)+1))) {
-    void * ptr = rewrite_ptr (0, Dest, ObjStart, ObjEnd, SourceFile, lineno);
-    if (logregs) {
-      fprintf (ReportLog,
-               "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
-               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(0), ptr,
-               SourceFile, lineno);
-      fflush (ReportLog);
-    }
-    return ptr;
-  } else {
-    //
-    // Determine if this is a rewrite pointer that is being indexed.
-    //
-    if ((logregs) && (((unsigned)Dest > (unsigned)0xc0000000))) {
-      fprintf (stderr, "Was a rewrite: %p\n", Dest);
-      fflush (stderr);
-    }
-    ReportExactCheck ((unsigned)0xbeefdeed,
-                      (uintptr_t)Dest,
-                      (uintptr_t)__builtin_return_address(0),
-                      (uintptr_t)ObjStart,
-                      (unsigned)ObjEnd - (unsigned)ObjStart,
-                      SourceFile,
-                      lineno);
-  }
-
-  return const_cast<void*>(Dest);
-}
-
-/*
- * Function: exactcheck()
- *
- * Description:
- *  Determine whether the index is within the specified bounds.
- *
- * Inputs:
- *  a      - The index given as an integer.
- *  b      - The index of one past the end of the array.
- *  result - The pointer that is being checked.
- *
- * Return value:
- *  If there is no bounds check violation, the result pointer is returned.
- *  This forces the call to exactcheck() to be considered live (previous
- *  optimizations dead-code eliminated it).
- */
-void *
-exactcheck (int a, int b, void * result) {
-  if ((0 > a) || (a >= b)) {
-    ReportExactCheck ((unsigned)0xbeefdeed,
-                      (uintptr_t)result,
-                      (uintptr_t)__builtin_return_address(0),
-                      (unsigned)a,
-                      (unsigned)0,
-                      "<Unknown>",
-                      0);
-#if 0
-    poolcheckfail ("exact check failed", (a), (void*)__builtin_return_address(0));
-    poolcheckfail ("exact check failed", (b), (void*)__builtin_return_address(0));
-#endif
-  }
-  return result;
-}
-
+static void *
+exactcheck_check (const void * ObjStart, const void * ObjEnd,
+                  const void * Dest, const char * SourceFile,
+                  unsigned int lineno) __attribute__((noinline));
 /*
  * Function: exactcheck2()
  *
@@ -142,7 +52,7 @@ exactcheck2 (const char *base, const char *result, unsigned size) {
     return (void*)result;
   }
 
-  return exactcheck_check (base, base + size-1, result, "<Unknown>", 0);
+  return exactcheck_check (base, base + size-1, result, NULL, 0);
 }
 
 /*
@@ -180,19 +90,106 @@ exactcheck2_debug (const char *base,
   return exactcheck_check (base, base + size - 1, result, SourceFile, lineno);
 }
 
+/*
+ * Function: exactcheck_check()
+ *
+ * Description:
+ *  This is the slow path for an exactcheck.  It handles pointer rewriting
+ *  and error reporting when an exactcheck fails.
+ *
+ * Inputs:
+ *  ObjStart - The address of the first valid byte of the object.
+ *  ObjEnd   - The address of the last valid byte of the object.
+ *  Dest     - The result pointer of the indexing operation (the GEP).
+ *  SourceFile - The name of the file in which the check occurs.
+ *  lineno     - The line number within the file in which the check occurs.
+ */
 void *
-exactcheck2a (signed char *base, signed char *result, unsigned size) {
-  if (result >= base + size ) {
+exactcheck_check (const void * ObjStart,
+                  const void * ObjEnd,
+                  const void * Dest,
+                  const char * SourceFile,
+                  unsigned int lineno) {
+
+  /*
+   * First, we know that the pointer is out of bounds.  If we indexed off the
+   * beginning or end of a valid object, determine if we can rewrite the
+   * pointer into an OOB pointer.  Whether we can or not depends upon the
+   * SAFECode configuration.
+   */
+  if ((!(ConfigData.StrictIndexing)) ||
+      (((char *) Dest) == (((char *)ObjEnd)+1))) {
+    void * ptr = rewrite_ptr (0, Dest, ObjStart, ObjEnd, SourceFile, lineno);
+    if (logregs) {
+      fprintf (ReportLog,
+               "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
+               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(0), ptr,
+               SourceFile, lineno);
+      fflush (ReportLog);
+    }
+    return ptr;
+  } else {
+    //
+    // Determine if this is a rewrite pointer that is being indexed.
+    //
+    if ((logregs) && (((unsigned)Dest > (unsigned)0xc0000000))) {
+      fprintf (stderr, "Was a rewrite: %p\n", Dest);
+      fflush (stderr);
+    }
+
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = Dest,
+      v.dbgMetaData = NULL,
+      v.SourceFile = SourceFile,
+      v.objStart = ObjStart,
+      v.objLen = (unsigned)((const char*)ObjEnd - (const char*)ObjStart + 1),
+      v.lineNo = lineno;
+    
+    ReportMemoryViolation(&v);
+  }
+
+  return const_cast<void*>(Dest);
+}
+
+#if 0
+/// UNUSED CODE
+
+/*
+ * Function: exactcheck()
+ *
+ * Description:
+ *  Determine whether the index is within the specified bounds.
+ *
+ * Inputs:
+ *  a      - The index given as an integer.
+ *  b      - The index of one past the end of the array.
+ *  result - The pointer that is being checked.
+ *
+ * Return value:
+ *  If there is no bounds check violation, the result pointer is returned.
+ *  This forces the call to exactcheck() to be considered live (previous
+ *  optimizations dead-code eliminated it).
+ */
+void *
+exactcheck (int a, int b, void * result) {
+  if ((0 > a) || (a >= b)) {
     ReportExactCheck ((unsigned)0xbeefdeed,
                       (uintptr_t)result,
                       (uintptr_t)__builtin_return_address(0),
-                      (uintptr_t)base,
-                      (unsigned)size,
+                      (unsigned)a,
+                      (unsigned)0,
                       "<Unknown>",
                       0);
+#if 0
+    poolcheckfail ("exact check failed", (a), (void*)__builtin_return_address(0));
+    poolcheckfail ("exact check failed", (b), (void*)__builtin_return_address(0));
+#endif
   }
   return result;
 }
+
 
 void *
 exactcheck3(signed char *base, signed char *result, signed char * end) {
@@ -208,3 +205,19 @@ exactcheck3(signed char *base, signed char *result, signed char * end) {
   return result;
 }
 
+
+void *
+exactcheck2a (signed char *base, signed char *result, unsigned size) {
+  if (result >= base + size ) {
+    ReportExactCheck ((unsigned)0xbeefdeed,
+                      (uintptr_t)result,
+                      (uintptr_t)__builtin_return_address(0),
+                      (uintptr_t)base,
+                      (unsigned)size,
+                      "<Unknown>",
+                      0);
+  }
+  return result;
+}
+
+#endif

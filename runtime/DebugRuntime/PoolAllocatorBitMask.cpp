@@ -38,7 +38,7 @@
 #include "ConfigData.h"
 #include "PoolAllocator.h"
 #include "PageManager.h"
-#include "Report.h"
+#include "DebugReport.h"
 
 #include <cstring>
 
@@ -389,10 +389,11 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   // invalid.  Report it as an error and then continue executing if possible.
   //
   if (!found) {
-    ReportInvalidFree ((unsigned)__builtin_return_address(0),
-                       allocaptr,
-                       "<Unknown>",
-                       0);
+    ViolationInfo v;
+    v.type = ViolationInfo::FAULT_DOUBLE_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = allocaptr;
+    ReportMemoryViolation(&v);
     return;
   }
 
@@ -592,18 +593,22 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     void * start = faultAddr;
     void * tag = 0;
     void * end;
-
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
       unsigned lineno = RewriteLineno[faultAddr];
-      ReportOOBPointer (program_counter,
-                        tag,
-                        faultAddr,
-                        RewrittenObjs[faultAddr].first,
-                        RewrittenObjs[faultAddr].second,
-                        Filename,
-                        lineno);
-      abort();
+
+      OutOfBoundsViolation v;
+      v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+        v.faultPC = (const void*)program_counter,
+        v.faultPtr = faultAddr,
+        v.dbgMetaData = NULL,
+        v.SourceFile = Filename,
+        v.lineNo = lineno,
+        v.objStart = RewrittenObjs[faultAddr].first,
+        // FIXME: What is RewrittenObjs[faultAddr].second;
+        v.objLen = 0;
+
+      ReportMemoryViolation(&v);
     }
 #endif
     extern FILE * ReportLog;
@@ -646,9 +651,13 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   freeID   = debugmetadataptr->freeID;
 #endif
   
-  ReportDanglingPointer (address, program_counter,
-                         alloc_pc, allocID,
-                         free_pc, freeID);
+  DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_DANGLING_PTR,
+      v.faultPC = (const void*) program_counter,
+    v.faultPtr = address,
+    v.dbgMetaData = debugmetadataptr;
+
+  ReportMemoryViolation(&v);
 
   // reinstall the signal handler for subsequent faults
   struct sigaction sa;

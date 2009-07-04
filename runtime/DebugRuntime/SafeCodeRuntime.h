@@ -18,6 +18,8 @@
 #include "safecode/Runtime/BitmapAllocator.h"
 #include "poolalloc_runtime/Support/SplayTree.h"
 
+#include <iosfwd>
+
 NAMESPACE_SC_BEGIN
 
 //
@@ -49,6 +51,7 @@ typedef struct DebugMetaData {
 
   // Line number
   unsigned lineno;
+  void print(std::ostream & OS) const;
 } DebugMetaData;
 typedef DebugMetaData * PDebugMetaData;
 

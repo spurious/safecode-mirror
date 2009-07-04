@@ -29,7 +29,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SafeCodeRuntime.h"
-#include "Report.h"
+#include "DebugReport.h"
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "ConfigData.h"
@@ -37,6 +37,8 @@
 #include <map>
 #include <cstdarg>
 #include <cassert>
+
+extern FILE * ReportLog;
 
 using namespace NAMESPACE_SC;
 
@@ -122,10 +124,14 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, const char * SourceFilep, unsign
     Node = pchk_getActualValue (Pool, Node);
   }
 
-  ReportLoadStoreCheck (Node,
-                        __builtin_return_address(0),
-                        (char *)SourceFilep,
-                        lineno);
+  DebugViolationInfo v;
+  v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = Node,
+    v.SourceFile = SourceFilep,
+    v.lineNo = lineno;
+  
+  ReportMemoryViolation(&v);
   return;
 }
 
@@ -277,7 +283,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
       unsigned allocID = 0;
       unsigned char * allocSF = (unsigned char *) "<Unknown>";
       unsigned allocLN = 0;
-      PDebugMetaData debugmetadataptr;
+      PDebugMetaData debugmetadataptr = NULL;
       void * S , * end;
       if (dummyPool.DPTree.find(ObjStart, S, end, debugmetadataptr)) {
         allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
@@ -286,17 +292,17 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
         allocLN  = debugmetadataptr->lineno;
       }
 
-      ReportBoundsCheck ((uintptr_t)Source,
-                         (uintptr_t)Dest,
-                         (unsigned)allocID,
-                         (unsigned)allocPC,
-                         (uintptr_t)__builtin_return_address(0),
-                         (uintptr_t)ObjStart,
-                         (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1,
-                         (unsigned char *)(SourceFile),
-                         lineno,
-                         allocSF,
-                         allocLN);
+      OutOfBoundsViolation v;
+      v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+        v.faultPC = __builtin_return_address(0),
+        v.faultPtr = Dest,
+        v.dbgMetaData = debugmetadataptr,
+        v.SourceFile = SourceFile,
+        v.lineNo = lineno,
+        v.objStart = ObjStart,
+        v.objLen = (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1;
+
+      ReportMemoryViolation(&v);
       return Dest;
     }
   }
@@ -329,17 +335,17 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
                             SourceFile,
                             lineno);
       } else {
-        ReportBoundsCheck ((uintptr_t)Source,
-                           (uintptr_t)Dest,
-                           (unsigned)0,
-                           (unsigned)0,
-                           (uintptr_t)__builtin_return_address(0),
-                           (unsigned)0,
-                           (unsigned)4096,
-                           (unsigned char *)(SourceFile),
-                           lineno,
-                           (unsigned char *) "<Unknown>",
-                           0);
+        OutOfBoundsViolation v;
+        v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+          v.faultPC = __builtin_return_address(0),
+          v.faultPtr = Dest,
+          v.dbgMetaData = NULL,
+          v.SourceFile = NULL,
+          v.lineNo = 0,
+          v.objStart = 0,
+          v.objLen = 4096;
+
+        ReportMemoryViolation(&v);
       }
     }
   }
@@ -368,18 +374,18 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
           fflush (ReportLog);
           return ptr;
         }
+        
+        OutOfBoundsViolation v;
+        v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+          v.faultPC = __builtin_return_address(0),
+          v.faultPtr = Dest,
+          v.dbgMetaData = NULL,
+          v.SourceFile = SourceFile,
+          v.lineNo = lineno,
+          v.objStart = ObjStart,
+          v.objLen = (unsigned)((char*) end - (char*)(S)) + 1;
 
-        ReportBoundsCheck ((uintptr_t)Source,
-                           (uintptr_t)Dest,
-                           (unsigned)0,
-                           (unsigned)0,
-                           (uintptr_t)__builtin_return_address(0),
-                           (uintptr_t)S,
-                           (unsigned)((char*) end - (char*)(S)) + 1,
-                           (unsigned char *)(SourceFile),
-                           lineno,
-                           (unsigned char *) "<Unknown>",
-                           0);
+        ReportMemoryViolation(&v);
       }
     }
   }
@@ -388,17 +394,18 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
   // We cannot find the object.  Continue execution.
   //
   if (CanFail) {
-    ReportBoundsCheck ((uintptr_t)Source,
-                       (uintptr_t)Dest,
-                       (unsigned)0,
-                       (unsigned)0,
-                       (uintptr_t)__builtin_return_address(0),
-                       (uintptr_t)0,
-                       (unsigned)0,
-                       (unsigned char *)(SourceFile),
-                       lineno,
-                       (unsigned char *) "<Unknown>",
-                       0);
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = Dest,
+      v.dbgMetaData = NULL,
+      v.SourceFile = SourceFile,
+      v.lineNo = lineno,
+      v.objStart = 0,
+      v.objLen = 0;
+    
+    ReportMemoryViolation(&v);
+
   }
 
   return Dest;
