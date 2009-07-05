@@ -1,13 +1,14 @@
-##===- safecode/test/TEST.safecode.Makefile ----------------*- Makefile -*-===##
+##===- safecode/test/Makefile.rules---------------------*- Makefile -*-===##
 #
-# This file defines how to generate SAFECode files from C programs.
+# This file defines how to generate SAFECode files from bitcodes.
 #
-##===----------------------------------------------------------------------===##
+##===------------------------------------------------------------------===##
 
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
+PA_RT_BC := libsc_dbg_rt.bca libpoolalloc_bitmap.bca 
+PA_RT_BC := $(addprefix $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/, $(PA_RT_BC))
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
-PA_RT_BC := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
 POOLSYSTEM_RT_BC := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 
 # Pre processing library for DSA
@@ -17,37 +18,67 @@ PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspe
 
 OPTZN_PASSES := -strip-debug -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 
+###
+# Escape single quote for use in echo statements
+#
+squote  := '
+escsq = $(subst $(squote),'\$(squote)',$1)
+
+quiet_cmd_safecode_transform = SC $<
+cmd_safecode_transform = $(SC) $(SCFLAGS) $< -f -o $@
+
+quiet_cmd_safecode_link_rt = SC-RT $< 
+cmd_safecode_link_rt = $(LLVMLDPROG) -disable-opt -link-as-library $? -o $@
+
+quiet_cmd_as = CC $<
+cmd_as = $(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+
+ifeq ($(V),1)
+echo-cmd = echo '  $(call escsq,$(cmd_$(1)))$'';
+else
+quiet := quiet_
+echo-cmd = echo '  $(call escsq,$($(quiet)cmd_$(1)))$'';
+endif
+
+cmd = @$(echo-cmd) $(cmd_$(1))
+
 #
 # Create the SAFECode'ed executable from the assembly code
 #
 %.sc : %.s
-	$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+	@$(call cmd,as)
 
 #
 # Generate assembly code from the optimized, SAFECode'd program.
 #
-%.s : %.scopt.bc
-	$(LLC) $(LLCFLAGS) -f $< -o $@
+%.s : %.bc.scopt
+	@echo "LLC" $<
+	@$(LLC) $(LLCFLAGS) -f $< -o $@
 
 #
 # Take the output of SAFECode, link in the SAFECode run-time, and optimize it.
 #
-%.scopt.bc : %.sc.bc
-	$(LLVMLDPROG) -disable-opt -link-as-library $< $(PA_RT_BC) $(POOLSYSTEM_RT_BC) -o $<.ld
-	$(LOPT) $(OPTZN_PASSES) $<.ld -f -o $@
-	rm $<.ld
+
+%.bc.scopt : %.bc.sc.linked
+	@echo "OPT" $<
+	@$(LOPT) $(OPTZN_PASSES) $< -f -o $@
+
+%.bc.sc.linked : %.bc.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 
+	$(call cmd,safecode_link_rt)
 
 #
 # Run SAFECode on the program.
 #
-%.sc.bc : %.pa.bc
-	$(SC) $(SCFLAGS) $< -f -o $@
+%.bc.sc : %.bc.pa $(SC)
+	$(call cmd,safecode_transform)
 
 #
 # Do initial linking of the SAFECode run-time and optimize the program.
 #
-%.pa.bc : %.bc
-	$(LLVMLDPROG) $(LLVMLDFLAGS) -disable-opt -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC)
-	$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@
-	rm $@.paprert.bc
+%.bc.pa : %.bc.pa.linked
+	@echo "PA-OPT" $<	
+	@$(LOPT) $(PRE_SC_OPT_FLAGS) $< -f -o $@
 
+%.bc.pa.linked : %.bc $(PA_PRE_RT_BC)
+	@echo "PA-RT" $<	
+	@$(LLVMLDPROG) $(LLVMLDFLAGS) -disable-opt -link-as-library $< $(PA_PRE_RT_BC) -o $@
