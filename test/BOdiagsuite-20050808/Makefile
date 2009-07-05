@@ -25,6 +25,7 @@ SRCS_BAD := $(filter-out $(SRCS_CORRECT),$(SRCS))
 TARGET_BAD := $(patsubst $(TEST_SRC_DIR)/testcases/%.c,%.result-bad,$(SRCS_BAD))
 RESULT_BAD := $(TEST_SRC_DIR)/Scripts/ResultForBadProgram.sh
 
+GEN_REPORT := $(TEST_SRC_DIR)/Scripts/GenerateReport.sh
 
 #FIXME : Should have LLVM_SRC_ROOT
 RUNTIMELIMIT := 60
@@ -32,8 +33,10 @@ RUNSAFELY := $(PROJ_SRC_ROOT)/../llvm-test/RunSafely.sh $(RUNTIMELIMIT) 0
 
 TARGET := $(TARGET_BAD) $(TARGET_CORRECT) 
 
+.PRECIOUS: $(TARGET)
 .PHONY:
-all:: prepare $(TARGET)
+report.txt:: prepare $(TARGET)
+	$(GEN_REPORT) > $@
 
 %.result-correct : %.diff
 	@$(RESULT_CORRECT) $< > $@
