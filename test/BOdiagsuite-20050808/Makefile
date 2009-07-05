@@ -68,5 +68,5 @@ prepare:
 
 .PHONY:
 clean::
-	@rm -f *.{diff,nat,sc,sc-out,nat-out,time,bc} *.result-{correct,bad} 
+	@rm -f report.txt *.{diff,nat,sc,sc-out,nat-out,time,bc} *.result-{correct,bad} 
 
