@@ -1,11 +1,11 @@
 #!/bin/sh
 
 TOTAL=`ls -1 *result-*|wc -l`
-TMPFN=`tempfile`
+TMPFN="tmp.result.failed"
 grep "FAILED" *result-* > $TMPFN
 FAILED=`cat $TMPFN|wc -l`
 
-TMPFN2=`tempfile`
+TMPFN2="tmp.result.mismatch"
 grep "MISMATCH" *result-* > $TMPFN2
 MISMATCH=`cat $TMPFN2|wc -l`
 
@@ -15,6 +15,6 @@ echo "\n"
 echo "Details"
 echo "================================================================="
 
-cat $TMPFN $TMPFN2|sort|sed - "s/:/		| /g"
+cat $TMPFN $TMPFN2|sort|sed -e "s/:/		| /g"
 
 rm $TMPFN $TMPFN2
