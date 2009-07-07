@@ -19,6 +19,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "init-allocas"
+
 #include "safecode/Config/config.h"
 #include "ConvertUnsafeAllocas.h"
 #include "SCUtils.h"
