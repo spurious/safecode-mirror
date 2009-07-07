@@ -826,8 +826,8 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
 
 // Initialize a debug pool
 void *
-__sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize) {
-  __pa_bitmap_poolinit(static_cast<BitmapPoolTy*>(Pool), NodeSize);
+__sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
+  __pa_bitmap_poolinit(Pool, NodeSize);
   // Call the in-place constructor for the splay tree of objects and, if
   // applicable, the set of Out of Bound rewrite pointers and the splay tree
   // used for dangling pointer detection.

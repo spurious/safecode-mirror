@@ -92,7 +92,7 @@ extern "C" {
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
 
-  void * __sc_dbg_poolinit(NAMESPACE_SC::DebugPoolTy *Pool, unsigned NodeSize);
+  void * __sc_dbg_poolinit(NAMESPACE_SC::DebugPoolTy *Pool, unsigned NodeSize, unsigned);
   void * __sc_dbg_src_poolcalloc (NAMESPACE_SC::DebugPoolTy * Pool,
                                 unsigned Number, unsigned NumBytes,
                                 const char * SourceFilep,
