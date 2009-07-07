@@ -14,6 +14,7 @@
 #ifndef LLVM_STACKSAFETY_H
 #define LLVM_STACKSAFETY_H
 
+#include "safecode/PoolHandles.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/DSNode.h"
@@ -36,6 +37,7 @@ namespace llvm {
       const char *getPassName() const { return "Stack Safety Check";}
       virtual bool runOnModule(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        NAMESPACE_SC::DSNodePass::getAnalysisUsageForDSA(AU);
         AU.addRequired<EQTDDataStructures>();
         AU.setPreservesAll();
       }

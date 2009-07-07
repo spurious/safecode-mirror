@@ -58,13 +58,12 @@ class RewriteOOB : public ModulePass {
 
       // We require these pass to get information on pool handles
       AU.addRequired<DSNodePass>();
-      AU.addRequired<PoolAllocateGroup>();
 
       // This pass gives us information on the various run-time checks
       AU.addRequired<InsertSCIntrinsic>();
 
-      // Require this pass to keep it from being invalidated
-      AU.addRequiredTransitive<EQTDDataStructures>();
+      DSNodePass::getAnalysisUsageForDSA(AU);
+      DSNodePass::getAnalysisUsageForPoolAllocation(AU);
 
       // Pretend that we don't modify anything
       AU.setPreservesAll();

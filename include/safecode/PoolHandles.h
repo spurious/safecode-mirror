@@ -35,21 +35,27 @@ NAMESPACE_SC_BEGIN
 	public :
     static char ID;
     DSNodePass () : ModulePass ((intptr_t) &ID) { }
-    DSNodePass (intptr_t id) : ModulePass (id) { }
     const char *getPassName() const {
       return "DS Node And Pool Allocation Handle Pass";
     }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequiredTransitive<PoolAllocateGroup>();
-      if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
-        AU.addRequired<BasicDataStructures>();
-      } else {
-        AU.addRequired<EQTDDataStructures>();
-      }
+      getAnalysisUsageForPoolAllocation(AU);
+      getAnalysisUsageForDSA(AU);
       AU.setPreservesAll();
     };
 
+    // Get analysis usage for DSA. Make sure all SAFECode passes have the same
+    // dependency on DSA.
+    static void getAnalysisUsageForDSA(AnalysisUsage &AU);
+
+    // Get analysis usage for Pool Allocation. It is a hack to lie to the
+    // PassManager to make sure Pool Allocation only run only one time.
+    // This function tells the PassManager it preseves DSA and PoolAllocation
+    // results, which is clearly a lie.
+    static void getAnalysisUsageForPoolAllocation(AnalysisUsage &AU);
+
+    
     //
     // Method: releaseMemory()
     //
@@ -67,7 +73,6 @@ NAMESPACE_SC_BEGIN
       CheckedDSNodes.clear();
     }
 
-  public:
     // FIXME: Provide better interfaces
     PoolAllocateGroup * paPass;
     DSGraph * getDSGraph (Function & F);

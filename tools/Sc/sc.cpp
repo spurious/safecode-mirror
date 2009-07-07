@@ -71,8 +71,38 @@ OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
 static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
 
-static cl::opt<bool>
-FullPA("pa", cl::init(false), cl::desc("Use pool allocation"));
+namespace {
+  enum PAType {
+    SINGLE, SIMPLE, MULTI, APA
+  };
+
+  static cl::opt<enum PAType>
+  PA("pa", cl::init(SIMPLE),
+     cl::desc("The type of pool allocation used by the program"),
+     cl::values(
+                clEnumVal(SINGLE,  "Dummy Pool Allocation (Single DS Node)"),
+                clEnumVal(SIMPLE,  "Simple Pool Allocation"),
+                clEnumVal(MULTI,   "Context-insensitive Pool Allocation"),
+                clEnumVal(APA,     "Automatic Pool Allocation"),
+                clEnumValEnd));
+
+  static void addPoolAllocationPass(PassManager & Passes) {
+    switch (PA) {
+    case SINGLE:
+      Passes.add(new PoolAllocateSimple(true, true, false));
+      break;
+    case SIMPLE:
+      Passes.add(new PoolAllocateSimple(true, true, true));
+      break;
+    case MULTI:
+      Passes.add(new PoolAllocateMultipleGlobalPool());
+      break;
+    case APA:
+      Passes.add(new PoolAllocate(true, true));
+      break;
+    } 
+  }
+}
 
 static cl::opt<bool>
 EnableDebugInfo("enable-debuginfo", cl::init(false),
@@ -237,16 +267,8 @@ int main(int argc, char **argv) {
     NOT_FOR_SVA(Passes.add(new BottomUpCallGraph()));
 
     NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
- 
-    if (SCConfig->SVAEnabled) {
-      Passes.add(new PoolAllocateSimple(true, true, false));
-    } else {
-      if (FullPA)
-        Passes.add(new PoolAllocate(true, true));
-      else
-        Passes.add(new PoolAllocateSimple(true, true, true));
-    }
-
+   
+	 	addPoolAllocationPass(Passes);
 
 #if 0
     // Convert Unsafe alloc instructions first.  This version relies upon

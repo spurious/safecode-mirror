@@ -12,6 +12,7 @@
 #ifndef ABC_PREPROCESS_H
 #define ABC_PREPROCESS_H
 
+#include "safecode/PoolHandles.h"
 #include "safecode/SAFECode.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/Dominators.h"
@@ -47,7 +48,7 @@ Pass *createABCPreProcessPass();
     const char *getPassName() const { return "Collect Induction Variables"; }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<LoopInfo>();
-      AU.addPreserved<PoolAllocateGroup>();
+      DSNodePass::getAnalysisUsageForPoolAllocation(AU);
 #if 0
       AU.addRequired<DominatorSet>();
       AU.addRequired<PostDominatorSet>();

@@ -69,9 +69,9 @@ struct InitAllocas : public FunctionPass {
     virtual bool doInitialization (Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
-      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
+      DSNodePass::getAnalysisUsageForDSA(AU);
       AU.setPreservesCFG();
       AU.setPreservesAll();
     }
@@ -92,21 +92,18 @@ struct ConvertUnsafeAllocas : public ModulePass {
     const char *getPassName() const { return "Convert Unsafe Allocas"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<ArrayBoundsCheckGroup>();
-      AU.addRequired<checkStackSafety>();
-      AU.addRequired<EQTDDataStructures>();
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
+
+      AU.addRequired<ArrayBoundsCheckGroup>();
+      AU.addRequired<checkStackSafety>();
+      DSNodePass::getAnalysisUsageForDSA(AU);
 
       AU.addPreserved<ArrayBoundsCheckGroup>();
       AU.addPreserved<EQTDDataStructures>();
       AU.setPreservesCFG();
 
-      // Does not preserve the BU or TD graphs
-#ifdef LLVA_KERNEL       
-      AU.setPreservesAll();
-#endif            
     }
 
     DSNode * getDSNode(const Value *I, Function *F);
@@ -170,7 +167,9 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
-      AU.addRequired<EQTDDataStructures>();
+
+      DSNodePass::getAnalysisUsageForDSA(AU);
+
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
@@ -178,10 +177,6 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
       AU.addPreserved<ArrayBoundsCheckGroup>();
       AU.addPreserved<PoolAllocateGroup>();
 
-      // Does not preserve the BU or TD graphs
-#ifdef LLVA_KERNEL       
-      AU.setPreservesAll();
-#endif            
     }
 };
 

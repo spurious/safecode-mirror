@@ -287,4 +287,24 @@ DSNodePass::isValueChecked(const Value * val) const {
   return CheckedValues.find(val) != CheckedValues.end();
 }
 
+void
+DSNodePass::getAnalysisUsageForDSA(AnalysisUsage &AU) {
+  if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
+    AU.addRequired<BasicDataStructures>();
+  } else {
+    AU.addRequired<EQTDDataStructures>();
+  }
+}
+
+void
+DSNodePass::getAnalysisUsageForPoolAllocation(AnalysisUsage &AU) {
+  AU.addRequired<PoolAllocateGroup>();
+  AU.addPreserved<PoolAllocateGroup>();
+  if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
+    AU.addPreserved<BasicDataStructures>();
+  } else {
+    AU.addPreserved<EQTDDataStructures>();
+  }
+}
+
 NAMESPACE_SC_END

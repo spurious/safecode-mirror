@@ -56,7 +56,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // We require these passes to get information on pool handles
     AU.addRequired<DSNodePass>();
-    AU.addRequired<PoolAllocateGroup>();
+    DSNodePass::getAnalysisUsageForPoolAllocation(AU);
 
     // Pretend that we don't modify anything
     AU.setPreservesAll();

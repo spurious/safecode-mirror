@@ -43,21 +43,14 @@ struct InsertPoolChecks : public FunctionPass {
     virtual bool doFinalization(Module &M);
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
-        AU.addRequired<BasicDataStructures>();
-      } else {
-        AU.addRequired<EQTDDataStructures>();
-//      AU.addRequired<TDDataStructures>();
-      }
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
-      AU.addRequiredTransitive<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
+      DSNodePass::getAnalysisUsageForDSA(AU);
+      DSNodePass::getAnalysisUsageForPoolAllocation(AU);
 
       AU.addPreserved<InsertSCIntrinsic>();
-      AU.addPreserved<EQTDDataStructures>();
-      AU.addPreserved<PoolAllocateGroup>();
       AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
     };
