@@ -13,6 +13,7 @@ PARALLEL_DIRS = Support \
                 IndirectCallChecks \
                 DebugInstrumentation \
                 CStdLib \
+                Utility \
 #                PointerChecks \
 
 include $(LEVEL)/Makefile.common
