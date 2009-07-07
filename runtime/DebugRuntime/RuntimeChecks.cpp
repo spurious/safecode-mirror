@@ -553,6 +553,41 @@ boundscheckui_debug (DebugPoolTy * Pool,
 }
 
 
+//
+// Function: funccheck()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.
+//
+// Inputs:
+//  num - The number of function targets in the DSNode.
+//  f   - The function pointer that we are testing.
+//  g   - The first function given in the DSNode.
+//
+void
+__sc_dbg_funccheck (unsigned num, void *f, void *g, ...) {
+  va_list ap;
+  unsigned i = 0;
+
+  // Test against the first function in the list
+  if (f == g) return;
+  i++;
+  va_start(ap, g);
+  for ( ; i != num; ++i) {
+    void *h = va_arg(ap, void *);
+    if (f == h) {
+      return;
+    }
+  }
+  if (logregs) {
+  fprintf(stderr, "funccheck failed(num=%d): %p %p\n", num, f, g);
+  fflush(stderr);
+  }
+  abort();
+}
+
+
 /// Stubs
 
 void

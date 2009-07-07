@@ -89,7 +89,7 @@ extern "C" {
   void * boundscheckui (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
   const char * SFile, unsigned int lineno);
-  void funccheck (unsigned num, void *f, void *g, ...);
+  void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
   void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
 
   void * __sc_dbg_poolinit(NAMESPACE_SC::DebugPoolTy *Pool, unsigned NodeSize, unsigned);

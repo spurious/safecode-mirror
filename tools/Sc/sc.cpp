@@ -514,6 +514,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.boundscheckui",   "boundscheckui" },
       {"sc.exactcheck",      "exactcheck" },
       {"sc.exactcheck2",     "exactcheck2" },
+      {"sc.funccheck",       "__sc_dbg_funccheck" },
       {"sc.get_actual_val",  "pchk_getActualValue" },
       {"sc.pool_register",   "__sc_dbg_poolregister" },
       {"sc.pool_unregister", "__sc_dbg_poolunregister" },
