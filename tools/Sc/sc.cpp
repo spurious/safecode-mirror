@@ -59,6 +59,7 @@
 namespace llvm {
   extern ModulePass * createSteensgaardPass();
 }
+
 using namespace llvm;
 using namespace NAMESPACE_SC;
 
@@ -73,36 +74,19 @@ static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
 
 namespace {
-  enum PAType {
-    SINGLE, SIMPLE, MULTI, APA
+  class DummyUse : public ModulePass {
+  public:
+    static char ID;
+    DummyUse() : ModulePass((intptr_t)&ID) {}
+    virtual void getAnalysisUsage(AnalysisUsage & AU) const {
+      DSNodePass::getAnalysisUsageForDSA(AU);
+      AU.addRequired<PoolAllocateGroup>();
+      AU.setPreservesAll();
+    }
+    virtual bool runOnModule(Module &) { return false; }
   };
-
-  static cl::opt<enum PAType>
-  PA("pa", cl::init(SIMPLE),
-     cl::desc("The type of pool allocation used by the program"),
-     cl::values(
-                clEnumVal(SINGLE,  "Dummy Pool Allocation (Single DS Node)"),
-                clEnumVal(SIMPLE,  "Simple Pool Allocation"),
-                clEnumVal(MULTI,   "Context-insensitive Pool Allocation"),
-                clEnumVal(APA,     "Automatic Pool Allocation"),
-                clEnumValEnd));
-
-  static void addPoolAllocationPass(PassManager & Passes) {
-    switch (PA) {
-    case SINGLE:
-      Passes.add(new PoolAllocateSimple(true, true, false));
-      break;
-    case SIMPLE:
-      Passes.add(new PoolAllocateSimple(true, true, true));
-      break;
-    case MULTI:
-      Passes.add(new PoolAllocateMultipleGlobalPool());
-      break;
-    case APA:
-      Passes.add(new PoolAllocate(true, true));
-      break;
-    } 
-  }
+  char DummyUse::ID = 0;
+  static RegisterPass<DummyUse> X("dummy-use", "Dummy pass to keep PA info live", true, true);
 }
 
 static cl::opt<bool>
@@ -152,6 +136,8 @@ EnableCodeDuplication("code-duplication", cl::init(false),
 #define NOT_FOR_SVA(X) do { if (!SCConfig->SVAEnabled) X; } while (0);
 
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
+static void addStaticGEPCheckingPass(PassManager & Passes);
+static void addPoolAllocationPass(PassManager & Passes);
 
 // GetFileNameRoot - Helper function to get the basename of a filename.
 static inline std::string
@@ -209,15 +195,7 @@ int main(int argc, char **argv) {
 
     // Parse Configuration
     SCConfig = SAFECodeConfiguration::create();
-    // FIXME
-    // HACK: we set DSAType of SCConfig here, since we don't have a consistent
-    // uses of parameters. We should sit down and discuss the parameters that
-    // SAFECode should have...
-    SCConfig->DSAType = 
-      SCConfig->SVAEnabled ? 
-      SAFECodeConfiguration::DSA_BASIC : 
-      SAFECodeConfiguration::DSA_EQTD;
-
+    // The type of DSA depends on which pool allocation pass is used.
 
     if (SCConfig->SVAEnabled) {
       SCConfig->allocators.push_back(&AllocatorVMalloc);
@@ -262,6 +240,7 @@ int main(int argc, char **argv) {
     //
     NOT_FOR_SVA(Passes.add(createUnifyFunctionExitNodesPass()));
 
+    addStaticGEPCheckingPass(Passes);
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
@@ -269,6 +248,10 @@ int main(int argc, char **argv) {
     if (CheckingRuntime != RUNTIME_PA)
       NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
 
+    addPoolAllocationPass(Passes);
+    Passes.add(new DSNodePass());
+
+#if 0
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
     // Bottom-Up Call Graph pass doesn't work after pool allocation has
     // been run, and PassManager schedules it after pool allocation for
@@ -276,6 +259,7 @@ int main(int argc, char **argv) {
     NOT_FOR_SVA(Passes.add(new BottomUpCallGraph()));
 
     NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
+#endif
  
     //
     // Run pool allocation.
@@ -312,37 +296,13 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
-    //
-    // Find indexing instructions that do not require run-time checks (i.e.,
-    // they can be proven safe statically).
-    //
-    switch (SCConfig->StaticCheckType) {
-      case SAFECodeConfiguration::ABC_CHECK_NONE:
-        Passes.add(new ArrayBoundsCheckDummy());
-        break;
-      case SAFECodeConfiguration::ABC_CHECK_LOCAL:
-        Passes.add(new ArrayBoundsCheckLocal());
-        break;
-      case SAFECodeConfiguration::ABC_CHECK_FULL:
-        //
-        // The full static array bounds checking pass (aka the Omega Pass)
-        // doesn't compile due to compiler warnings.  Disable it for now.
-        //
-#if 0
-        Passes.add(new ABCPreProcess());
-        Passes.add(new ArrayBoundsCheck());
-#else
-        assert (0 && "Omega pass is not working right now!");
-#endif
-        break;
-    }
-
     Passes.add(new InsertPoolChecks());
+
     Passes.add(new ExactCheckOpt());
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
-
+    
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 
@@ -372,6 +332,8 @@ int main(int argc, char **argv) {
         Passes.add(new RewriteOOB());
       }
     }
+
+    Passes.add (new DummyUse());
 
 #if 0
     //
@@ -480,6 +442,24 @@ int main(int argc, char **argv) {
   return 1;
 }
 
+static void addStaticGEPCheckingPass(PassManager & Passes) {
+	switch (SCConfig->StaticCheckType) {
+		case SAFECodeConfiguration::ABC_CHECK_NONE:
+			Passes.add(new ArrayBoundsCheckDummy());
+			break;
+		case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+			Passes.add(new ArrayBoundsCheckLocal());
+			break;
+		case SAFECodeConfiguration::ABC_CHECK_FULL:
+			assert (0 && "Omega pass is not working right now!");
+#if 0
+			Passes.add(new ABCPreProcess());
+			Passes.add(new ArrayBoundsCheck());
+#endif
+			break;
+	}
+}
+
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
   /// Mapping between check intrinsics and implementation
 
@@ -542,13 +522,14 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.pool_unregister", "__sc_dbg_poolunregister" },
       {"sc.init_pool_runtime", "pool_init_runtime"},
       {"sc.pool_register_debug", "__sc_dbg_src_poolregister"},
-      {"sc.poolcheck_debug","poolcheck_debug"},
-      {"sc.poolcheckalign_debug","poolcheckalign_debug"},
-      {"sc.boundscheck_debug","boundscheck_debug"},
+      {"sc.lscheck_debug",      "poolcheck_debug"},
+      {"sc.lscheckalign_debug", "poolcheckalign_debug"},
+      {"sc.boundscheck_debug",  "boundscheck_debug"},
       {"sc.boundscheckui_debug","boundscheckui_debug"},
-      {"sc.exactcheck2_debug","exactcheck2_debug"},
-      {"sc.pool_argvregister", "__sc_dbg_poolargvregister"},
+      {"sc.exactcheck2_debug",  "exactcheck2_debug"},
+      {"sc.pool_argvregister",  "__sc_dbg_poolargvregister"},
 
+      {"poolinit",              "__sc_dbg_poolinit"},
       {"poolalloc_debug",       "__sc_dbg_src_poolalloc"},
       {"poolfree_debug",        "__sc_dbg_src_poolfree"},
 
@@ -654,4 +635,21 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
   default:
     assert (0 && "Invalid Runtime!");
   }
+}
+
+static void addPoolAllocationPass(PassManager & Passes) {
+  switch (SCConfig->PAType) {
+  case SAFECodeConfiguration::PA_SINGLE:
+    Passes.add(new PoolAllocateSimple(true, true, false));
+    break;
+  case SAFECodeConfiguration::PA_SIMPLE:
+    Passes.add(new PoolAllocateSimple(true, true, true));
+    break;
+  case SAFECodeConfiguration::PA_MULTI:
+    Passes.add(new PoolAllocateMultipleGlobalPool());
+    break;
+  case SAFECodeConfiguration::PA_APA:
+    Passes.add(new PoolAllocate(true, true));
+    break;
+  } 
 }
