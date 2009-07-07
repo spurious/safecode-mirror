@@ -426,6 +426,11 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * 
   void * ObjStart = Source, * ObjEnd = 0;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
+  if (logregs) {
+    fprintf (stderr, "boundscheck_debug: %p - %p\n", ObjStart, ObjEnd);
+    fflush (stderr);
+  }
+
   // Check if destination lies in the same object
   if (__builtin_expect ((ret && (ObjStart <= Dest) &&
                         ((Dest <= ObjEnd))), 1)) {
@@ -466,6 +471,11 @@ boundscheckui_debug (DebugPoolTy * Pool,
   // Search the splay for Source and return the bounds of the object
   void * ObjStart = Source, * ObjEnd = 0;
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
+
+  if (logregs) {
+    fprintf (stderr, "boundscheckui_debug: %p - %p\n", ObjStart, ObjEnd);
+    fflush (stderr);
+  }
 
   // Check if destination lies in the same object
   if (__builtin_expect ((ret && (ObjStart <= Dest) &&
