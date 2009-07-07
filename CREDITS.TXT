@@ -16,10 +16,13 @@ N: Aman Bhatia
 D: Performance evaluation
 
 N: John Criswell
-D: Mac OS X port, Bug fixes
+D: Secure Virtual Architecture, Mac OS X port, Debug Tool Support, Bug fixes
 
 N: Dinakar Dhurjati
 D: Primary architect of SAFECode
+
+N: Nicolas Geoffray
+D: Secure Virtual Architecture
 
 N: Sumant Kowshik
 D:
@@ -29,10 +32,15 @@ D: Dangling pointer detection for Mac OS X
 
 N: Andrew Lenharth
 W: http://www.lenharth.org/~andrewl/
-D:
+D: Secure Virtual Architecture
 
 N: Brice Lin
-D: Testing
+D: Standard C Library Checks, Testing
+
+N: Haohui Mai
+W: http://www.illinois.edu/~mai4
+D: Refactoring, Monotonic Loop Optimization, Local Array Bounds Checker
+D: Nightly Tester, Bug fixes
 
 N: Igor Murashkin
 D: Fast indirect call checks
