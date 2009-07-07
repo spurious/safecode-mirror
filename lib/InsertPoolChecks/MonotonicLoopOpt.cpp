@@ -24,7 +24,7 @@ NAMESPACE_SC_BEGIN
 
 namespace {
   RegisterPass<MonotonicLoopOpt>
-  X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode");
+  X("sc-monotonic-loop-opt", "Monotonic Loop Optimization for SAFECode", true);
 
   STATISTIC (MonotonicLoopOptPoolCheck,
        "Number of monotonic loop optimization performed for poolcheck");

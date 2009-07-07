@@ -65,7 +65,7 @@ struct OptimizeChecks : public ModulePass {
       AU.addRequired<InsertSCIntrinsic>();
 
       // Pretend that we don't modify anything
-      AU.setPreservesAll();
+      AU.setPreservesCFG();
     }
 };
 
@@ -90,9 +90,8 @@ struct ExactCheckOpt : public ModulePass {
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // We need to know about SAFECode intrinsics
     AU.addRequired<InsertSCIntrinsic>();
-    AU.addRequired<DSNodePass>();
     // Pretend that we don't modify anything
-    AU.setPreservesAll();
+    AU.setPreservesCFG();
   }
 
  private:
@@ -129,7 +128,7 @@ struct PoolRegisterElimination : public ModulePass {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<AliasAnalysis>();
     // Pretend that we don't modify anything
-    AU.setPreservesAll();
+    AU.setPreservesCFG();
   }
 
  private:

@@ -32,6 +32,9 @@ namespace {
 
 NAMESPACE_SC_BEGIN
 
+static RegisterPass<OptimizeChecks> X ("opt-checks", "Optimize run-time checks", true);
+
+
 //
 // Function: onlyUsedInCompares()
 //

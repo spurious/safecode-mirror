@@ -37,11 +37,18 @@ struct SAFECodeConfiguration {
 
   typedef enum DSATy {
     DSA_BASIC,
+    DSA_STEENS,
     DSA_EQTD
   } DSATy;
 
+  typedef enum PATy {
+    PA_SINGLE, PA_SIMPLE, PA_MULTI, PA_APA
+  } PATy;
+
+
   StaticCheckTy StaticCheckType;
   DSATy DSAType;
+  PATy PAType;
 
   typedef std::vector<AllocatorInfo* > AllocatorInfoListTy;
   typedef AllocatorInfoListTy::iterator alloc_iterator;
@@ -51,6 +58,7 @@ struct SAFECodeConfiguration {
 
   static SAFECodeConfiguration * create();
 private:
+  void calculateDSAType();
   SAFECodeConfiguration();
 };
 

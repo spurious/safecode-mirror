@@ -23,7 +23,7 @@
 
 NAMESPACE_SC_BEGIN
 
-static RegisterPass<ExactCheckOpt> X ("exactcheck-opt", "Exact check optimization");
+static RegisterPass<ExactCheckOpt> X ("exactcheck-opt", "Exact check optimization", true);
 
 // Pass Statistics
 namespace {

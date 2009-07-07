@@ -91,10 +91,10 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   // Get prerequisite analysis information.
   //
   TD = &getAnalysis<TargetData>();
-  paPass = &getAnalysis<PoolAllocateGroup>();
-  dsnPass = &getAnalysis<DSNodePass>();
   DT = &getAnalysis<DominatorTree>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
+  dsnPass = &getAnalysis<DSNodePass>();
+  paPass = dsnPass->paPass;
 
   //
   // Get pointers to the functions for registering and unregistering pointers.

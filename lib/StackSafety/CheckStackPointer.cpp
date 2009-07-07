@@ -31,7 +31,7 @@ using namespace CSS;
 
 char checkStackSafety::ID = 0;
 
-RegisterPass<checkStackSafety> css("css1", "check stack safety");
+RegisterPass<checkStackSafety> css("css1", "check stack safety", true, true);
 
 //
 // Method: markReachableAllocas()

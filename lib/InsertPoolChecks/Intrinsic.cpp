@@ -364,6 +364,6 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
 }
 
 char InsertSCIntrinsic::ID = 0;
-static llvm::RegisterPass<InsertSCIntrinsic> X ("sc-insert-intrinsic", "insert SAFECode's intrinsic");
+static llvm::RegisterPass<InsertSCIntrinsic> X ("sc-insert-intrinsic", "insert SAFECode's intrinsic", true, true);
 
 NAMESPACE_SC_END

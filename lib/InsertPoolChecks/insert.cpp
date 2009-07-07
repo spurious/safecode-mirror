@@ -113,11 +113,10 @@ InsertPoolChecks::runOnFunction(Function &F) {
   }
 
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-  paPass = &getAnalysis<PoolAllocateGroup>();
-  // paPass = getAnalysisIfAvailable<PoolAllocateGroup>();
+  dsnPass = &getAnalysis<DSNodePass>();
+  paPass = dsnPass->paPass;
   assert (paPass && "Pool Allocation Transform *must* be run first!");
   TD  = &getAnalysis<TargetData>();
-  dsnPass = &getAnalysis<DSNodePass>();
 
   //std::cerr << "Running on Function " << F.getName() << std::endl;
 

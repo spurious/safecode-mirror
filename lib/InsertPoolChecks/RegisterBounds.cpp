@@ -9,11 +9,6 @@
 //
 // Various passes to register the bound information of variables into the pools
 //
-// FIXME:
-// During the refactoring, I disable the optimization which don't insert
-// registration calls when it founds the DSNode is never checked. It occurs
-// everywhere all check insertion passes, it is an optimization and I plan to
-// write a separate optimization pass. -- Haohui
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,13 +32,13 @@ char RegisterMainArgs::ID = 0;
 char RegisterCustomizedAllocation::ID = 0;
 
 static llvm::RegisterPass<RegisterGlobalVariables>
-X1 ("reg-globals", "Register globals into pools");
+X1 ("reg-globals", "Register globals into pools", true);
 
 static llvm::RegisterPass<RegisterMainArgs>
-X2 ("reg-argv", "Register argv[] into pools");
+X2 ("reg-argv", "Register argv[] into pools", true);
 
 static llvm::RegisterPass<RegisterCustomizedAllocation>
-X3 ("reg-custom-alloc", "Register customized allocators");
+X3 ("reg-custom-alloc", "Register customized allocators", true);
 
 void
 RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBefore) {

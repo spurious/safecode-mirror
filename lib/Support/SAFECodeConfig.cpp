@@ -39,10 +39,6 @@ namespace {
                    cl::init(false),
                    cl::desc("Terminate when an Error Ocurs"));
   
-  cl::opt<bool> NoStaticChecks ("disable-staticchecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Disable Static Array Bounds Checks"));
-
   cl::opt<bool> EnableSVA("sva",
                           cl::init(false), 
                           cl::desc("Enable SVA-Kernel specific operations"));
@@ -54,7 +50,7 @@ namespace {
     local = SAFECodeConfiguration::ABC_CHECK_LOCAL, 
     full  = SAFECodeConfiguration::ABC_CHECK_FULL;
   
-  cl::opt<SAFECodeConfiguration::StaticCheckTy>
+  static cl::opt<SAFECodeConfiguration::StaticCheckTy>
   StaticChecks("static-abc", cl::init(SAFECodeConfiguration::ABC_CHECK_LOCAL),
                cl::desc("Static array bounds check analysis"),
                cl::values
@@ -64,6 +60,23 @@ namespace {
                           "Local static array bound checks"),
                 clEnumVal(full,
                           "Omega static array bound checks"),
+                clEnumValEnd));
+
+
+  SAFECodeConfiguration::PATy
+  single = SAFECodeConfiguration::PA_SINGLE,
+    simple = SAFECodeConfiguration::PA_SIMPLE,
+    multi = SAFECodeConfiguration::PA_MULTI,
+    apa = SAFECodeConfiguration::PA_APA;
+
+  static cl::opt<SAFECodeConfiguration::PATy>
+  PA("pa", cl::init(simple),
+     cl::desc("The type of pool allocation used by the program"),
+     cl::values(
+                clEnumVal(single,  "Dummy Pool Allocation (Single DS Node)"),
+                clEnumVal(simple,  "Simple Pool Allocation"),
+                clEnumVal(multi,   "Context-insensitive Pool Allocation"),
+                clEnumVal(apa,     "Automatic Pool Allocation"),
                 clEnumValEnd));
 }
 
@@ -80,8 +93,35 @@ SAFECodeConfiguration::SAFECodeConfiguration() {
   this->RewriteOOB = RewritePtrs;
   this->TerminateOnErrors = StopOnFirstError;
   this->StaticCheckType = StaticChecks;
-  // TODO: DSAType
+  this->PAType = PA;
+  calculateDSAType();
   this->SVAEnabled = EnableSVA;
+}
+
+void
+SAFECodeConfiguration::calculateDSAType() {
+  struct mapping {
+    PATy pa;
+    DSATy dsa;
+  };
+
+  struct mapping M[] = {
+    {PA_SINGLE, DSA_BASIC},
+    {PA_SIMPLE, DSA_EQTD},
+    {PA_MULTI,  DSA_STEENS},
+    {PA_APA,    DSA_EQTD},
+  };
+
+  bool found = false;
+  for (unsigned i = 0; i < sizeof(M) / sizeof(struct mapping); ++i) {
+    if (PAType == M[i].pa) {
+      DSAType = M[i].dsa;
+      found = true;
+      break;
+    }
+  }
+
+  assert (found && "Inconsistent usage of Pool Allocation and DSA!");
 }
 
 NAMESPACE_SC_END

@@ -41,7 +41,6 @@ NAMESPACE_SC_BEGIN
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       getAnalysisUsageForPoolAllocation(AU);
-      getAnalysisUsageForDSA(AU);
       AU.setPreservesAll();
     };
 
@@ -55,6 +54,7 @@ NAMESPACE_SC_BEGIN
     // results, which is clearly a lie.
     static void getAnalysisUsageForPoolAllocation(AnalysisUsage &AU);
 
+		static void preservePAandDSA(AnalysisUsage &AU);
     
     //
     // Method: releaseMemory()

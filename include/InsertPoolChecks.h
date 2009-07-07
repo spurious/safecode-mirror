@@ -47,9 +47,11 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<DSNodePass>();
-      DSNodePass::getAnalysisUsageForDSA(AU);
-      DSNodePass::getAnalysisUsageForPoolAllocation(AU);
-
+			AU.addPreserved<PoolAllocateGroup>();
+#if 0
+	DSNodePass::getAnalysisUsageForPoolAllocation(AU);
+#endif
+      DSNodePass::preservePAandDSA(AU);
       AU.addPreserved<InsertSCIntrinsic>();
       AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
@@ -66,21 +68,13 @@ struct InsertPoolChecks : public FunctionPass {
   Function *PoolCheckAlignUI;
   Function *PoolCheckArray;
   Function *PoolCheckArrayUI;
-  Function *ExactCheck;
   Function *FunctionCheck;
-  void addCheckProto(Module &M);
+	void addCheckProto(Module &M);
   void addPoolChecks(Function &F);
   void addGetElementPtrChecks(GetElementPtrInst * GEP);
-  bool insertExactCheck (GetElementPtrInst * GEP);
-#if 0
-  bool insertExactCheck (Instruction * , Value *, Value *, Instruction *);
-  void addExactCheck (Value * P, Value * I, Value * B, Instruction * InsertPt);
-#endif
   void addLoadStoreChecks(Function &F);
-  void addExactCheck2 (Value * B, Value * R, Value * C, Instruction * InsertPt);
   void insertAlignmentCheck (LoadInst * LI);
   void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
-  void registerGlobalArraysWithGlobalPools(Module &M);
 };
 
 /// Monotonic Loop Optimization
@@ -120,8 +114,6 @@ struct RegisterStackObjPass : public FunctionPass {
   virtual bool runOnFunction(Function &F);
   virtual const char * getPassName() const { return "Register stack variables into pool"; }
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequiredTransitive<PoolAllocateGroup>();
-    AU.addRequiredTransitive<EQTDDataStructures>();
     AU.addRequiredTransitive<DSNodePass>();
 
     AU.addRequired<DominatorTree>();

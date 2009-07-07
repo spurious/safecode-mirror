@@ -189,7 +189,7 @@ NAMESPACE_SC_BEGIN
     // Get references to previous analysis passes
     TargetData &TD = getAnalysis<TargetData>();
     dsnPass = &getAnalysis<DSNodePass>();
-    paPass = &getAnalysis<PoolAllocateGroup>();
+    paPass = dsnPass->paPass;
 
     //
     // Get the type of a pool descriptor.

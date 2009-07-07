@@ -21,7 +21,7 @@
 NAMESPACE_SC_BEGIN
 
 char DSNodePass::ID = 0; 
-static RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", false, true);
+static RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", true, true);
 
 cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
   cl::desc("Check every use of GEP"));
@@ -29,6 +29,9 @@ cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
 bool
 DSNodePass::runOnModule(Module & M) {
   paPass = &getAnalysis<PoolAllocateGroup>();
+#if 0
+  paPass = &getAnalysis<PoolAllocateMultipleGlobalPool>();
+#endif
   assert (paPass && "Pool Allocation Transform *must* be run first!");
 #if 0
   efPass = &getAnalysis<EmbeCFreeRemoval>();
@@ -289,22 +292,34 @@ DSNodePass::isValueChecked(const Value * val) const {
 
 void
 DSNodePass::getAnalysisUsageForDSA(AnalysisUsage &AU) {
-  if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
-    AU.addRequired<BasicDataStructures>();
-  } else {
-    AU.addRequired<EQTDDataStructures>();
+  switch (SCConfig->DSAType) {
+  case SAFECodeConfiguration::DSA_BASIC:
+    AU.addRequiredTransitive<BasicDataStructures>();
+    break;
+  case SAFECodeConfiguration::DSA_EQTD:
+    AU.addRequiredTransitive<EQTDDataStructures>();
+    break;
+  case SAFECodeConfiguration::DSA_STEENS:
+    AU.addRequiredTransitive<SteensgaardDataStructures>();
+    break;
   }
 }
 
 void
 DSNodePass::getAnalysisUsageForPoolAllocation(AnalysisUsage &AU) {
-  AU.addRequired<PoolAllocateGroup>();
+  AU.addRequiredTransitive<PoolAllocateGroup>();
   AU.addPreserved<PoolAllocateGroup>();
-  if (SCConfig->DSAType == SAFECodeConfiguration::DSA_BASIC) {
-    AU.addPreserved<BasicDataStructures>();
-  } else {
-    AU.addPreserved<EQTDDataStructures>();
-  }
+  AU.addPreserved<SteensgaardDataStructures>();
+  AU.addPreserved<BasicDataStructures>();
+  AU.addPreserved<EQTDDataStructures>();
+}
+
+void
+DSNodePass::preservePAandDSA(AnalysisUsage &AU) {
+  AU.addPreserved<PoolAllocateGroup>();
+  AU.addPreserved<SteensgaardDataStructures>();
+  AU.addPreserved<BasicDataStructures>();
+  AU.addPreserved<EQTDDataStructures>();
 }
 
 NAMESPACE_SC_END

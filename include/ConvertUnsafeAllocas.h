@@ -69,11 +69,8 @@ struct InitAllocas : public FunctionPass {
     virtual bool doInitialization (Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
-      AU.addRequired<PoolAllocateGroup>();
       AU.addRequired<DSNodePass>();
-      DSNodePass::getAnalysisUsageForDSA(AU);
       AU.setPreservesCFG();
-      AU.setPreservesAll();
     }
 };
 
@@ -94,11 +91,10 @@ struct ConvertUnsafeAllocas : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
-      AU.addRequired<DominanceFrontier>();
+      AU.addRequired<EQTDDataStructures>();
 
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
-      DSNodePass::getAnalysisUsageForDSA(AU);
 
       AU.addPreserved<ArrayBoundsCheckGroup>();
       AU.addPreserved<EQTDDataStructures>();
