@@ -149,7 +149,17 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   __pa_bitmap_poolinit(GlobalPool, 1);
 
   //
+  // Call the in-place constructor for the splay tree of objects and, if
+  // applicable, the set of Out of Bound rewrite pointers and the splay tree
+  // used for dangling pointer detection.
+  //
+  new (&(GlobalPool->Objects)) RangeSplaySet<>();
+  new (&(GlobalPool->OOB)) RangeSplayMap<void *>();
+  new (&(GlobalPool->DPTree)) RangeSplayMap<PDebugMetaData>();
+
+  //
   // Initialize the signal handlers for catching errors.
+  //
   ConfigData.RemapObjects = Dangling;
   ConfigData.StrictIndexing = !(RewriteOOB);
   StopOnError = Terminate;
@@ -274,6 +284,20 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                     unsigned NumBytes,
                     const char * SourceFilep,
                     unsigned lineno) {
+  // Do some initial casting for type goodness
+  char * SourceFile = (char *)(SourceFilep);
+
+  //
+  // Print debug information about what object the caller is trying to
+  // register.
+  //
+  if (logregs) {
+    fprintf (ReportLog, "poolregister_debug: %p: %p-%p: %d %s %d\n", 
+             (void*) Pool, (void*)allocaptr,
+             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, SourceFile, lineno);
+    fflush (ReportLog);
+  }
+
   //
   // If the pool is NULL or the object has zero length, don't do anything.
   //
@@ -282,10 +306,10 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
   //
   // Add the object to the pool's splay of valid objects.
   //
-  Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1);
-
-  // Do some initial casting for type goodness
-  char * SourceFile = (char *)(SourceFilep);
+  if (!(Pool->Objects.insert(allocaptr, (char*) allocaptr + NumBytes - 1))) {
+    assert (0 && "poolregister failed: Object already registered!\n");
+    abort();
+  }
 
   //
   // Create the meta data object containing the debug information for this
@@ -304,14 +328,6 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                            (char*) allocaptr + NumBytes - 1,
                            debugmetadataPtr);
 
-  //
-  // Call the real poolregister() function to register the object.
-  //
-  if (logregs) {
-    fprintf (ReportLog, "poolregister_debug: %p: %p %d: %s %d\n", 
-             (void*) Pool, (void*)allocaptr, NumBytes, SourceFile, lineno);
-    fflush (ReportLog);
-  }
 }
 
 //
@@ -336,7 +352,7 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 //
 // Inputs:
 //  Pool      - The pool in which the object should belong.
-//  allocaptr - A pointer to the object to remove.
+//  allocaptr - A pointer to the object to remove.  It can be NULL.
 //
 // Notes:
 //  Note that this function currently deallocates debug information about the
@@ -346,7 +362,9 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 //  function (dangling pointer), but it is currently too expensive to keep that
 //  much debug information around.
 //
-//  TODO: What are the restrictions on allocaptr?
+// TODO: The above note is no longer correct; this function is called for stack
+//       and heap allocated objects.  We need a separate function for
+//       registering stack objects.
 //
 void
 __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
@@ -354,6 +372,11 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   // If no pool was specified, then do nothing.
   //
   if (!Pool) return;
+
+  //
+  // For the NULL pointer, we take no action but flag no error.
+  //
+  if (!allocaptr) return;
 
   //
   // Remove the object from the pool's splay tree.
@@ -587,6 +610,12 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     ucontext_t * mycontext = (ucontext_t *) context;
     program_counter = mycontext->uc_mcontext->__ss.__eip;
 #endif
+#endif
+
+#if defined(__linux__)
+    // Cast parameters to the desired type
+    ucontext_t * mycontext = (ucontext_t *) context;
+    program_counter = mycontext->uc_mcontext.gregs[14];
 #endif
 
 #if SC_ENABLE_OOB
