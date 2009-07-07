@@ -135,6 +135,59 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, const char * SourceFilep, unsign
   return;
 }
 
+
+//
+// Function: poolcheckalign_debug()
+//
+// Description:
+//  Identical to poolcheckalign() but with additional debug info parameters.
+//
+// Inputs:
+//  Pool   - The pool in which the pointer should be found.
+//  Node   - The pointer to check.
+//  Offset - The offset, in bytes, that the pointer should be to the beginning
+//           of objects found in the pool.
+//
+// FIXME:
+//  For now, this does nothing, but it should, in fact, do a run-time check.
+//
+void
+poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno) {
+  //
+  // Let null pointers go if the alignment is zero; such pointers are aligned.
+  //
+  if ((Node == 0) && (Offset == 0))
+    return;
+
+  //
+  // If no pool was specified, return.
+  //
+  if (!Pool) return;
+
+  //
+  // Look for the object in the splay of regular objects.
+  //
+  void * S, * end;
+  bool t = Pool->Objects.find(Node, S, end);
+
+  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == (int)Offset)) {
+      return;
+  }
+
+  //
+  // The object has not been found.  Provide an error.
+  //
+  DebugViolationInfo v;
+  v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = Node,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineno;
+  
+  ReportMemoryViolation(&v);
+}
+
+
 void
 poolcheckui (DebugPoolTy *Pool, void *Node) {
   if (_barebone_poolcheck (Pool, Node))
@@ -499,9 +552,12 @@ boundscheckui_debug (DebugPoolTy * Pool,
   }
 }
 
+
+/// Stubs
+
 void
 poolcheck (DebugPoolTy *Pool, void *Node) {
-  poolcheck_debug(Pool, Node, "<unknown>", 0);
+  poolcheck_debug(Pool, Node, NULL, 0);
 }
 
 //
@@ -514,7 +570,7 @@ poolcheck (DebugPoolTy *Pool, void *Node) {
 //
 void *
 boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
-  return boundscheck_debug(Pool, Source, Dest, "<unknown>", 0);
+  return boundscheck_debug(Pool, Source, Dest, NULL, 0);
 }
 
 //
@@ -530,5 +586,23 @@ boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
 //
 void *
 boundscheckui (DebugPoolTy * Pool, void * Source, void * Dest) {
-  return boundscheckui_debug (Pool, Source, Dest, "<unknown>", 0);
+  return boundscheckui_debug (Pool, Source, Dest, NULL, 0);
+}
+
+//
+// Function: poolcheckalign()
+//
+// Description:
+//  Ensure that the given pointer is both within an object in the pool *and*
+//  points to the correct offset within the pool.
+//
+// Inputs:
+//  Pool   - The pool in which the pointer should be found.
+//  Node   - The pointer to check.
+//  Offset - The offset, in bytes, that the pointer should be to the beginning
+//           of objects found in the pool.
+//
+void
+poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
+  poolcheckalign_debug(Pool, Node, Offset, NULL, 0);
 }

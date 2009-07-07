@@ -92,6 +92,7 @@ extern "C" {
   void funccheck (unsigned num, void *f, void *g, ...);
   void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
 
+  void * __sc_dbg_poolinit(NAMESPACE_SC::DebugPoolTy *Pool, unsigned NodeSize);
   void * __sc_dbg_src_poolcalloc (NAMESPACE_SC::DebugPoolTy * Pool,
                                 unsigned Number, unsigned NumBytes,
                                 const char * SourceFilep,
@@ -104,7 +105,7 @@ extern "C" {
   unsigned size, const char * SF, unsigned lineno);
   void   __sc_dbg_src_poolfree (NAMESPACE_SC::DebugPoolTy * P, void * ptr, const char * SrcFle, unsigned no);
   void   poolcheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * Node, const char * SrcFle, unsigned no);
-  void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, void * SourceFile, unsigned lineno);
+  void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno);
   void * boundscheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
   const char * SFile, unsigned int lineno);
   void * pchk_getActualValue (NAMESPACE_SC::DebugPoolTy * Pool, void * src);

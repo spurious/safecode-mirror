@@ -317,8 +317,8 @@ RewriteOOB::runOnModule (Module & M) {
   //
   // Get prerequisite analysis results.
   //
-  paPass     = &getAnalysis<PoolAllocateGroup>();
   dsnPass    = &getAnalysis<DSNodePass>();
+  paPass     = dsnPass->paPass;
   intrinPass = &getAnalysis<InsertSCIntrinsic>();
 
   //

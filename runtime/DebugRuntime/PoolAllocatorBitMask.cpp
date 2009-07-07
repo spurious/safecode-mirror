@@ -120,43 +120,9 @@ static PDebugMetaData createPtrMetaData (unsigned,
 //               occurs.
 //
 
-extern "C" char __poolalloc_GlobalPool[sizeof (DebugPoolTy)];
+extern "C" void __poolalloc_init();
 void
 pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
-  //
-  // Configure the global pool.
-  //
-  // Call the in-place constructor for the splay tree of objects and, if
-  // applicable, the set of Out of Bound rewrite pointers and the splay tree
-  // used for dangling pointer detection.
-  //
-  // FIXME: This is rediculous. Just a temporary workaround.
-  // deally, it should be done by allocating the pool on
-  // the heap in pool allocation, then SAFECode redirects the calls to a
-  // customized constructor.
-  DebugPoolTy * GlobalPool = reinterpret_cast<DebugPoolTy*>(&__poolalloc_GlobalPool);
-  new (&(GlobalPool->Objects)) RangeSplaySet<>();
-#if SC_ENABLE_OOB 
-  new (&(GlobalPool->OOB)) RangeSplayMap<void *>();
-#endif
-#if SC_DEBUGTOOL
-  new (&(GlobalPool->DPTree)) RangeSplayMap<PDebugMetaData>();
-#endif
-
-  //
-  // Initialize the Global Pool
-  //
-  __pa_bitmap_poolinit(GlobalPool, 1);
-
-  //
-  // Call the in-place constructor for the splay tree of objects and, if
-  // applicable, the set of Out of Bound rewrite pointers and the splay tree
-  // used for dangling pointer detection.
-  //
-  new (&(GlobalPool->Objects)) RangeSplaySet<>();
-  new (&(GlobalPool->OOB)) RangeSplayMap<void *>();
-  new (&(GlobalPool->DPTree)) RangeSplayMap<PDebugMetaData>();
-
   //
   // Initialize the signal handlers for catching errors.
   //
@@ -219,6 +185,8 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   }
 #endif
 
+  // Initialize all global pools
+  __poolalloc_init();
   return;
 }
 
@@ -855,3 +823,23 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   __pa_bitmap_poolfree(Pool, Node);
   return New;
 }
+
+// Initialize a debug pool
+void *
+__sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize) {
+  __pa_bitmap_poolinit(static_cast<BitmapPoolTy*>(Pool), NodeSize);
+  // Call the in-place constructor for the splay tree of objects and, if
+  // applicable, the set of Out of Bound rewrite pointers and the splay tree
+  // used for dangling pointer detection.
+  //
+  // FIXME: This is rediculous. Just a temporary workaround.
+  // deally, it should be done by allocating the pool on
+  // the heap in pool allocation, then SAFECode redirects the calls to a
+  // customized constructor.
+  new (&(Pool->Objects)) RangeSplaySet<>();
+  new (&(Pool->OOB)) RangeSplayMap<void *>();
+  new (&(Pool->DPTree)) RangeSplayMap<PDebugMetaData>();
+
+  return Pool;
+}
+

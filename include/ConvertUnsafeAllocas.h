@@ -70,6 +70,7 @@ struct InitAllocas : public FunctionPass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
       AU.addRequired<DSNodePass>();
+			DSNodePass::preservePAandDSA(AU);
       AU.setPreservesCFG();
     }
 };

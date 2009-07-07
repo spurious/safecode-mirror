@@ -47,10 +47,7 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<DSNodePass>();
-			AU.addPreserved<PoolAllocateGroup>();
-#if 0
-	DSNodePass::getAnalysisUsageForPoolAllocation(AU);
-#endif
+			//lying!
       DSNodePass::preservePAandDSA(AU);
       AU.addPreserved<InsertSCIntrinsic>();
       AU.addPreserved<DSNodePass>();
@@ -89,8 +86,8 @@ struct MonotonicLoopOpt : public LoopPass {
     AU.addRequired<TargetData>();
     AU.addRequired<LoopInfo>();
     AU.addRequired<ScalarEvolution>();
-    AU.addPreserved<EQTDDataStructures>();
-    AU.addPreserved<PoolAllocateGroup>();
+		// lying !
+		DSNodePass::preservePAandDSA(AU);
     AU.addPreserved<DSNodePass>();
     AU.setPreservesCFG();
   }
@@ -119,7 +116,8 @@ struct RegisterStackObjPass : public FunctionPass {
     AU.addRequired<DominatorTree>();
     AU.addRequired<TargetData>();
     AU.addRequired<InsertSCIntrinsic>();
-
+    // lying!
+    DSNodePass::preservePAandDSA(AU);
     AU.addPreserved<InsertSCIntrinsic>();
     AU.setPreservesAll();
   };

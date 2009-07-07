@@ -62,9 +62,6 @@ class RewriteOOB : public ModulePass {
       // This pass gives us information on the various run-time checks
       AU.addRequired<InsertSCIntrinsic>();
 
-      DSNodePass::getAnalysisUsageForDSA(AU);
-      DSNodePass::getAnalysisUsageForPoolAllocation(AU);
-
       // Pretend that we don't modify anything
       AU.setPreservesAll();
     }
