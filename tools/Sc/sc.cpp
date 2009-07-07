@@ -248,9 +248,6 @@ int main(int argc, char **argv) {
     if (CheckingRuntime != RUNTIME_PA)
       NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
 
-    addPoolAllocationPass(Passes);
-    Passes.add(new DSNodePass());
-
 #if 0
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
     // Bottom-Up Call Graph pass doesn't work after pool allocation has
