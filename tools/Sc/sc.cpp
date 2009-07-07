@@ -42,6 +42,7 @@
 #include "InsertPoolChecks.h"
 #include "IndirectCallChecks.h"
 #include "safecode/BreakConstantGEPs.h"
+#include "safecode/BreakConstantStrings.h"
 #include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/OptimizeChecks.h"
@@ -230,6 +231,14 @@ int main(int argc, char **argv) {
     PassManager Passes;
     Passes.add(new TargetData(M.get()));
 
+    //
+    // Merge constants.  We do this here because merging constants *after*
+    // running SAFECode may cause incorrect registration of global objects
+    // (e.g., two global object registrations may register the same object
+    // because the globals are identical constant strings).
+    //
+    Passes.add (createConstantMergePass());
+
     // Remove all constant GEP expressions
     NOT_FOR_SVA(Passes.add(new BreakConstantGEPs()));
 
@@ -267,7 +276,10 @@ int main(int argc, char **argv) {
     NOT_FOR_SVA(Passes.add(new BottomUpCallGraph()));
 
     NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
-   
+ 
+    //
+    // Run pool allocation.
+    //
 	 	addPoolAllocationPass(Passes);
 
 #if 0
@@ -275,7 +287,20 @@ int main(int argc, char **argv) {
     // pool allocation,
     Passes.add(new PAConvertUnsafeAllocas());
 #endif
-    //    Passes.add(new EmbeCFreeRemoval());
+
+    //
+    // Disable this pass for now.  We don't really use it, and it generates
+    // lots of compiler warnings.
+    //
+#if 0
+    Passes.add(new EmbeCFreeRemoval());
+#endif
+
+    //
+    // Instrument the code so that memory objects are registered into the
+    // correct pools.  Note that user-space SAFECode requires a few additional
+    // transforms to do this.
+    //
     Passes.add(new RegisterGlobalVariables());
 
     if (!SCConfig->SVAEnabled) {
@@ -287,20 +312,29 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
+    //
+    // Find indexing instructions that do not require run-time checks (i.e.,
+    // they can be proven safe statically).
+    //
     switch (SCConfig->StaticCheckType) {
-    case SAFECodeConfiguration::ABC_CHECK_NONE:
-      Passes.add(new ArrayBoundsCheckDummy());
-      break;
-    case SAFECodeConfiguration::ABC_CHECK_LOCAL:
-      Passes.add(new ArrayBoundsCheckLocal());
-      break;
-    case SAFECodeConfiguration::ABC_CHECK_FULL:
-      assert (0 && "Omega pass is not working right now!");
+      case SAFECodeConfiguration::ABC_CHECK_NONE:
+        Passes.add(new ArrayBoundsCheckDummy());
+        break;
+      case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+        Passes.add(new ArrayBoundsCheckLocal());
+        break;
+      case SAFECodeConfiguration::ABC_CHECK_FULL:
+        //
+        // The full static array bounds checking pass (aka the Omega Pass)
+        // doesn't compile due to compiler warnings.  Disable it for now.
+        //
 #if 0
-      Passes.add(new ABCPreProcess());
-      Passes.add(new ArrayBoundsCheck());
+        Passes.add(new ABCPreProcess());
+        Passes.add(new ArrayBoundsCheck());
+#else
+        assert (0 && "Omega pass is not working right now!");
 #endif
-      break;
+        break;
     }
 
     Passes.add(new InsertPoolChecks());
@@ -359,7 +393,6 @@ int main(int argc, char **argv) {
     // Attempt to optimize the checks.
     //
     Passes.add (new OptimizeChecks());
-
     Passes.add (new PoolRegisterElimination());
 
 #ifdef SC_DEBUGTOOL
@@ -370,6 +403,10 @@ int main(int argc, char **argv) {
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
+
+    // Make all strings non-constant so that the linker doesn't try to merge
+    // them together.
+    Passes.add(new BreakConstantStrings());
 
     // Verify the final result
     Passes.add(createVerifierPass());
