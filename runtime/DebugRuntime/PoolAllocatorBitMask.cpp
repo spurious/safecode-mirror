@@ -663,10 +663,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // printing reports
   void * address = 0;
   program_counter = 0;
-  unsigned alloc_pc = 0;
-  unsigned free_pc = 0;
-  unsigned allocID = 0;
-  unsigned freeID = 0;
 
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
@@ -674,10 +670,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   ucontext_t * mycontext = (ucontext_t *) context;
   program_counter = mycontext->uc_mcontext->__ss.__eip;
 #endif
-  alloc_pc = ((unsigned) (debugmetadataptr->allocPC)) - 5;
-  free_pc  = ((unsigned) (debugmetadataptr->freePC)) - 5;
-  allocID  = debugmetadataptr->allocID;
-  freeID   = debugmetadataptr->freeID;
 #endif
   
   DebugViolationInfo v;
