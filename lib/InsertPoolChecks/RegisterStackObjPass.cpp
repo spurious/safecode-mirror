@@ -41,6 +41,9 @@ namespace {
 // Static Functions
 ////////////////////////////////////////////////////////////////////////////
 
+// Prototypes of the poolunregister function
+static Constant * StackFree = 0;
+
 //
 // Function: findBlocksDominatedBy()
 //
@@ -78,13 +81,133 @@ findBlocksDominatedBy (DomTreeNode * DTN, std::set<DomTreeNode *> & List) {
   }
 }
 
+//
+// Function: insertPoolFrees()
+//
+// Description:
+//  This function takes a list of alloca instructions and inserts code to
+//  unregister them at every unwind and return instruction.
+//
+// Inputs:
+//  PoolRegisters - The list of calls to poolregister() inserted for stack
+//                  objects.
+//  ExitPoints    - The list of instructions that can cause the function to
+//                  return.
+//
+static void
+insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
+                 const std::vector<Instruction *> & ExitPoints) {
+  // List of alloca instructions we create to store the pointers to be
+  // deregistered.
+  std::vector<AllocaInst *> PtrList;
+
+  // List of pool handles; this is a parallel array to PtrList
+  std::vector<Value *> PHList;
+
+  // The infamous void pointer type
+  PointerType * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+
+  //
+  // Create alloca instructions for every registered alloca.  These will hold
+  // a pointer to the registered stack objects and will be referenced by
+  // poolunregister().
+  //
+  for (unsigned index = 0; index < PoolRegisters.size(); ++index) {
+    //
+    // Take the first element off of the worklist.
+    //
+    CallInst * CI = PoolRegisters[index];
+
+    //
+    // Get the pool handle and allocated pointer from the poolregister() call.
+    //
+    Value * PH  = CI->getOperand(1);
+    Value * Ptr = CI->getOperand(2);
+
+    //
+    // Create a place to store the pointer returned from alloca.  Initialize it
+    // with a null pointer.
+    //
+    BasicBlock & EntryBB = CI->getParent()->getParent()->getEntryBlock();
+    Instruction * InsertPt = &(EntryBB.front());
+    AllocaInst * PtrLoc = new AllocaInst (VoidPtrTy,
+                                          Ptr->getName() + ".st",
+                                          InsertPt);
+    Value * NullPointer = ConstantPointerNull::get(VoidPtrTy);
+    new StoreInst (NullPointer, PtrLoc, InsertPt);
+
+    //
+    // Store the registered pointer into the memory we allocated in the entry
+    // block.
+    //
+    new StoreInst (Ptr, PtrLoc, CI);
+
+    //
+    // Record the alloca that stores the pointer to deregister.
+    // Record the pool handle with it.
+    //
+    PtrList.push_back (PtrLoc);
+    PHList.push_back (PH);
+  }
+
+  //
+  // For each point where the function can exit, insert code to deregister all
+  // stack objects.
+  //
+  for (unsigned index = 0; index < ExitPoints.size(); ++index) {
+    //
+    // Take the first element off of the worklist.
+    //
+    Instruction * Return = ExitPoints[index];
+
+    //
+    // Deregister each registered stack object.
+    //
+    for (unsigned i = 0; i < PtrList.size(); ++i) {
+      //
+      // Get the location holding the pointer and the pool handle associated
+      // with it.
+      //
+      AllocaInst * PtrLoc = PtrList[i];
+      Value * PH = PHList[i];
+
+      //
+      // Generate a load instruction to get the registered pointer.
+      //
+      LoadInst * Ptr = new LoadInst (PtrLoc, "", Return);
+
+      //
+      // Create the call to poolunregister().
+      //
+      std::vector<Value *> args;
+      args.push_back (PH);
+      args.push_back (Ptr);
+      CallInst::Create (StackFree, args.begin(), args.end(), "", Return);
+    }
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////
 // RegisterStackObjPass Methods
 ////////////////////////////////////////////////////////////////////////////
  
-// Prototypes of the poolunregister function
-static Constant * StackFree;
-
+//
+// Method: runOnFunction()
+//
+// Description:
+//  This is the entry point for this LLVM function pass.  The pass manager will
+//  call this method for every function in the Module that will be transformed.
+//
+// Inputs:
+//  F - A reference to the function to transform.
+//
+// Outputs:
+//  F - The function will be modified to register and unregister stack objects.
+//
+// Return value:
+//  true  - The function was modified.
+//  false - The function was not modified.
+//
 bool
 RegisterStackObjPass::runOnFunction(Function & F) {
   //
@@ -102,36 +225,86 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   PoolRegister = intrinsic->getIntrinsic("sc.pool_register").F;  
   StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
 
+  // The set of registered stack objects
+  std::vector<CallInst *> PoolRegisters;
+
+  // The set of stack objects within the function.
+  std::vector<AllocaInst *> AllocaList;
+
+  // The set of instructions that can cause the function to return to its
+  // caller.
+  std::vector<Instruction *> ExitPoints;
+
+  //
+  // Scan the function to register allocas and find locations where registered
+  // allocas to be deregistered.
+  //
   for (Function::iterator BI = F.begin(); BI != F.end(); ++BI) {
     //
-    // Find all of the basic blocks dominated by this basic block.
-    //
-    std::set<DomTreeNode *> Children;
-    findBlocksDominatedBy (DT->getNode(BI), Children);
-
-    //
-    // Search for alloca instructions and add calls to register and unregister
-    // the allocated stack objects.
+    // Create a list of alloca instructions to register.  Note that we create
+    // the list ahead of time because registerAllocaInst() will create new
+    // alloca instructions.
     //
     for (BasicBlock::iterator I = BI->begin(); I != BI->end(); ++I) {
       if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
-        registerAllocaInst (AI, AI, Children);
+        AllocaList.push_back (AI);
       }
     }
+
+    //
+    // Add calls to register the allocated stack objects.
+    //
+    while (AllocaList.size()) {
+      AllocaInst * AI = AllocaList.back();
+      AllocaList.pop_back();
+      if (CallInst * CI = registerAllocaInst (AI))
+        PoolRegisters.push_back(CI);
+    }
+
+    //
+    // If the terminator instruction of this basic block can return control
+    // flow back to the caller, mark it as a place where a deregistration
+    // is needed.
+    //
+    Instruction * Terminator = BI->getTerminator();
+    if ((isa<ReturnInst>(Terminator)) || (isa<UnwindInst>(Terminator))) {
+      ExitPoints.push_back (Terminator);
+    }
   }
+
+  //
+  // Insert poolunregister calls for all of the registered allocas.
+  //
+  insertPoolFrees (PoolRegisters, ExitPoints);
+
+  //
+  // Conservatively assume that we've changed the function.
+  //
   return true;
 }
 
-void
-RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
-                                          AllocaInst *AIOrig,
-                                          std::set<DomTreeNode *> Children) {
+//
+// Method: registerAllocaInst()
+//
+// Description:
+//  Register a single alloca instruction.
+//
+// Inputs:
+//  AI - The alloca which requires registration.
+//
+// Return value:
+//  NULL - The alloca was not registered.
+//  Otherwise, the call to poolregister() is returned.
+//
+CallInst *
+RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   // Get the function information for this function.
   //
   Function *F = AI->getParent()->getParent();
   PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
   Value *temp = FI->MapValueToOriginal(AI);
+  AllocaInst *AIOrig = AI;
   if (temp)
     AIOrig = dyn_cast<AllocaInst>(temp);
 
@@ -140,7 +313,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
   //
   Function *FOrig  = AIOrig->getParent()->getParent();
   DSNode *Node = dsnPass->getDSNode(AIOrig, FOrig);
-  if (!Node) return;
+  assert (Node && "Alloca does not have DSNode!\n");
   assert ((Node->isAllocaNode()) && "DSNode for alloca is missing stack flag!");
 
   //
@@ -153,7 +326,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
   //
 #if 0
   if (!(Node->isArray()))
-    return;
+    return 0;
 #endif
 
   //
@@ -169,7 +342,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
   //
   if (dsnPass->isDSNodeChecked(Node)) {
     ++SavedRegAllocs;
-    return;
+    return 0;
   }
 
   //
@@ -263,23 +436,29 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
 
   if (!MustRegisterAlloca) {
     ++SavedRegAllocs;
-    return;
+    return 0;
   }
 
   //
   // Insert the alloca registration.
   //
   Value *PH = dsnPass->getPoolHandle(AIOrig, FOrig, *FI);
-  if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return 0;
 
-  Value *AllocSize =
-    ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize(AI->getAllocatedType()));
-  
+  //
+  // Create an LLVM Value for the allocation size.  Insert a multiplication
+  // instruction if the allocation allocates an array.
+  //
+  unsigned allocsize = TD->getTypeAllocSize(AI->getAllocatedType());
+  Value *AllocSize = ConstantInt::get(Type::Int32Ty, allocsize);
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                        AI->getOperand(0), "sizetmp", AI);
 
-  // Insert object registration at the end of allocas.
+  //
+  // Attempt to insert the call to register the alloca'ed object after all of
+  // the alloca instructions in the basic block.
+  //
   Instruction *iptI = AI;
   BasicBlock::iterator InsertPt = AI;
   iptI = ++InsertPt;
@@ -295,16 +474,30 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
   //
   // Insert a call to register the object.
   //
-  Instruction *Casted = castTo (AI, PointerType::getUnqual(Type::Int8Ty),
-                                AI->getName()+".casted", iptI);
-  Value * CastedPH = castTo (PH, PointerType::getUnqual(Type::Int8Ty),
-                             PH->getName() + "casted", iptI);
+  PointerType * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  Instruction *Casted = castTo (AI, VoidPtrTy, AI->getName()+".casted", iptI);
+  Value * CastedPH    = castTo (PH, VoidPtrTy, PH->getName() + "casted", iptI);
   std::vector<Value *> args;
   args.push_back (CastedPH);
   args.push_back (Casted);
   args.push_back (AllocSize);
 
-  CallInst::Create (PoolRegister, args.begin(), args.end(), "", iptI);
+#if 0
+  //
+  // Insert an alloca into the entry block and store a NULL pointer in it.
+  // Then insert a store instruction that will store the registered stack
+  // pointer into this memory when poolregister() is called.  This will allow
+  // us to free all alloca'ed pointers at all return instructions by loading
+  // the pointer out of the stack object and called poolunregister() on it.
+  // We can run mem2reg after this pass to clean the code up.
+  //
+  BasicBlock * EntryBB = AI-getParent()->getParent();
+  AllocaInst * PtrLoc = new AllocaInst (VoidPtrTy,
+                                        AI->getName() + ".st",
+                                        EntryBB->getTerminator());
+  Value * NullPointer = ConstantPointerNull::get(VoidPtryTy);
+  new StoreInst (NullPointer, PtrLoc, EntryBB->getTerminator());
+  new StoreInst (Casted, PtrLoc, iptI);
 
   //
   // Insert a call to unregister the object whenever the function can exit.
@@ -336,9 +529,11 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI,
     if (isa<ReturnInst>(iptI) || isa<UnwindInst>(iptI))
       CallInst::Create (StackFree, args.begin(), args.end(), "", iptI);
   }
+#endif
 
   // Update statistics
   ++StackRegisters;
+  return CallInst::Create (PoolRegister, args.begin(), args.end(), "", iptI);
 }
 
 NAMESPACE_SC_END

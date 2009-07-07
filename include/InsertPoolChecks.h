@@ -135,9 +135,7 @@ struct RegisterStackObjPass : public FunctionPass {
     // The pool registration function
     Constant *PoolRegister;
 
-    void registerAllocaInst(AllocaInst *AI,
-                            AllocaInst *AIOrig,
-                            std::set<DomTreeNode *> Children);
+    CallInst * registerAllocaInst(AllocaInst *AI);
  };
 
  extern ModulePass * createClearCheckAttributesPass();
