@@ -1235,7 +1235,7 @@ poolregister (PoolTy *Pool, void * allocaptr, unsigned NumBytes) {
   //
   // Do the actual registration.
   //
-  __barebone_poolregister (Pool, allocaptr, NumBytes);
+  if (allocaptr) __barebone_poolregister (Pool, allocaptr, NumBytes);
 
   //
   // Provide some debugging information on the pool register.
