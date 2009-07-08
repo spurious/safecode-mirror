@@ -105,27 +105,36 @@ struct MonotonicLoopOpt : public LoopPass {
 
 struct RegisterStackObjPass : public FunctionPass {
   public:
-  static char ID;
-  RegisterStackObjPass() : FunctionPass((intptr_t) &ID) {};
-  virtual ~RegisterStackObjPass() {};
-  virtual bool runOnFunction(Function &F);
-  virtual const char * getPassName() const { return "Register stack variables into pool"; }
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequiredTransitive<DSNodePass>();
+    static char ID;
+    RegisterStackObjPass() : FunctionPass((intptr_t) &ID) {};
+    virtual ~RegisterStackObjPass() {};
+    virtual bool runOnFunction(Function &F);
+    virtual const char * getPassName() const {
+      return "Register stack variables into pool";
+    }
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequiredTransitive<DSNodePass>();
 
-    AU.addRequired<DominatorTree>();
-    AU.addRequired<TargetData>();
-    AU.addRequired<InsertSCIntrinsic>();
-    // lying!
-    DSNodePass::preservePAandDSA(AU);
-    AU.addPreserved<InsertSCIntrinsic>();
-    AU.setPreservesAll();
-  };
+      AU.addRequired<TargetData>();
+      AU.addRequired<LoopInfo>();
+      AU.addRequired<InsertSCIntrinsic>();
+
+      //
+      // Claim that we preserve the DSA and pool allocation results since they
+      // are needed by subsequent SAFECode passes.
+      //
+      // TODO: Determine whether this code is really lying or not.
+      //
+      DSNodePass::preservePAandDSA(AU);
+      AU.addPreserved<InsertSCIntrinsic>();
+      AU.setPreservesAll();
+    };
 
   private:
     // References to other LLVM passes
     PoolAllocateGroup * paPass;
     TargetData * TD;
+    LoopInfo * LI;
     DSNodePass * dsnPass;
     DominatorTree * DT;
     InsertSCIntrinsic * intrinsic;

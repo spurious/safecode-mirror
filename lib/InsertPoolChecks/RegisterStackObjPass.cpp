@@ -45,43 +45,6 @@ namespace {
 static Constant * StackFree = 0;
 
 //
-// Function: findBlocksDominatedBy()
-//
-// Description:
-//  This function recurses through the dominator tree to find all the nodes
-//  domianted by the given node.
-//
-// Inputs:
-//  DTN  - The node which dominates all the nodes which this function will find.
-//
-// Outputs:
-//  List - The set of nodes dominated by the given node.
-//
-static void
-findBlocksDominatedBy (DomTreeNode * DTN, std::set<DomTreeNode *> & List) {
-  //
-  // First, the block dominates itself.
-  //
-  List.insert (DTN);
-
-  //
-  // Add to the set all of the basic blocks immediently domainted by this basic
-  // block.
-  //
-  const std::vector<DomTreeNode*> &children = DTN->getChildren();
-  List.insert (children.begin(), children.end());
-
-  //
-  // Add the children's children to the set as well.
-  //
-  for (std::vector<DomTreeNode*>::const_iterator i = children.begin();
-       i != children.end();
-       ++i) {
-    findBlocksDominatedBy (*i, List);
-  }
-}
-
-//
 // Function: insertPoolFrees()
 //
 // Description:
@@ -214,7 +177,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   // Get prerequisite analysis information.
   //
   TD = &getAnalysis<TargetData>();
-  DT = &getAnalysis<DominatorTree>();
+  LI = &getAnalysis<LoopInfo>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   dsnPass = &getAnalysis<DSNodePass>();
   paPass = dsnPass->paPass;
@@ -247,6 +210,14 @@ RegisterStackObjPass::runOnFunction(Function & F) {
     //
     for (BasicBlock::iterator I = BI->begin(); I != BI->end(); ++I) {
       if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
+        //
+        // Ensure that the alloca is not within a loop; we don't support yet.
+        //
+        if (LI->getLoopFor (BI)) {
+          assert (0 &&
+                  "Register Stack Objects: No support for alloca in loop!\n");
+          abort();
+        }
         AllocaList.push_back (AI);
       }
     }
@@ -481,55 +452,6 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   args.push_back (CastedPH);
   args.push_back (Casted);
   args.push_back (AllocSize);
-
-#if 0
-  //
-  // Insert an alloca into the entry block and store a NULL pointer in it.
-  // Then insert a store instruction that will store the registered stack
-  // pointer into this memory when poolregister() is called.  This will allow
-  // us to free all alloca'ed pointers at all return instructions by loading
-  // the pointer out of the stack object and called poolunregister() on it.
-  // We can run mem2reg after this pass to clean the code up.
-  //
-  BasicBlock * EntryBB = AI-getParent()->getParent();
-  AllocaInst * PtrLoc = new AllocaInst (VoidPtrTy,
-                                        AI->getName() + ".st",
-                                        EntryBB->getTerminator());
-  Value * NullPointer = ConstantPointerNull::get(VoidPtryTy);
-  new StoreInst (NullPointer, PtrLoc, EntryBB->getTerminator());
-  new StoreInst (Casted, PtrLoc, iptI);
-
-  //
-  // Insert a call to unregister the object whenever the function can exit.
-  //
-  // FIXME:
-  //  While the code below fixes some test cases, it is still incomplete.  A
-  //  call to return or unwind should unregister all registered stack objects
-  //  regardless of whether the allocation always occurs before the return or
-  //  unwind.
-  //
-  //  What the code should do (I think) is:
-  //    a) Insert poolunregister() calls before all return/unwind
-  //       instructions dominated by the alloca's basic block
-  //    b) Add PHI functions (using the dominance frontier) so that either a 0
-  //       or the alloca's pointer reach the poolunregister() in basic blocks
-  //       not dominated by the alloca.
-  //
-  //  There are additional issues with alloca's inside of loops.
-  //
-  CastedPH=castTo(PH,PointerType::getUnqual(Type::Int8Ty),"allocph",Casted);
-  args.clear();
-  args.push_back (CastedPH);
-  args.push_back (Casted);
-  for (std::set<DomTreeNode*>::iterator i = Children.begin();
-       i != Children.end();
-       ++i) {
-    DomTreeNode * DTN = *i;
-    iptI = DTN->getBlock()->getTerminator();
-    if (isa<ReturnInst>(iptI) || isa<UnwindInst>(iptI))
-      CallInst::Create (StackFree, args.begin(), args.end(), "", iptI);
-  }
-#endif
 
   // Update statistics
   ++StackRegisters;
