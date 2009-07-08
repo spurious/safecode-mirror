@@ -191,8 +191,6 @@ convertExpression (ConstantExpr * CE, Instruction * InsertPt) {
     case Instruction:: InsertElement:
     case Instruction:: ShuffleVector:
     case Instruction:: InsertValue:
-    case Instruction:: VICmp:
-    case Instruction:: VFCmp:
     default:
       assert (0 && "Unhandled constant expression!\n");
       break;
