@@ -320,14 +320,17 @@ int main(int argc, char **argv) {
 
     //
     // Do post processing required for Out of Bounds pointer rewriting.
-    // Try to optimize the checks first as the rewriteOOB pass may make
+    // Note that the RewriteOOB pass is always required for user-space
+    // SAFECode because it is how we handle the C standard allowing pointers to
+    // move one beyond the end of an object as long as the pointer is not
+    // dereferenced.
+    //
+    // Try to optimize the checks first as the RewriteOOB pass may make
     // optimization impossible.
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
-      if (SCConfig->RewriteOOB) {
-        Passes.add(new RewriteOOB());
-      }
+      Passes.add(new RewriteOOB());
     }
 
     Passes.add (new DummyUse());
