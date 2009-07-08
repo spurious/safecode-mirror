@@ -111,12 +111,14 @@ LocationSourceInfo::operator() (CallInst * CI) {
       filename = CI->getParent()->getParent()->getName();
     LineNumber = ConstantInt::get (Type::Int32Ty, ++count);
     Constant * FInit = ConstantArray::get (filename);
-    SourceFile = new GlobalVariable (FInit->getType(),
+    Module * M = CI->getParent()->getParent()->getParent();
+    SourceFile = new GlobalVariable (M->getContext(),
+                                     FInit->getType(),
                                      true,
                                      GlobalValue::InternalLinkage,
                                      FInit,
                                      "sourcefile",
-                                     CI->getParent()->getParent()->getParent());
+                                     M);
   }
 
   return std::make_pair (SourceFile, LineNumber);
@@ -151,12 +153,14 @@ VariableSourceInfo::operator() (CallInst * CI) {
   //
   LineNumber = ConstantInt::get (Type::Int32Ty, 0);
   Constant * FInit = ConstantArray::get ("<unknown>");
-  SourceFile = new GlobalVariable (FInit->getType(),
+  Module * M = CI->getParent()->getParent()->getParent();
+  SourceFile = new GlobalVariable (M->getContext(),
+                                   FInit->getType(),
                                    true,
                                    GlobalValue::InternalLinkage,
                                    FInit,
                                    "srcfile",
-                                   CI->getParent()->getParent()->getParent());
+                                   M);
   //
   // Get the value for which we want debug information.
   //
@@ -173,12 +177,13 @@ VariableSourceInfo::operator() (CallInst * CI) {
       LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
       Constant * FInit = ConstantArray::get (filename);
-      SourceFile = new GlobalVariable (FInit->getType(),
+      SourceFile = new GlobalVariable (M->getContext(),
+                                       FInit->getType(),
                                        true,
                                        GlobalValue::InternalLinkage,
                                        FInit,
                                        "srcfile",
-                                       CI->getParent()->getParent()->getParent());
+                                       M);
     }
   } else {
     if (const DbgDeclareInst *DDI = findDbgDeclare(V)) {
@@ -186,12 +191,13 @@ VariableSourceInfo::operator() (CallInst * CI) {
       LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
       Constant * FInit = ConstantArray::get (filename);
-      SourceFile = new GlobalVariable (FInit->getType(),
+      SourceFile = new GlobalVariable (M->getContext(),
+                                       FInit->getType(),
                                        true,
                                        GlobalValue::InternalLinkage,
                                        FInit,
                                        "srcfile",
-                                       CI->getParent()->getParent()->getParent());
+                                       M);
     }
   }
 
