@@ -249,6 +249,9 @@ DSNodePass::getDSNodeForGlobalVariable(const GlobalValue * GV) {
   if (Node) {
     // Fast-path
     return Node;
+  } else if (isa<GlobalAlias>(GV)) {
+    // DSA does not handle this...
+    return NULL;
   } else {
     // We have to dig into the globalEC of the DSGraph to find the DSNode.
     const GlobalValue * V = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
