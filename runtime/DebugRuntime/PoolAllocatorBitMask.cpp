@@ -146,6 +146,11 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   madvise (Addr, invalidsize, MADV_FREE);
   InvalidLower = (unsigned int) Addr;
   InvalidUpper = (unsigned int) Addr + invalidsize;
+
+  if (logregs) {
+    fprintf (stderr, "OOB Area: 0x%x - 0x%x\n", InvalidLower, InvalidUpper);
+    fflush (stderr);
+  }
 #endif
 
   //
@@ -824,18 +829,36 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   return New;
 }
 
-// Initialize a debug pool
+//
+// Function: poolinit()
+//
+// Description:
+//  Initialize a pool used in the debug run-time.
+//
+// Inputs:
+//  Pool - A pointer to the pool to initialize.
+//  NodeSize - The default size of an object allocated within the pool.
+//
 void *
 __sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
-  __pa_bitmap_poolinit(Pool, NodeSize);
-  // Call the in-place constructor for the splay tree of objects and, if
-  // applicable, the set of Out of Bound rewrite pointers and the splay tree
-  // used for dangling pointer detection.
   //
-  // FIXME: This is rediculous. Just a temporary workaround.
-  // deally, it should be done by allocating the pool on
-  // the heap in pool allocation, then SAFECode redirects the calls to a
-  // customized constructor.
+  // Call the underlying allocator's poolinit() function to initialze the pool.
+  //
+  __pa_bitmap_poolinit(Pool, NodeSize);
+
+  //
+  // Call the in-place new operator for the splay tree of objects and, if
+  // applicable, the set of Out of Bound rewrite pointers and the splay tree
+  // used for dangling pointer detection.  This causes their constructors to
+  // be called on the already allocated memory.
+  //
+  // While this may appear odd, it is what we want.  The allocation of pools
+  // are added by the pool allocation transform.  Pools are either global
+  // variables (context insensitive) or stack allocated objects
+  // (context-sensitive).  Either way, their memory is not allocated by this
+  // run-time so in-place new operators must be used to initialize C++ classes
+  // within the pool.
+  //
   new (&(Pool->Objects)) RangeSplaySet<>();
   new (&(Pool->OOB)) RangeSplayMap<void *>();
   new (&(Pool->DPTree)) RangeSplayMap<PDebugMetaData>();
