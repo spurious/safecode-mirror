@@ -62,13 +62,16 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
-    AU.addRequiredTransitive<PoolAllocateGroup>();
-    AU.setPreservesAll();
+    AU.addRequired<DSNodePass>();
+    DSNodePass::preservePAandDSA(AU);
+    AU.setPreservesCFG();
   }
+
 
 private:
   void registerGV(GlobalVariable * GV, Instruction * InsertBefore);
-  PoolAllocateGroup * paPass;
+  DSNodePass * dsnPass;
+
   TargetData * TD;
 };
 

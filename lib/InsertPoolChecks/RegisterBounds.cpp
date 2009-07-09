@@ -42,21 +42,28 @@ X3 ("reg-custom-alloc", "Register customized allocators", true);
 
 void
 RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBefore) {
-  DSGraph *G = paPass->getGlobalsGraph();
-  DSNode *DSN  = G->getNodeForValue(GV).getNode();
-    
-  const Type* csiType = Type::Int32Ty;
-  const Type * GlobalType = GV->getType()->getElementType();
-  Value * AllocSize = ConstantInt::get
-    (csiType, TD->getTypeAllocSize(GlobalType));
-  Value * PH = paPass->getGlobalPool (DSN);
-  RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
+  if (GV->isDeclaration()) {
+    // Don't bother to register external global variables
+    return;
+  } 
+
+  DSNode *DSN  = dsnPass->getDSNodeForGlobalVariable(GV);
+  if (DSN) {  
+    const Type* csiType = Type::Int32Ty;
+    const Type * GlobalType = GV->getType()->getElementType();
+    Value * AllocSize = ConstantInt::get
+      (csiType, TD->getTypeAllocSize(GlobalType));
+    Value * PH = dsnPass->paPass->getGlobalPool (DSN);
+    RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
+  } else {
+    llvm::cerr << "Warning: Missing DSNode for global" << *GV << "\n";
+  }
 }
 
 bool
 RegisterGlobalVariables::runOnModule(Module & M) {
   init(M);
-  paPass = &getAnalysis<PoolAllocateGroup>();
+  dsnPass = &getAnalysis<DSNodePass>();
   TD = &getAnalysis<TargetData>();
 
   Instruction * InsertPt = 
