@@ -54,7 +54,7 @@ NAMESPACE_SC_BEGIN
     // results, which is clearly a lie.
     static void getAnalysisUsageForPoolAllocation(AnalysisUsage &AU);
 
-		static void preservePAandDSA(AnalysisUsage &AU);
+    static void preservePAandDSA(AnalysisUsage &AU);
     
     //
     // Method: releaseMemory()
@@ -77,6 +77,10 @@ NAMESPACE_SC_BEGIN
     PoolAllocateGroup * paPass;
     DSGraph * getDSGraph (Function & F);
     DSNode* getDSNode(const Value *V, Function *F);
+    //
+    // Try to find the DSNode for the global variable
+    //
+    DSNode * getDSNodeForGlobalVariable(const GlobalValue * GV);
     unsigned getDSNodeOffset(const Value *V, Function *F);
     Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
 

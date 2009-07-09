@@ -225,38 +225,35 @@ DSNode* DSNodePass::getDSNode (const Value *VOrig, Function *F) {
   DSGraph * TDG = paPass->getDSGraph(*F);
   DSNode *DSN = TDG->getNodeForValue(V).getNode();
 
-  //
-  // If the value wasn't found in the function's DSGraph, then maybe we can
-  // find the value in the globals graph.
-  //
-  DSGraph * GlobalsGraph;
-  if (!DSN) {
-    GlobalsGraph = paPass->getGlobalsGraph ();
-    DSN = GlobalsGraph->getNodeForValue(V).getNode();
+  if (DSN) {
+    return DSN;
+  } else if (isa<GlobalValue>(V)) {
+    //
+    // If the value wasn't found in the function's DSGraph, then maybe we can
+    // find the value in the globals graph.
+    //
+    
+    return getDSNodeForGlobalVariable(cast<GlobalValue>(V));
+  } else {
+    // Not much we can do
+    return NULL;
   }
-
-  // FIXME: Debugging code.  Please remove when finished debugging.
-#if 0
-  if (!DSN) {
-    if (const GetElementPtrInst * GEP = dyn_cast<GetElementPtrInst>(V)) {
-      DSN = TDG->getNodeForValue(GEP->getPointerOperand()).getNode();
-      if (!DSN) {
-        DSN = GlobalsGraph->getNodeForValue(GEP->getPointerOperand()).getNode();
-      }
-
-      if (!DSN)
-        std::cerr << "JTC: No GEP DSNode: " << isClone << ": " << *V << std::endl;
-    }
-  }
-
-  if (!DSN) {
-    std::cerr << "JTC: Pausing: No DSNode: " << isClone << std::endl;
-    kill (getpid(), SIGTSTP);
-    std::cerr << "JTC: Resuming\n";
-  }
-#endif
 
   return DSN;
+}
+
+DSNode *
+DSNodePass::getDSNodeForGlobalVariable(const GlobalValue * GV) {
+  DSGraph * GlobalsGraph = paPass->getGlobalsGraph ();
+  DSNode * Node = GlobalsGraph->getNodeForValue(GV).getNode();
+  if (Node) {
+    // Fast-path
+    return Node;
+  } else {
+    // We have to dig into the globalEC of the DSGraph to find the DSNode.
+    const GlobalValue * V = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
+    return GlobalsGraph->getNodeForValue(V).getNode();
+  }
 }
 
 unsigned DSNodePass::getDSNodeOffset(const Value *V, Function *F) {
