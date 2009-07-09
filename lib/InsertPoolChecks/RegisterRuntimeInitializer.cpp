@@ -127,13 +127,12 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   // Create the new llvm.global_ctors global variable and replace all uses of
   // the old global variable with the new one.
   //
-  new GlobalVariable (M.getContext(),
+  new GlobalVariable (M,
                       NewInit->getType(),
                       false,
                       GlobalValue::AppendingLinkage,
                       NewInit,
-                      "llvm.global_ctors",
-                      &M);
+                      "llvm.global_ctors");
 }
 
 NAMESPACE_SC_END
