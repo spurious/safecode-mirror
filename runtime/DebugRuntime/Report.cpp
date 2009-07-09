@@ -16,6 +16,7 @@
 #include "safecode/Config/config.h"
 
 #include <iostream>
+#include <cstdlib>
 
 NAMESPACE_SC_BEGIN
 
