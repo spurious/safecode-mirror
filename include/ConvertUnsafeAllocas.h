@@ -91,6 +91,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();
+      AU.addRequired<DominanceFrontier>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<EQTDDataStructures>();
 
