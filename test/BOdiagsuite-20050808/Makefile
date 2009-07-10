@@ -2,6 +2,7 @@ LEVEL = ../..
 
 include $(LEVEL)/Makefile.common
 
+CFLAGS := -g -O0
 CONFIGURATION := Release
 LLVMTOOLCURRENT := $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin
 LLVMLDPROG	:= $(LLVMTOOLCURRENT)/llvm-ld$(EXEEXT)
@@ -60,7 +61,7 @@ report.txt:: prepare $(TARGET)
 	@$(CC) $(CFLAGS) $< -o $@
 
 %.bc : $(TEST_SRC_DIR)/testcases/%.c
-	@$(LLVMGCC) -O0 -c -emit-llvm $< -o $@
+	@$(LLVMGCC) $(CFLAGS) -c -emit-llvm $< -o $@
 
 .PHONY:
 prepare:
