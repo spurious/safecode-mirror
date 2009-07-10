@@ -522,19 +522,17 @@ namespace {
                                                 topBB
                                                 );
 
-      ICmpInst *LT = new ICmpInst(
+      ICmpInst *LT = new ICmpInst(*topBB,
                                   ICmpInst::ICMP_ULT,
                                   castTarget,
                                   ConstantExpr::getBitCast(jt->getLowerBound(), VoidPtrTy),
-                                  "",
-                                  topBB
+                                  ""
                                   );
-      ICmpInst *GT = new ICmpInst(
+      ICmpInst *GT = new ICmpInst(*topBB,
                                   ICmpInst::ICMP_UGT,
                                   castTarget,
                                   ConstantExpr::getBitCast(jt->getUpperBound(), VoidPtrTy),
-                                  "",
-                                  topBB
+                                  ""
                                   );
 
       BinaryOperator *OR = BinaryOperator::CreateOr(LT, GT, "", topBB);
