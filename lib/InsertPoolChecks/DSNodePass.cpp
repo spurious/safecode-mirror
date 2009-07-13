@@ -144,7 +144,7 @@ DSNodePass::getPoolHandle (const Value *V,
                   << std::endl;
 #endif
 std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
-      return Constant::getNullValue(PoolDescPtrTy);
+      return ConstantAggregateZero::get(PoolDescPtrTy);
     }
   }
 
