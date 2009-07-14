@@ -70,6 +70,7 @@ namespace {
   STATISTIC (FullChecks ,    "Poolchecks with non-NULL pool descriptor");
 
   STATISTIC (PoolChecks ,    "Poolchecks Added");
+  STATISTIC (FuncChecks ,    "Indirect Function Call Checks Added");
   STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
 }
@@ -232,11 +233,21 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
 //
 // Method: addLSChecks()
 //
+// Description:
+//  Add a load/store check or an indirect function call check for the specified
+//  value.
+//
 // Inputs:
 //  Vnew        - The pointer operand of the load/store instruction.
 //  V           - ?
-//  Instruction - The load or store instruction
+//  Instruction - The load, store, or call instruction requiring a check.
 //  F           - The parent function of the instruction
+//
+// Notes:
+//  FIXME: Indirect function call checks should be inserted by another method
+//         (or more ideally, another pass).  This is especially true since
+//         there are faster indirect function call check methods than the one
+//         implemented here.
 //
 void
 InsertPoolChecks::addLSChecks (Value *Vnew,
@@ -336,6 +347,11 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
           args.push_back(CastfuncI);
         }
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
+
+        //
+        // Update statistics on the number of indirect function call checks.
+        //
+        ++FuncChecks;
       }
     } else {
       //
