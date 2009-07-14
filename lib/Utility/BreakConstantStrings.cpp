@@ -59,6 +59,9 @@ BreakConstantStrings::runOnModule (Module & M) {
   // non-constant if:
   //  o) The variable is constant
   //  o) The variable is an array of characters (Int8Ty).
+  //  o) The variable is not in a special section (e.g. debug info section).
+  //     This ensures that we don't mess up debug information or other special
+  //     strings within the code.
   //
   Module::global_iterator i,e;
   for (i = M.global_begin(), e = M.global_end(); i != e; ++i) {
@@ -68,7 +71,7 @@ BreakConstantStrings::runOnModule (Module & M) {
     // All global variables are pointer types.  Find the type of what the
     // global variable pointer is pointing at.
     //
-    if (GV->isConstant()) {
+    if (GV->isConstant() && (!GV->hasSection())) {
       const PointerType * PT = dyn_cast<PointerType>(GV->getType());
       if (const ArrayType * AT = dyn_cast<ArrayType>(PT->getElementType())) {
         if (AT->getElementType() == Type::Int8Ty) {
