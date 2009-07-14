@@ -56,6 +56,8 @@
 
 #include <pthread.h>
 
+#define TAG unsigned tag
+
 #define DEBUG(x)
 
 NAMESPACE_SC_BEGIN
@@ -123,6 +125,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
 extern "C" void __poolalloc_init();
 void
 pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
+  //  logregs=1;
   //
   // Initialize the signal handlers for catching errors.
   //
@@ -253,10 +256,10 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
 //
 void
 __sc_dbg_src_poolregister (DebugPoolTy *Pool,
-                    void * allocaptr,
-                    unsigned NumBytes,
-                    const char * SourceFilep,
-                    unsigned lineno) {
+                           void * allocaptr,
+                           unsigned NumBytes, TAG,
+                           const char * SourceFilep,
+                           unsigned lineno) {
   // Do some initial casting for type goodness
   char * SourceFile = (char *)(SourceFilep);
 
@@ -265,9 +268,9 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
   // register.
   //
   if (logregs) {
-    fprintf (ReportLog, "poolregister_debug: %p: %p-%p: %d %s %d\n", 
+    fprintf (ReportLog, "poolreg_debug(%d): %p: %p-%p: %d %d %s %d\n", tag,
              (void*) Pool, (void*)allocaptr,
-             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, SourceFile, lineno);
+             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFile, lineno);
     fflush (ReportLog);
   }
 
@@ -313,8 +316,8 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
 //
 void
 __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
-                           unsigned NumBytes) {
-  __sc_dbg_src_poolregister (Pool, allocaptr, NumBytes, "<unknown>", 0);
+                       unsigned NumBytes) {
+  __sc_dbg_src_poolregister (Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
 }
 
 //
@@ -399,7 +402,7 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
           "poolfree: No debugmetadataptr\n");
 
   if (logregs) {
-    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x,  offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
+    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x, offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
     fprintf(stderr, "poolfree:1388: len = %d\n", len);
     fflush (stderr);
   }
@@ -455,9 +458,9 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
 //
 void *
 __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
-                 unsigned NumBytes,
-                 const char * SourceFilep,
-                 unsigned lineno) {
+                        unsigned NumBytes, TAG,
+                        const char * SourceFilep,
+                        unsigned lineno) {
   //
   // Ensure that we're allocating at least one byte.
   //
@@ -484,9 +487,9 @@ __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
 //
 void
 __sc_dbg_src_poolfree (DebugPoolTy *Pool,
-                void * Node,
-                const char * SourceFile,
-                unsigned lineno) {
+                       void * Node, TAG,
+                       const char * SourceFile,
+                       unsigned lineno) {
   //
   // Free the object within the pool; the poolunregister() function will
   // detect invalid frees.
@@ -742,13 +745,13 @@ pool_protect_object (void * Node) {
 void *
 __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
                          unsigned Number,
-                         unsigned NumBytes,
+                         unsigned NumBytes, TAG,
                          const char * SourceFilep,
                          unsigned lineno) {
-  void * New = __sc_dbg_src_poolalloc (Pool, Number * NumBytes, SourceFilep, lineno);
+  void * New = __sc_dbg_src_poolalloc (Pool, Number * NumBytes, tag, SourceFilep, lineno);
   if (New) {
     bzero (New, Number * NumBytes);
-    __sc_dbg_src_poolregister (Pool, New, Number * NumBytes, SourceFilep, lineno);
+    __sc_dbg_src_poolregister (Pool, New, Number * NumBytes, tag, SourceFilep, lineno);
   }
   if (logregs) {
     fprintf (ReportLog, "poolcalloc_debug: %p: %p %x: %s %d\n", (void*) Pool, (void*)New, Number * NumBytes, SourceFilep, lineno);
@@ -759,7 +762,7 @@ __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
 
 void *
 __sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
-  return __sc_dbg_src_poolcalloc (Pool, Number, NumBytes, "<unknown>", 0);
+  return __sc_dbg_src_poolcalloc (Pool, Number, NumBytes, 0, "<unknown>", 0);
 }
 
 void *

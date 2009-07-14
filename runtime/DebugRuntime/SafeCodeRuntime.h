@@ -70,49 +70,62 @@ void installAllocHooks (void);
 
 NAMESPACE_SC_END
 
+// Use macros so that I won't polluate the namespace
+
+#define PPOOL NAMESPACE_SC::DebugPoolTy*
+#define TAG unsigned
+#define SRC_INFO const char * SFile, unsigned int lineno
+
 extern "C" {
   void pool_init_runtime(unsigned Dangling,
                          unsigned RewriteOOB,
                          unsigned Terminate);
   void * __sc_dbg_newpool(unsigned NodeSize);
-  void __sc_dbg_pooldestroy(NAMESPACE_SC::DebugPoolTy * Pool);
-  void * __sc_dbg_poolalloc(NAMESPACE_SC::DebugPoolTy * Pool, unsigned NumBytes);
+  void __sc_dbg_pooldestroy(PPOOL);
+
+  void * __sc_dbg_poolinit(PPOOL, unsigned NodeSize, unsigned);
+  void * __sc_dbg_poolalloc(PPOOL, unsigned NumBytes);
+  void * __sc_dbg_src_poolalloc (PPOOL, unsigned Size, TAG, SRC_INFO);
 
   void __sc_dbg_poolargvregister (int argc, char ** argv);
-  void __sc_dbg_poolregister(NAMESPACE_SC::DebugPoolTy * Pool, void *allocaptr, unsigned NumBytes);
-  void __sc_dbg_poolunregister(NAMESPACE_SC::DebugPoolTy * Pool, void *allocaptr);
-  void __sc_dbg_poolfree(NAMESPACE_SC::DebugPoolTy * Pool, void *Node);
 
-  void poolcheck(NAMESPACE_SC::DebugPoolTy * Pool, void *Node);
-  void poolcheckui(NAMESPACE_SC::DebugPoolTy * Pool, void *Node);
-  void * boundscheck   (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
-  void * boundscheckui (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
-  void * boundscheckui_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
-                              const char * SFile, unsigned int lineno, unsigned);
-  void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
-  void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
+  void __sc_dbg_poolregister(PPOOL, void *allocaptr, unsigned NumBytes, TAG);
+  void __sc_dbg_src_poolregister (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
 
-  void * __sc_dbg_poolinit(NAMESPACE_SC::DebugPoolTy *Pool, unsigned NodeSize, unsigned);
-  void * __sc_dbg_src_poolcalloc (NAMESPACE_SC::DebugPoolTy * Pool,
+  void __sc_dbg_poolunregister(PPOOL, void *allocaptr);
+  void __sc_dbg_poolfree(PPOOL, void *Node);
+  void __sc_dbg_src_poolfree (PPOOL, void * ptr, SRC_INFO);
+
+  void * __sc_dbg_poolcalloc (PPOOL, unsigned Number, unsigned NumBytes, TAG);
+  void * __sc_dbg_src_poolcalloc (PPOOL,
                                 unsigned Number, unsigned NumBytes,
-                                const char * SourceFilep,
-                                unsigned lineno);
-  void * __sc_dbg_poolcalloc (NAMESPACE_SC::DebugPoolTy *Pool, unsigned Number, unsigned NumBytes);
+                                  TAG, SRC_INFO);
 
-  void * __sc_dbg_src_poolalloc (NAMESPACE_SC::DebugPoolTy * P, unsigned Size, const char * SrcFle, unsigned no);
-  void * __sc_dbg_poolrealloc(NAMESPACE_SC::DebugPoolTy *Pool, void *Node, unsigned NumBytes);
-  void __sc_dbg_src_poolregister (NAMESPACE_SC::DebugPoolTy * P, void * p,
-  unsigned size, const char * SF, unsigned lineno);
-  void   __sc_dbg_src_poolfree (NAMESPACE_SC::DebugPoolTy * P, void * ptr, const char * SrcFle, unsigned no);
-  void   poolcheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * Node, const char * SrcFle, unsigned no, unsigned);
-  void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno, unsigned);
-  void * boundscheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
-                            const char * SFile, unsigned int lineno, unsigned);
-  void * pchk_getActualValue (NAMESPACE_SC::DebugPoolTy * Pool, void * src);
+  void * __sc_dbg_poolrealloc(PPOOL, void *Node, unsigned NumBytes, TAG);
+
+  void poolcheck(PPOOL, void *Node, TAG);
+  void poolcheckui(PPOOL, void *Node, TAG);
+  void poolcheck_debug (PPOOL, void * Node, TAG, SRC_INFO);
+
+  void poolcheckalign(PPOOL, void *Node, unsigned Offset);
+  void poolcheckalign_debug (PPOOL, void *Node, unsigned Offset, TAG, SRC_INFO);
+
+  void * boundscheck   (PPOOL, void * Source, void * Dest);
+  void * boundscheckui (PPOOL, void * Source, void * Dest);
+  void * boundscheckui_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
+  void * boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,
-                            const char *, unsigned, unsigned);
+                            TAG, SRC_INFO);
+
+  void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
+  void * pchk_getActualValue (PPOOL, void * src);
+
 }
+
+#undef PPOOL
+#undef TAG
+#undef SRC_INFO
 #endif

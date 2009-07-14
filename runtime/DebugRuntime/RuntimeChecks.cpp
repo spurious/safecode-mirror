@@ -101,7 +101,7 @@ isRewritePtr (void * p) {
 
 
 void
-poolcheck_debug (DebugPoolTy *Pool, void *Node, const char * SourceFilep, unsigned lineno, TAG) {
+poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, unsigned lineno) {
   if (_barebone_poolcheck (Pool, Node))
     return;
  
@@ -154,7 +154,7 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, const char * SourceFilep, unsign
 //  For now, this does nothing, but it should, in fact, do a run-time check.
 //
 void
-poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno, TAG) {
+poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const char * SourceFile, unsigned lineno) {
   //
   // Let null pointers go if the alignment is zero; such pointers are aligned.
   //
@@ -191,7 +191,7 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, const char
 
 
 void
-poolcheckui (DebugPoolTy *Pool, void *Node) {
+poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
   if (_barebone_poolcheck (Pool, Node))
     return;
 
@@ -474,7 +474,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
 //  parameters.
 //
 void *
-boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * SourceFile, unsigned lineno, TAG) {
+boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const char * SourceFile, unsigned lineno) {
   // This code is inlined at all boundscheck() calls
 
   // Search the splay for Source and return the bounds of the object
@@ -518,9 +518,9 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * 
 void *
 boundscheckui_debug (DebugPoolTy * Pool,
                      void * Source,
-                     void * Dest,
+                     void * Dest, TAG,
                      const char * SourceFile,
-                     unsigned int lineno, TAG) {
+                     unsigned int lineno) {
   // This code is inlined at all boundscheckui calls
 
   // Search the splay for Source and return the bounds of the object
@@ -594,7 +594,7 @@ __sc_dbg_funccheck (unsigned num, void *f, void *g, ...) {
 
 void
 poolcheck (DebugPoolTy *Pool, void *Node) {
-  poolcheck_debug(Pool, Node, NULL, 0, 0);
+  poolcheck_debug(Pool, Node, 0, NULL, 0);
 }
 
 //
@@ -607,7 +607,7 @@ poolcheck (DebugPoolTy *Pool, void *Node) {
 //
 void *
 boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
-  return boundscheck_debug(Pool, Source, Dest, NULL, 0, 0);
+  return boundscheck_debug(Pool, Source, Dest, 0, NULL, 0);
 }
 
 //
@@ -623,7 +623,7 @@ boundscheck (DebugPoolTy * Pool, void * Source, void * Dest) {
 //
 void *
 boundscheckui (DebugPoolTy * Pool, void * Source, void * Dest) {
-  return boundscheckui_debug (Pool, Source, Dest, NULL, 0, 0);
+  return boundscheckui_debug (Pool, Source, Dest, 0, NULL, 0);
 }
 
 //
@@ -641,5 +641,5 @@ boundscheckui (DebugPoolTy * Pool, void * Source, void * Dest) {
 //
 void
 poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
-  poolcheckalign_debug(Pool, Node, Offset, NULL, 0, 0);
+  poolcheckalign_debug(Pool, Node, Offset, 0, NULL, 0);
 }
