@@ -52,7 +52,7 @@ UnusedCheckElimination::runOnModule (Module & M) {
     if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_CHECK | InsertSCIntrinsic::SC_INTRINSIC_OOB)) {
       for (Value::use_iterator I = i->F->use_begin(), E = i->F->use_end(); I != E; ++I) {
         CallInst * CI = cast<CallInst>(*I);
-        if (CI->use_empty()) unusedChecks.push_back(CI);
+        if (intrinsic->getValuePointer(CI)->use_empty()) unusedChecks.push_back(CI);
       }
     }
   }
