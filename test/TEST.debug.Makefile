@@ -6,49 +6,44 @@
 
 include $(PROJ_OBJ_ROOT)/Makefile.common
 
-ifndef ENABLE_LTO
-ENABLE_LTO := 1
-endif
+EXTRA_LOPT_OPTIONS :=
 
+ifdef DEBUG_SAFECODE
+CFLAGS := -g -O0 -fno-strict-aliasing
+LLCFLAGS := -disable-fp-elim
+LLVMLDFLAGS := -disable-opt
+OPTZN_PASSES := -mem2reg -simplifycfg -adce
+
+WHOLE_PROGRAM_BC_SUFFIX := linked.rbc
+else
 CFLAGS := -g -O2 -fno-strict-aliasing
+OPTZN_PASSES := -std-compile-opts
+
+WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
+endif
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SCOPTS  := -enable-debuginfo -terminate -check-every-gep-use
+SCOPTS  := -enable-debuginfo -terminate -check-every-gep-use -pa=multi
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
 
-# Pool allocator runtime library
-PA_RT_O  :=
-PA_RT_BC :=
-
-# Pool System library for interacting with the system
-POOLSYSTEM_RT_O :=
-POOLSYSTEM_RT_BC :=
-
-#Pre runtime of Pool allocator
-PA_PRE_RT_BC :=
-PA_PRE_RT_O  := 
-
-ifeq ($(ENABLE_LTO),1)
-PA_RT_BC := libsc_dbg_rt.bca libpoolalloc_bitmap.bca 
-POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
-else
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libsc_dbg_rt.a \
-            $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_bitmap.a
+
+SC_RT := libsc_dbg_rt libpoolalloc_bitmap
+
+ifdef DEBUG_SAFECODE
 POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
-
-# TODO: Test whether it works
-#PA_PRE_RT_O := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.o
+PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .bca,$(SC_RT)))
+else
+PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/,$(addsuffix .bca,$(SC_RT)))
+POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 endif
-
-PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/, $(PA_RT_BC))
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
@@ -57,11 +52,8 @@ SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 # Pre processing library for DSA
 ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
 
-PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
+PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -mem2reg -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
 
-EXTRA_LOPT_OPTIONS :=
-#-loopsimplify -unroll-threshold 0 
-OPTZN_PASSES := -strip-debug -std-compile-opts $(EXTRA_LOPT_OPTIONS)
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 
 ifeq ($(OS),Darwin)
@@ -75,13 +67,12 @@ endif
 #      rules to compile code with llvm-gcc and enable LLVM debug information;
 #      this, in turn, causes test cases to fail unnecessairly.
 #CBECFLAGS += -g
-#LLVMLDFLAGS= -disable-opt
 
 #
 # This rule links in part of the SAFECode run-time with the original program.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.presc.bc): \
-Output/%.presc.bc: Output/%.llvm.bc $(LOPT) $(PA_PRE_RT_BC)
+Output/%.presc.bc: Output/%.$(WHOLE_PROGRAM_BC_SUFFIX) $(LOPT) $(PA_PRE_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(LLVMLDPROG) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@ 2>&1 > $@.out
@@ -212,15 +203,15 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	@echo > $@
 	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
-	  grep "^real" Output/$*.out-nat.time >> $@;\
+	  grep "^user" Output/$*.out-nat.time >> $@;\
         fi
 	@-if test -f Output/$*.noOOB.diff-llc; then \
 	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
-	  grep "^real" Output/$*.noOOB.out-llc.time >> $@;\
+	  grep "^user" Output/$*.noOOB.out-llc.time >> $@;\
         fi
 	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "CBE-RUN-TIME-SAFECODE: " >> $@;\
-	  grep "^real" Output/$*.safecode.out-llc.time >> $@;\
+	  grep "^user" Output/$*.safecode.out-llc.time >> $@;\
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
