@@ -18,9 +18,14 @@
 #include "dsa/DSGraph.h"
 #include "SCUtils.h"
 
+#include "llvm/Support/InstIterator.h"
+#include "llvm/ADT/SmallSet.h"
+
 #if 0
 #include <tr1/functional>
 #endif
+
+#include <functional>
 
 using namespace llvm;
 
@@ -29,7 +34,9 @@ NAMESPACE_SC_BEGIN
 
 char RegisterGlobalVariables::ID = 0;
 char RegisterMainArgs::ID = 0;
+char RegisterFunctionByvalArguments::ID=0;
 char RegisterCustomizedAllocation::ID = 0;
+
 
 static llvm::RegisterPass<RegisterGlobalVariables>
 X1 ("reg-globals", "Register globals into pools", true);
@@ -39,6 +46,9 @@ X2 ("reg-argv", "Register argv[] into pools", true);
 
 static llvm::RegisterPass<RegisterCustomizedAllocation>
 X3 ("reg-custom-alloc", "Register customized allocators", true);
+
+static llvm::RegisterPass<RegisterFunctionByvalArguments>
+X4 ("reg-byval-args", "Register byval arguments for functions", true);
 
 void
 RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBefore) {
@@ -306,5 +316,64 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
                    args.begin(), args.end(), "", InsertBefore); 
 }
 
+bool
+RegisterFunctionByvalArguments::runOnModule(Module & M) {
+  init(M);
+  dsnPass = &getAnalysis<DSNodePass>();
+  TD = &getAnalysis<TargetData>();
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
+
+  StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
+
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
+    const char * name = I->getName().c_str();
+    if (I->isDeclaration() || strncmp(name, "__poolalloc", 11) == 0 || strncmp(name, "sc.", 3) == 0)
+      continue;
+
+    runOnFunction(*I);
+  }
+  return true;
+}
+
+bool
+RegisterFunctionByvalArguments::runOnFunction(Function & F) {
+  typedef SmallVector<std::pair<Value*, Argument *>, 4> RegisteredArgTy;
+  RegisteredArgTy registeredArguments;
+  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    if (I->hasByValAttr()) {
+      assert (isa<PointerType>(I->getType()));
+      const PointerType * PT = cast<PointerType>(I->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get
+        (Type::Int32Ty, TD->getTypeAllocSize(ET));
+      PA::FuncInfo *FI = dsnPass->paPass->getFuncInfoOrClone(F);
+      Value *PH = dsnPass->getPoolHandle(&*I, &F, *FI);
+      Instruction * InsertBefore = &(F.getEntryBlock().front());
+      RegisterVariableIntoPool(PH, &*I, AllocSize, InsertBefore);
+      registeredArguments.push_back(std::make_pair<Value*, Argument*>(PH, &*I));
+    }
+  }
+
+  SmallSet<BasicBlock *, 4> exitBlocks;
+  for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+    if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+      exitBlocks.insert(I->getParent());
+    }
+  }
+
+  for (SmallSet<BasicBlock*, 4>::const_iterator BI = exitBlocks.begin(), BE = exitBlocks.end(); BI != BE; ++BI) {
+    for (RegisteredArgTy::const_iterator I = registeredArguments.begin(), E = registeredArguments.end(); I != E; ++I) {
+      SmallVector<Value *, 2> args;
+      Instruction * Pt = &((*BI)->back());
+      Value *CastPH  = castTo (I->first, PointerType::getUnqual(Type::Int8Ty), Pt);
+      Value *CastV = castTo (I->second, PointerType::getUnqual(Type::Int8Ty), Pt);
+      args.push_back (CastPH);
+      args.push_back (CastV);
+      CallInst::Create (StackFree, args.begin(), args.end(), "", Pt);
+    }
+  }
+
+  return true;
+}
 
 NAMESPACE_SC_END

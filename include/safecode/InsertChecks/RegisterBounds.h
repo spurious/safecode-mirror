@@ -127,6 +127,28 @@ private:
   void proceedAllocator(llvm::Module * M, AllocatorInfo * info);
 };
 
+// Pass to register byval arguments
+class RegisterFunctionByvalArguments : public RegisterVariables {
+public:
+  static char ID;
+  const char * getPassName() const { return "Register byval arguments of functions";}
+  RegisterFunctionByvalArguments() : RegisterVariables((uintptr_t) &ID) {}
+  virtual bool runOnModule(llvm::Module & M);
+  virtual bool runOnFunction(llvm::Function & F);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+    AU.addRequired<InsertSCIntrinsic>();
+    AU.addRequired<llvm::TargetData>();
+    AU.addRequired<DSNodePass>();
+    // Pretend we do nothing
+    AU.setPreservesAll();
+  }
+private:
+  InsertSCIntrinsic * intrinsic;
+  DSNodePass * dsnPass;
+  TargetData * TD;
+  Function * StackFree;
+};
+
 NAMESPACE_SC_END
 
 #endif

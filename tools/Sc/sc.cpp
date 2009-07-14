@@ -289,6 +289,8 @@ int main(int argc, char **argv) {
       Passes.add(new RegisterRuntimeInitializer());
     }
 
+    Passes.add(new RegisterFunctionByvalArguments());
+
     // Register all customized allocators, such as vmalloc() / kmalloc() in
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      

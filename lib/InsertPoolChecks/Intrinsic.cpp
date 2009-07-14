@@ -39,11 +39,12 @@ InsertSCIntrinsic::addDebugIntrinsic(const char * name) {
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<const Type *> ParamTypes (FuncType->param_begin(),
                                         FuncType->param_end());
+  // Tag field
+  ParamTypes.push_back (Type::Int32Ty);
+
   ParamTypes.push_back (vpTy);
   ParamTypes.push_back (Type::Int32Ty);
 
-  // Tag field
-  ParamTypes.push_back (Type::Int32Ty);
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
@@ -393,6 +394,16 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
       if ((*it)->isAllocSizeMayConstant(CI) && (*it)->getAllocCallName() == name) {
         return (*it)->getAllocSize(CI);
       }
+    }
+  }
+
+  // Byval function arguments
+  if (Argument * AI = dyn_cast<Argument>(V)) {
+    if (AI->hasByValAttr()) {
+      assert (isa<PointerType>(AI->getType()));
+      const PointerType * PT = cast<PointerType>(AI->getType());
+      unsigned int type_size = TD->getTypeAllocSize (PT->getElementType());
+      return ConstantInt::get(Type::Int32Ty, type_size);
     }
   }
 

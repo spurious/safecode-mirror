@@ -226,10 +226,8 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<const Type *> ParamTypes (FuncType->param_begin(),
                                         FuncType->param_end());
-  ParamTypes.push_back (VoidPtrTy);
   ParamTypes.push_back (Type::Int32Ty);
-
-  // Tag field
+  ParamTypes.push_back (VoidPtrTy);
   ParamTypes.push_back (Type::Int32Ty);
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
@@ -281,9 +279,10 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     //
     std::vector<Value *> args (CI->op_begin(), CI->op_end());
     args.erase (args.begin());
+    args.push_back (ConstantInt::get(Type::Int32Ty, tagCounter++));
+
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);
-    args.push_back (ConstantInt::get(Type::Int32Ty, tagCounter++));
 
     CallInst * NewCall = CallInst::Create (FDebug,
                                            args.begin(),
