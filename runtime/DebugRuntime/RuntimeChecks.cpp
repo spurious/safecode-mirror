@@ -482,7 +482,7 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, const char * 
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   if (logregs) {
-    fprintf (stderr, "boundscheck_debug: %p - %p\n", ObjStart, ObjEnd);
+    fprintf (stderr, "boundscheck_debug: %d: %p - %p\n", ret, ObjStart, ObjEnd);
     fflush (stderr);
   }
 
