@@ -18,6 +18,8 @@
 #include <map>
 #include <list>
 #include <string>
+#include <strstream>
+
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
 #include "llvm/InstrTypes.h"
@@ -107,7 +109,20 @@ class OmegaMangler {
     }
 
     std::string getValueName (const Value *V) {
-      return (makeNameProper (mang->getValueName(V)));
+      // Counter for making unique value names for unnamed values
+      static unsigned id_counter = 0;
+
+      //
+      // The LLVM name mangler doesn't work on regular LLVM values any more,
+      // so we must replicate the functionality here.
+      //
+      if (V->hasName()) {
+        return (makeNameProper (mang->makeNameProper(V->getName())));
+      }
+
+      std::ostrstream intstr;
+      intstr << "noname" << (++id_counter);
+      return (makeNameProper (mang->makeNameProper(intstr.str())));
     }
 };
 
