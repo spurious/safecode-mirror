@@ -78,7 +78,7 @@ exactcheck2_debug (const char *base,
                    const char *result,
                    unsigned size,
                    const char * SourceFile,
-                   unsigned lineno) {
+                   unsigned lineno, unsigned) {
   /*
    * If the pointer is within the object, the check passes.  Return the checked
    * pointer.

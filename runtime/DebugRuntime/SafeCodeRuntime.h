@@ -88,7 +88,7 @@ extern "C" {
   void * boundscheck   (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui (NAMESPACE_SC::DebugPoolTy * Pool, void * Source, void * Dest);
   void * boundscheckui_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
-  const char * SFile, unsigned int lineno);
+                              const char * SFile, unsigned int lineno, unsigned);
   void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
   void poolcheckalign(NAMESPACE_SC::DebugPoolTy * Pool, void *Node, unsigned Offset);
 
@@ -104,15 +104,15 @@ extern "C" {
   void __sc_dbg_src_poolregister (NAMESPACE_SC::DebugPoolTy * P, void * p,
   unsigned size, const char * SF, unsigned lineno);
   void   __sc_dbg_src_poolfree (NAMESPACE_SC::DebugPoolTy * P, void * ptr, const char * SrcFle, unsigned no);
-  void   poolcheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * Node, const char * SrcFle, unsigned no);
-  void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno);
+  void   poolcheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * Node, const char * SrcFle, unsigned no, unsigned);
+  void   poolcheckalign_debug (NAMESPACE_SC::DebugPoolTy * P, void *Node, unsigned Offset, const char * SourceFile, unsigned lineno, unsigned);
   void * boundscheck_debug (NAMESPACE_SC::DebugPoolTy * P, void * S, void * D,
-  const char * SFile, unsigned int lineno);
+                            const char * SFile, unsigned int lineno, unsigned);
   void * pchk_getActualValue (NAMESPACE_SC::DebugPoolTy * Pool, void * src);
 
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,
-  const char *, unsigned);
+                            const char *, unsigned, unsigned);
 }
 #endif

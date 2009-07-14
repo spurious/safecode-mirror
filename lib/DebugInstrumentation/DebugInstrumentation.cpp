@@ -48,6 +48,8 @@ static
 RegisterPass<DebugInstrument> X ("debuginstrument",
                                  "Add Debug Data to SAFECode Run-Time Checks");
 
+static int tagCounter = 0;
+
 ///////////////////////////////////////////////////////////////////////////
 // Command line options
 ///////////////////////////////////////////////////////////////////////////
@@ -226,6 +228,10 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
                                         FuncType->param_end());
   ParamTypes.push_back (VoidPtrTy);
   ParamTypes.push_back (Type::Int32Ty);
+
+  // Tag field
+  ParamTypes.push_back (Type::Int32Ty);
+
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
                                                     false);
@@ -277,6 +283,8 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     args.erase (args.begin());
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);
+    args.push_back (ConstantInt::get(Type::Int32Ty, tagCounter++));
+
     CallInst * NewCall = CallInst::Create (FDebug,
                                            args.begin(),
                                            args.end(),
