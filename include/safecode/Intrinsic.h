@@ -47,7 +47,8 @@ class InsertSCIntrinsic : public ModulePass {
       SC_INTRINSIC_REGISTRATION        	= 1 << 5,
       SC_INTRINSIC_OOB                  = 1 << 6,
       SC_INTRINSIC_POOL_CONTROL         = 1 << 7,
-      SC_INTRINSIC_MISC                 = 1 << 8
+      SC_INTRINSIC_DEBUG_INSTRUMENTATION= 1 << 8,
+      SC_INTRINSIC_MISC                 = 1 << 9
     } IntrinsicFlags;
 
     typedef struct IntrinsicInfo {
@@ -91,6 +92,8 @@ class InsertSCIntrinsic : public ModulePass {
     Module * currentModule;
     IntrinsicInfoListTy intrinsics;
     StringMap<uint32_t> intrinsicNameMap;
+    void addDebugIntrinsic(const char * name);
+
 };
 
 NAMESPACE_SC_END

@@ -30,6 +30,34 @@ using namespace llvm;
 
 NAMESPACE_SC_BEGIN
 
+void
+InsertSCIntrinsic::addDebugIntrinsic(const char * name) {
+  const IntrinsicInfoTy & info = getIntrinsic(name);
+  static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
+
+  Function * F = info.F;
+  const FunctionType * FuncType = F->getFunctionType();
+  std::vector<const Type *> ParamTypes (FuncType->param_begin(),
+                                        FuncType->param_end());
+  ParamTypes.push_back (vpTy);
+  ParamTypes.push_back (Type::Int32Ty);
+
+  // Tag field
+  ParamTypes.push_back (Type::Int32Ty);
+
+  FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
+                                                    ParamTypes,
+                                                    false);
+
+  std::string funcdebugname = F->getName() + "_debug";
+
+  addIntrinsic
+    (funcdebugname.c_str(),
+     info.flag | SC_INTRINSIC_DEBUG_INSTRUMENTATION,
+     DebugFuncType,
+     info.ptrindex);
+}
+
 //
 // Method: runOnModule()
 //
@@ -172,6 +200,14 @@ InsertSCIntrinsic::runOnModule(Module & M) {
      SC_INTRINSIC_MISC,
      InitPoolRuntimeTy);
 
+  addDebugIntrinsic("sc.lscheck");
+  addDebugIntrinsic("sc.lscheckalign");
+  addDebugIntrinsic("sc.boundscheck");
+  addDebugIntrinsic("sc.boundscheckui");
+  addDebugIntrinsic("sc.exactcheck2");
+  addDebugIntrinsic("sc.pool_register");
+
+  
   // We always change the module.
   return true;
 }

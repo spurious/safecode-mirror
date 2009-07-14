@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
-      Passes.add(new RewriteOOB());
+//      Passes.add(new RewriteOOB());
     }
 
     Passes.add (new DummyUse());
@@ -362,13 +362,15 @@ int main(int argc, char **argv) {
       Passes.add (new DebugInstrument());
 #endif
 
+    Passes.add(new UnusedCheckElimination());
+
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
 
     // Make all strings non-constant so that the linker doesn't try to merge
     // them together.
-    Passes.add(new BreakConstantStrings());
+//    Passes.add(new BreakConstantStrings());
 
     // Verify the final result
     Passes.add(createVerifierPass());

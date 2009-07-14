@@ -142,6 +142,33 @@ struct PoolRegisterElimination : public ModulePass {
   void removeUnusedRegistration(const char * name);
 };
 
+//
+// Pass: Unused Check Elimination
+//
+// Description:
+//  Kill all the checks with zero uses.
+//
+struct UnusedCheckElimination : public ModulePass {
+ public:
+  static char ID;
+  UnusedCheckElimination() : ModulePass((intptr_t)(&ID)) {}
+  virtual bool runOnModule (Module & M);
+  const char *getPassName() const {
+    return "Unused Check Elimination";
+  }
+  
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    // We need to know about SAFECode intrinsics
+    AU.addRequired<InsertSCIntrinsic>();
+    AU.setPreservesCFG();
+  }
+
+ private:
+  // References to required analysis passes
+  InsertSCIntrinsic * intrinsic;
+  std::vector<CallInst *> unusedChecks;
+};
+
 NAMESPACE_SC_END
 
 #endif
