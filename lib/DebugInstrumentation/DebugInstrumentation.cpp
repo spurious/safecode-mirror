@@ -111,8 +111,8 @@ LocationSourceInfo::operator() (CallInst * CI) {
     std::string filename = "<unknown>";
     if (CI->getParent()->getParent()->hasName())
       filename = CI->getParent()->getParent()->getName();
-    LineNumber = ConstantInt::get (Type::Int32Ty, ++count);
-    Constant * FInit = ConstantArray::get (filename);
+    LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, ++count);
+    Constant * FInit = getGlobalContext().getConstantArray (filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),
@@ -152,8 +152,8 @@ VariableSourceInfo::operator() (CallInst * CI) {
   //
   // Create a default line number and source file information for the call.
   //
-  LineNumber = ConstantInt::get (Type::Int32Ty, 0);
-  Constant * FInit = ConstantArray::get ("<unknown>");
+  LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, 0);
+  Constant * FInit = getGlobalContext().getConstantArray ("<unknown>");
   Module * M = CI->getParent()->getParent()->getParent();
   SourceFile = new GlobalVariable (*M,
                                    FInit->getType(),
@@ -161,6 +161,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
                                    GlobalValue::InternalLinkage,
                                    FInit,
                                    "srcfile");
+
   //
   // Get the value for which we want debug information.
   //
@@ -174,9 +175,9 @@ VariableSourceInfo::operator() (CallInst * CI) {
     if (Value * GVDesc = findDbgGlobalDeclare (GV)) {
       DIGlobalVariable Var(cast<GlobalVariable>(GVDesc));
       //Var.getDisplayName(DisplayName);
-      LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
+      LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = ConstantArray::get (filename);
+      Constant * FInit = getGlobalContext().getConstantArray (filename);
       SourceFile = new GlobalVariable (*M,
                                        FInit->getType(),
                                        true,
@@ -187,9 +188,9 @@ VariableSourceInfo::operator() (CallInst * CI) {
   } else {
     if (const DbgDeclareInst *DDI = findDbgDeclare(V)) {
       DIVariable Var (cast<GlobalVariable>(DDI->getVariable()));
-      LineNumber = ConstantInt::get (Type::Int32Ty, Var.getLineNumber());
+      LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = ConstantArray::get (filename);
+      Constant * FInit = getGlobalContext().getConstantArray (filename);
       SourceFile = new GlobalVariable (*M,
                                        FInit->getType(),
                                        true,
@@ -265,12 +266,25 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     LineNumber = Info.second;
 
     //
-    // If the source filename is in the meta-data section, move it to the
-    // default section.  This ensures that it gets code generated.
+    // If the source filename is in the meta-data section, make a copy of it in
+    // the default section.  This ensures that it gets code generated.
     //
     if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(SourceFile)) {
       if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
-        GV->setSection ("");
+        if (GV->hasSection()) {
+          GlobalVariable * SrcGV = new GlobalVariable (*(F->getParent()),
+                                                       GV->getType()->getElementType(),
+                                                       GV->isConstant(),
+                                                       GV->getLinkage(),
+                                                       GV->getInitializer(),
+                                                       GV->getName(),
+                                                       0,
+                                                       GV->isThreadLocal(),
+                                                       0);
+          SrcGV->copyAttributesFrom (GV);
+          SrcGV->setSection ("");
+          SourceFile = SrcGV;
+        }
       }
     }
 
@@ -279,7 +293,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     //
     std::vector<Value *> args (CI->op_begin(), CI->op_end());
     args.erase (args.begin());
-    args.push_back (ConstantInt::get(Type::Int32Ty, tagCounter++));
+    args.push_back (Context->getConstantInt(Type::Int32Ty, tagCounter++));
 
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);

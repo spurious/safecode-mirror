@@ -56,10 +56,12 @@ static Constant * StackFree = 0;
 //                  objects.
 //  ExitPoints    - The list of instructions that can cause the function to
 //                  return.
+//  Context       - The LLVM Context in which to insert instructions.
 //
 static void
 insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
-                 const std::vector<Instruction *> & ExitPoints) {
+                 const std::vector<Instruction *> & ExitPoints,
+                 LLVMContext * Context) {
   // List of alloca instructions we create to store the pointers to be
   // deregistered.
   std::vector<AllocaInst *> PtrList;
@@ -93,7 +95,8 @@ insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
     //
     BasicBlock & EntryBB = CI->getParent()->getParent()->getEntryBlock();
     Instruction * InsertPt = &(EntryBB.front());
-    AllocaInst * PtrLoc = new AllocaInst (VoidPtrTy,
+    AllocaInst * PtrLoc = new AllocaInst (*Context, 
+                                          VoidPtrTy,
                                           Ptr->getName() + ".st",
                                           InsertPt);
     Value * NullPointer = ConstantPointerNull::get(VoidPtrTy);
@@ -246,7 +249,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Insert poolunregister calls for all of the registered allocas.
   //
-  insertPoolFrees (PoolRegisters, ExitPoints);
+  insertPoolFrees (PoolRegisters, ExitPoints, Context);
 
   //
   // Conservatively assume that we've changed the function.
@@ -421,7 +424,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   // instruction if the allocation allocates an array.
   //
   unsigned allocsize = TD->getTypeAllocSize(AI->getAllocatedType());
-  Value *AllocSize = ConstantInt::get(Type::Int32Ty, allocsize);
+  Value *AllocSize = Context->getConstantInt(Type::Int32Ty, allocsize);
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                        AI->getOperand(0), "sizetmp", AI);

@@ -129,7 +129,8 @@ doFault () {
 //  pointer type or a derived type that contains a pointer.
 //
 // Inputs:
-//  Ty - The type created by the allocation.
+//  Ty      - The type created by the allocation.
+//  Context - The LLVM Context in which to add integers.
 //
 // Outputs:
 //  Indices - A vector of indices that can be used to create a GEP to the
@@ -141,7 +142,8 @@ doFault () {
 //  false - This function could not prove that this type contains a pointer.
 //
 static inline bool
-typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices) {
+typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
+                     LLVMContext * Context) {
   //
   // If this is a pointer type, stop the recursion.  We've found our pointer.
   //
@@ -154,13 +156,13 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices) {
   // element.
   //
   if (const ArrayType * AT = dyn_cast<ArrayType>(Ty)) {
-    Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
-    return typeContainsPointer (AT->getElementType(), Indices);
+    Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
+    return typeContainsPointer (AT->getElementType(), Indices, Context);
   }
 
   if (const VectorType * VT = dyn_cast<VectorType>(Ty)) {
-    Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
-    return typeContainsPointer (VT->getElementType(), Indices);
+    Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
+    return typeContainsPointer (VT->getElementType(), Indices, Context);
   }
 
   //
@@ -169,8 +171,8 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices) {
   //
   if (const StructType * ST = dyn_cast<StructType>(Ty)) {
     for (unsigned index = 0; index < ST->getNumElements(); ++index) {
-      Indices.push_back (ConstantInt::get (Type::Int32Ty, index));
-      if (typeContainsPointer (ST->getElementType(index), Indices)) {
+      Indices.push_back (Context->getConstantInt (Type::Int32Ty, index));
+      if (typeContainsPointer (ST->getElementType(index), Indices, Context)) {
         return true;
       } else {
         Indices.pop_back ();
@@ -378,14 +380,16 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (AI->getAllocatedType(),
-                                  ConstantInt::get(Type::Int32Ty,0),
+      NewAlloc =  new MallocInst (*Context,
+                                  AI->getAllocatedType(),
+                                  Context->getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
-      NewAlloc =  new AllocaInst (AI->getAllocatedType(),
-                                  ConstantInt::get(Type::Int32Ty,0),
+      NewAlloc =  new AllocaInst (*Context,
+                                  AI->getAllocatedType(),
+                                  Context->getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
@@ -423,13 +427,15 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (Type::Int32Ty,
+      NewAlloc =  new MallocInst (*Context,
+                                  Type::Int32Ty,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
-      NewAlloc =  new AllocaInst (Type::Int32Ty,
+      NewAlloc =  new AllocaInst (*Context,
+                                  Type::Int32Ty,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),
@@ -495,7 +501,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     User::op_iterator i = GEP->idx_begin();
     if (i == GEP->idx_end()) continue;
-    args.push_back (ConstantInt::get (Type::Int32Ty, INT_MAX, true));
+    args.push_back (Context->getConstantInt (Type::Int32Ty, INT_MAX, true));
     for (++i; i != GEP->idx_end(); ++i) {
       args.push_back (*i);
     }
@@ -556,8 +562,8 @@ FaultInjector::insertUninitializedUse (Function & F) {
         // Only inject a fault if the allocated memory has a pointer in it.
         //
         std::vector<Value *> Indices;
-        Indices.push_back (ConstantInt::get (Type::Int32Ty, 0));
-        if (typeContainsPointer (AI->getAllocatedType(), Indices)) {
+        Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
+        if (typeContainsPointer (AI->getAllocatedType(), Indices, Context)) {
           // Skip if we should not insert a fault.
           if (!doFault()) continue;
           WorkList.insert(std::make_pair (AI, Indices));

@@ -362,7 +362,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
   }
 
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
-    return ConstantInt::get(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
+    return Context->getConstantInt(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
   }
 
   if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
@@ -378,7 +378,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
         return NULL;
       }
     }
-    return ConstantInt::get(Type::Int32Ty, type_size);
+    return Context->getConstantInt(Type::Int32Ty, type_size);
   }
 
   // Customized allocators
@@ -403,7 +403,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
       assert (isa<PointerType>(AI->getType()));
       const PointerType * PT = cast<PointerType>(AI->getType());
       unsigned int type_size = TD->getTypeAllocSize (PT->getElementType());
-      return ConstantInt::get(Type::Int32Ty, type_size);
+      return Context->getConstantInt(Type::Int32Ty, type_size);
     }
   }
 

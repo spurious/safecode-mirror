@@ -61,7 +61,7 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
   if (DSN) {  
     const Type* csiType = Type::Int32Ty;
     const Type * GlobalType = GV->getType()->getElementType();
-    Value * AllocSize = ConstantInt::get
+    Value * AllocSize = Context->getConstantInt
       (csiType, TD->getTypeAllocSize(GlobalType));
     Value * PH = dsnPass->paPass->getGlobalPool (DSN);
     RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
@@ -344,7 +344,7 @@ RegisterFunctionByvalArguments::runOnFunction(Function & F) {
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
       const Type * ET = PT->getElementType();
-      Value * AllocSize = ConstantInt::get
+      Value * AllocSize = Context->getConstantInt
         (Type::Int32Ty, TD->getTypeAllocSize(ET));
       PA::FuncInfo *FI = dsnPass->paPass->getFuncInfoOrClone(F);
       Value *PH = dsnPass->getPoolHandle(&*I, &F, *FI);

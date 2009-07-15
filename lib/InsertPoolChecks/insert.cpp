@@ -219,7 +219,7 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
       // Create the call to poolcheck
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
-      args.push_back (ConstantInt::get(Type::Int32Ty, LinkNode.getOffset()));
+      args.push_back (Context->getConstantInt(Type::Int32Ty, LinkNode.getOffset()));
       CallInst::Create (ThePoolCheckFunction,args.begin(), args.end(), "", InsertPt);
 
       // Update the statistics
@@ -331,7 +331,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       unsigned num = FuncList.size();
       if (flI != flE) {
         const Type* csiType = Type::Int32Ty;
-        Value *NumArg = ConstantInt::get(csiType, num);	
+        Value *NumArg = Context->getConstantInt(csiType, num);	
                
         CastInst *CastVI = 
           CastInst::CreatePointerCast (Vnew, 
@@ -545,7 +545,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
               const Type* csiType = Type::Int32Ty;
               std::vector<Value *> args(1,secOp);
-              args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
+              args.push_back(Context->getConstantInt(csiType,AT->getNumElements()));
               CallInst::Create(ExactCheck,args.begin(), args.end(), "", Casted);
               DEBUG(std::cerr << "Inserted exact check call Instruction \n");
               return;
@@ -560,7 +560,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
                 }
                 std::vector<Value *> args(1,secOp);
                 const Type* csiType = Type::Int32Ty;
-                args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
+                args.push_back(Context->getConstantInt(csiType,AT->getNumElements()));
                 CallInst::Create(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
                 return;
               } else {

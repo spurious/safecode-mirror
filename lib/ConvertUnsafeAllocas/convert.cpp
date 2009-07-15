@@ -253,11 +253,11 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
           //create a new malloc instruction
           if (AI->getParent() != 0) {
 #ifndef LLVA_KERNEL	  
-            MI = new MallocInst(AI->getType()->getElementType(),
+            MI = new MallocInst(*Context, AI->getType()->getElementType(),
                                 AI->getArraySize(), AI->getName(), AI);
 #else
             Value *AllocSize =
-            ConstantInt::get(Type::Int32Ty,
+            Context->getConstantInt(Type::Int32Ty,
                               TD->getTypeAllocSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -425,13 +425,13 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 Value *
 ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
 #ifndef LLVA_KERNEL
-  MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
+  MallocInst *MI = new MallocInst(*Context, AI->getType()->getElementType(),
                                   AI->getArraySize(), AI->getName(), 
                                   AI);
   InsertFreesAtEnd (MI);
 #else
   Value *AllocSize;
-  AllocSize = ConstantInt::get (Type::Int32Ty,
+  AllocSize = Context->getConstantInt (Type::Int32Ty,
                                 TD->getTypeAllocSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
@@ -489,13 +489,14 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
         if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           if (SMI->second.getNode()->isNodeCompletelyFolded()) {
 #ifndef LLVA_KERNEL
-            MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
+            MallocInst *MI = new MallocInst(*Context,
+                                            AI->getType()->getElementType(),
                                             AI->getArraySize(), AI->getName(), 
                                             AI);
 	    	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
-            ConstantInt::get(Type::Int32Ty,
+            Context->getConstantInt(Type::Int32Ty,
                               TD->getTypeAllocSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -654,7 +655,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   // Create the size argument to the allocation.
   //
   Value *AllocSize;
-  AllocSize = ConstantInt::get (Type::Int32Ty,
+  AllocSize = Context->getConstantInt (Type::Int32Ty,
                                 TD->getTypeAllocSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,

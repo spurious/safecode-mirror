@@ -62,13 +62,13 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
 
   std::vector<Value *> args;
   if (SCConfig->DanglingPointerChecks)
-    args.push_back (ConstantInt::get(Type::Int32Ty, 1));
+    args.push_back (Context->getConstantInt(Type::Int32Ty, 1));
   else
-    args.push_back (ConstantInt::get(Type::Int32Ty, 0));
+    args.push_back (Context->getConstantInt(Type::Int32Ty, 0));
   args.push_back
-    (ConstantInt::get(Type::Int32Ty, SCConfig->RewriteOOB));
+    (Context->getConstantInt(Type::Int32Ty, SCConfig->RewriteOOB));
   args.push_back
-    (ConstantInt::get(Type::Int32Ty, SCConfig->TerminateOnErrors));
+    (Context->getConstantInt(Type::Int32Ty, SCConfig->TerminateOnErrors));
   CallInst::Create (RuntimeInit, args.begin(), args.end(), "", BB); 
 
   args.clear();
@@ -89,7 +89,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   // Insert the run-time ctor into the ctor list.
   //
   std::vector<Constant *> CtorInits;
-  CtorInits.push_back (ConstantInt::get (Type::Int32Ty, 65535));
+  CtorInits.push_back (Context->getConstantInt (Type::Int32Ty, 65535));
   CtorInits.push_back (RuntimeCtor);
   Constant * RuntimeCtorInit = ConstantStruct::get (CtorInits);
 
