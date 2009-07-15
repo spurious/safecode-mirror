@@ -39,9 +39,7 @@ PoolSlab::create(BitmapPoolTy *Pool) {
     }
 
   // Add the slab to the list...
-  PoolSlab * P = (PoolSlab*)Pool->Ptr1;
-  PS->addToList(&P);
-  Pool->Ptr1 = P;
+	PS->addToList((PoolSlab**)&Pool->Ptr1);
   //  printf(" creating a slab %x\n", PS);
   return PS;
 }
@@ -71,9 +69,7 @@ PoolSlab::createSingleArray(BitmapPoolTy *Pool, unsigned NumNodes) {
   }
   Pool->NumSlabs++;
 
-  PoolSlab * P = (PoolSlab*)Pool->LargeArrays;
-  PS->addToList(&P);
-  Pool->LargeArrays = P;
+	PS->addToList((PoolSlab**)&Pool->LargeArrays);
 
   PS->allocated   = 0xffffffff;    // No bytes allocated.
   PS->isSingleArray = 1;
