@@ -101,7 +101,7 @@ extern "C" {
                                 unsigned Number, unsigned NumBytes,
                                   TAG, SRC_INFO);
 
-  void * __sc_dbg_poolrealloc(PPOOL, void *Node, unsigned NumBytes, TAG);
+  void * __sc_dbg_poolrealloc(PPOOL, void *Node, unsigned NumBytes);
 
   void poolcheck(PPOOL, void *Node, TAG);
   void poolcheckui(PPOOL, void *Node, TAG);
