@@ -40,6 +40,7 @@ LARGE_PROBLEM_SIZE_DIRS :=
 LARGE_PROBLEM_SIZE_DIRS := \
    $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(LARGE_PROBLEM_SIZE_DIRS))
 
+#DEBUG_SAFECODE := DEBUG_SAFECODE=1
 
 NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden \
@@ -156,7 +157,7 @@ progdebug::
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=debug \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
-               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) $(DEBUG_SAFECODE) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
                    report.html report.csv; \
       ) \
