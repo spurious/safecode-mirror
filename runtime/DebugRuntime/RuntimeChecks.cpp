@@ -104,6 +104,10 @@ void
 poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, unsigned lineno) {
   if (_barebone_poolcheck (Pool, Node))
     return;
+
+  // Pass NULL pointer
+  if (Node == NULL) 
+    return;
  
   //
   // Look for the object within the splay tree of external objects.
@@ -155,6 +159,8 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
 //
 void
 poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const char * SourceFile, unsigned lineno) {
+  poolcheck_debug(Pool, Node, tag, SourceFile, lineno);
+#if 0
   //
   // Let null pointers go if the alignment is zero; such pointers are aligned.
   //
@@ -187,6 +193,7 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
     v.lineNo = lineno;
   
   ReportMemoryViolation(&v);
+#endif
 }
 
 
@@ -473,7 +480,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
 //  Identical to boundscheck() except that it takes additional debug info
 //  parameters.
 //
-void *
+void * __attribute__((noinline))
 boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const char * SourceFile, unsigned lineno) {
   // This code is inlined at all boundscheck() calls
 
