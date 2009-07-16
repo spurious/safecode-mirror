@@ -253,7 +253,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
           //create a new malloc instruction
           if (AI->getParent() != 0) {
 #ifndef LLVA_KERNEL	  
-            MI = new MallocInst(*Context, AI->getType()->getElementType(),
+            MI = new MallocInst(AI->getType()->getElementType(),
                                 AI->getArraySize(), AI->getName(), AI);
 #else
             Value *AllocSize =
@@ -425,7 +425,7 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 Value *
 ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
 #ifndef LLVA_KERNEL
-  MallocInst *MI = new MallocInst(*Context, AI->getType()->getElementType(),
+  MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
                                   AI->getArraySize(), AI->getName(), 
                                   AI);
   InsertFreesAtEnd (MI);
@@ -489,8 +489,7 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
         if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           if (SMI->second.getNode()->isNodeCompletelyFolded()) {
 #ifndef LLVA_KERNEL
-            MallocInst *MI = new MallocInst(*Context,
-                                            AI->getType()->getElementType(),
+            MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
                                             AI->getArraySize(), AI->getName(), 
                                             AI);
 	    	    InsertFreesAtEnd(MI);

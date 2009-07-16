@@ -380,15 +380,13 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (*Context,
-                                  AI->getAllocatedType(),
+      NewAlloc =  new MallocInst (AI->getAllocatedType(),
                                   Context->getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
-      NewAlloc =  new AllocaInst (*Context,
-                                  AI->getAllocatedType(),
+      NewAlloc =  new AllocaInst (AI->getAllocatedType(),
                                   Context->getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
@@ -427,15 +425,13 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (*Context,
-                                  Type::Int32Ty,
+      NewAlloc =  new MallocInst (Type::Int32Ty,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
-      NewAlloc =  new AllocaInst (*Context,
-                                  Type::Int32Ty,
+      NewAlloc =  new AllocaInst (Type::Int32Ty,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),

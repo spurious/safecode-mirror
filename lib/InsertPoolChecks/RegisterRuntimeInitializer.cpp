@@ -91,7 +91,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   std::vector<Constant *> CtorInits;
   CtorInits.push_back (Context->getConstantInt (Type::Int32Ty, 65535));
   CtorInits.push_back (RuntimeCtor);
-  Constant * RuntimeCtorInit = ConstantStruct::get (CtorInits);
+  Constant * RuntimeCtorInit = Context->getConstantStruct (CtorInits);
 
   //
   // Get the current set of static global constructors and add the new ctor

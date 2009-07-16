@@ -95,8 +95,7 @@ insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
     //
     BasicBlock & EntryBB = CI->getParent()->getParent()->getEntryBlock();
     Instruction * InsertPt = &(EntryBB.front());
-    AllocaInst * PtrLoc = new AllocaInst (*Context, 
-                                          VoidPtrTy,
+    AllocaInst * PtrLoc = new AllocaInst (VoidPtrTy,
                                           Ptr->getName() + ".st",
                                           InsertPt);
     Value * NullPointer = ConstantPointerNull::get(VoidPtrTy);

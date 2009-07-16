@@ -580,7 +580,7 @@ namespace llvm {
 			 (Type::VoidTy, args<const Type*>::list(PointerType::getUnqual(Type::Int8Ty), PointerType::getUnqual(Type::Int8Ty)), false));
 
 		Instruction * termInst = L->getHeader()->getTerminator();
-		Value * allocaInst = new AllocaInst(*Context, checkArgumentType, "checkarg", &L->getHeader()->getParent()->front().front());
+		Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", &L->getHeader()->getParent()->front().front());
 
 		size_t arg_counter = 0;
 		for (InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it !=end; ++it) {
