@@ -39,7 +39,7 @@ SC_RT := libsc_dbg_rt libpoolalloc_bitmap
 
 ifdef DEBUG_SAFECODE
 POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
-PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .bca,$(SC_RT)))
+PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .a,$(SC_RT)))
 else
 PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/,$(addsuffix .bca,$(SC_RT)))
 POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
