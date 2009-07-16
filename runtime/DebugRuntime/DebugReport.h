@@ -26,6 +26,7 @@ struct DebugViolationInfo : public ViolationInfo {
   const char * SourceFile;
   unsigned int lineNo;
   virtual void print (std::ostream & OS) const;
+  DebugViolationInfo() : dbgMetaData(0), SourceFile(0), lineNo(0) {}
 };
 
 struct OutOfBoundsViolation : public DebugViolationInfo {
