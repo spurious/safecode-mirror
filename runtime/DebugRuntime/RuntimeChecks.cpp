@@ -159,8 +159,6 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
 //
 void
 poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const char * SourceFile, unsigned lineno) {
-  poolcheck_debug(Pool, Node, tag, SourceFile, lineno);
-#if 0
   //
   // Let null pointers go if the alignment is zero; such pointers are aligned.
   //
@@ -176,26 +174,41 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   // Look for the object in the splay of regular objects.
   //
   void * S, * end;
-  bool t = Pool->Objects.find(Node, S, end);
+  bool found = Pool->Objects.find(Node, S, end);
 
-  if ((t) && (((unsigned char *)Node - (unsigned char *)S) == (int)Offset)) {
+  //
+  // Determine whether the alignment of the object is correct.  Note that Node
+  // may be pointing to an array of objects, so we need to take the offset of
+  // the pointer from the beginning of the object modulo the size of a single
+  // array element.  In this run-time, the size of a single element is stored
+  // within the pool descriptor.
+  //
+  if (found) {
+    unsigned char * Nodep = (unsigned char *) Node;
+    unsigned char * Sp = (unsigned char *) S;
+    unsigned Alignment = ((Nodep - Sp) % Pool->NodeSize);
+    if (Alignment == Offset) {
       return;
+    }
   }
 
   //
   // The object has not been found.  Provide an error.
   //
+  if (logregs) {
+    fprintf (stderr, "Violation(A): %p: %p %d %d\n", (void *) Pool, Node, Offset, Pool->NodeSize);
+    fflush (stderr);
+  }
+
   DebugViolationInfo v;
   v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
     v.SourceFile = SourceFile,
     v.lineNo = lineno;
-  
-  ReportMemoryViolation(&v);
-#endif
-}
 
+  ReportMemoryViolation(&v);
+}
 
 void
 poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
