@@ -74,7 +74,7 @@ NAMESPACE_SC_END
 
 #define PPOOL NAMESPACE_SC::DebugPoolTy*
 #define TAG unsigned
-#define SRC_INFO const char * SFile, unsigned int lineno
+#define SRC_INFO const char *, unsigned int
 
 extern "C" {
   void pool_init_runtime(unsigned Dangling,
@@ -94,7 +94,7 @@ extern "C" {
 
   void __sc_dbg_poolunregister(PPOOL, void *allocaptr);
   void __sc_dbg_poolfree(PPOOL, void *Node);
-  void __sc_dbg_src_poolfree (PPOOL, void * ptr, SRC_INFO);
+  void __sc_dbg_src_poolfree (PPOOL, void *, TAG, SRC_INFO);
 
   void * __sc_dbg_poolcalloc (PPOOL, unsigned Number, unsigned NumBytes, TAG);
   void * __sc_dbg_src_poolcalloc (PPOOL,

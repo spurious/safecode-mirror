@@ -489,7 +489,7 @@ void
 __sc_dbg_src_poolfree (DebugPoolTy *Pool,
                        void * Node, TAG,
                        const char * SourceFile,
-                       unsigned lineno) {
+                       unsigned int lineno) {
   //
   // Free the object within the pool; the poolunregister() function will
   // detect invalid frees.
