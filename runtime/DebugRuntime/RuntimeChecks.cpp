@@ -105,10 +105,6 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
   if (_barebone_poolcheck (Pool, Node))
     return;
 
-  // Pass NULL pointer
-  if (Node == NULL) 
-    return;
- 
   //
   // Look for the object within the splay tree of external objects.
   //
@@ -232,9 +228,11 @@ poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
   // The node is not found or is not within bounds.  Report a warning but keep
   // going.
   //
-  fprintf (stderr, "PoolcheckUI failed(%p:%x): %p %p from %p\n", 
-      (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
-  fflush (stderr);
+	if (logregs) {
+    fprintf (stderr, "PoolcheckUI failed(%p:%x): %p %p from %p\n", 
+        (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
+    fflush (stderr);
+  }
   return;
 }
 
@@ -372,6 +370,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
         v.faultPC = __builtin_return_address(0),
         v.faultPtr = Dest,
         v.dbgMetaData = debugmetadataptr,
+				v.PoolHandle = Pool, 
         v.SourceFile = SourceFile,
         v.lineNo = lineno,
         v.objStart = ObjStart,
@@ -415,6 +414,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
           v.faultPC = __builtin_return_address(0),
           v.faultPtr = Dest,
           v.dbgMetaData = NULL,
+				  v.PoolHandle = Pool, 
           v.SourceFile = NULL,
           v.lineNo = 0,
           v.objStart = 0,
@@ -455,6 +455,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
           v.faultPC = __builtin_return_address(0),
           v.faultPtr = Dest,
           v.dbgMetaData = NULL,
+				  v.PoolHandle = Pool, 
           v.SourceFile = SourceFile,
           v.lineNo = lineno,
           v.objStart = ObjStart,
@@ -473,6 +474,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
     v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = Dest,
+			v.PoolHandle = Pool, 
       v.dbgMetaData = NULL,
       v.SourceFile = SourceFile,
       v.lineNo = lineno,

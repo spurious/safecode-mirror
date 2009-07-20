@@ -125,7 +125,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
 extern "C" void __poolalloc_init();
 void
 pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
-  //  logregs=1;
+  // logregs=1;
   //
   // Initialize the signal handlers for catching errors.
   //

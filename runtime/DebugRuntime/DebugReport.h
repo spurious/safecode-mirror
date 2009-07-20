@@ -23,6 +23,7 @@ NAMESPACE_SC_BEGIN
 
 struct DebugViolationInfo : public ViolationInfo {
   const DebugMetaData * dbgMetaData;
+	const void * PoolHandle;
   const char * SourceFile;
   unsigned int lineNo;
   virtual void print (std::ostream & OS) const;

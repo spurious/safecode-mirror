@@ -22,7 +22,8 @@ DebugViolationInfo::print(std::ostream & OS) const {
   ViolationInfo::print(OS);
   OS << "Fault PC Source: " << 
     (this->SourceFile ? this->SourceFile : "<unknown>") <<
-    ":" << std::dec << this->lineNo << "\n";
+    ":" << std::dec << this->lineNo << "\n"
+		<< "Pool Handle:" << this->PoolHandle << "\n";
   if (dbgMetaData) {
     dbgMetaData->print(OS);
   }
