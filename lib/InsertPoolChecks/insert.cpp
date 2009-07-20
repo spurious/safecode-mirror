@@ -619,7 +619,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         dsnPass->addCheckedValue(GEPNew);
 
         Instruction * CI;
-        if (Node->isIncompleteNode())
+        if (Node->isIncompleteNode() || Node->isUnknownNode())
           CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
                                 "", InsertPt);
         else
