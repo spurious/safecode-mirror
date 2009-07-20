@@ -377,8 +377,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 
         dsnPass->addCheckedDSNode(Node);
         dsnPass->addCheckedValue(Vnew);
-        Constant * PoolCheckFunc = (Node->isIncompleteNode()) ? PoolCheckUI
-                                                              : PoolCheck;
+        Constant * PoolCheckFunc = (Node->isIncompleteNode() || Node->isUnknownNode()) ? PoolCheckUI : PoolCheck;
         CallInst::Create (PoolCheckFunc, args.begin(), args.end(), "", I);
     }
   }
