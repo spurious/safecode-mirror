@@ -27,6 +27,11 @@ static llvm::RegisterPass<RegisterRuntimeInitializer> X1 ("reg-runtime-init", "R
 
 bool
 RegisterRuntimeInitializer::runOnModule(llvm::Module & M) {
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   constructInitializer(M);
   insertInitializerIntoGlobalCtorList(M);

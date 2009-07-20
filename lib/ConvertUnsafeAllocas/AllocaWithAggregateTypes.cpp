@@ -181,6 +181,11 @@ NAMESPACE_SC_BEGIN
 
   bool
   InitAllocas::runOnFunction (Function &F) {
+    //
+    // Get the context from the global context.
+    //
+    Context = &getGlobalContext();
+
     bool modified = false;
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
 

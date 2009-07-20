@@ -107,11 +107,22 @@ InsertPoolChecks::addCheckProto(Module &M) {
 
 bool
 InsertPoolChecks::runOnFunction(Function &F) {
+  //
+  // FIXME:
+  //  This is incorrect; a function pass should *never* modify anything outside
+  //  of the function on which it is given.  This should be done in the pass's
+  //  doInitialization() method.
+  //
   static bool uninitialized = true;
   if (uninitialized) {
     addCheckProto(*F.getParent());
     uninitialized = false;
   }
+
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
 
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
   dsnPass = &getAnalysis<DSNodePass>();

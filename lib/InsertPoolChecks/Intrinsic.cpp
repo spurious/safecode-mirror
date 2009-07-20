@@ -75,6 +75,11 @@ InsertSCIntrinsic::addDebugIntrinsic(const char * name) {
 //
 bool
 InsertSCIntrinsic::runOnModule(Module & M) {
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   currentModule = &M;
   TD = &getAnalysis<TargetData>();
   const Type * VoidTy = Type::VoidTy;

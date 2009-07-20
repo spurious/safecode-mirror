@@ -288,6 +288,11 @@ RegisterVariables::~RegisterVariables() {}
 
 void
 RegisterVariables::init(Module & M) {
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   PoolRegisterFunc =
     intrinsic->getIntrinsic("sc.pool_register").F;  

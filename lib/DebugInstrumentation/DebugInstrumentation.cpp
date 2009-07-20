@@ -322,6 +322,11 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 //
 bool
 DebugInstrument::runOnModule (Module &M) {
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
 
   // Create the void pointer type
