@@ -200,6 +200,7 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
+    v.PoolHandle = Pool, 
     v.SourceFile = SourceFile,
     v.lineNo = lineno;
 
@@ -495,6 +496,10 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
 //  Identical to boundscheck() except that it takes additional debug info
 //  parameters.
 //
+// FIXME: this function is marked as noinline due to LLVM bug 4562
+// http://llvm.org/bugs/show_bug.cgi?id=4562
+//
+// the attribute should be taken once the bug is fixed.
 void * __attribute__((noinline))
 boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const char * SourceFile, unsigned lineno) {
   // This code is inlined at all boundscheck() calls
@@ -504,7 +509,7 @@ boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const ch
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   if (logregs) {
-    fprintf (stderr, "boundscheck_debug: %d: %p - %p\n", ret, ObjStart, ObjEnd);
+    fprintf (stderr, "boundscheck_debug(%d): %d: %p - %p\n", tag, ret, ObjStart, ObjEnd);
     fflush (stderr);
   }
 
