@@ -186,7 +186,12 @@ namespace {
   //
   bool
   MonotonicLoopOpt::isMonotonicLoop(Loop * L, Value * loopVar) {
-    bool HasConstantItCount = isa<SCEVConstant>(scevPass->getBackedgeTakenCount(L));
+    //
+    // Determine whether the loop has a constant iteration count.
+    //
+    bool HasConstantItCount = false;
+    if (scevPass->hasLoopInvariantBackedgeTakenCount(L))
+      HasConstantItCount=isa<SCEVConstant>(scevPass->getBackedgeTakenCount(L));
 
     //
     // Determine whether ScalarEvolution can provide information on the loop
