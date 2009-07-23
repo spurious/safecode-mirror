@@ -45,6 +45,7 @@
 #include "safecode/BreakConstantStrings.h"
 #include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/DummyUse.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
 #include "safecode/SpeculativeChecking.h"
@@ -72,22 +73,6 @@ OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
 
 static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
-
-namespace {
-  class DummyUse : public ModulePass {
-  public:
-    static char ID;
-    DummyUse() : ModulePass((intptr_t)&ID) {}
-    virtual void getAnalysisUsage(AnalysisUsage & AU) const {
-      DSNodePass::getAnalysisUsageForDSA(AU);
-      AU.addRequired<PoolAllocateGroup>();
-      AU.setPreservesAll();
-    }
-    virtual bool runOnModule(Module &) { return false; }
-  };
-  char DummyUse::ID = 0;
-  static RegisterPass<DummyUse> X("dummy-use", "Dummy pass to keep PA info live", true, true);
-}
 
 static cl::opt<bool>
 EnableDebugInfo("enable-debuginfo", cl::init(false),
