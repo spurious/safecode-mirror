@@ -403,7 +403,7 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
   Function *Forig = &F;
   PA::FuncInfo *FI = NULL;
 
-  if (!SCConfig->SVAEnabled) {
+  if (!SCConfig.svaEnabled()) {
     if (paPass->getFuncInfo(F))
       isClonedFunc = false;
     else
@@ -454,7 +454,7 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
     } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
       if (!isa<Function>(FunctionOp)) {
-        if (!SCConfig->SVAEnabled) {
+        if (!SCConfig.svaEnabled()) {
           // The ASM Writer does not handle inline assembly very well
           llvm::cerr << "JTC: Indirect Function Call Check: "
                      << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;

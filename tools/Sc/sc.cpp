@@ -118,7 +118,7 @@ static cl::opt<bool>
 EnableCodeDuplication("code-duplication", cl::init(false),
 			 cl::desc("Enable Code Duplication for SAFECode checking"));
 
-#define NOT_FOR_SVA(X) do { if (!SCConfig->SVAEnabled) X; } while (0);
+#define NOT_FOR_SVA(X) do { if (!SCConfig.svaEnabled()) X; } while (0);
 
 static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type);
 static void addStaticGEPCheckingPass(PassManager & Passes);
@@ -178,16 +178,13 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    // Parse Configuration
-    SCConfig = SAFECodeConfiguration::create();
     // The type of DSA depends on which pool allocation pass is used.
-
-    if (SCConfig->SVAEnabled) {
-      SCConfig->allocators.push_back(&AllocatorVMalloc);
-      SCConfig->allocators.push_back(&AllocatorKMalloc);
-      SCConfig->allocators.push_back(&AllocatorBootmem);
+    if (SCConfig.svaEnabled()) {
+      SCConfig.allocators.push_back(&AllocatorVMalloc);
+      SCConfig.allocators.push_back(&AllocatorKMalloc);
+      SCConfig.allocators.push_back(&AllocatorBootmem);
     } else {
-      SCConfig->allocators.push_back(&AllocatorPoolAlloc);
+      SCConfig.allocators.push_back(&AllocatorPoolAlloc);
     }
 
     // Build up all of the passes that we want to do to the module...
@@ -269,7 +266,7 @@ int main(int argc, char **argv) {
     //
     Passes.add(new RegisterGlobalVariables());
 
-    if (!SCConfig->SVAEnabled) {
+    if (!SCConfig.svaEnabled()) {
       Passes.add(new RegisterMainArgs());
       Passes.add(new RegisterRuntimeInitializer());
     }
@@ -317,7 +314,7 @@ int main(int argc, char **argv) {
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
-      if (SCConfig->RewriteOOB) {
+      if (SCConfig.rewriteOOB()) {
         Passes.add(new RewriteOOB());
       }
     }
@@ -434,7 +431,7 @@ int main(int argc, char **argv) {
 }
 
 static void addStaticGEPCheckingPass(PassManager & Passes) {
-	switch (SCConfig->StaticCheckType) {
+	switch (SCConfig.staticCheckType()) {
 		case SAFECodeConfiguration::ABC_CHECK_NONE:
 			Passes.add(new ArrayBoundsCheckDummy());
 			break;
@@ -630,7 +627,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
 }
 
 static void addPoolAllocationPass(PassManager & Passes) {
-  switch (SCConfig->PAType) {
+  switch (SCConfig.getPAType()) {
   case SAFECodeConfiguration::PA_SINGLE:
     Passes.add(new PoolAllocateSimple(true, true, false));
     break;

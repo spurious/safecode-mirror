@@ -102,7 +102,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
     if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
     if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
    
-    if (SCConfig->SVAEnabled) {
+    if (SCConfig.svaEnabled()) {
       // Linking fails when registering objects in section exitcall.exit
       if (GV->getSection() == ".exitcall.exit") continue;
     }
@@ -188,13 +188,13 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   // Unfortunaly, our machines only have gcc3, which does not support
   // TR1..
   std::for_each
-    (SCConfig->alloc_begin(), SCConfig->alloc_end(),
+    (SCConfig.alloc_begin(), SCConfig.alloc_end(),
      std::tr1::bind
      (&RegisterCustomizedAllocation::proceedAllocator,
       this, &M, std::tr1::placeholders::_1));
 #else
-  for (SAFECodeConfiguration::alloc_iterator it = SCConfig->alloc_begin(),
-      end = SCConfig->alloc_end(); it != end; ++it) {
+  for (SAFECodeConfiguration::alloc_iterator it = SCConfig.alloc_begin(),
+      end = SCConfig.alloc_end(); it != end; ++it) {
     proceedAllocator(&M, *it);
   }
 

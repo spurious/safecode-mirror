@@ -24,10 +24,6 @@ NAMESPACE_SC_BEGIN
 class AllocatorInfo;
 
 struct SAFECodeConfiguration {
-  bool DanglingPointerChecks;
-  bool RewriteOOB;
-  bool TerminateOnErrors;
-  bool SVAEnabled;
 
   typedef enum StaticCheckTy {
     ABC_CHECK_FULL,
@@ -47,22 +43,25 @@ struct SAFECodeConfiguration {
 
 
   StaticCheckTy StaticCheckType;
-  DSATy DSAType;
   PATy PAType;
+
+  bool dpChecks();
+  bool svaEnabled();
+  bool terminateOnErrors();
+  bool rewriteOOB();
+
+  PATy          getPAType();
+  DSATy         calculateDSAType();
+  StaticCheckTy staticCheckType();
 
   typedef std::vector<AllocatorInfo* > AllocatorInfoListTy;
   typedef AllocatorInfoListTy::iterator alloc_iterator;
   AllocatorInfoListTy allocators;
   alloc_iterator alloc_begin() { return allocators.begin(); }
   alloc_iterator alloc_end() { return allocators.end(); }
-
-  static SAFECodeConfiguration * create();
-private:
-  void calculateDSAType();
-  SAFECodeConfiguration();
 };
 
-extern SAFECodeConfiguration * SCConfig;
+extern SAFECodeConfiguration SCConfig;
 
 NAMESPACE_SC_END
 #endif

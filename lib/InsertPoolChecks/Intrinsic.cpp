@@ -394,8 +394,8 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
       return NULL;
 
     const std::string & name = F->getName();
-    for (SAFECodeConfiguration::alloc_iterator it = SCConfig->alloc_begin(),
-           end = SCConfig->alloc_end(); it != end; ++it) {
+    for (SAFECodeConfiguration::alloc_iterator it = SCConfig.alloc_begin(),
+           end = SCConfig.alloc_end(); it != end; ++it) {
       if ((*it)->isAllocSizeMayConstant(CI) && (*it)->getAllocCallName() == name) {
         return (*it)->getAllocSize(CI);
       }

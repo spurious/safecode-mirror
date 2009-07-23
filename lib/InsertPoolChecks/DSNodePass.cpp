@@ -292,7 +292,7 @@ DSNodePass::isValueChecked(const Value * val) const {
 
 void
 DSNodePass::getAnalysisUsageForDSA(AnalysisUsage &AU) {
-  switch (SCConfig->DSAType) {
+  switch (SCConfig.calculateDSAType()) {
   case SAFECodeConfiguration::DSA_BASIC:
     AU.addRequiredTransitive<BasicDataStructures>();
     break;

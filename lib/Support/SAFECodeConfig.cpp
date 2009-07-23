@@ -9,6 +9,8 @@
 //
 // Parse and record all configuration parameters required by SAFECode.
 //
+// TODO: Move other cl::opt to this file and parse them here as appropriate
+//
 //===----------------------------------------------------------------------===//
 
 #include "safecode/SAFECodeConfig.h"
@@ -80,32 +82,125 @@ namespace {
                 clEnumValEnd));
 }
 
-SAFECodeConfiguration * SCConfig;
+SAFECodeConfiguration SCConfig;
 
-SAFECodeConfiguration *
-SAFECodeConfiguration::create() {
-  return new SAFECodeConfiguration();
+//
+// Method: dpChecks()
+//
+// Description:
+//  Determines whether the user wants dangling pointer checks enabled.
+//
+// Return value:
+//  true  - Dangling pointer checks are enabled.
+//  false - Dangling pointer checks are disabled.
+//
+bool
+SAFECodeConfiguration::dpChecks() {
+  return DPChecks;
 }
 
-SAFECodeConfiguration::SAFECodeConfiguration() {
-  // TODO: Move all cl::opt to this file and parse them here
-  this->DanglingPointerChecks = DPChecks;
-  this->RewriteOOB = RewritePtrs;
-  this->TerminateOnErrors = StopOnFirstError;
-  this->StaticCheckType = StaticChecks;
-  this->PAType = PA;
-  calculateDSAType();
-  this->SVAEnabled = EnableSVA;
+//
+// Method: svaEnabled()
+//
+// Description:
+//  Determines whether the user wants the SVA features enabled.
+//
+// Return value:
+//  true  - SVA features are enabled.
+//  false - SVA features are disabled.
+//
+bool
+SAFECodeConfiguration::svaEnabled() {
+  return EnableSVA;
 }
 
-void
+//
+// Method: terminateOnErrors()
+//
+// Description:
+//  Determines whether the user wants the generated program to terminate on
+//  the first memory error detected.
+//
+// Return value:
+//  true  - The run-time should terminate the program when a memory safety
+//          violation  occurs.
+//  false - The run-time should report the memory-safety error but allow the
+//          program to continue execution.
+//
+bool
+SAFECodeConfiguration::terminateOnErrors() {
+  return StopOnFirstError;
+}
+
+//
+// Method: rewriteOOB()
+//
+// Description:
+//  This method determines how strict the indexing requirements are for the
+//  generated program.
+//
+// Return value:
+//  true  - Relaxes indexing options are enabled.  The program may create
+//          pointers that are out-of-bounds but should not be allowed to
+//          deference them.
+//  false - Follow C indexing rules: a pointer must either point within a valid
+//          memory object, or it can point to one byte past the end of the
+//          object as long as it is never dereferenced.
+//
+bool
+SAFECodeConfiguration::rewriteOOB() {
+  return RewritePtrs;
+}
+
+//
+// Method: staticCheckType()
+//
+// Description:
+//  This method determines what algorithms should be used for static array
+//  bounds checking.
+//
+// Return value:
+//  An enumerated value indicating which type of static array bounds checking
+//  should be used.
+//
+SAFECodeConfiguration::StaticCheckTy
+SAFECodeConfiguration::staticCheckType() {
+  return StaticChecks;
+}
+
+//
+// Method: getPAType()
+//
+// Description:
+//  This method examines the command-line arguments and determines which
+//  version of pool allocation should be used.
+//
+// Return value:
+//  An enumerated value that indicates which version of Pool Allocation to use.
+//
+SAFECodeConfiguration::PATy
+SAFECodeConfiguration::getPAType() {
+  return PA;
+}
+
+//
+// Method: calculateDSAType()
+//
+// Description:
+//  This method examines the various command-line arguments and determines
+//  which version of DSA is needed.
+//
+// Return value:
+//  The type of DSA analysis that SAFECode needs to use is returned.
+//
+SAFECodeConfiguration::DSATy
 SAFECodeConfiguration::calculateDSAType() {
   struct mapping {
     PATy pa;
     DSATy dsa;
   };
 
-  struct mapping M[] = {
+  static const struct mapping M[] = {
     {PA_SINGLE, DSA_BASIC},
     {PA_SIMPLE, DSA_EQTD},
     {PA_MULTI,  DSA_STEENS},
@@ -114,14 +209,13 @@ SAFECodeConfiguration::calculateDSAType() {
 
   bool found = false;
   for (unsigned i = 0; i < sizeof(M) / sizeof(struct mapping); ++i) {
-    if (PAType == M[i].pa) {
-      DSAType = M[i].dsa;
-      found = true;
-      break;
+    if (PA == M[i].pa) {
+      return M[i].dsa;
     }
   }
 
   assert (found && "Inconsistent usage of Pool Allocation and DSA!");
+  abort();
 }
 
 NAMESPACE_SC_END
