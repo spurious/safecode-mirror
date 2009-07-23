@@ -61,7 +61,7 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
   if (DSN) {  
     const Type* csiType = Type::Int32Ty;
     const Type * GlobalType = GV->getType()->getElementType();
-    Value * AllocSize = Context->getConstantInt
+    Value * AllocSize = getGlobalContext().getConstantInt
       (csiType, TD->getTypeAllocSize(GlobalType));
     Value * PH = dsnPass->paPass->getGlobalPool (DSN);
     RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
@@ -288,11 +288,6 @@ RegisterVariables::~RegisterVariables() {}
 
 void
 RegisterVariables::init(Module & M) {
-  //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   PoolRegisterFunc =
     intrinsic->getIntrinsic("sc.pool_register").F;  
@@ -331,9 +326,20 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
   StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
-    const char * name = I->getName().c_str();
-    if (I->isDeclaration() || strncmp(name, "__poolalloc", 11) == 0 || strncmp(name, "sc.", 3) == 0)
-      continue;
+    //
+    // Don't process declarations.
+    //
+    if (I->isDeclaration()) continue;
+
+    //
+    // Check the name of the function to see if it is a run-time function that
+    // we should not process.
+    //
+    if (I->hasName()) {
+      std::string Name = I->getName();
+      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0))
+        continue;
+    }
 
     runOnFunction(*I);
   }
@@ -349,7 +355,7 @@ RegisterFunctionByvalArguments::runOnFunction(Function & F) {
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
       const Type * ET = PT->getElementType();
-      Value * AllocSize = Context->getConstantInt
+      Value * AllocSize = getGlobalContext().getConstantInt
         (Type::Int32Ty, TD->getTypeAllocSize(ET));
       PA::FuncInfo *FI = dsnPass->paPass->getFuncInfoOrClone(F);
       Value *PH = dsnPass->getPoolHandle(&*I, &F, *FI);
