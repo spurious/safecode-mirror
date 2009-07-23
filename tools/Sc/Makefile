@@ -33,9 +33,9 @@ include $(LEVEL)/Makefile.common
 # library dependencies.
 #
 $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpoolalloc.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.a
-	ln -s $< $@
+	$(VERB) ln -fs $< $@
 
 $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
-	ln -s $< $@
+	$(VERB) ln -fs $< $@
 
 
