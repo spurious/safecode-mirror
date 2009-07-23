@@ -28,12 +28,16 @@ struct ViolationInfo {
     FAULT_DOUBLE_FREE,
     FAULT_OUT_OF_BOUNDS
   };
-  /// Tyep of violation
+
+  /// Type of violation
   unsigned int type;
+
   /// The program counter of the instruction generating the violations
   const void * faultPC;
+
   /// The pointer generating the violations
   const void * faultPtr;
+
   virtual void print(std::ostream & OS) const;
   virtual ~ViolationInfo();
 };
