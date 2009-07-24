@@ -27,11 +27,6 @@ static llvm::RegisterPass<RegisterRuntimeInitializer> X1 ("reg-runtime-init", "R
 
 bool
 RegisterRuntimeInitializer::runOnModule(llvm::Module & M) {
-  //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   constructInitializer(M);
   insertInitializerIntoGlobalCtorList(M);
@@ -67,13 +62,13 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
 
   std::vector<Value *> args;
   if (SCConfig.dpChecks())
-    args.push_back (Context->getConstantInt(Type::Int32Ty, 1));
+    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, 1));
   else
-    args.push_back (Context->getConstantInt(Type::Int32Ty, 0));
+    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, 0));
   args.push_back
-    (Context->getConstantInt(Type::Int32Ty, SCConfig.rewriteOOB()));
+    (getGlobalContext().getConstantInt(Type::Int32Ty, SCConfig.rewriteOOB()));
   args.push_back
-    (Context->getConstantInt(Type::Int32Ty, SCConfig.terminateOnErrors()));
+    (getGlobalContext().getConstantInt(Type::Int32Ty, SCConfig.terminateOnErrors()));
   CallInst::Create (RuntimeInit, args.begin(), args.end(), "", BB); 
 
   args.clear();
@@ -94,9 +89,9 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   // Insert the run-time ctor into the ctor list.
   //
   std::vector<Constant *> CtorInits;
-  CtorInits.push_back (Context->getConstantInt (Type::Int32Ty, 65535));
+  CtorInits.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 65535));
   CtorInits.push_back (RuntimeCtor);
-  Constant * RuntimeCtorInit = Context->getConstantStruct (CtorInits);
+  Constant * RuntimeCtorInit = getGlobalContext().getConstantStruct (CtorInits);
 
   //
   // Get the current set of static global constructors and add the new ctor
@@ -123,10 +118,9 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   //
   // Create a new initializer.
   //
-  Constant * NewInit=ConstantArray::get (ArrayType::get (RuntimeCtorInit->
-                                                         getType(),
-                                                         CurrentCtors.size()),
-                                         CurrentCtors);
+  const ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
+                                         CurrentCtors.size());
+  Constant * NewInit=getGlobalContext().getConstantArray (AT, CurrentCtors);
 
   //
   // Create the new llvm.global_ctors global variable and replace all uses of

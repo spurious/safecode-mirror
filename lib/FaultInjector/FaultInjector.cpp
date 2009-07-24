@@ -156,12 +156,12 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
   // element.
   //
   if (const ArrayType * AT = dyn_cast<ArrayType>(Ty)) {
-    Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
+    Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
     return typeContainsPointer (AT->getElementType(), Indices, Context);
   }
 
   if (const VectorType * VT = dyn_cast<VectorType>(Ty)) {
-    Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
+    Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
     return typeContainsPointer (VT->getElementType(), Indices, Context);
   }
 
@@ -171,7 +171,7 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
   //
   if (const StructType * ST = dyn_cast<StructType>(Ty)) {
     for (unsigned index = 0; index < ST->getNumElements(); ++index) {
-      Indices.push_back (Context->getConstantInt (Type::Int32Ty, index));
+      Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, index));
       if (typeContainsPointer (ST->getElementType(index), Indices, Context)) {
         return true;
       } else {
@@ -381,13 +381,13 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
       NewAlloc =  new MallocInst (AI->getAllocatedType(),
-                                  Context->getConstantInt(Type::Int32Ty,0),
+                                  getGlobalContext().getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
       NewAlloc =  new AllocaInst (AI->getAllocatedType(),
-                                  Context->getConstantInt(Type::Int32Ty,0),
+                                  getGlobalContext().getConstantInt(Type::Int32Ty,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
@@ -497,7 +497,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     User::op_iterator i = GEP->idx_begin();
     if (i == GEP->idx_end()) continue;
-    args.push_back (Context->getConstantInt (Type::Int32Ty, INT_MAX, true));
+    args.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, INT_MAX, true));
     for (++i; i != GEP->idx_end(); ++i) {
       args.push_back (*i);
     }
@@ -558,8 +558,10 @@ FaultInjector::insertUninitializedUse (Function & F) {
         // Only inject a fault if the allocated memory has a pointer in it.
         //
         std::vector<Value *> Indices;
-        Indices.push_back (Context->getConstantInt (Type::Int32Ty, 0));
-        if (typeContainsPointer (AI->getAllocatedType(), Indices, Context)) {
+        Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
+        if (typeContainsPointer (AI->getAllocatedType(),
+                                 Indices,
+                                 &getGlobalContext())) {
           // Skip if we should not insert a fault.
           if (!doFault()) continue;
           WorkList.insert(std::make_pair (AI, Indices));

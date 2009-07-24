@@ -248,7 +248,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Insert poolunregister calls for all of the registered allocas.
   //
-  insertPoolFrees (PoolRegisters, ExitPoints, Context);
+  insertPoolFrees (PoolRegisters, ExitPoints, &getGlobalContext());
 
   //
   // Conservatively assume that we've changed the function.
@@ -423,7 +423,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   // instruction if the allocation allocates an array.
   //
   unsigned allocsize = TD->getTypeAllocSize(AI->getAllocatedType());
-  Value *AllocSize = Context->getConstantInt(Type::Int32Ty, allocsize);
+  Value *AllocSize = getGlobalContext().getConstantInt(Type::Int32Ty, allocsize);
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                        AI->getOperand(0), "sizetmp", AI);

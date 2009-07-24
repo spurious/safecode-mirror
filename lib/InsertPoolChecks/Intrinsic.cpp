@@ -75,11 +75,6 @@ InsertSCIntrinsic::addDebugIntrinsic(const char * name) {
 //
 bool
 InsertSCIntrinsic::runOnModule(Module & M) {
-  //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
   currentModule = &M;
   TD = &getAnalysis<TargetData>();
   const Type * VoidTy = Type::VoidTy;
@@ -367,7 +362,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
   }
 
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
-    return Context->getConstantInt(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
+    return getGlobalContext().getConstantInt(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
   }
 
   if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
@@ -383,7 +378,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
         return NULL;
       }
     }
-    return Context->getConstantInt(Type::Int32Ty, type_size);
+    return getGlobalContext().getConstantInt(Type::Int32Ty, type_size);
   }
 
   // Customized allocators
@@ -408,7 +403,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
       assert (isa<PointerType>(AI->getType()));
       const PointerType * PT = cast<PointerType>(AI->getType());
       unsigned int type_size = TD->getTypeAllocSize (PT->getElementType());
-      return Context->getConstantInt(Type::Int32Ty, type_size);
+      return getGlobalContext().getConstantInt(Type::Int32Ty, type_size);
     }
   }
 

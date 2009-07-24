@@ -491,7 +491,7 @@ EmbeCFreeRemoval::insertNonCollapsedChecks (Function *Forig, Function *F,
     if (DSN == GH.getNode()) {
       // We are any way checking all arrays
       if ((GH.getOffset()) && (DSN->isArray())) return;
-      Value * Offset = Context->getConstantInt(Type::Int32Ty, GH.getOffset());
+      Value * Offset = getGlobalContext().getConstantInt(Type::Int32Ty, GH.getOffset());
 
       Value *NewPtr = (Value *)(SMI->first);
       if (isClonedFunc) {

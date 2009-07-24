@@ -181,11 +181,6 @@ NAMESPACE_SC_BEGIN
 
   bool
   InitAllocas::runOnFunction (Function &F) {
-    //
-    // Get the context from the global context.
-    //
-    Context = &getGlobalContext();
-
     bool modified = false;
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
 
@@ -248,7 +243,7 @@ NAMESPACE_SC_BEGIN
 
           // Create a value that calculates the alloca's size
           const Type * AllocaType = AllocInst->getAllocatedType();
-          Value *AllocSize = Context->getConstantInt (Type::Int32Ty,
+          Value *AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
                                                TD.getTypeAllocSize(AllocaType));
 
           if (AllocInst->isArrayAllocation())
@@ -260,7 +255,7 @@ NAMESPACE_SC_BEGIN
           Value * TheAlloca = castTo (AllocInst, VoidPtrType, "cast", iptI);
 
           std::vector<Value *> args(1, TheAlloca);
-          args.push_back (Context->getConstantInt(Type::Int32Ty, meminitvalue));
+          args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, meminitvalue));
           args.push_back (AllocSize);
           CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
           ++InitedAllocas;

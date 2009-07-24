@@ -257,7 +257,7 @@ namespace {
 
     SCEVExpander Rewriter(*scevPass); 
     
-    GetElementPtrInst *newGEP = origGEP->clone(*(origGEP->getParent()->getContext()));
+    GetElementPtrInst *newGEP = origGEP->clone(getGlobalContext());
     newGEP->setName(origGEP->getName() + suffixes[type]);
     for(int i = 0, end = origGEP->getNumOperands(); i != end; ++i) {
       Value * op = origGEP->getOperand(i);
@@ -278,7 +278,7 @@ namespace {
                 PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
                 ptIns);
 
-    CallInst * checkInst = callInst->clone(*(callInst->getParent()->getContext()));
+    CallInst * checkInst = callInst->clone(getGlobalContext());
     const checkFunctionInfo & info = checkFunctions[checkFunctionId];
 
     if (info.argSrcPtrPos) {
@@ -292,7 +292,7 @@ namespace {
     
     if (info.argPoolHandlePos) {
       // Copy the pool handle if necessary
-      Instruction * newPH = cast<Instruction>(checkInst->getOperand(1))->clone(*(checkInst->getParent()->getContext()));
+      Instruction * newPH = cast<Instruction>(checkInst->getOperand(1))->clone(getGlobalContext());
       newPH->insertBefore(ptIns);
       checkInst->setOperand(info.argPoolHandlePos, newPH);
     }

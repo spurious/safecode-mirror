@@ -149,7 +149,7 @@ string ConstraintGeneration::getValueName(const Value *V) {
 ABCExprTree* ConstraintGeneration::getReturnValueConstraints(Function *f) {
   bool localSave = reqArgs;
   const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-  const ConstantInt * signedzero = Context->getConstantInt(csiType,0);
+  const ConstantInt * signedzero = getGlobalContext().getConstantInt(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -339,7 +339,7 @@ ABCExprTree*
 ConstraintGeneration::addConstraintsForKnownFunctions (Function *kf,
                                                        CallInst *CI) {
   const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-  const ConstantInt * signedzero = Context->getConstantInt(csiType,0);
+  const ConstantInt * signedzero = getGlobalContext().getConstantInt(csiType,0);
   string var = "0";
   Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),"=");
   ABCExprTree *root = new ABCExprTree(c); //dummy constraint 
@@ -362,7 +362,7 @@ ConstraintGeneration::addConstraintsForKnownFunctions (Function *kf,
   } else if (funcName == "strlen") {
     string var = getValueName(CI);
     const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-    const ConstantInt * signedzero = Context->getConstantInt(csiType,0);
+    const ConstantInt * signedzero = getGlobalContext().getConstantInt(csiType,0);
     
     Constraint *c = new Constraint(var, new LinearExpr(signedzero, Mang),">=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -461,7 +461,7 @@ void ConstraintGeneration::getConstraintsInternal (Value *v,
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c1),"&&");
 
         const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-        const ConstantInt * signedzero = Context->getConstantInt(csiType,0);
+        const ConstantInt * signedzero = getGlobalContext().getConstantInt(csiType,0);
         LinearExpr *l2 = new LinearExpr(signedzero, Mang);
         Constraint *c2 = new Constraint(var, l2, ">=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c2),"&&");
@@ -493,7 +493,7 @@ void ConstraintGeneration::getConstraintsInternal (Value *v,
         // Sometime allocas have some array as their allocating constant !!
         // We then have to generate constraints for all the dimensions
         const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-        const ConstantInt * signedOne = Context->getConstantInt(csiType,1);
+        const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,1);
 
         Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
         *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -545,7 +545,7 @@ void ConstraintGeneration::getConstraintsInternal (Value *v,
                 }
 
                 const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-                const ConstantInt * signedOne = Context->getConstantInt(csiType,elSize);
+                const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,elSize);
                 Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
                 *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
               }
@@ -584,7 +584,7 @@ void ConstraintGeneration::getConstraintsInternal (Value *v,
                     //Now add the constraint
 
                     const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-                    const ConstantInt * signedOne = Context->getConstantInt(csiType,AT->getNumElements());
+                    const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,AT->getNumElements());
                     Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
                     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
                     
@@ -606,7 +606,7 @@ void ConstraintGeneration::getConstraintsInternal (Value *v,
     var = getValueName(GV);
     if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
       const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-      const ConstantInt * signedOne = Context->getConstantInt(csiType,1);
+      const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,1);
 
       Constraint *c = new Constraint(var, new LinearExpr(signedOne, Mang),"=");
       *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
@@ -623,12 +623,12 @@ ConstraintGeneration::generateArrayTypeConstraintsGlobal (string var,
   string var1 = var + "_i";
   const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
   if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
-    const ConstantInt * signedOne = Context->getConstantInt(csiType,1);
+    const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,1);
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
     generateArrayTypeConstraintsGlobal(var1,AT, rootp, T->getNumElements() * numElem);
   } else {
-    const ConstantInt * signedOne = Context->getConstantInt(csiType,numElem * T->getNumElements());
+    const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,numElem * T->getNumElements());
     Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
@@ -641,7 +641,7 @@ ConstraintGeneration::generateArrayTypeConstraints (string var,
                                                     ABCExprTree **rootp) {
   string var1 = var + "_i";
   const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-  const ConstantInt * signedOne = Context->getConstantInt(csiType,T->getNumElements());
+  const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,T->getNumElements());
   Constraint *c = new Constraint(var1, new LinearExpr(signedOne, Mang),"=");
   *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   if (const ArrayType *AT = dyn_cast<ArrayType>(T->getElementType())) {
@@ -653,7 +653,7 @@ ConstraintGeneration::generateArrayTypeConstraints (string var,
     unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
     string var2 = var1 + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-    const ConstantInt * signedOne = Context->getConstantInt(csiType,Size);
+    const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,Size);
     Constraint *c = new Constraint(var2, new LinearExpr(signedOne, Mang),"=");
     *rootp = new ABCExprTree(*rootp,new ABCExprTree(c),"&&");
   }
@@ -956,7 +956,7 @@ LinearExpr* ConstraintGeneration::SimplifyExpression( Value *Expr, ABCExprTree *
 		    }
 		    string varName = getValueName(I);
 		    const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
-		    const ConstantInt * signedOne = Context->getConstantInt(csiType,elSize);
+		    const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,elSize);
 		    LinearExpr *l1 = new LinearExpr(signedOne, Mang);
 		    return l1;
 		  }

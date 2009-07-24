@@ -157,7 +157,7 @@ namespace {
 int main(int argc, char **argv) {
   std::string mt;
   std::string & msg = mt;
-  LLVMContext Context;
+  LLVMContext &Context = getGlobalContext();
   llvm_shutdown_obj ShutdownObject;
 
   try {

@@ -499,8 +499,8 @@ namespace llvm {
     int arg_counter = 0;
     for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it != end; ++it) {
       std::vector<Value*> idxVal;
-      idxVal.push_back(Context->getConstantInt(Type::Int32Ty, 0));
-      idxVal.push_back(Context->getConstantInt(Type::Int32Ty, arg_counter));
+      idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, 0));
+      idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, arg_counter));
 
       GetElementPtrInst * GEP = GetElementPtrInst::Create(funcActual, idxVal.begin(), idxVal.end(), "", entryBlock);
       Value * loadArg = new LoadInst(GEP, ".arg", entryBlock);
@@ -585,8 +585,8 @@ namespace llvm {
 		size_t arg_counter = 0;
 		for (InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it !=end; ++it) {
 			std::vector<Value *> idxVal;
-			idxVal.push_back(Context->getConstantInt(Type::Int32Ty, 0));
-			idxVal.push_back(Context->getConstantInt(Type::Int32Ty, arg_counter));
+			idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, 0));
+			idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, arg_counter));
 			GetElementPtrInst * GEP = GetElementPtrInst::Create(allocaInst, idxVal.begin(), idxVal.end(), "", termInst);
 			new StoreInst(*it, GEP, termInst);
 			++arg_counter;

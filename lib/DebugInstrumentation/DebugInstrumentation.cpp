@@ -293,7 +293,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     //
     std::vector<Value *> args (CI->op_begin(), CI->op_end());
     args.erase (args.begin());
-    args.push_back (Context->getConstantInt(Type::Int32Ty, tagCounter++));
+    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, tagCounter++));
 
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);
@@ -322,11 +322,6 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 //
 bool
 DebugInstrument::runOnModule (Module &M) {
-  //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
   InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
 
   // Create the void pointer type
