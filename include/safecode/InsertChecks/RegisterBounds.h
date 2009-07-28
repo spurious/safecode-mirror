@@ -14,6 +14,7 @@
 #ifndef _REGISTER_BOUNDS_H_
 #define _REGISTER_BOUNDS_H_
 
+#include "ArrayBoundsCheck.h"
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
@@ -64,6 +65,7 @@ public:
     AU.addRequired<llvm::TargetData>();
     AU.addRequired<DSNodePass>();
     DSNodePass::preservePAandDSA(AU);
+    AU.addPreserved<ArrayBoundsCheckGroup>();
     AU.setPreservesCFG();
   }
 
