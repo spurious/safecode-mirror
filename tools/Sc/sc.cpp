@@ -222,7 +222,6 @@ int main(int argc, char **argv) {
     //
     NOT_FOR_SVA(Passes.add(createUnifyFunctionExitNodesPass()));
 
-    addStaticGEPCheckingPass(Passes);
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
@@ -276,6 +275,14 @@ int main(int argc, char **argv) {
     // Register all customized allocators, such as vmalloc() / kmalloc() in
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
+
+    //
+    // Use static analysis to determine which indexing operations (GEPs) do not
+    // require run-time checks.  This is scheduled right before the check
+    // insertion pass because it seems that the PassManager will invalidate the
+    // results if they are not consumed immediently.
+    //
+    addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
 
