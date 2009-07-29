@@ -9,14 +9,14 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 EXTRA_LOPT_OPTIONS :=
 
 ifdef DEBUG_SAFECODE
-CFLAGS := -g -O0 -fno-strict-aliasing
+CFLAGS := -g -O0 -fno-strict-aliasing -fno-merge-constants
 LLCFLAGS := -disable-fp-elim
 LLVMLDFLAGS := -disable-opt
 OPTZN_PASSES := -mem2reg -simplifycfg -adce
 
 WHOLE_PROGRAM_BC_SUFFIX := linked.rbc
 else
-CFLAGS := -g -O2 -fno-strict-aliasing
+CFLAGS := -g -O2 -fno-strict-aliasing -fno-merge-constants
 OPTZN_PASSES := -std-compile-opts
 
 WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
@@ -27,6 +27,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -enable-debuginfo -terminate -check-every-gep-use -pa=multi
+SCOPTS2 := -rewrite-oob
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
@@ -93,7 +94,7 @@ Output/%.noOOB.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
 Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(SC_STATS) $(SCOPTS) -rewrite-oob $< -f -o $@.sc 2>&1 > $@.out
+	-$(SC_STATS) $(SCOPTS) $(SCOPTS2) $< -f -o $@.sc 2>&1 > $@.out
 	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
