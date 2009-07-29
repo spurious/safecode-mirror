@@ -82,7 +82,6 @@ castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
   return castTo (V, Ty, "casted", InsertPt);
 }
 
-
 //
 // Function: indexesStructsOnly()
 //
@@ -95,17 +94,11 @@ castTo (Value * V, const Type * Ty, Instruction * InsertPt) {
 //
 static inline bool
 indexesStructsOnly (GetElementPtrInst * GEP) {
-#if 0
   const Type * PType = GEP->getPointerOperand()->getType();
   const Type * ElementType;
-#endif
   unsigned int index = 1;
   std::vector<Value *> Indices;
-#if 0
   unsigned int maxOperands = GEP->getNumOperands() - 1;
-#else
-  unsigned int maxOperands = GEP->getNumOperands();
-#endif
 
   //
   // Check the first index of the GEP.  If it is non-zero, then it doesn't
@@ -124,16 +117,14 @@ indexesStructsOnly (GetElementPtrInst * GEP) {
   // check the type of the last GEP operand.
   //
   for (index = 1; index < maxOperands; ++index) {
-#if 0
     Indices.push_back (GEP->getOperand(index));
-    ElementType=GetElementPtrInst::getIndexedType (PType, Indices, true);
+    ElementType = GetElementPtrInst::getIndexedType (PType,
+                                                     Indices.begin(),
+                                                     Indices.end());
     assert (ElementType && "ElementType is NULL!");
-    if (isa<ArrayType>(ElementType))
+    if (isa<ArrayType>(ElementType)) {
       return false;
-#else
-    if (!(isa<ConstantInt>(GEP->getOperand(index))))
-      return false;
-#endif
+    }
   }
 
   return true;
