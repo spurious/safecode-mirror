@@ -226,8 +226,10 @@ int main(int argc, char **argv) {
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
     //
-    if (CheckingRuntime != RUNTIME_PA)
+    if (CheckingRuntime != RUNTIME_PA) {
+			Passes.add(new ArrayBoundsCheckLocal());
       NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
+    }
 
 #if 0
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
@@ -443,13 +445,16 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			Passes.add(new ArrayBoundsCheckDummy());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+			Passes.add(new ArrayBoundsCheckStruct());
 			Passes.add(new ArrayBoundsCheckLocal());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
-			assert (0 && "Omega pass is not working right now!");
 #if 0
 			Passes.add(new ABCPreProcess());
+			Passes.add(new ArrayBoundsCheckStruct());
 			Passes.add(new ArrayBoundsCheck());
+#else
+			assert (0 && "Omega pass is not working right now!");
 #endif
 			break;
 	}

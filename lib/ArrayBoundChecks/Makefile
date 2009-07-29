@@ -5,7 +5,7 @@ LIBRARYNAME=arrayboundcheck
 
 SOURCES := AffineExpressions.cpp BottomUpCallGraph.cpp \
 BreakConstantGEPs.cpp ArrayBoundCheckDummy.cpp \
-ArrayBoundCheckLocal.cpp
+ArrayBoundCheckLocal.cpp ArrayBoundCheckStruct.cpp
 
 #ABCPreProcess.cpp ArrayBoundCheck.cpp 
 

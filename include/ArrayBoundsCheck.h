@@ -17,6 +17,7 @@
 
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
+#include "safecode/PoolHandles.h"
 
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -51,6 +52,29 @@ public:
   ArrayBoundsCheckDummy() : ImmutablePass((intptr_t) &ID) {}
 };
 
+/// ArrayBoundsCheckStruct - This pass attempts to prove whether a GEP is safe
+/// based on the type of indexing done in the GEP and the type-safety of the
+/// source pointer.  It is primarily designed to remove checks on structure
+/// indexing on memory objects that are proven to be type-safe.
+class ArrayBoundsCheckStruct : public ArrayBoundsCheckGroup,
+                               public FunctionPass {
+public:
+  static char ID;
+  ArrayBoundsCheckStruct() : FunctionPass ((intptr_t) &ID) {}
+  virtual bool isGEPSafe(GetElementPtrInst * GEP);
+  virtual void getAnalysisUsage(AnalysisUsage & AU) const {
+    AU.addRequired<TargetData>();
+    AU.addRequired<DSNodePass>();
+    AU.addRequired<ArrayBoundsCheckGroup>();
+    AU.setPreservesAll();  
+  }
+  virtual bool runOnFunction(Function & F);
+private:
+  TargetData * TD;
+  DSNodePass * dsaPass;
+  ArrayBoundsCheckGroup * abcPass;
+};
+
 /// ArrayBoundsCheckLocal - It tries to prove a GEP is safe only based on local
 /// information, that is, the size of global variables and the size of objects
 /// being allocated inside a function.
@@ -63,6 +87,7 @@ public:
     AU.addRequired<TargetData>();
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<ScalarEvolution>();
+    AU.addRequired<ArrayBoundsCheckGroup>();
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
@@ -70,9 +95,15 @@ private:
   InsertSCIntrinsic * intrinsicPass;
   TargetData * TD;
   ScalarEvolution * SE;
+  ArrayBoundsCheckGroup * abcPass;
 };
 
 
+/// ArrayBoundsCheck - This is the full static array bounds checker originally
+/// developed for SAFECode.  It performs interprocedural analysis to build up
+/// constraints which are then fed into the Omega compiler for solving.  The
+/// results of the constraint solving are used to determine whether GEPs are
+/// safe.
 struct ArrayBoundsCheck : public ArrayBoundsCheckGroup, public ModulePass {
   public :
     static char ID;
@@ -86,6 +117,7 @@ struct ArrayBoundsCheck : public ArrayBoundsCheckGroup, public ModulePass {
       AU.addRequired<DominatorTree>();
       AU.addRequired<PostDominatorTree>();
       AU.addRequired<PostDominanceFrontier>();
+      AU.addRequired<ArrayBoundsCheckGroup>();
       AU.setPreservesAll();
     }
 

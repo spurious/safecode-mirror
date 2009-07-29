@@ -42,6 +42,7 @@ char ArrayBoundsCheckLocal::ID = 0;
 bool
 ArrayBoundsCheckLocal::runOnFunction(Function & F) {
   intrinsicPass = &getAnalysis<InsertSCIntrinsic>();
+  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
   TD = &getAnalysis<TargetData>();
   SE = &getAnalysis<ScalarEvolution>();
   return false;
@@ -68,6 +69,7 @@ ArrayBoundsCheckLocal::runOnFunction(Function & F) {
 //
 bool
 ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
+
   //
   // Update the count of GEPs queried.
   //
@@ -91,9 +93,10 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   }
   
   //
-  // We cannot statically prove that the GEP is safe.
+  // We cannot statically prove that the GEP is safe.  Ask another array bounds
+  // checking pass to prove the GEP safe.
   //
-  return false;
+  return abcPass->isGEPSafe(GEP);
 }
 
 
