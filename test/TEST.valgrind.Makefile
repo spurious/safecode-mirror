@@ -16,18 +16,20 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -enable-debuginfo -rewrite-oob -disable-staticchecks
-VALGRIND = valgrind -q --log-file=vglog
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -enable-debuginfo -rewrite-oob -check-every-gep-use -pa=multi
+VALGRIND = /usr/bin/valgrind -q --log-file=vglog
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/Debug/lib/addchecks.o
+PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks.a
 
 # Pool allocator runtime library
 #PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
+PA_RT_BC := libsc_dbg_rt.bca libpoolalloc_bitmap.bca 
+PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/, $(PA_RT_BC))
 
 # Pool System library for interacting with the system
-POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+#POOLSYSTEM := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
+POOLSYSTEM :=
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
