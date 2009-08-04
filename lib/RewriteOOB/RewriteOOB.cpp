@@ -49,7 +49,8 @@ NAMESPACE_SC_BEGIN
 char RewriteOOB::ID = 0;
 
 // Statistics
-STATISTIC (Changes, "Number of Bounds Checks Modified");
+STATISTIC (Changes,    "Number of Bounds Checks Modified");
+STATISTIC (GetActuals, "Number of getActualValue() Calls Inserted");
 
 // Register the pass
 static RegisterPass<RewriteOOB> P ("oob-rewriter",
@@ -281,6 +282,14 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   // the pointer back to its original value.
   //
   if (PH) {
+    //
+    // Update the number of calls to getActualValue() that we inserted.
+    //
+    ++GetActuals;
+
+    //
+    // Insert the call to getActualValue()
+    //
     const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
     Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
     Value * OpVptr = castTo (op,
