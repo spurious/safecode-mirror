@@ -47,7 +47,7 @@ bool StringTransform::runOnModule(Module &M) {
 }
 
 /**
- * Secures strcpy() by transforming it into strncpy with correct bounds
+ * Secures strcpy() by transforming it into pool_strcpy() with correct bounds
  *
  * @param	M	Module from runOnModule() to scan for strcpy()
  * @return	Whether we modified the module
@@ -56,55 +56,58 @@ bool StringTransform::strcpyTransform(Module &M) {
   // Flags whether we modified the module
   bool modified = false;
 
-  std::vector<const Type *> ParamTy;
-  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
-  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
-  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
-  ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
-
-  Function * strcpyFunc = M.getFunction("strcpy");
-  if (!strcpyFunc)
+  Function *F_strcpy = M.getFunction("strcpy");
+  if (!F_strcpy)
     return modified;
-  const Type * strncpyRT = strcpyFunc->getReturnType();
-  FunctionType * strncpyFT = FunctionType::get(strncpyRT, ParamTy, false);
-  Constant * strncpyFunction = M.getOrInsertFunction("strncpy", strncpyFT);
 
-  // Scan through the module and replace strcpy() with strncpy().
-  for (Module::iterator F=M.begin(); F != M.end(); ++F) {
-    for (Function::iterator BB = F->begin(); BB != F->end(); ++BB) {
-      for (BasicBlock::iterator I = BB->begin(); I != BB->end(); ++I) {
-        // If this is not a call or invoke instruction, just skip it.
-        if (!(isa<CallInst>(I) || isa<InvokeInst>(I)))
-          continue;
+  // Scan through the module and replace strcpy() with pool_strcpy().
+  for (Value::use_iterator UI = F_strcpy->use_begin(), UE = F_strcpy->use_end(); UI != UE; ++UI) {
+    if (Instruction *I = dyn_cast<Instruction>(UI)) {
+      CallSite CS(I);
+      Function *F = CS.getCalledFunction();
 
-        // Otherwise, figure out if this is a direct call to strcpy().
-        CallInst * CI = dyn_cast<CallInst>(I);
-        Function * CalledFunc = CI->getCalledFunction();
+      if (NULL == F || F != F_strcpy)
+        continue;
 
-        if (CalledFunc == 0 || !CalledFunc->hasName())
-          continue;
+      if (CS.arg_size() != 2)
+        std::cerr << *I << std::endl;
+      assert(CS.arg_size() == 2 && "CStdLib (strcpyTransform): strcpy() takes 2 arguments!\n");
 
-        if (CalledFunc->getName() != "strcpy")
-          continue;
+      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
+      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
+      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
-        // Create a strncpy() call.
-        std::vector<Value *> Params;
-        Params.push_back(CI->getOperand(1));
-        Params.push_back(CI->getOperand(2));
-        Params.push_back(CI->getOperand(1));
-        Params.push_back(CI->getOperand(2));
-        CallInst * strncpyCallInst = CallInst::Create(strncpyFunction, Params.begin(), Params.end(), "strings", CI);
+      if (!dstPH || !srcPH)
+        std::cerr << *I << std::endl;
+      assert(dstPH && "CStdLib (strcpyTransform): No pool handle for destination pointer!\n");
+      assert(srcPH && "CStdLib (strcpyTransform): No pool handle for source pointer!\n");
 
-        // Replace all of the uses of the strcpy() call with the new strncpy() call.
-        CI->replaceAllUsesWith(strncpyCallInst);
-        CI->eraseFromParent();
+      // Create the pool_strcpy() call.
+      std::vector<const Type *> ParamTy;
+      ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+      ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+      ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
+      ParamTy.push_back(PointerType::getUnqual(Type::Int8Ty));
 
-        // Record the transform.
-        ++stat_transform_strcpy;
+      SmallVector<Value *, 4> Params;
+      Params.push_back(dstPH);
+      Params.push_back(srcPH);
+      Params.push_back(I->getOperand(1));
+      Params.push_back(I->getOperand(2));
 
-        // Mark the module as modified and continue to the next strcpy() call.
-        modified = true;
-      }
+      FunctionType * FT_strcpy = FunctionType::get(F_strcpy->getReturnType(), ParamTy, false);
+      Constant * Callee = M.getOrInsertFunction("pool_strcpy", FT_strcpy);
+      CallInst * CI_pool_strcpy = CallInst::Create(Callee, Params.begin(), Params.end());
+
+      // Replace all of the uses of the strcpy() call with the new pool_strcpy() call.
+      I->replaceAllUsesWith(CI_pool_strcpy);
+      I->eraseFromParent();
+
+      // Record the transform.
+      ++stat_transform_strcpy;
+
+      // Mark the module as modified and continue to the next strcpy() call.
+      modified = true;
     }
   }
 
