@@ -69,7 +69,6 @@ ArrayBoundsCheckLocal::runOnFunction(Function & F) {
 //
 bool
 ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
-
   //
   // Update the count of GEPs queried.
   //
@@ -82,11 +81,32 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
     return false;
 
   const SCEV * GEPBase = SE->getSCEV(PointerOperand);
+
+  //
+  // Calculate the:
+  //  offset: Distance from base pointer to calculated pointer
+  //  bounds: The size of the object
+  //  diff  : The difference between the bounds and the offset
+  //  zero  : The zero value
+  //
   const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(GEP), GEPBase);
   const SCEV * bounds = SE->getSCEV(objSize);
   const SCEV * diff = SE->getMinusSCEV(bounds, offset);
   const SCEV * zero = SE->getSCEV(getGlobalContext().getNullValue(Type::Int32Ty));
 
+  //
+  // If the offset is less than zero, then we know that we are indexing
+  // backwards from the beginning of the object.  We know that this is illegal;
+  // declare it unsafe.
+  //
+  if (SE->getSMaxExpr(offset, zero) == zero) {
+    return false;
+  }
+
+  //
+  // Otherwise, we are indexing zero or more bytes forward.  Determine whether
+  // we will index past the end of the object.
+  //
   if (SE->getSMaxExpr(diff, zero) == diff) {
     ++safeGEPs;
     return true;
