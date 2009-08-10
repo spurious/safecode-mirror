@@ -85,21 +85,21 @@ char *pool_strcpy(DebugPoolTy *srcPool, DebugPoolTy *dstPool, const char *src, c
   size_t copied = 0, stop = 0;
   void *srcBegin = (char *)src, *srcEnd = NULL, *dstBegin = dst, *dstEnd = NULL;
 
-  assert(srcPool && dstPool && src && dst && "CStdLib (pool_strcpy): Null pool parameters!\n");
+  assert(srcPool && dstPool && src && dst && "Null pool parameters!");
 
   bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "CStdLib (pool_strcpy): Source string not found in pool!\n");
+  assert(foundSrc && "Source string not found in pool!");
 
   bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "CStdLib (pool_strcpy): Destination buffer not found in pool!\n");
+  assert(foundDst && "Destination buffer not found in pool!");
 
-  assert((srcBegin <= srcEnd) && "CStdLib (pool_strcpy): Source pointer out of bounds!\n");
-  assert((dstBegin <= dstEnd) && "CStdLib (pool_strcpy): Destination pointer out of bounds!\n");
+  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
 
   stop = std::min((char *)srcEnd - (char *)src, (char *)dstEnd - dst);
   copied = strncpy_asm(dst, src, stop);
 
-  assert(!dst[copied] && "CStdLib (pool_strcpy): Copy violated destination bounds!\n");
+  assert(!dst[copied] && "Copy violated destination bounds!");
 
   return dst;
 }
@@ -115,15 +115,15 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
   size_t len = 0, maxlen = 0;
   void *stringBegin = (char *)string, *stringEnd = NULL;
 
-  assert(stringPool && string && "CStdLib (pool_strlen): Null pool parameters!\n");
+  assert(stringPool && string && "Null pool parameters!");
 
   bool foundString = stringPool->Objects.find(stringBegin, stringBegin, stringEnd);
-  assert(foundString && "CStdLib (pool_strlen): String not found in pool!\n");
-  assert((stringBegin <= stringEnd) && "CStdLib (pool_strlen): String pointer out of bounds!\n");
+  assert(foundString && "String not found in pool!");
+  assert(stringBegin <= stringEnd && "String pointer out of bounds!");
 
   maxlen = (char *)stringEnd - (char *)string;
   len = strnlen(string, maxlen);
-  assert(((len < maxlen) || !string[maxlen]) && "CStdLib (pool_strlen): String not terminated within bounds!\n");
+  assert((len < maxlen || !string[maxlen]) && "String not terminated within bounds!");
 
   return len;
 }

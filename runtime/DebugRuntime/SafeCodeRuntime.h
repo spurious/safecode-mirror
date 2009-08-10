@@ -115,6 +115,10 @@ extern "C" {
   void * boundscheckui_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
   void * boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
+  // CStdLib
+  char * pool_strcpy(PPOOL srcPool, PPOOL dstPool, const char *src, char *dst);
+  size_t pool_strlen(PPOOL stringPool, const char *string);
+
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,
