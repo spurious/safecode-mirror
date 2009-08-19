@@ -15,12 +15,15 @@
 #ifndef CSTDLIB_H
 #define CSTDLIB_H
 
+#include "SCUtils.h" // castTo()
+
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/STLExtras.h" // array_endof()
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
@@ -45,8 +48,8 @@ private:
   bool strcpyTransform(Module &M);
 
   // Private variables
-  DSNodePass* dsnPass;
-  PoolAllocateGroup* paPass;
+  DSNodePass *dsnPass;
+  PoolAllocateGroup *paPass;
 
 public:
   static char ID;
