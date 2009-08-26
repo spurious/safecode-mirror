@@ -53,6 +53,7 @@ static RegisterPass<BreakConstantStrings> P ("break-conststrings",
 bool
 BreakConstantStrings::runOnModule (Module & M) {
   bool modified = false;
+  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
 
   //
   // Scan through all the global variables in the module.  Mark a variable as
@@ -74,7 +75,7 @@ BreakConstantStrings::runOnModule (Module & M) {
     if (GV->isConstant() && (!GV->hasSection())) {
       const PointerType * PT = dyn_cast<PointerType>(GV->getType());
       if (const ArrayType * AT = dyn_cast<ArrayType>(PT->getElementType())) {
-        if (AT->getElementType() == Type::Int8Ty) {
+        if (AT->getElementType() == Int8Type) {
           modified = true;
           ++GVChanges;
           GV->setConstant (false);

@@ -21,6 +21,7 @@
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/VectorListHelper.h"
 #include "InsertPoolChecks.h"
+#include "SCUtils.h"
 
 using namespace llvm;
 NAMESPACE_SC_BEGIN
@@ -125,9 +126,10 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
 
   bool
   SpeculativeCheckingInsertSyncPoints::doInitialization(Module & M) {
+    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
     sFuncWaitForSyncToken = Function::Create
       (FunctionType::get
-       (Type::VoidTy, std::vector<const Type*>(), false),
+       (VoidType, std::vector<const Type*>(), false),
        GlobalValue::ExternalLinkage,
        "__sc_par_wait_for_completion", 
        &M);
@@ -216,9 +218,10 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
   static Constant * funcStoreCheck;
 
   bool SpeculativeCheckStoreCheckPass::doInitialization(Module & M) {
+    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
     std::vector<const Type *> args;
-    args.push_back(PointerType::getUnqual(Type::Int8Ty));
-    FunctionType * funcStoreCheckTy = FunctionType::get(Type::VoidTy, args, false);
+    args.push_back(getVoidPtrType());
+    FunctionType * funcStoreCheckTy = FunctionType::get(VoidType, args, false);
     funcStoreCheck = M.getOrInsertFunction("__sc_par_store_check", funcStoreCheckTy);
     return true;
   }
@@ -228,7 +231,7 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
     bool changed = false;    
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       if (StoreInst * SI = dyn_cast<StoreInst>(I)) {
-        Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), PointerType::getUnqual(Type::Int8Ty), "", SI);
+        Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), getVoidPtrType(), "", SI);
   
         CallInst::Create(funcStoreCheck, CastedPointer, "", SI);
         changed = true;

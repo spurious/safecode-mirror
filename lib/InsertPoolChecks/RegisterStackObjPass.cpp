@@ -70,7 +70,7 @@ insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
   std::vector<Value *> PHList;
 
   // The infamous void pointer type
-  PointerType * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  PointerType * VoidPtrTy = getVoidPtrType();
 
   //
   // Create alloca instructions for every registered alloca.  These will hold
@@ -422,8 +422,9 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   // Create an LLVM Value for the allocation size.  Insert a multiplication
   // instruction if the allocation allocates an array.
   //
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
   unsigned allocsize = TD->getTypeAllocSize(AI->getAllocatedType());
-  Value *AllocSize = getGlobalContext().getConstantInt(Type::Int32Ty, allocsize);
+  Value *AllocSize = ConstantInt::get (Int32Type, allocsize);
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                        AI->getOperand(0), "sizetmp", AI);
@@ -447,7 +448,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   // Insert a call to register the object.
   //
-  PointerType * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  PointerType * VoidPtrTy = getVoidPtrType();
   Instruction *Casted = castTo (AI, VoidPtrTy, AI->getName()+".casted", iptI);
   Value * CastedPH    = castTo (PH, VoidPtrTy, PH->getName() + "casted", iptI);
   std::vector<Value *> args;

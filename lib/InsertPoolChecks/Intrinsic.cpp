@@ -33,27 +33,29 @@ NAMESPACE_SC_BEGIN
 void
 InsertSCIntrinsic::addDebugIntrinsic(const char * name) {
   const IntrinsicInfoTy & info = getIntrinsic(name);
-  static const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  static const Type * vpTy = PointerType::getUnqual(Int8Type);
 
   Function * F = info.F;
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<const Type *> ParamTypes (FuncType->param_begin(),
                                         FuncType->param_end());
   // Tag field
-  ParamTypes.push_back (Type::Int32Ty);
+  ParamTypes.push_back (Int32Type);
 
   ParamTypes.push_back (vpTy);
-  ParamTypes.push_back (Type::Int32Ty);
+  ParamTypes.push_back (Int32Type);
 
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
                                                     false);
 
-  std::string funcdebugname = F->getName() + "_debug";
+  Twine funcdebugname = F->getName() + "_debug";
 
   addIntrinsic
-    (funcdebugname.c_str(),
+    (funcdebugname.str().c_str(),
      info.flag | SC_INTRINSIC_DEBUG_INSTRUMENTATION,
      DebugFuncType,
      info.ptrindex);
@@ -77,9 +79,10 @@ bool
 InsertSCIntrinsic::runOnModule(Module & M) {
   currentModule = &M;
   TD = &getAnalysis<TargetData>();
-  const Type * VoidTy = Type::VoidTy;
-  const Type * Int32Ty = Type::Int32Ty;
-  const Type * vpTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type * VoidTy = Type::getVoidTy(getGlobalContext());
+  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  const Type * Int32Ty = IntegerType::getInt32Ty(getGlobalContext());
+  const Type * vpTy = PointerType::getUnqual(Int8Type);
 
   FunctionType * LSCheckTy = FunctionType::get
     (VoidTy, args<const Type*>::list(vpTy, vpTy), false);
@@ -361,8 +364,10 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
     return NULL;
   }
 
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
-    return getGlobalContext().getConstantInt(Type::Int32Ty, TD->getTypeAllocSize (GV->getType()->getElementType()));
+    return ConstantInt::get(Int32Type, TD->getTypeAllocSize (GV->getType()->getElementType()));
   }
 
   if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
@@ -378,7 +383,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
         return NULL;
       }
     }
-    return getGlobalContext().getConstantInt(Type::Int32Ty, type_size);
+    return ConstantInt::get(Int32Type, type_size);
   }
 
   // Customized allocators
@@ -403,7 +408,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
       assert (isa<PointerType>(AI->getType()));
       const PointerType * PT = cast<PointerType>(AI->getType());
       unsigned int type_size = TD->getTypeAllocSize (PT->getElementType());
-      return getGlobalContext().getConstantInt(Type::Int32Ty, type_size);
+      return ConstantInt::get (Int32Type, type_size);
     }
   }
 

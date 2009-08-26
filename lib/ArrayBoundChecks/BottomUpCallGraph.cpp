@@ -89,8 +89,10 @@ BottomUpCallGraph::runOnModule(Module &M) {
     for (i = CBU.callee_begin (CI), e = CBU.callee_end(CI); i != e; ++i) {
       const Function * Target = *i;
       CallSite CS = CallSite::get(CI);
+#if 0
       DOUT << "CALLEE: " << Target->getName()
            << " from : " << *(CI) << std::endl;
+#endif
       FuncCallSiteMap[Target].push_back(CS);
 
       // FIXME:

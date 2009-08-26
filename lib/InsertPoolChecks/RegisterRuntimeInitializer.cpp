@@ -54,21 +54,20 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   // Add a call in the new constructor function to the SAFECode initialization
   // function.
   //
-  BasicBlock * BB = BasicBlock::Create ("entry", RuntimeCtor);
+  BasicBlock * BB = BasicBlock::Create (getGlobalContext(), "entry", RuntimeCtor);
  
   // Delegate the responbilities of initializing pool descriptor to the 
   // SAFECode runtime initializer
 //  CallInst::Create (PoolInit, "", BB); 
 
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
   std::vector<Value *> args;
   if (SCConfig.dpChecks())
-    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, 1));
+    args.push_back (ConstantInt::get(Int32Type, 1));
   else
-    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, 0));
-  args.push_back
-    (getGlobalContext().getConstantInt(Type::Int32Ty, SCConfig.rewriteOOB()));
-  args.push_back
-    (getGlobalContext().getConstantInt(Type::Int32Ty, SCConfig.terminateOnErrors()));
+    args.push_back (ConstantInt::get(Int32Type, 0));
+  args.push_back (ConstantInt::get(Int32Type, SCConfig.rewriteOOB()));
+  args.push_back (ConstantInt::get(Int32Type, SCConfig.terminateOnErrors()));
   CallInst::Create (RuntimeInit, args.begin(), args.end(), "", BB); 
 
   args.clear();
@@ -78,7 +77,7 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   //
   // Add a return instruction at the end of the basic block.
   //
-  ReturnInst::Create (BB);
+  ReturnInst::Create (getGlobalContext(), BB);
 }
 
 void
@@ -88,10 +87,11 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   //
   // Insert the run-time ctor into the ctor list.
   //
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
   std::vector<Constant *> CtorInits;
-  CtorInits.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 65535));
+  CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
   CtorInits.push_back (RuntimeCtor);
-  Constant * RuntimeCtorInit = getGlobalContext().getConstantStruct (CtorInits);
+  Constant * RuntimeCtorInit=ConstantStruct::get(getGlobalContext(), CtorInits);
 
   //
   // Get the current set of static global constructors and add the new ctor
@@ -120,7 +120,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   //
   const ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
                                          CurrentCtors.size());
-  Constant * NewInit=getGlobalContext().getConstantArray (AT, CurrentCtors);
+  Constant * NewInit=ConstantArray::get (AT, CurrentCtors);
 
   //
   // Create the new llvm.global_ctors global variable and replace all uses of

@@ -50,6 +50,13 @@ RegisterPass<DebugInstrument> X ("debuginstrument",
 
 static int tagCounter = 0;
 
+//
+// Basic LLVM Types
+//
+static const Type * VoidType  = 0;
+static const Type * Int8Type  = 0;
+static const Type * Int32Type = 0;
+
 ///////////////////////////////////////////////////////////////////////////
 // Command line options
 ///////////////////////////////////////////////////////////////////////////
@@ -111,8 +118,8 @@ LocationSourceInfo::operator() (CallInst * CI) {
     std::string filename = "<unknown>";
     if (CI->getParent()->getParent()->hasName())
       filename = CI->getParent()->getParent()->getName();
-    LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, ++count);
-    Constant * FInit = getGlobalContext().getConstantArray (filename);
+    LineNumber = ConstantInt::get (Int32Type, ++count);
+    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),
@@ -152,8 +159,8 @@ VariableSourceInfo::operator() (CallInst * CI) {
   //
   // Create a default line number and source file information for the call.
   //
-  LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, 0);
-  Constant * FInit = getGlobalContext().getConstantArray ("<unknown>");
+  LineNumber = ConstantInt::get (Int32Type, 0);
+  Constant * FInit = ConstantArray::get (getGlobalContext(), "<unknown>");
   Module * M = CI->getParent()->getParent()->getParent();
   SourceFile = new GlobalVariable (*M,
                                    FInit->getType(),
@@ -175,9 +182,9 @@ VariableSourceInfo::operator() (CallInst * CI) {
     if (Value * GVDesc = findDbgGlobalDeclare (GV)) {
       DIGlobalVariable Var(cast<GlobalVariable>(GVDesc));
       //Var.getDisplayName(DisplayName);
-      LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, Var.getLineNumber());
+      LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = getGlobalContext().getConstantArray (filename);
+      Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
       SourceFile = new GlobalVariable (*M,
                                        FInit->getType(),
                                        true,
@@ -188,9 +195,9 @@ VariableSourceInfo::operator() (CallInst * CI) {
   } else {
     if (const DbgDeclareInst *DDI = findDbgDeclare(V)) {
       DIVariable Var (cast<GlobalVariable>(DDI->getVariable()));
-      LineNumber = getGlobalContext().getConstantInt (Type::Int32Ty, Var.getLineNumber());
+      LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
       Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = getGlobalContext().getConstantArray (filename);
+      Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
       SourceFile = new GlobalVariable (*M,
                                        FInit->getType(),
                                        true,
@@ -227,14 +234,14 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<const Type *> ParamTypes (FuncType->param_begin(),
                                         FuncType->param_end());
-  ParamTypes.push_back (Type::Int32Ty);
+  ParamTypes.push_back (Int32Type);
   ParamTypes.push_back (VoidPtrTy);
-  ParamTypes.push_back (Type::Int32Ty);
+  ParamTypes.push_back (Int32Type);
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
                                                     false);
-  std::string funcdebugname = F->getName() + "_debug";
+  std::string funcdebugname = F->getName().str() + "_debug";
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
 
@@ -293,7 +300,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     //
     std::vector<Value *> args (CI->op_begin(), CI->op_end());
     args.erase (args.begin());
-    args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, tagCounter++));
+    args.push_back (ConstantInt::get(Int32Type, tagCounter++));
 
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);
@@ -325,7 +332,14 @@ DebugInstrument::runOnModule (Module &M) {
   InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
 
   // Create the void pointer type
-  VoidPtrTy = PointerType::getUnqual(Type::Int8Ty); 
+  VoidPtrTy = getVoidPtrType();
+
+  //
+  // Create needed LLVM types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
   // Transform allocations, load/store checks, and bounds checks.

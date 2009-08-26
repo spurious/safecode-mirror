@@ -160,7 +160,8 @@ namespace llvm {
   static void removeBBSelfLoopEdge(BasicBlock * BB) {
     Instruction * inst = BB->getTerminator();
     BranchInst * branchInst = dyn_cast<BranchInst>(inst);
-    BasicBlock * newEndBB = BasicBlock::Create(BB->getName() + ".self_loop_edge:");
+    BasicBlock * newEndBB = BasicBlock::Create(getGlobalContext(),
+                                               BB->getName() + ".self_loop_edge:");
 
     BranchInst::Create(BB, newEndBB);
 
@@ -227,7 +228,8 @@ namespace llvm {
       argType.push_back((*it)->getType());
     }
 
-    FunctionType * FTy = FunctionType::get(Type::VoidTy,  argType, false);
+    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
+    FunctionType * FTy = FunctionType::get(VoidType,  argType, false);
     Function * F = Function::Create(FTy, GlobalValue::InternalLinkage, bb->getName() + ".dup", &M);
 
     /// Mapping from original def to function arguments
@@ -246,7 +248,7 @@ namespace llvm {
     BasicBlock * newBB = CloneBasicBlock(bb, valMapping, "", F);
     Instruction * termInst = newBB->getTerminator();
     termInst->eraseFromParent();
-    ReturnInst::Create(NULL, newBB);
+    ReturnInst::Create(getGlobalContext(), NULL, newBB);
 
     /// Replace defs inside the basic blocks with function arguments
     for (CodeDuplicationAnalysis::InputArgumentsTy::const_iterator it = args.begin(), end = args.end(); it != end; ++it) {
@@ -460,10 +462,11 @@ namespace llvm {
       argType.push_back((*it)->getType());
     }
 
-    StructType * checkArgumentsType = StructType::get(argType);
+    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
+    StructType * checkArgumentsType=StructType::get(getGlobalContext(),argType);
     std::vector<const Type *> funcArgType;
     funcArgType.push_back(PointerType::getUnqual(checkArgumentsType));
-    FunctionType * FTy = FunctionType::get(Type::VoidTy,  funcArgType, false);
+    FunctionType * FTy = FunctionType::get(VoidType,  funcArgType, false);
     Function * F = Function::Create(FTy, GlobalValue::InternalLinkage, ".codedup", M);
     Argument * funcActual = F->arg_begin();
     funcActual->setName("args");
@@ -483,9 +486,9 @@ namespace llvm {
 
     // Add codes into the function and clone the loop
 
-    BasicBlock * entryBlock = BasicBlock::Create("entry", F);
-    BasicBlock * exitBlock = BasicBlock::Create("loopexit", F);
-    ReturnInst::Create(NULL, exitBlock);
+    BasicBlock * entryBlock = BasicBlock::Create(getGlobalContext(),"entry",F);
+    BasicBlock * exitBlock= BasicBlock::Create(getGlobalContext(),"loopexit",F);
+    ReturnInst::Create(getGlobalContext(), NULL, exitBlock);
     DenseMap<const Value *, Value*> & valMapping = cloneValueMap;
     valMapping[L->getLoopPreheader()] = entryBlock;
     SmallVector<BasicBlock*, 8> exitBlocks;
@@ -498,9 +501,10 @@ namespace llvm {
     // Generate loads for arguments
     int arg_counter = 0;
     for (DuplicateLoopAnalysis::InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it != end; ++it) {
+      const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
       std::vector<Value*> idxVal;
-      idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, 0));
-      idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, arg_counter));
+      idxVal.push_back(ConstantInt::get(Int32Type, 0));
+      idxVal.push_back(ConstantInt::get(Int32Type, arg_counter));
 
       GetElementPtrInst * GEP = GetElementPtrInst::Create(funcActual, idxVal.begin(), idxVal.end(), "", entryBlock);
       Value * loadArg = new LoadInst(GEP, ".arg", entryBlock);
@@ -560,7 +564,7 @@ namespace llvm {
 	  if (!F || !isCheckingCall(F->getName()))
 	    continue;
 
-	  Constant * newF = M->getOrInsertFunction(F->getName() + ".serial" , F->getFunctionType());
+	  Constant * newF = M->getOrInsertFunction(F->getName().str() + ".serial" , F->getFunctionType());
 	  CI->setOperand(0, newF);
 	}
       }
@@ -569,24 +573,26 @@ namespace llvm {
 
   void
 	DuplicateLoopAnalysis::insertCheckingCallInLoop(Loop * L, Function * checkingFunction, StructType * checkArgumentType, Module * M) {
+    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
 		static Constant * sFuncWaitForSyncToken = 
 			M->getOrInsertFunction("__sc_par_wait_for_completion", 
 					FunctionType::get
-					(Type::VoidTy, std::vector<const Type*>(), false));
+					(VoidType, std::vector<const Type*>(), false));
 
 		static Constant * sFuncEnqueueCheckingFunction = 
 			M->getOrInsertFunction("__sc_par_enqueue_code_dup", 
 			FunctionType::get
-			 (Type::VoidTy, args<const Type*>::list(PointerType::getUnqual(Type::Int8Ty), PointerType::getUnqual(Type::Int8Ty)), false));
+			 (VoidType, args<const Type*>::list(getVoidPtrType(), getVoidPtrType()), false));
 
 		Instruction * termInst = L->getHeader()->getTerminator();
 		Value * allocaInst = new AllocaInst(checkArgumentType, "checkarg", &L->getHeader()->getParent()->front().front());
 
 		size_t arg_counter = 0;
 		for (InputArgumentsTy::const_iterator it = dupLoopArgument.begin(), end = dupLoopArgument.end(); it !=end; ++it) {
+      const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 			std::vector<Value *> idxVal;
-			idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, 0));
-			idxVal.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, arg_counter));
+			idxVal.push_back(ConstantInt::get(Int32Type, 0));
+			idxVal.push_back(ConstantInt::get(Int32Type, arg_counter));
 			GetElementPtrInst * GEP = GetElementPtrInst::Create(allocaInst, idxVal.begin(), idxVal.end(), "", termInst);
 			new StoreInst(*it, GEP, termInst);
 			++arg_counter;
@@ -595,8 +601,8 @@ namespace llvm {
 
 		// enqueue
 		std::vector<Value*> enqueueArg;
-		enqueueArg.push_back(new BitCastInst(checkingFunction, PointerType::getUnqual(Type::Int8Ty), "", termInst));
-		enqueueArg.push_back(new BitCastInst(allocaInst, PointerType::getUnqual(Type::Int8Ty), "", termInst));
+		enqueueArg.push_back(new BitCastInst(checkingFunction, getVoidPtrType(), "", termInst));
+		enqueueArg.push_back(new BitCastInst(allocaInst, getVoidPtrType(), "", termInst));
 		CallInst::Create(sFuncEnqueueCheckingFunction, enqueueArg.begin(), enqueueArg.end(), "", termInst);
 
 

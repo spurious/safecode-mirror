@@ -82,6 +82,11 @@ Funcs ("funcs", cl::Hidden,
        cl::CommaSeparated,
        cl::desc ("List of functions to process"));
 
+//
+// Basic LLVM Types
+//
+static const Type * Int32Type = 0;
+
 namespace {
   ///////////////////////////////////////////////////////////////////////////
   // Pass Statistics
@@ -156,12 +161,12 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
   // element.
   //
   if (const ArrayType * AT = dyn_cast<ArrayType>(Ty)) {
-    Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
+    Indices.push_back (ConstantInt::get (Int32Type, 0));
     return typeContainsPointer (AT->getElementType(), Indices, Context);
   }
 
   if (const VectorType * VT = dyn_cast<VectorType>(Ty)) {
-    Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
+    Indices.push_back (ConstantInt::get (Int32Type, 0));
     return typeContainsPointer (VT->getElementType(), Indices, Context);
   }
 
@@ -171,7 +176,7 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
   //
   if (const StructType * ST = dyn_cast<StructType>(Ty)) {
     for (unsigned index = 0; index < ST->getNumElements(); ++index) {
-      Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, index));
+      Indices.push_back (ConstantInt::get (Int32Type, index));
       if (typeContainsPointer (ST->getElementType(index), Indices, Context)) {
         return true;
       } else {
@@ -381,13 +386,13 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
       NewAlloc =  new MallocInst (AI->getAllocatedType(),
-                                  getGlobalContext().getConstantInt(Type::Int32Ty,0),
+                                  ConstantInt::get(Int32Type,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
       NewAlloc =  new AllocaInst (AI->getAllocatedType(),
-                                  getGlobalContext().getConstantInt(Type::Int32Ty,0),
+                                  ConstantInt::get(Int32Type,0),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
@@ -425,13 +430,13 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (Type::Int32Ty,
+      NewAlloc =  new MallocInst (Int32Type,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),
                                   AI);
     else
-      NewAlloc =  new AllocaInst (Type::Int32Ty,
+      NewAlloc =  new AllocaInst (Int32Type,
                                   AI->getArraySize(),
                                   AI->getAlignment(),
                                   AI->getName(),
@@ -497,7 +502,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     //
     User::op_iterator i = GEP->idx_begin();
     if (i == GEP->idx_end()) continue;
-    args.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, INT_MAX, true));
+    args.push_back (ConstantInt::get (Int32Type, INT_MAX, true));
     for (++i; i != GEP->idx_end(); ++i) {
       args.push_back (*i);
     }
@@ -506,7 +511,7 @@ FaultInjector::insertBadIndexing (Function & F) {
     // Create the new GEP instruction.
     //
     Value * Pointer = GEP->getPointerOperand();
-    std::string name = GEP->getName() + "badindex";
+    Twine name = GEP->getName() + "badindex";
     GetElementPtrInst * NewGEP = GetElementPtrInst::Create (Pointer,
                                                             args.begin(),
                                                             args.end(),
@@ -558,7 +563,7 @@ FaultInjector::insertUninitializedUse (Function & F) {
         // Only inject a fault if the allocated memory has a pointer in it.
         //
         std::vector<Value *> Indices;
-        Indices.push_back (getGlobalContext().getConstantInt (Type::Int32Ty, 0));
+        Indices.push_back (ConstantInt::get (Int32Type, 0));
         if (typeContainsPointer (AI->getAllocatedType(),
                                  Indices,
                                  &getGlobalContext())) {
@@ -634,6 +639,11 @@ bool
 FaultInjector::runOnModule(Module &M) {
   // Track whether anything has been modified
   bool modified = false;
+
+  //
+  // Create needed LLVM types.
+  //
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   // Get analysis results from DSA.
   TDPass = &getAnalysis<TDDataStructures>();

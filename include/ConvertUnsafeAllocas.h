@@ -117,6 +117,9 @@ struct ConvertUnsafeAllocas : public ModulePass {
     ArrayBoundsCheckGroup   * abcPass;
     checkStackSafety   * cssPass;
 
+    const Type * VoidType;
+    const Type * Int32Type;
+
 #ifdef LLVA_KERNEL
     Constant *kmalloc;
     Constant *StackPromote;

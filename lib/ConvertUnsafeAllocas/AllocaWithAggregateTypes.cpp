@@ -45,6 +45,13 @@ namespace {
   STATISTIC (InitedAllocas, "Allocas Initialized");
 }
 
+//
+// Basic LLVM Types
+//
+static const Type * VoidType  = 0;
+static const Type * Int8Type  = 0;
+static const Type * Int32Type = 0;
+
 NAMESPACE_SC_BEGIN
   //
   // Constant: meminitvalue
@@ -170,11 +177,21 @@ NAMESPACE_SC_BEGIN
 
   bool
   InitAllocas::doInitialization (Module & M) {
-    Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
-    memsetF = M.getOrInsertFunction ("memset", Type::VoidTy,
+    //
+    // Create needed LLVM types.
+    //
+    VoidType  = Type::getVoidTy(getGlobalContext());
+    Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+    Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+    Type * VoidPtrType = PointerType::getUnqual(Int8Type);
+
+    //
+    // Add the memset function to the program.
+    //
+    memsetF = M.getOrInsertFunction ("memset", VoidType,
                                                VoidPtrType,
-                                               Type::Int32Ty,
-                                               Type::Int32Ty, NULL);
+                                               Int32Type,
+                                               Int32Type, NULL);
 
     return true;
   }
@@ -182,7 +199,11 @@ NAMESPACE_SC_BEGIN
   bool
   InitAllocas::runOnFunction (Function &F) {
     bool modified = false;
-    Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+
+    //
+    // Create needed LLVM types.
+    //
+    Type * VoidPtrType = PointerType::getUnqual(Int8Type);
 
     // Don't bother processing external functions
     if ((F.isDeclaration()) || (F.getName() == "poolcheckglobals"))
@@ -243,7 +264,7 @@ NAMESPACE_SC_BEGIN
 
           // Create a value that calculates the alloca's size
           const Type * AllocaType = AllocInst->getAllocatedType();
-          Value *AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
+          Value *AllocSize = ConstantInt::get (Int32Type,
                                                TD.getTypeAllocSize(AllocaType));
 
           if (AllocInst->isArrayAllocation())
@@ -255,7 +276,7 @@ NAMESPACE_SC_BEGIN
           Value * TheAlloca = castTo (AllocInst, VoidPtrType, "cast", iptI);
 
           std::vector<Value *> args(1, TheAlloca);
-          args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, meminitvalue));
+          args.push_back (ConstantInt::get (Int32Type, meminitvalue));
           args.push_back (AllocSize);
           CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
           ++InitedAllocas;

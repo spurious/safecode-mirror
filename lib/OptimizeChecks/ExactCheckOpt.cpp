@@ -142,7 +142,8 @@ void
 ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                                    Value * ResultPointer, Value * Bounds) {
   // The LLVM type for a void *
-  Type *VoidPtrType = PointerType::getUnqual(Type::Int8Ty); 
+  const Type *VoidPtrType = getVoidPtrType(); 
+  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
   // Cast the operands to the correct type.
@@ -158,9 +159,8 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
                             CI);
 
   Value * CastBounds = Bounds;
-  if (Bounds->getType() != Type::Int32Ty)
-    CastBounds = castTo (Bounds, Type::Int32Ty,
-                         Bounds->getName()+".ec.casted", CI);
+  if (Bounds->getType() != Int32Type)
+    CastBounds = castTo (Bounds, Int32Type, Bounds->getName()+".ec.casted", CI);
 
   //
   // Create the call to exactcheck2().

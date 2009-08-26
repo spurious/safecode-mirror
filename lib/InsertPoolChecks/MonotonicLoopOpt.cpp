@@ -274,8 +274,9 @@ namespace {
     
     newGEP->insertBefore(ptIns);
    
+    const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
     CastInst * castedNewGEP = CastInst::CreatePointerCast(newGEP,
-                PointerType::getUnqual(Type::Int8Ty), newGEP->getName() + ".casted",
+                PointerType::getUnqual(Int8Type), newGEP->getName() + ".casted",
                 ptIns);
 
     CallInst * checkInst = callInst->clone(getGlobalContext());
@@ -285,7 +286,7 @@ namespace {
       // Copy the srcPtr if necessary
       CastInst * newSrcPtr = CastInst::CreatePointerCast
         (origGEP->getPointerOperand(),
-          PointerType::getUnqual(Type::Int8Ty), origGEP->getName() + ".casted",
+          PointerType::getUnqual(Int8Type), origGEP->getName() + ".casted",
           newGEP);
       checkInst->setOperand(info.argSrcPtrPos, newSrcPtr);
     }

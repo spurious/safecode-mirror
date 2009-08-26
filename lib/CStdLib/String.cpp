@@ -55,7 +55,12 @@ bool StringTransform::runOnModule(Module &M) {
 bool StringTransform::strcpyTransform(Module &M) {
   // Flags whether we modified the module
   bool modified = false;
-  PointerType *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+
+  //
+  // Create needed pointer types.
+  //
+  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Type);
 
   Function *F_strcpy = M.getFunction("strcpy");
   if (!F_strcpy)

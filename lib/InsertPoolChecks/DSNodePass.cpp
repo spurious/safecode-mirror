@@ -144,7 +144,7 @@ DSNodePass::getPoolHandle (const Value *V,
                   << std::endl;
 #endif
 std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
-      return getGlobalContext().getConstantAggregateZero(PoolDescPtrTy);
+      return ConstantAggregateZero::get(PoolDescPtrTy);
     }
   }
 
@@ -192,7 +192,7 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
 #endif
 
   if (isClone)
-    std::cerr << "JTC: No Pool: " << FClone->getName() << ": "
+    std::cerr << "JTC: No Pool: " << FClone->getName().str() << ": "
               << *V << std::endl;
   return 0;
 }

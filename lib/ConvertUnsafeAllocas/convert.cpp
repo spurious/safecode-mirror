@@ -75,7 +75,7 @@ createProtos (Module & M) {
   // Get a reference to the sp_malloc() function (a function in the kernel
   // used for allocating promoted stack allocations).
   //
-  std::vector<const Type *> Arg(1, Type::Int32Ty);
+  std::vector<const Type *> Arg(1, Int32Type);
   FunctionType *kmallocTy = FunctionType::get(VoidPtrTy, Arg, false);
   kmalloc = M.getOrInsertFunction("sp_malloc", kmallocTy);
 
@@ -95,6 +95,12 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   cssPass = &getAnalysis<checkStackSafety>();
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
   TD = &getAnalysis<TargetData>();
+
+  //
+  // Get needed LLVM types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
   // Add prototype for run-time functions.
@@ -257,7 +263,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
                                 AI->getArraySize(), AI->getName(), AI);
 #else
             Value *AllocSize =
-            getGlobalContext().getConstantInt(Type::Int32Ty,
+            ConstantInt::get(Int32Type,
                               TD->getTypeAllocSize(AI->getAllocatedType()));
 	    
             if (AI->isArrayAllocation())
@@ -431,7 +437,7 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   InsertFreesAtEnd (MI);
 #else
   Value *AllocSize;
-  AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
+  AllocSize = ConstantInt::get (Int32Type,
                                 TD->getTypeAllocSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
@@ -495,7 +501,7 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
 	    	    InsertFreesAtEnd(MI);
 #else
             Value *AllocSize =
-            getGlobalContext().getConstantInt(Type::Int32Ty,
+            ConstantInt::get(Int32Type,
                               TD->getTypeAllocSize(AI->getAllocatedType()));
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -654,7 +660,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   // Create the size argument to the allocation.
   //
   Value *AllocSize;
-  AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
+  AllocSize = ConstantInt::get (Int32Type,
                                 TD->getTypeAllocSize(AI->getAllocatedType()));
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
@@ -714,6 +720,12 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   assert (paPass && "Pool Allocation Transform *must* be run first!");
 
   //
+  // Get needed LLVM types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+
+  //
   // Add prototype for run-time functions.
   //
   createProtos(M);
@@ -722,16 +734,16 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   // Get references to the additional functions used for pool allocating stack
   // allocations.
   //
-  Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  Type * VoidPtrTy = getVoidPtrType();
   std::vector<const Type *> Arg;
   Arg.push_back (PointerType::getUnqual(paPass->getPoolType()));
-  Arg.push_back (Type::Int32Ty);
+  Arg.push_back (Int32Type);
   FunctionType * FuncTy = FunctionType::get (VoidPtrTy, Arg, false);
   StackAlloc = M.getOrInsertFunction ("pool_alloca", FuncTy);
 
   Arg.clear();
   Arg.push_back (PointerType::getUnqual(paPass->getPoolType()));
-  FuncTy = FunctionType::get (Type::VoidTy, Arg, false);
+  FuncTy = FunctionType::get (VoidType, Arg, false);
   NewStack = M.getOrInsertFunction ("pool_newstack", FuncTy);
   DelStack = M.getOrInsertFunction ("pool_delstack", FuncTy);
 

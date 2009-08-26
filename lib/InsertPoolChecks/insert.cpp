@@ -219,13 +219,14 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
 
       // Create instructions to cast the checked pointer and the checked pool
       // into sbyte pointers.
-      Value *CastVI  = castTo (LI, PointerType::getUnqual(Type::Int8Ty), InsertPt);
-      Value *CastPHI = castTo (PH, PointerType::getUnqual(Type::Int8Ty), InsertPt);
+      Value *CastVI  = castTo (LI, getVoidPtrType(), InsertPt);
+      Value *CastPHI = castTo (PH, getVoidPtrType(), InsertPt);
 
       // Create the call to poolcheck
+      const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
-      args.push_back (getGlobalContext().getConstantInt(Type::Int32Ty, LinkNode.getOffset()));
+      args.push_back (ConstantInt::get(Int32Type, LinkNode.getOffset()));
       CallInst::Create (ThePoolCheckFunction,args.begin(), args.end(), "", InsertPt);
 
       // Update the statistics
@@ -336,12 +337,12 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       std::vector<const Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
       unsigned num = FuncList.size();
       if (flI != flE) {
-        const Type* csiType = Type::Int32Ty;
-        Value *NumArg = getGlobalContext().getConstantInt(csiType, num);	
+        const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
+        Value *NumArg = ConstantInt::get(csiType, num);	
                
         CastInst *CastVI = 
           CastInst::CreatePointerCast (Vnew, 
-           PointerType::getUnqual(Type::Int8Ty), "casted", I);
+           getVoidPtrType(), "casted", I);
 
         std::vector<Value *> args(1, NumArg);
         args.push_back(CastVI);
@@ -349,7 +350,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
           Function *func = (Function *)(*flI);
           CastInst *CastfuncI = 
             CastInst::CreatePointerCast (func, 
-             PointerType::getUnqual(Type::Int8Ty), "casted", I);
+             getVoidPtrType(), "casted", I);
           args.push_back(CastfuncI);
         }
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
@@ -374,10 +375,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 
         CastInst *CastVI = 
           CastInst::CreatePointerCast (Vnew, 
-                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+                 getVoidPtrType(), "casted", I);
         CastInst *CastPHI = 
           CastInst::CreatePointerCast (PH, 
-                 PointerType::getUnqual(Type::Int8Ty), "casted", I);
+                 getVoidPtrType(), "casted", I);
         std::vector<Value *> args(1,CastPHI);
         args.push_back(CastVI);
 
@@ -452,7 +453,8 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
         if (!SCConfig.svaEnabled()) {
           // The ASM Writer does not handle inline assembly very well
           llvm::cerr << "JTC: Indirect Function Call Check: "
-                     << F.getName() << " : " << *(CI->getOperand(0)) << std::endl;
+                     << F.getName().str() << " : "
+                     << *(CI->getOperand(0)) << std::endl;
         }
         if (isClonedFunc) {
           assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
@@ -550,7 +552,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
 
               const Type* csiType = Type::Int32Ty;
               std::vector<Value *> args(1,secOp);
-              args.push_back(getGlobalContext().getConstantInt(csiType,AT->getNumElements()));
+              args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
               CallInst::Create(ExactCheck,args.begin(), args.end(), "", Casted);
               DEBUG(std::cerr << "Inserted exact check call Instruction \n");
               return;
@@ -565,7 +567,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
                 }
                 std::vector<Value *> args(1,secOp);
                 const Type* csiType = Type::Int32Ty;
-                args.push_back(getGlobalContext().getConstantInt(csiType,AT->getNumElements()));
+                args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
                 CallInst::Create(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
                 return;
               } else {
@@ -601,17 +603,17 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         BasicBlock::iterator InsertPt = Casted;
         ++InsertPt;
         Casted            = castTo (Casted,
-                                    PointerType::getUnqual(Type::Int8Ty),
+                                    getVoidPtrType(),
                                     (Casted)->getName()+".pc.casted",
                                     InsertPt);
 
         Value * CastedSrc = castTo (GEP->getPointerOperand(),
-                                    PointerType::getUnqual(Type::Int8Ty),
+                                    getVoidPtrType(),
                                     (Casted)->getName()+".pcsrc.casted",
                                     InsertPt);
 
         Value *CastedPH = castTo (PH,
-                                  PointerType::getUnqual(Type::Int8Ty),
+                                  getVoidPtrType(),
                                   "jtcph",
                                   InsertPt);
         std::vector<Value *> args(1, CastedPH);

@@ -290,7 +290,7 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
     //
     // Insert the call to getActualValue()
     //
-    const Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+    const Type * VoidPtrType = getVoidPtrType();
     Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
     Value * OpVptr = castTo (op,
                              VoidPtrType,

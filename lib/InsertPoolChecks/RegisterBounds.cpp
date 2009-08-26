@@ -59,9 +59,9 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
 
   DSNode *DSN  = dsnPass->getDSNodeForGlobalVariable(GV);
   if (DSN) {  
-    const Type* csiType = Type::Int32Ty;
+    const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
     const Type * GlobalType = GV->getType()->getElementType();
-    Value * AllocSize = getGlobalContext().getConstantInt
+    Value * AllocSize = ConstantInt::get 
       (csiType, TD->getTypeAllocSize(GlobalType));
     Value * PH = dsnPass->paPass->getGlobalPool (DSN);
     RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
@@ -252,12 +252,12 @@ RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
   // types.
   //
   Value * Casted = castTo (ptr,
-                           PointerType::getUnqual(Type::Int8Ty),
+                           getVoidPtrType(),
                            ptr->getName()+".casted",
                            FreeSite);
 
   Value * PHCasted = castTo (PH,
-                             PointerType::getUnqual(Type::Int8Ty), 
+                             getVoidPtrType(), 
                              PH->getName()+".casted",
                              FreeSite);
 
@@ -276,12 +276,12 @@ RegisterVariables::CreateRegistrationFunction(Function * F) {
   // Add a call in the new constructor function to the SAFECode initialization
   // function.
   //
-  BasicBlock * BB = BasicBlock::Create ("entry", F);
+  BasicBlock * BB = BasicBlock::Create (getGlobalContext(), "entry", F);
 
   //
   // Add a return instruction at the end of the basic block.
   //
-  return ReturnInst::Create (BB);
+  return ReturnInst::Create (getGlobalContext(), BB);
 }
 
 RegisterVariables::~RegisterVariables() {}
@@ -302,11 +302,11 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
   }
   Instruction *GVCasted = 
     CastInst::CreatePointerCast
-    (val, PointerType::getUnqual(Type::Int8Ty), 
+    (val, getVoidPtrType(), 
      val->getName()+".casted", InsertBefore);
   Instruction * PHCasted = 
     CastInst::CreatePointerCast
-    (PH, PointerType::getUnqual(Type::Int8Ty), 
+    (PH, getVoidPtrType(), 
      PH->getName()+".casted", InsertBefore);
   std::vector<Value *> args;
   args.push_back (PHCasted);
@@ -355,8 +355,8 @@ RegisterFunctionByvalArguments::runOnFunction(Function & F) {
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
       const Type * ET = PT->getElementType();
-      Value * AllocSize = getGlobalContext().getConstantInt
-        (Type::Int32Ty, TD->getTypeAllocSize(ET));
+      Value * AllocSize = ConstantInt::get
+        (IntegerType::getInt32Ty(getGlobalContext()), TD->getTypeAllocSize(ET));
       PA::FuncInfo *FI = dsnPass->paPass->getFuncInfoOrClone(F);
       Value *PH = dsnPass->getPoolHandle(&*I, &F, *FI);
       Instruction * InsertBefore = &(F.getEntryBlock().front());
@@ -376,8 +376,8 @@ RegisterFunctionByvalArguments::runOnFunction(Function & F) {
     for (RegisteredArgTy::const_iterator I = registeredArguments.begin(), E = registeredArguments.end(); I != E; ++I) {
       SmallVector<Value *, 2> args;
       Instruction * Pt = &((*BI)->back());
-      Value *CastPH  = castTo (I->first, PointerType::getUnqual(Type::Int8Ty), Pt);
-      Value *CastV = castTo (I->second, PointerType::getUnqual(Type::Int8Ty), Pt);
+      Value *CastPH  = castTo (I->first, getVoidPtrType(), Pt);
+      Value *CastV = castTo (I->second, getVoidPtrType(), Pt);
       args.push_back (CastPH);
       args.push_back (CastV);
       CallInst::Create (StackFree, args.begin(), args.end(), "", Pt);

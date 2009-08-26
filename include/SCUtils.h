@@ -33,6 +33,29 @@ namespace llvm {
 // should be a separate cpp file.
 bool isCheckingCall(const std::string & functionName);
 
+//
+// Function: getVoidPtrType()
+//
+// Description:
+//  Return a pointer to the LLVM type for a void pointer.
+//
+// Return value:
+//  A pointer to an LLVM type for the void pointer.
+//
+// Notes:
+//  This function cannot be used in a multi-threaded program because it uses
+//  the LLVM Global Context.
+//
+//  Many, many passes create an LLVM void pointer type, and the code for it
+//  takes up most of the 80 columns available in a line.  This function should
+//  be easily inlined by the compiler and ease readability of the code (as well
+//  as centralize changes when LLVM's Type API is changed).
+//
+static inline
+PointerType * getVoidPtrType(void) {
+  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  return PointerType::getUnqual(Int8Type);
+}
 
 //
 // Function: castTo()
@@ -41,7 +64,7 @@ bool isCheckingCall(const std::string & functionName);
 //  Given an LLVM value, insert a cast instruction to make it a given type.
 //
 static inline Value *
-castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+castTo (Value * V, const Type * Ty, Twine Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -63,8 +86,7 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 }
 
 static inline Instruction *
-castTo (Instruction * I, const Type * Ty, std::string Name,
-        Instruction * InsertPt) {
+castTo (Instruction * I, const Type * Ty, Twine Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //

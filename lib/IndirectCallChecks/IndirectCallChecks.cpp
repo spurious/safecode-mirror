@@ -23,7 +23,7 @@
 #include "llvm/Constants.h"
 
 #include "IndirectCallChecks.h"
-
+#include "SCUtils.h"
 
 #include <fstream>
 #include <vector>
@@ -79,6 +79,11 @@ using std::cerr;
 #define IC_WARN(msg) cerr << "[WARNING]: " << msg << "\n";
 #define IC_PRINTWARN(obj) cerr << "[WARNING]: "; (obj)->print(cerr);
 
+//
+// Basic LLVM Types
+//
+static const Type * VoidType  = 0;
+
 namespace {
 
 #if ENABLE_DSA
@@ -109,7 +114,7 @@ namespace {
 
       out << ".global " << funcName << "\n"
           << funcName << ":\n"
-          << "jmp " << target->getName() << "\n"
+          << "jmp " << target->getName().str() << "\n"
         ;
     }
 
@@ -127,7 +132,7 @@ namespace {
     std::string buildName() const {
       std::stringstream stream;
 
-      stream <<  JUMP_TABLE_PREFIX << target->getName();
+      stream <<  JUMP_TABLE_PREFIX << target->getName().str();
 
       return stream.str();
     }
@@ -154,7 +159,7 @@ namespace {
       }
 
       std::vector<const Type *> emptyFuncTyArgs;
-      FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
+      FunctionType *emptyFuncTy = FunctionType::get(VoidType, emptyFuncTyArgs, false); 
 
       lowerBound = CREATE_LLVM_OBJECT(Function, (
                                                  emptyFuncTy,
@@ -177,8 +182,8 @@ namespace {
       IC_DMSG("writeToStream called for " << getName() );
 
       out << ".text\n"
-          << ".global " << lowerBound->getName() << "\n"
-          << lowerBound->getName() << ":\n"
+          << ".global " << lowerBound->getName().str() << "\n"
+          << lowerBound->getName().str() << ":\n"
         ;
 
       entries_t::const_iterator iter = entries.begin(), end = entries.end();
@@ -186,8 +191,8 @@ namespace {
         iter->writeToStream(out);
       }
 
-      out << ".global " << upperBound->getName() << "\n"
-          << upperBound->getName() << ":\n"
+      out << ".global " << upperBound->getName().str() << "\n"
+          << upperBound->getName().str() << ":\n"
         ;
     }
 
@@ -324,7 +329,7 @@ namespace {
 
     void createInlineAsm(Module &M) const {
       std::vector<const Type *> emptyFuncTyArgs;
-      FunctionType *emptyFuncTy = FunctionType::get(Type::VoidTy, emptyFuncTyArgs, false); 
+      FunctionType *emptyFuncTy = FunctionType::get(VoidType, emptyFuncTyArgs, false); 
 
       std::stringstream stream;
       writeToStream(stream);
@@ -342,13 +347,13 @@ namespace {
                                                   JUMP_TABLE_COLLECTION,
                                                   &M
                                                   ));
-      BasicBlock *BB = CREATE_LLVM_OBJECT(BasicBlock, ("entry", F));
+      BasicBlock *BB = CREATE_LLVM_OBJECT(BasicBlock, (getGlobalContext(), "entry", F));
 
       CallInst *callAsm = CREATE_LLVM_OBJECT(CallInst, (assembly, "", BB));
       callAsm->setCallingConv(CallingConv::C);
       callAsm->setTailCall(true);
 
-      CREATE_LLVM_OBJECT(ReturnInst, (BB));
+      CREATE_LLVM_OBJECT(ReturnInst, (getGlobalContext(), BB));
 
     }
 
@@ -400,6 +405,11 @@ namespace {
     virtual bool runOnModule(Module &m) {
       bool changed = false;
       module = &m;
+
+      //
+      // Create needed LLVM types.
+      //
+      VoidType  = Type::getVoidTy(getGlobalContext());
 
       std::vector<Function*> functions;
       {
@@ -478,11 +488,11 @@ namespace {
     //Split up the BasicBlock of the callsite into two and insert
     //the boundary checks for the targets of the callsite
     void insertBoundaryChecks(CallSite cs, JumpTable *jt) {
-      const Type *VoidPtrTy = PointerType::get(Type::Int8Ty, 0);
+      const Type *VoidPtrTy = getVoidPtrType();
 
       Constant *indirectFuncFail = module->getOrInsertFunction (
                                                                 "bchk_ind_fail",
-                                                                Type::VoidTy,
+                                                                VoidType,
                                                                 VoidPtrTy,
                                                                 NULL
                                                                 );
@@ -538,7 +548,7 @@ namespace {
       BinaryOperator *OR = BinaryOperator::CreateOr(LT, GT, "", topBB);
 
             
-      BasicBlock *failedCheckBB = CREATE_LLVM_OBJECT(BasicBlock, (
+      BasicBlock *failedCheckBB = CREATE_LLVM_OBJECT(BasicBlock, (getGlobalContext(),
                                                                   "failed_ind_check", 
                                                                   bottomBB->getParent(), 
                                                                   bottomBB
@@ -560,7 +570,7 @@ namespace {
 
       bool changed = false;
 
-      cerr << "Function: " << f.getName() << "\n";
+      cerr << "Function: " << f.getName().str() << "\n";
 
       Function::use_iterator iter, end;
 
