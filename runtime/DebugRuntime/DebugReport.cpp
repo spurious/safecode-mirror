@@ -40,10 +40,10 @@ OutOfBoundsViolation::print(std::ostream & OS) const {
 void
 DebugMetaData::print(std::ostream & OS) const {
   OS << std::showbase
-     << "Object address:" << std::hex << this->canonAddr
+     << "Object address:" << std::hex << this->canonAddr << "\n"
      << "Object allocated at PC:" << std::hex << this->allocPC << "\n"
      << "Source File: " << (this->SourceFile ? this->SourceFile : "<unknown>")
-     << ":" << std::dec << this->lineno
+     << ":" << std::dec << this->lineno << "\n"
      << "Object allocation generation number:" << std::dec << this->allocID << "\n"
      << "Object freed at PC:" << std::hex << this->freePC << "\n"
      << "Object free generation number:" << std::dec << this->freeID << "\n";
