@@ -20,7 +20,7 @@ extern unsigned long __sva_save_iflag(void);
 extern void __sva_restore_iflag(unsigned long enable);
 
 
-static unsigned long
+static inline unsigned long
 disable_irqs ()
 {
   unsigned long is_set;
@@ -29,10 +29,20 @@ disable_irqs ()
   return is_set;
 }
 
-static void
+static inline void
 enable_irqs (unsigned long is_set)
 {
   __sva_restore_iflag (is_set);
+}
+
+typedef unsigned long __sva_rt_lock_t;
+
+static inline void __sva_rt_lock (__sva_rt_lock_t * lock) {
+  *lock = disable_irqs();
+}
+ 
+static inline void __sva_rt_unlock (__sva_rt_lock_t * lock) {
+  enable_irqs(*lock);
 }
 
 #define PCLOCK() unsigned pc_i = disable_irqs();
@@ -64,7 +74,7 @@ typedef struct MetaPoolTy {
 
 #if 1
   unsigned int cindex;
-  unsigned int start[4];
+  unsigned char * start[4];
   unsigned int length[4];
   void * cache[4];
 #endif
@@ -98,8 +108,8 @@ extern "C" {
   /* to include the metapool */
   void pchk_reg_slab(MetaPoolTy* MP, void* PoolID, void* addr, unsigned len);
   void pchk_drop_slab(MetaPoolTy* MP, void* PoolID, void* addr);
-  void pchk_reg_obj(MetaPoolTy* MP, void* addr, unsigned len);
-  void pchk_drop_obj(MetaPoolTy* MP, void* addr);
+  void pchk_reg_obj(MetaPoolTy* MP, unsigned char * addr, unsigned len);
+  void pchk_drop_obj(MetaPoolTy* MP, unsigned char * addr);
   void pchk_reg_pool(MetaPoolTy* MP, void* PoolID, void* MPLoc);
   void pchk_drop_pool(MetaPoolTy* MP, void* PoolID);
   void pchk_reg_pages (MetaPoolTy* MP, void* addr, unsigned order);

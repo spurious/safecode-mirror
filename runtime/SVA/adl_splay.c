@@ -142,34 +142,6 @@ static Tree* splay (Tree * t, char* key) {
   return t;
 }
 
-/* My version, needs testing */
-static Tree* my_splay(Tree* t, char* key) {
-  if (!t) return t;
-  
-  while (1) {
-    if (key_lt(key, t)) {
-      if (!t->left) return t;
-      else if (key_lt(key, t->left))
-        t = rotate_right(rotate_right(t));
-      else if (key_gt(key, t->left)) {
-        t->left = rotate_left(t->left);
-        t = rotate_right(t);
-      } else
-        return  rotate_right(t);
-    } else if (key_gt(key, t)) {
-      if (!t->right) return t;
-      else if (key_gt(key, t->right))
-        t = rotate_left(rotate_left(t));
-      else if (key_lt(key, t->right)) {
-        t->right = rotate_right(t->right);
-        t = rotate_left(t);
-      } else
-        return rotate_left(t);
-    } else
-      return t;
-  }
-}
-
 static inline Tree* insert(Tree* t, char* key, unsigned len, void* tag) {
   Tree* n = 0;
   t = splay(t, key);
@@ -305,8 +277,8 @@ void adl_splay_foreach(void** tree, void (f)(void*, unsigned, void*)) {
   Tree* T = *(Tree**)tree;
   if (T) {
     f(T->key, (T->end - T->key) + 1, T->tag);
-    adl_splay_foreach(&T->left, f);
-    adl_splay_foreach(&T->right, f);
+    adl_splay_foreach((void**)(&T->left), f);
+    adl_splay_foreach((void**)(&T->right), f);
   }
 }
 

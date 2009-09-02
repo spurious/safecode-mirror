@@ -7,6 +7,6 @@ LEVEL=..
 # List all of the subdirectories that we will compile.
 #
 #PARALLEL_DIRS=SafePoolAllocator BoundsCheckAllocator KernelSafePoolAllocator KPoolCheck UserPoolSystem
-PARALLEL_DIRS=BitmapPoolAllocator DebugRuntime UserPoolSystem
+PARALLEL_DIRS=BitmapPoolAllocator DebugRuntime SVA
 
 include $(LEVEL)/Makefile.common

@@ -17,6 +17,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/**
+ * Handler for printing messages
+ **/
+__attribute__((regparm(0))) int __sva_report(const char * fmt, ...)
+  __attribute__ ((format (printf, 1, 2)));
+
   /* Functions that need to be provided by the pool allocation run-time */
   void poolcheckfail (const char * msg, int, void*) __attribute__ ((weak));
   void poolcheckfatal (const char * msg, int) __attribute__ ((weak));

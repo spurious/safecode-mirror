@@ -13,6 +13,8 @@
 /*                                                                            */
 /*===----------------------------------------------------------------------===*/
 
+#include "PoolSystem.h"
+
 /* The number of stack to heap promotions executed dynamically */
 static int stack_promotes = 0;
 
@@ -40,19 +42,19 @@ stackpromote()
 int
 getstackpromotes()
 {
-  poolcheckinfo ("LLVA: getstackpromotes", stack_promotes);
-  poolcheckinfo ("LLVA: stat_exactcheck", stat_exactcheck);
-  poolcheckinfo ("LLVA: stat_exactcheck2", stat_exactcheck2);
-  poolcheckinfo ("LLVA: stat_exactcheck3", stat_exactcheck3);
-  poolcheckinfo ("LLVA: stat_poolcheck", stat_poolcheck);
-  poolcheckinfo ("LLVA: stat_poolcheckarray", stat_poolcheckarray);
-  poolcheckinfo ("LLVA: stat_poolcheckarray_i", stat_poolcheckarray_i);
-  poolcheckinfo ("LLVA: stat_boundscheck", stat_boundscheck);
-  poolcheckinfo ("LLVA: stat_boundscheck_i", stat_boundscheck_i);
-  poolcheckinfo ("LLVA: external allocs", externallocs);
-  poolcheckinfo ("LLVA: all      allocs", allallocs);
-  poolcheckinfo ("LLVA: io registrations", stat_regio);
-  poolcheckinfo ("LLVA: io poolchecks   ", stat_poolcheckio);
+  __sva_report ("getstackpromotes=%d\n", stack_promotes);
+  __sva_report ("stat_exactcheck=%d\n", stat_exactcheck);
+  __sva_report ("stat_exactcheck2=%d\n", stat_exactcheck2);
+  __sva_report ("stat_exactcheck3=%d\n", stat_exactcheck3);
+  __sva_report ("stat_poolcheck=%d\n", stat_poolcheck);
+  __sva_report ("stat_poolcheckarray=%d\n", stat_poolcheckarray);
+  __sva_report ("stat_poolcheckarray_i=%d\n", stat_poolcheckarray_i);
+  __sva_report ("stat_boundscheck=%d\n", stat_boundscheck);
+  __sva_report ("stat_boundscheck_i=%d\n", stat_boundscheck_i);
+  __sva_report ("external allocs=%d\n", externallocs);
+  __sva_report ("all      allocs=%d\n", allallocs);
+  __sva_report ("io registrations=%d\n", stat_regio);
+  __sva_report ("io poolchecks=%d\n", stat_poolcheckio);
   return stack_promotes;
 }
 
