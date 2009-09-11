@@ -140,15 +140,25 @@ RewriteOOB::processFunction (Function * F) {
 
       //
       // For every use that the call instruction dominates, change the use to
-      // use the result of the call instruction.
+      // use the result of the call instruction.  We first collect the uses
+      // that need to be modified before doing the modifications to avoid any
+      // iterator invalidation errors.
       //
+      std::vector<User *> Uses;
       Value::use_iterator UI = PeeledOperand->use_begin();
       for (; UI != PeeledOperand->use_end(); ++UI) {
         if (Instruction * Use = dyn_cast<Instruction>(UI))
           if ((CI != Use) && (domTree->dominates (CI, Use))) {
-            UI->replaceUsesOfWith (PeeledOperand, CastCI);
+            Uses.push_back (*UI);
             ++Changes;
           }
+      }
+
+      while (Uses.size()) {
+        User * Use = Uses.back();
+        Uses.pop_back();
+
+        Use->replaceUsesOfWith (PeeledOperand, CastCI);
       }
     }
   }
