@@ -243,6 +243,12 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
     ExternalObjects.insert(argv[index], argv[index] + strlen (argv[index]));
   }
 
+  //
+  // Register the actual argv array as well.  Note that the transform can
+  // do this, but it's easier to implement it here, and I doubt accessing argv
+  // strings is performance critical.
+  //
+  ExternalObjects.insert(argv, argv + argc - 1);
   return;
 }
 
@@ -559,6 +565,10 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
 //
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
+  if (logregs) {
+    fprintf (stderr, "SAFECode: Fault!\n");
+    fflush (stderr);
+  }
   signal(SIGBUS, NULL);
 
   unsigned program_counter = 0;
