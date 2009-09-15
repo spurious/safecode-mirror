@@ -103,7 +103,6 @@ struct ExactCheckOpt : public ModulePass {
     bool visitCheckingIntrinsic(CallInst * CI);
     void rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                              Value * ResultPointer, Value * Bounds);
-    Value * getBasePtr (Value * PointerOperand, bool & indexed);
     std::vector<CallInst*> checkingIntrinsicsToBeRemoved;
 };
 

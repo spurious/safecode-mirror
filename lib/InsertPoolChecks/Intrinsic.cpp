@@ -325,7 +325,8 @@ InsertSCIntrinsic::getValuePointer (CallInst * CI) {
 // Attempt to look for the originally allocated object by scanning the data
 // flow up.
 //
-static Value * findObject(Value * obj) {
+Value *
+InsertSCIntrinsic::findObject(Value * obj) {
   std::set<Value *> exploredObjects;
   std::set<Value *> objects;
   std::queue<Value *> queue;

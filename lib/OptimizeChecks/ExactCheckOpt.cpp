@@ -108,8 +108,8 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
   //
   // Strip off all casts and GEPs to try to find the source of the pointer.
   //
-  bool indexed;
-  Value * BasePtr = getBasePtr(CheckPtr, indexed);
+  Value * BasePtr = intrinsic->findObject (CheckPtr);
+  if (!BasePtr) return false;
 
   //
   // Attempt to get the size of the pointer.  If a size is returned, we know
@@ -181,38 +181,6 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   }
 
   checkingIntrinsicsToBeRemoved.push_back(CI);
-}
-
-//
-// Function: getBasePtr()
-//
-// Description:
-//  Given a pointer value, attempt to find a source of the pointer that can
-//  be used in an exactcheck().
-//
-// Outputs:
-//  indexed - Flags whether the data flow went through an indexing operation
-//            (i.e. a GEP).  This value is always written.
-//
-Value *
-ExactCheckOpt::getBasePtr (Value * PointerOperand, bool & indexed) {
-  //
-  // Attempt to look for the originally allocated object by scanning the data
-  // flow up.
-  //
-  indexed = false;
-  Value * SourcePointer = PointerOperand;
-  Value * OldSourcePointer;
-  do {
-    OldSourcePointer = SourcePointer;
-    SourcePointer = SourcePointer->stripPointerCasts();
-    // Check for GEP and cast instructions
-    if (GetElementPtrInst * G = dyn_cast<GetElementPtrInst>(SourcePointer)) {
-      SourcePointer = G->getPointerOperand();
-      indexed = true;
-    }
-  } while (SourcePointer != OldSourcePointer);
-  return SourcePointer;
 }
 
 NAMESPACE_SC_END

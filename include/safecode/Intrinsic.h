@@ -86,6 +86,7 @@ class InsertSCIntrinsic : public ModulePass {
     intrinsic_const_iterator intrinsic_begin() const { return intrinsics.begin(); }
     intrinsic_const_iterator intrinsic_end() const { return intrinsics.end(); }
     Value * getObjectSize(Value * V);
+    Value * findObject (Value * V);
 
   private:
     TargetData * TD;
