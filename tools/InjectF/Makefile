@@ -13,10 +13,19 @@ TOOLNAME=injectf
 # Initialize the USEDLIBS so we can add to it
 
 LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
-USEDLIBS        := faultinject.a
+USEDLIBS        := faultinject.a LLVMDataStructure.a poolalloc.a
 
 include $(LEVEL)/Makefile.common
 
-LIBS += -L$(POOLALLOC_OBJDIR)/$(BuildMode)/lib \
-					-lLLVMDataStructure -lLLVMipo -lLLVMInstrumentation -lLLVMScalarOpts -lLLVMTransformUtils -lLLVMipa -lLLVMAnalysis -lLLVMTarget -lLLVMBitWriter -lLLVMBitReader -lLLVMCore -lLLVMSupport -lLLVMSystem
+#
+# These rules create symbolic links from the poolalloc object tree to the
+# SAFECode object tree.  This allows the LLVM build machinery to handle
+# library dependencies.
+#
+$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpoolalloc.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libpoolalloc.a
+	$(VERB) ln -fs $< $@
+
+$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
+	$(VERB) ln -fs $< $@
+
 
