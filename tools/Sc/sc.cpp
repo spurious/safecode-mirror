@@ -323,9 +323,7 @@ int main(int argc, char **argv) {
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
-      if (SCConfig.rewriteOOB()) {
-        Passes.add(new RewriteOOB());
-      }
+      Passes.add(new RewriteOOB());
     }
 
     Passes.add (new DummyUse());
@@ -537,6 +535,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},
       {"poolcalloc",            "__sc_dbg_poolcalloc"},
+      {"poolstrdup",            "__pa_bitmap_poolstrdup"},
       {"poolrealloc",           "__sc_dbg_poolrealloc"},
     };
 
