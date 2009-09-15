@@ -233,6 +233,33 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
   return New->getElementAddress(0, 0);
 }
 
+//
+// Function: poolstrdup()
+//
+// Description:
+//  Duplicate a string by allocating memory for a new string and copying the
+//  contents of the old string into the new string.
+//
+// Inputs:
+//  Pool - The pool in which the new string should reside.
+//  Node - The string which should be duplicated.
+//
+// Return value:
+//  0 - The duplication failed.
+//  Otherwise, a pointer to the duplicated string is returned.
+//
+void *
+__pa_bitmap_poolstrdup (BitmapPoolTy *Pool, void *Node) {
+  if (Node == 0) return 0;
+
+  unsigned int NumBytes = strlen((char*)Node) + 1;
+  void *New = __pa_bitmap_poolalloc (Pool, NumBytes);
+  if (New) {
+    memcpy(New, Node, NumBytes+1);
+  }
+  return New;
+}
+
 /////
 ///
 /// Helper functions

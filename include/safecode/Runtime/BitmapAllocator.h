@@ -123,6 +123,7 @@ extern "C" {
   void __pa_bitmap_poolinit(NAMESPACE_SC::BitmapPoolTy *Pool, unsigned NodeSize);
   void __pa_bitmap_pooldestroy(NAMESPACE_SC::BitmapPoolTy *Pool);
   void * __pa_bitmap_poolalloc(NAMESPACE_SC::BitmapPoolTy *Pool, unsigned NumBytes);
+  void * __pa_bitmap_poolstrdup(NAMESPACE_SC::BitmapPoolTy *Pool, void *Node);
   void __pa_bitmap_poolfree(NAMESPACE_SC::BitmapPoolTy *Pool, void *Node);
 }
 
