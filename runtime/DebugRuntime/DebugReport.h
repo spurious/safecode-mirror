@@ -38,6 +38,11 @@ struct OutOfBoundsViolation : public DebugViolationInfo {
   virtual void print (std::ostream & OS) const;
 };
 
+struct AlignmentViolation : public OutOfBoundsViolation {
+  unsigned int alignment;
+  virtual void print (std::ostream & OS) const;
+};
+
 NAMESPACE_SC_END
 
 #endif
