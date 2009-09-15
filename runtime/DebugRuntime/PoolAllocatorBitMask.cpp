@@ -569,6 +569,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     fprintf (stderr, "SAFECode: Fault!\n");
     fflush (stderr);
   }
+
   signal(SIGBUS, NULL);
 
   unsigned program_counter = 0;
@@ -613,15 +614,15 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
       unsigned lineno = RewriteLineno[faultAddr];
 
       OutOfBoundsViolation v;
-      v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+      v.type = ViolationInfo::FAULT_LOAD_STORE,
         v.faultPC = (const void*)program_counter,
         v.faultPtr = faultAddr,
         v.dbgMetaData = NULL,
         v.SourceFile = Filename,
         v.lineNo = lineno,
         v.objStart = RewrittenObjs[faultAddr].first,
-        // FIXME: What is RewrittenObjs[faultAddr].second;
-        v.objLen = 0;
+        // FIXME: Make sure there is no off by one error in the line below
+        v.objLen = (char *)(RewrittenObjs[faultAddr].second) - (char *)(RewrittenObjs[faultAddr].first);
 
       ReportMemoryViolation(&v);
     }
