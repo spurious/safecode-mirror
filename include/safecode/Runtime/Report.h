@@ -26,7 +26,9 @@ struct ViolationInfo {
   enum {
     FAULT_DANGLING_PTR,
     FAULT_DOUBLE_FREE,
-    FAULT_OUT_OF_BOUNDS
+    FAULT_OUT_OF_BOUNDS,
+    FAULT_LOAD_STORE,
+    FAULT_ALIGN
   };
 
   /// Type of violation
