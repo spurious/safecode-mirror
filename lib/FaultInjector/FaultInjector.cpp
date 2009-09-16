@@ -44,40 +44,40 @@ RegisterPass<FaultInjector> MyFault ("faultinjector", "Insert Faults");
 // Command line options
 ///////////////////////////////////////////////////////////////////////////
 cl::opt<bool>
-InjectEasyDPFaults ("inject-easydp", cl::Hidden,
+InjectEasyDPFaults ("inject-easydp",
                     cl::init(false),
                     cl::desc("Inject Trivial Dangling Pointer Dereferences"));
 
 cl::opt<bool>
-InjectHardDPFaults ("inject-harddp", cl::Hidden,
+InjectHardDPFaults ("inject-harddp",
                     cl::init(false),
                     cl::desc("Inject Non-Trivial Dangling Pointer Dereferences"));
 
 cl::opt<bool>
-InjectBadSizes ("inject-badsize", cl::Hidden,
+InjectBadSizes ("inject-badsize",
                 cl::init(false),
                 cl::desc("Inject Array Allocations of the Wrong Size"));
 
 cl::opt<bool>
-InjectBadIndices ("inject-badindices", cl::Hidden,
+InjectBadIndices ("inject-badindices",
                   cl::init(false),
                   cl::desc("Inject Bad Indices in GEPs"));
 
 cl::opt<bool>
-InjectUninitUses ("inject-uninituses", cl::Hidden,
+InjectUninitUses ("inject-uninituses",
                   cl::init(false),
                   cl::desc("Inject Uses of Uninitialized Pointers"));
 
 cl::opt<int>
-Seed ("seed", cl::Hidden, cl::init(1),
+Seed ("seed", cl::init(1),
       cl::desc("Seed Value for Random Number Generator"));
 
 cl::opt<int>
-Frequency ("freq", cl::Hidden, cl::init(100),
+Frequency ("freq", cl::init(100),
            cl::desc("Probability of Inserting a Fault"));
 
 cl::list<std::string>
-Funcs ("funcs", cl::Hidden,
+Funcs ("funcs",
        cl::value_desc("list"),
        cl::CommaSeparated,
        cl::desc ("List of functions to process"));
