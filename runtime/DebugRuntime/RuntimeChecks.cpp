@@ -127,12 +127,12 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
   }
 
   DebugViolationInfo v;
-  v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+  v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
     v.SourceFile = SourceFilep,
     v.lineNo = lineno;
-  
+
   ReportMemoryViolation(&v);
   return;
 }
@@ -196,13 +196,20 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
     fflush (stderr);
   }
 
-  DebugViolationInfo v;
-  v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+  unsigned char * Sp = (unsigned char *) S;
+  unsigned char * endp = (unsigned char *) end;
+
+  AlignmentViolation v;
+  v.type = ViolationInfo::FAULT_ALIGN,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
-    v.PoolHandle = Pool, 
+    v.PoolHandle = Pool,
+    v.dbgMetaData = 0,
     v.SourceFile = SourceFile,
-    v.lineNo = lineno;
+    v.lineNo = lineno,
+    v.objStart = (found ? Sp : 0),
+    v.objLen = (found ? (endp - Sp) + 1: 0);
+    v.alignment = Offset;
 
   ReportMemoryViolation(&v);
 }
@@ -214,10 +221,12 @@ poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
 
   //
   // Look for the object within the splay tree of external objects.
+  // Always look in these splay tree because some objects (namely argv strings)
+  // are stored in this splay tree.
   //
   int fs = 0;
   void * S, *end = 0;
-	if (ConfigData.TrackExternalMallocs) {
+	if (1) {
 		S = Node;
 		fs = ExternalObjects.find (Node, S, end);
 		if ((fs) && (S <= Node) && (Node <= end)) {
