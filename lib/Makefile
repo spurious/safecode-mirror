@@ -12,6 +12,7 @@ PARALLEL_DIRS = Support \
                 FaultInjector \
                 IndirectCallChecks \
                 DebugInstrumentation \
+                DanglingPointers \
                 CStdLib \
                 Utility \
 #                PointerChecks \
