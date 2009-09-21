@@ -187,8 +187,8 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Get pointers to the functions for registering and unregistering pointers.
   //
-  PoolRegister = intrinsic->getIntrinsic("sc.pool_register").F;  
-  StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
+  PoolRegister = intrinsic->getIntrinsic("sc.pool_register_stack").F;  
+  StackFree = intrinsic->getIntrinsic("sc.pool_unregister_stack").F;  
 
   // The set of registered stack objects
   std::vector<CallInst *> PoolRegisters;

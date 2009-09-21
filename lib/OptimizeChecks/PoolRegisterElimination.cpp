@@ -26,21 +26,28 @@
 
 NAMESPACE_SC_BEGIN
 
-static RegisterPass<PoolRegisterElimination> X ("poolreg-elim", "Pool Register Eliminiation");
+static RegisterPass<PoolRegisterElimination>
+X ("poolreg-elim", "Pool Register Eliminiation");
 
 // Pass Statistics
 namespace {
-  STATISTIC (RemovedRegistration ,    "Removed object registration and deregistraion");
+  STATISTIC (RemovedRegistration,
+  "Number of object registrations/deregistrations removed");
 }
 
-// The set to track whether there are checking intrinsics used the splay tree
-// for some pointer in the alias set.
+//
+// Data structure: usedSet
+//
+// Description:
+//  This set contains all AliasSets which are used in run-time checks that
+//  perform an object lookup.  It conservatively tell us which pointers must
+//  be registered with the SAFECode run-time.
+//
 static DenseSet<AliasSet*> usedSet;
 
 bool
 PoolRegisterElimination::runOnModule(Module & M) {
   usedSet.clear();
-  RemovedRegistration = 0;
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   AA = &getAnalysis<AliasAnalysis>();
   AST = new AliasSetTracker(*AA);
@@ -48,18 +55,42 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // FIXME: The list of intrinsics should be selected via scanning through the
   // intrinsic lists with specified flags.
 
-  const char * splayTreeCheckIntrinsics[] = 
-    {"sc.lscheck", "sc.lscheckui", "sc.lscheckalign", "sc.lscheckalignui",
-     "sc.boundscheck", "sc.boundscheckui" };
+  const char * splayTreeCheckIntrinsics[] = {
+    "sc.lscheck",
+    "sc.lscheckui",
+    "sc.lscheckalign",
+    "sc.lscheckalignui",
+    "sc.boundscheck",
+    "sc.boundscheckui"
+  };
 
-  for (size_t i = 0; i < sizeof(splayTreeCheckIntrinsics) / sizeof (const char*); ++i) {
+  //
+  // Find all of the pointers that are used by run-time checks which require an
+  // object lookup.  Mark their alias sets as being checked; this ensures that
+  // any pointers aliasing with checked pointers are registered.
+  //
+  for (size_t i = 0;
+       i < sizeof(splayTreeCheckIntrinsics) / sizeof (const char*);
+       ++i) {
     markUsedAliasSet(splayTreeCheckIntrinsics[i]);
   }
 
-  const char * registerIntrinsics[] = 
-    {"sc.pool_register", "sc.pool_unregister", "sc.pool_argvregister"};
+  const char * registerIntrinsics[] = {
+    "sc.pool_register",
+    "sc.pool_register_stack",
+    "sc.pool_register_global",
+    "sc.pool_unregister",
+    "sc.pool_unregister_stack",
+    "sc.pool_argvregister"
+  };
 
-  for (size_t i = 0; i < sizeof(registerIntrinsics) / sizeof (const char*); ++i) {
+  //
+  // Process each registration function by removing those objects that are
+  // are not checked by any run-time function requiring an object lookup.
+  //
+  for (size_t i = 0;
+       i < sizeof(registerIntrinsics) / sizeof (const char*);
+       ++i) {
     removeUnusedRegistration(registerIntrinsics[i]);
   }
 
@@ -67,6 +98,20 @@ PoolRegisterElimination::runOnModule(Module & M) {
   return true;
 }
 
+//
+// Method: markUsedAliasSet
+//
+// Description:
+//  This method takes the name of a run-time check and determines which alias
+//  sets are ever passed into the function.
+//
+// Inputs:
+//  name - The name of the run-time function for which to find uses.
+//
+// Side-effects:
+//  Any alias sets that are checked by the specified run-time function will
+//  have been added to the usedSet variable.
+//
 void
 PoolRegisterElimination::markUsedAliasSet(const char * name) {
   Function * F = intrinsic->getIntrinsic(name).F;
