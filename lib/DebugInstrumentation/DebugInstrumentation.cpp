@@ -356,6 +356,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.exactcheck2").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.pool_register").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_register_stack").F, LInfo);
   return true;
 }
 
