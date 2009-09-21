@@ -95,6 +95,7 @@ static void * getCanonicalPtr (void * ShadowPtr);
 static inline void updatePtrMetaData(PDebugMetaData, unsigned, void *);
 static PDebugMetaData createPtrMetaData (unsigned,
                                          unsigned,
+                                         allocType,
                                          void *,
                                          void *,
                                          void *,
@@ -261,12 +262,16 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
 //  with the given Pool.  This version will also record debug information about
 //  the object being registered.
 //
-void
-__sc_dbg_src_poolregister (DebugPoolTy *Pool,
-                           void * allocaptr,
-                           unsigned NumBytes, TAG,
-                           const char * SourceFilep,
-                           unsigned lineno) {
+//  This function is internal to the code and handles the different types of
+//  object registrations.
+//
+static inline void
+_internal_poolregister (DebugPoolTy *Pool,
+                        void * allocaptr,
+                        unsigned NumBytes, TAG,
+                        const char * SourceFilep,
+                        unsigned lineno,
+                        allocType allocationType) {
   // Do some initial casting for type goodness
   char * SourceFile = (char *)(SourceFilep);
 
@@ -296,14 +301,13 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
 
   //
   // Create the meta data object containing the debug information for this
-  // pointer.  These pointers will never be shadowed, but we want to record
-  // information about the allocation in case a bounds check on this object
-  // fails.
+  // pointer.
   //
   PDebugMetaData debugmetadataPtr;
   globalallocID++;
   debugmetadataPtr = createPtrMetaData (globalallocID,
                                         globalfreeID,
+                                        allocationType,
                                         __builtin_return_address(0),
                                         0,
                                         getCanonicalPtr(allocaptr),
@@ -312,6 +316,81 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                            (char*) allocaptr + NumBytes - 1,
                            debugmetadataPtr);
 
+}
+
+//
+// Function: __sc_dbg_src_poolregister()
+//
+// Description:
+//  This function is externally visible and is called by code to register
+//  a heap allocation.
+//
+void
+__sc_dbg_src_poolregister (DebugPoolTy *Pool,
+                           void * allocaptr,
+                           unsigned NumBytes, TAG,
+                           const char * SourceFilep,
+                           unsigned lineno) {
+  //
+  // Use the common registration function.  Mark the allocation as a heap
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, tag,
+                          SourceFilep,
+                          lineno,
+                          Heap);
+}
+
+//
+// Function: __sc_dbg_src_poolregister_stack()
+//
+// Description:
+//  This function is externally visible and is called by code to register
+//  a stack allocation.
+//
+void
+__sc_dbg_src_poolregister_stack (DebugPoolTy *Pool,
+                                 void * allocaptr,
+                                 unsigned NumBytes, TAG,
+                                 const char * SourceFilep,
+                                 unsigned lineno) {
+  //
+  // Use the common registration function.  Mark the allocation as a stack
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, tag,
+                          SourceFilep,
+                          lineno,
+                          Stack);
+}
+
+//
+// Function: __sc_dbg_src_poolregister_global()
+//
+// Description:
+//  This function is externally visible and is called by code to register
+//  a global value.
+//
+void
+__sc_dbg_src_poolregister_global (DebugPoolTy *Pool,
+                                 void * allocaptr,
+                                 unsigned NumBytes, TAG,
+                                 const char * SourceFilep,
+                                 unsigned lineno) {
+  //
+  // Use the common registration function.  Mark the allocation as a stack
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, tag,
+                          SourceFilep,
+                          lineno,
+                          Global);
 }
 
 //
@@ -350,8 +429,8 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 //       and heap allocated objects.  We need a separate function for
 //       registering stack objects.
 //
-void
-__sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
+static inline void
+_internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
   //
   // If no pool was specified, then do nothing.
   //
@@ -416,6 +495,22 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   }
 
   //
+  // Determine if we are doing something stupid like deallocating a global
+  // or stack-allocated object when we're supposed to be freeing a heap
+  // object.  If so, then report an error.
+  //
+  if (Type == Heap) {
+    if ((debugmetadataptr->allocationType == Stack) ||
+        (debugmetadataptr->allocationType == Stack)) {
+        ViolationInfo v;
+        v.type = ViolationInfo::FAULT_DOUBLE_FREE,
+        v.faultPC = __builtin_return_address(0),
+        v.faultPtr = allocaptr;
+        ReportMemoryViolation(&v);
+    }
+  }
+
+  //
   // If dangling pointer detection is not enabled, remove the object from the
   // dangling pointer splay tree.  The memory object's memory will be reused,
   // and we don't want to match it for subsequently allocated objects.
@@ -455,6 +550,18 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   if (logregs) {
     fprintf (stderr, "pooluregister: %p\n", allocaptr);
   }
+}
+
+void
+__sc_dbg_poolunregister (DebugPoolTy *Pool, void * allocaptr) {
+  _internal_poolunregister (Pool, allocaptr, Heap);
+  return;
+}
+
+void
+__sc_dbg_poolunregister_stack (DebugPoolTy *Pool, void * allocaptr) {
+  _internal_poolunregister (Pool, allocaptr, Stack);
+  return;
 }
 
 //
@@ -511,16 +618,17 @@ __sc_dbg_src_poolfree (DebugPoolTy *Pool,
 //  fields so to keep a record of the pointer's meta data
 //
 // Inputs:
-//  AllocID - A unique identifier for the allocation.
-//  FreeID  - A unique identifier for the deallocation.
-//  AllocPC - The program counter at which the object was allocated.
-//  FreePC  - The program counter at which the object was freed.
-//  Canon   - The canonical address of the memory object.
+//  AllocID        - A unique identifier for the allocation.
+//  FreeID         - A unique identifier for the deallocation.
+//  allocationType - The type of allocation.
+//  AllocPC        - The program counter at which the object was allocated.
+//  FreePC         - The program counter at which the object was freed.
+//  Canon          - The canonical address of the memory object.
 //
-
 static PDebugMetaData
 createPtrMetaData (unsigned AllocID,
                    unsigned FreeID,
+                   allocType allocationType,
                    void * AllocPC,
                    void * FreePC,
                    void * Canon,
@@ -538,6 +646,7 @@ createPtrMetaData (unsigned AllocID,
   ret->canonAddr = Canon;
   ret->SourceFile = SourceFile;
   ret->lineno = lineno;
+  ret->allocationType = allocationType;
 
   return ret;
 }

@@ -23,6 +23,19 @@
 NAMESPACE_SC_BEGIN
 
 //
+// Enumerated Type: allocType
+//
+// Description:
+//  This enumerated type lists the different types of allocations that can be
+//  made.
+//
+enum allocType {
+  Global,   // Global object
+  Stack,    // Stack-allocated object
+  Heap      // Heap-allocated object
+};
+
+//
 // Structure: DebugMetaData
 //
 // Description:
@@ -45,6 +58,9 @@ typedef struct DebugMetaData {
   void * allocPC;
   void * freePC;
   void * canonAddr;
+
+  // Allocation type (global, stack, or heap object)
+  allocType allocationType;
 
   // Source filename
   void * SourceFile;
@@ -91,8 +107,11 @@ extern "C" {
 
   void __sc_dbg_poolregister(PPOOL, void *allocaptr, unsigned NumBytes, TAG);
   void __sc_dbg_src_poolregister (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
+  void __sc_dbg_src_poolregister_stack (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
+  void __sc_dbg_src_poolregister_global (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
 
   void __sc_dbg_poolunregister(PPOOL, void *allocaptr);
+  void __sc_dbg_poolunregister_stack(PPOOL, void *allocaptr);
   void __sc_dbg_poolfree(PPOOL, void *Node);
   void __sc_dbg_src_poolfree (PPOOL, void *, TAG, SRC_INFO);
 
