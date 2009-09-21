@@ -127,6 +127,9 @@ extern "C" {
   void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
   void * pchk_getActualValue (PPOOL, void * src);
 
+  // Change memory protections to detect dangling pointers
+  void * pool_shadow (void * Node, unsigned NumBytes);
+  void * pool_unshadow (void * Node);
 }
 
 #undef PPOOL

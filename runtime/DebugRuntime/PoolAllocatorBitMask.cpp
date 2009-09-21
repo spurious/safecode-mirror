@@ -91,6 +91,7 @@ unsigned StopOnError = 0;
 static void bus_error_handler(int, siginfo_t *, void *);
 
 // creates a new PtrMetaData structure to record pointer information
+static void * getCanonicalPtr (void * ShadowPtr);
 static inline void updatePtrMetaData(PDebugMetaData, unsigned, void *);
 static PDebugMetaData createPtrMetaData (unsigned,
                                          unsigned,
@@ -305,7 +306,8 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                                         globalfreeID,
                                         __builtin_return_address(0),
                                         0,
-                                        allocaptr, SourceFile, lineno);
+                                        getCanonicalPtr(allocaptr),
+                                        SourceFile, lineno);
   dummyPool.DPTree.insert (allocaptr,
                            (char*) allocaptr + NumBytes - 1,
                            debugmetadataPtr);
@@ -438,7 +440,7 @@ __sc_dbg_poolunregister(DebugPoolTy *Pool, void * allocaptr) {
   // If this is a remapped pointer, find its canonical address.
   //
   if (ConfigData.RemapObjects) {
-    CanonNode = debugmetadataptr->canonAddr;
+    CanonNode = getCanonicalPtr (allocaptr);
     updatePtrMetaData (debugmetadataptr,
                        globalfreeID,
                        __builtin_return_address(0));
@@ -474,14 +476,7 @@ __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
 
   // Perform the allocation and determine its offset within the physical page.
   void * canonptr = __pa_bitmap_poolalloc(Pool, NumBytes);
-  uintptr_t offset = (((uintptr_t)(canonptr)) & (PPageSize-1));
-
-  // Remap the object if necessary.
-  void * shadowpage = RemapObject (canonptr, NumBytes);
-  void * shadowptr = (unsigned char *)(shadowpage) + offset;
-
-  // Return the shadow pointer.
-  return shadowptr;
+  return canonptr;
 }
 
 //
@@ -679,8 +674,62 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   return;
 }
 
+static void *
+getCanonicalPtr (void * ShadowPtr) {
+  //
+  // Look for the pointer in the dummy pool.  Assume that if it is not found,
+  // we will return the original shadow pointer.
+  //
+  void * start, * end;
+  void * CanonPtr = 0;
+  bool found = dummyPool.OOB.find (ShadowPtr, start, end, CanonPtr);
+  return (found ? CanonPtr : ShadowPtr);
+}
+
 //
-// Function: pool_protect_object()
+// Function: pool_shadow()
+//
+// Description:
+//  Given the pointer to the beginning of an object, create a shadow object.
+//  This means that the physical memory is mapped to a new virtual address
+//  (i.e., the shadow address).  This shadow address is never re-used, so we
+//  can use it for dangling pointer detection.
+//
+// Inputs:
+//  CanonPtr - The pointer to remap.  This *must* be a pointer to the beginning
+//             of a heap object allocated by poolalloc().
+//  NumBytes - The size of the allocated object in bytes.
+//
+// Notes:
+//  This function does not do any sanity checking on its input.  Calls to it
+//  are added by the SAFECode transforms.  Therefore, there is no sanity
+//  checking on the input.
+//
+void *
+pool_shadow (void * CanonPtr, unsigned NumBytes) {
+  //
+  // Calculate the offset of the object from the beginning of the page.
+  //
+  uintptr_t offset = (((uintptr_t)(CanonPtr)) & (PPageSize-1));
+
+  //
+  // Remap the object, if necessary, and then calculate the pointer to the
+  // shadow object (RemapObject() returns the beginning of the page).
+  //
+  void * shadowpage = RemapObject (CanonPtr, NumBytes);
+  void * shadowptr = (unsigned char *)(shadowpage) + offset;
+
+  //
+  // Record the mapping from shadow pointer to canonical pointer.
+  //
+  dummyPool.OOB.insert (shadowptr, 
+                           (char*) shadowptr + NumBytes - 1,
+                           CanonPtr);
+  return shadowptr;
+}
+
+//
+// Function: pool_unshadow()
 //
 // Description:
 //  This function modifies the page protections of an object so that it is no
@@ -689,12 +738,17 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
 // Inputs:
 //  Node - A pointer to the beginning of the object that should be marked as
 //         read-only.
+//
+// Return value:
+//  The canonical version of the pointer is returned.  This value can be safely
+//  passed to poolfree().
+//
 // Notes:
 //  This function should only be called when dangling pointer detection is
 //  enabled.
 //
-void
-pool_protect_object (void * Node) {
+void *
+pool_unshadow (void * Node) {
   // The start and end of the object as registered in the dangling pointer
   // object metapool
   void * start = 0, * end = 0;
@@ -714,7 +768,9 @@ pool_protect_object (void * Node) {
   //
   // If the object is not found, return.
   //
-  if (!found) return;
+  if (!found) {
+    return Node;
+  }
 
   //
   // Determine the number of pages that the object occupies.
@@ -727,7 +783,7 @@ pool_protect_object (void * Node) {
 
   // Protect the shadow pages of the object
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
-  return;
+  return debugmetadataptr->canonAddr;
 }
 
 //
@@ -791,7 +847,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Reallocate an object to 0 bytes means that we wish to free it.
   //
   if (NumBytes == 0) {
-    pool_protect_object (Node);
+    pool_unshadow (Node);
     __sc_dbg_poolunregister(Pool, Node);
     __pa_bitmap_poolfree(Pool, Node);
     return 0;
@@ -837,7 +893,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Invalidate the old object and its bounds and return the pointer to the
   // new object.
   //
-  pool_protect_object (Node);
+  pool_unshadow (Node);
   __sc_dbg_poolunregister(Pool, Node);
   __pa_bitmap_poolfree(Pool, Node);
   return New;
