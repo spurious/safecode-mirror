@@ -45,6 +45,7 @@
 #include "safecode/BreakConstantStrings.h"
 #include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/DetectDanglingPointers.h"
 #include "safecode/DummyUse.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
@@ -349,6 +350,11 @@ int main(int argc, char **argv) {
     //
     Passes.add (new OptimizeChecks());
     Passes.add (new PoolRegisterElimination());
+
+    //
+    // Instrument the code so that dangling pointers are detected.
+    //
+    Passes.add(new DetectDanglingPointers());
 
 #ifdef SC_DEBUGTOOL
     if (EnableDebugInfo)

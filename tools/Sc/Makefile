@@ -19,7 +19,7 @@ LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
 #pointerchecks.a 
 
 USEDLIBS := CStdLib.a oob.a optchecks.a \
-						convert.a addchecks.a speculativechecking.a \
+						convert.a addchecks.a dpchecks.a speculativechecking.a \
 						arrayboundcheck.a stackcheck.a \
 						indirectcalls.a debuginstr.a sc-support.a scutility.a \
 						LLVMDataStructure.a poolalloc.a
