@@ -179,7 +179,31 @@ InsertSCIntrinsic::runOnModule(Module & M) {
      PoolRegTy, 1);
 
   addIntrinsic
+    ("sc.pool_register_stack",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolRegTy, 1);
+
+  addIntrinsic
+    ("sc.pool_register_global",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolRegTy, 1);
+
+  addIntrinsic
     ("sc.pool_unregister",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolUnregTy, 1);
+
+  addIntrinsic
+    ("sc.pool_unregister_stack",
+     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
+     | SC_INTRINSIC_REGISTRATION,
+     PoolUnregTy, 1);
+
+  addIntrinsic
+    ("sc.pool_unregister_global",
      SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
      | SC_INTRINSIC_REGISTRATION,
      PoolUnregTy, 1);
