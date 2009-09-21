@@ -500,8 +500,7 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
   // object.  If so, then report an error.
   //
   if (Type == Heap) {
-    if ((debugmetadataptr->allocationType == Stack) ||
-        (debugmetadataptr->allocationType == Stack)) {
+    if (debugmetadataptr->allocationType != Heap) {
         ViolationInfo v;
         v.type = ViolationInfo::FAULT_DOUBLE_FREE,
         v.faultPC = __builtin_return_address(0),

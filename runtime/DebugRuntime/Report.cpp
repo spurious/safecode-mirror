@@ -43,6 +43,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "Dangling Pointer Error";
       break;
 
+    case FAULT_INVALID_FREE:
+      typestring = "Invalid Free Error";
+      break;
+
     case FAULT_DOUBLE_FREE:
       typestring = "Double Free Error";
       break;
