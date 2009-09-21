@@ -271,6 +271,15 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
       //
       DSNode * Node = DSG->getNodeForValue(Pointer).getNode();
       if (Node && (Node->isHeapNode())) {
+        //
+        // Avoid free'ing pointers that are trivially stack objects or global
+        // variables.
+        //
+        if (isa<GlobalValue>(Pointer->stripPointerCasts()) ||
+            isa<AllocaInst>(Pointer->stripPointerCasts())) {
+          continue;
+        }
+
         // Skip if we should not insert a fault.
         if (!doFault()) continue;
 
@@ -614,7 +623,7 @@ FaultInjector::insertUninitializedUse (Function & F) {
     // Now my evil plan is complete!  Dereference this pointer and take the
     // first step into oblivion!
     //
-    new LoadInst (BadPtr, "shouldfault", InsertPt);
+    new LoadInst (BadPtr, "shouldfault", true, InsertPt);
 
     //
     // Update the statistics.
