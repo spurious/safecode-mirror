@@ -476,7 +476,7 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
   //
   if (!found) {
     ViolationInfo v;
-    v.type = ViolationInfo::FAULT_DOUBLE_FREE,
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = allocaptr;
     ReportMemoryViolation(&v);
@@ -502,11 +502,26 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
   if (Type == Heap) {
     if (debugmetadataptr->allocationType != Heap) {
         ViolationInfo v;
-        v.type = ViolationInfo::FAULT_DOUBLE_FREE,
+        v.type = ViolationInfo::FAULT_INVALID_FREE,
         v.faultPC = __builtin_return_address(0),
         v.faultPtr = allocaptr;
         ReportMemoryViolation(&v);
     }
+  }
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if (allocaptr != start) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = allocaptr;
+      v.objStart = allocaptr;
+      v.objLen =  (unsigned)end - (unsigned)start + 1;
+    ReportMemoryViolation(&v);
+    return;
   }
 
   //
