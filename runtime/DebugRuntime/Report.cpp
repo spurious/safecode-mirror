@@ -47,6 +47,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "Invalid Free Error";
       break;
 
+    case FAULT_NOTHEAP_FREE:
+      typestring = "Freeing Non-Heap Object Error";
+      break;
+
     case FAULT_DOUBLE_FREE:
       typestring = "Double Free Error";
       break;
