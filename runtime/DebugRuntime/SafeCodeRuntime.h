@@ -112,6 +112,8 @@ extern "C" {
 
   void __sc_dbg_poolunregister(PPOOL, void *allocaptr);
   void __sc_dbg_poolunregister_stack(PPOOL, void *allocaptr);
+  void __sc_dbg_poolunregister_debug(PPOOL, void *allocaptr, TAG, SRC_INFO);
+  void __sc_dbg_poolunregister_stack_debug(PPOOL, void *allocaptr, TAG, SRC_INFO);
   void __sc_dbg_poolfree(PPOOL, void *Node);
   void __sc_dbg_src_poolfree (PPOOL, void *, TAG, SRC_INFO);
 

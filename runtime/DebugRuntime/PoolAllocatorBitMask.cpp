@@ -430,7 +430,10 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 //       registering stack objects.
 //
 static inline void
-_internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
+_internal_poolunregister (DebugPoolTy *Pool,
+                          void * allocaptr, allocType Type,
+                          const char * SourceFilep,
+                          unsigned lineno) {
   //
   // If no pool was specified, then do nothing.
   //
@@ -501,9 +504,13 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
   //
   if (Type == Heap) {
     if (debugmetadataptr->allocationType != Heap) {
-        ViolationInfo v;
-        v.type = ViolationInfo::FAULT_INVALID_FREE,
-        v.faultPC = __builtin_return_address(0),
+        DebugViolationInfo v;
+        v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
+        v.faultPC = __builtin_return_address(0);
+        v.PoolHandle = Pool;
+        v.dbgMetaData = debugmetadataptr;
+        v.SourceFile = SourceFilep;
+        v.lineNo = lineno;
         v.faultPtr = allocaptr;
         ReportMemoryViolation(&v);
     }
@@ -517,8 +524,11 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
-      v.faultPtr = allocaptr;
-      v.objStart = allocaptr;
+      v.faultPtr = allocaptr,
+      v.dbgMetaData = debugmetadataptr,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.objStart = start;
       v.objLen =  (unsigned)end - (unsigned)start + 1;
     ReportMemoryViolation(&v);
     return;
@@ -568,13 +578,34 @@ _internal_poolunregister (DebugPoolTy *Pool, void * allocaptr, allocType Type) {
 
 void
 __sc_dbg_poolunregister (DebugPoolTy *Pool, void * allocaptr) {
-  _internal_poolunregister (Pool, allocaptr, Heap);
+  _internal_poolunregister (Pool, allocaptr, Heap, "Unknown", 0);
+  return;
+}
+
+void
+__sc_dbg_poolunregister_debug (DebugPoolTy *Pool,
+                               void * allocaptr,
+                               TAG,
+                               const char * SourceFilep,
+                               unsigned lineno) {
+  _internal_poolunregister (Pool, allocaptr, Heap, SourceFilep, lineno);
   return;
 }
 
 void
 __sc_dbg_poolunregister_stack (DebugPoolTy *Pool, void * allocaptr) {
-  _internal_poolunregister (Pool, allocaptr, Stack);
+  _internal_poolunregister (Pool, allocaptr, Stack, "Unknown", 0);
+  return;
+}
+
+
+void
+__sc_dbg_poolunregister_stack_debug (DebugPoolTy *Pool,
+                                     void * allocaptr,
+                                     TAG,
+                                     const char * SourceFilep,
+                                     unsigned lineno) {
+  _internal_poolunregister (Pool, allocaptr, Stack, SourceFilep, lineno);
   return;
 }
 
@@ -971,7 +1002,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   //
   if (NumBytes == 0) {
     pool_unshadow (Node);
-    __sc_dbg_poolunregister(Pool, Node);
+    _internal_poolunregister (Pool, Node, Heap, "Unknown", 0);
     __pa_bitmap_poolfree(Pool, Node);
     return 0;
   }
@@ -1017,7 +1048,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // new object.
   //
   pool_unshadow (Node);
-  __sc_dbg_poolunregister(Pool, Node);
+  _internal_poolunregister(Pool, Node, Heap, "Unknown", 0);
   __pa_bitmap_poolfree(Pool, Node);
   return New;
 }

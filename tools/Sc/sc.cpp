@@ -369,7 +369,7 @@ int main(int argc, char **argv) {
 
     // Make all strings non-constant so that the linker doesn't try to merge
     // them together.
-//    Passes.add(new BreakConstantStrings());
+    Passes.add(new BreakConstantStrings());
 
     // Verify the final result
     Passes.add(createVerifierPass());
@@ -526,6 +526,8 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.pool_register",   "__sc_dbg_poolregister" },
       {"sc.pool_unregister", "__sc_dbg_poolunregister" },
       {"sc.pool_unregister_stack", "__sc_dbg_poolunregister_stack" },
+      {"sc.pool_unregister_debug", "__sc_dbg_poolunregister_debug" },
+      {"sc.pool_unregister_stack_debug", "__sc_dbg_poolunregister_stack_debug" },
       {"sc.init_pool_runtime", "pool_init_runtime"},
       {"sc.pool_register_debug", "__sc_dbg_src_poolregister"},
       {"sc.pool_register_stack_debug", "__sc_dbg_src_poolregister_stack"},
