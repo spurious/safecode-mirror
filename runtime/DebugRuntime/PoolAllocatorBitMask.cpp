@@ -536,8 +536,8 @@ _internal_poolunregister (DebugPoolTy *Pool,
 
   //
   // If dangling pointer detection is not enabled, remove the object from the
-  // dangling pointer splay tree.  The memory object's memory will be reused,
-  // and we don't want to match it for subsequently allocated objects.
+  // dangling pointer splay tree.  The memory object's virtual address will be
+  // reused, and we don't want to match it for subsequently allocated objects.
   //
   if (!(ConfigData.RemapObjects)) {
     free (debugmetadataptr);
@@ -556,7 +556,8 @@ _internal_poolunregister (DebugPoolTy *Pool,
     NumPPage++;
 
   //
-  // If this is a remapped pointer, find its canonical address.
+  // If this is a remapped pointer, find its canonical address and update its
+  // metadata.
   //
   if (ConfigData.RemapObjects) {
     CanonNode = getCanonicalPtr (allocaptr);
