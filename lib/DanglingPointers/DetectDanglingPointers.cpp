@@ -21,6 +21,8 @@
 
 #define DEBUG_TYPE "dpchecks"
 
+#include "llvm/ADT/Statistic.h"
+
 #include "safecode/SAFECode.h"
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/Support/AllocatorInfo.h"
@@ -33,6 +35,9 @@
 char NAMESPACE_SC::DetectDanglingPointers::ID = 0;
 
 NAMESPACE_SC_BEGIN
+
+// Statistics
+STATISTIC (Changes,    "Number of Shadowing Calls Inserted");
 
 //
 // Method: createFunctionProtos()
@@ -130,6 +135,12 @@ DetectDanglingPointers::processFrees (Module & M,
     }
 
     //
+    // Update the statistics if the worklist has any elements.  This avoids
+    // printing a statistic of zero in the results.
+    //
+    if (Worklist.size()) Changes += Worklist.size();
+
+    //
     // Go through the work list and change all of the deallocation calls to
     // use the original pointer returned from the pool_unshadow() call.
     //
@@ -150,9 +161,7 @@ DetectDanglingPointers::runOnModule (Module & M) {
   //
   // If dangling pointer protection is disabled, do nothing.
   //
-#if 0
   if (!(SCConfig.dpChecks())) return false;
-#endif
 
   //
   // Get prerequisite analysis results.
@@ -217,6 +226,11 @@ DetectDanglingPointers::runOnModule (Module & M) {
             // argument back to the original allocated object.
             //
             Shadow->setOperand (1, CI);
+
+            //
+            // Update the statistics.
+            //
+            ++Changes;
           }
         }
       }
