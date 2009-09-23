@@ -54,6 +54,11 @@ InjectHardDPFaults ("inject-harddp",
                     cl::desc("Inject Non-Trivial Dangling Pointer Dereferences"));
 
 cl::opt<bool>
+InjectRealDPFaults ("inject-realdp",
+                    cl::init(false),
+                    cl::desc("Inject Only Dangling Pointer Dereferences"));
+
+cl::opt<bool>
 InjectBadSizes ("inject-badsize",
                 cl::init(false),
                 cl::desc("Inject Array Allocations of the Wrong Size"));
@@ -350,6 +355,56 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
             ++DPFaults;
           }
         }
+      }
+    }
+  }
+
+  return (DPFaults > 0);
+}
+
+//
+// Method: insertRealDanglingPointers()
+//
+// Description:
+//  Insert dangling pointer dereferences into the code.  This is done by
+//  finding heap allocation instructions and adding code to free the allocated
+//  pointer.  These errors will be more trivial than the hard dangling pointer
+//  injection method but will also be more accurate (i.e., it will only free
+//  heap objects and only cause dangling pointer errors; it will *not* insert
+//  other invalid free errors).
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was left unmodified.
+//
+bool
+FaultInjector::insertRealDanglingPointers (Function & F) {
+  //
+  // Scan through each instruction of the function looking for malloc
+  // instructions.  Free the pointer immediently after the allocation.
+  //
+  for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
+    BasicBlock & BB = *fI;
+    for (BasicBlock::iterator bI = BB.begin(), bE = BB.end(); bI != bE; ++bI) {
+      Instruction * I = bI;
+
+      //
+      // Look to see if there is an instruction that stores a pointer to
+      // memory.  If so, then free the pointer before the store.
+      //
+      if (MallocInst * MI = dyn_cast<MallocInst>(I)) {
+        //
+        // Insert a call to free to deallocate the allocated memory.
+        //
+
+        // Skip if we should not insert a fault.
+        if (!doFault()) continue;
+
+        BasicBlock::iterator InsertPt = MI;
+        ++InsertPt;
+
+        new FreeInst (MI, InsertPt);
+        ++DPFaults;
       }
     }
   }
@@ -678,6 +733,7 @@ FaultInjector::runOnModule(Module &M) {
     // Insert dangling pointer errors
     if (InjectEasyDPFaults) modified |= insertEasyDanglingPointers(*F);
     if (InjectHardDPFaults) modified |= insertHardDanglingPointers(*F);
+    if (InjectRealDPFaults) modified |= insertRealDanglingPointers(*F);
 
     // Insert bad allocation sizes
     if (InjectBadSizes) modified |= insertBadAllocationSizes (*F);
