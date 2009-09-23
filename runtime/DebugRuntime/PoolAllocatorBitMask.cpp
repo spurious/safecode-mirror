@@ -445,6 +445,12 @@ _internal_poolunregister (DebugPoolTy *Pool,
   if (!allocaptr) return;
 
   //
+  // Find the beginning and end values of the current node.  This information
+  // will be used for invalid free detection.
+  void * start, * end;
+  Pool->Objects.find (allocaptr, start, end);
+
+  //
   // Remove the object from the pool's splay tree.
   //
   Pool->Objects.remove (allocaptr);
@@ -457,10 +463,6 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   globalfreeID++;
 
-  // The start and end of the object as registered in the dangling pointer
-  // object metapool
-  void * start, * end;
-
   // FIXME: figure what NumPPAge and len are for
   unsigned len = 1;
   unsigned NumPPage = 0;
@@ -471,7 +473,9 @@ _internal_poolunregister (DebugPoolTy *Pool,
   // Retrieve the debug information about the node.  This will include a
   // pointer to the canonical page.
   //
-  bool found = dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr);
+  void * S;
+  void * E;
+  bool found = dummyPool.DPTree.find (allocaptr, S, E, debugmetadataptr);
 
   //
   // If we cannot find the meta-data for this pointer, then the free is
@@ -539,7 +543,10 @@ _internal_poolunregister (DebugPoolTy *Pool,
   // dangling pointer splay tree.  The memory object's virtual address will be
   // reused, and we don't want to match it for subsequently allocated objects.
   //
-  if (!(ConfigData.RemapObjects)) {
+  // Also, always remove stack objects.  Their virtual addresses are recycled,
+  // and so we don't want to try to re-look up their old start and end values.
+  //
+  if ((Type == Stack) || (!(ConfigData.RemapObjects))) {
     free (debugmetadataptr);
     dummyPool.DPTree.remove (allocaptr);
   }
@@ -559,7 +566,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   // If this is a remapped pointer, find its canonical address and update its
   // metadata.
   //
-  if (ConfigData.RemapObjects) {
+  if ((Type != Stack) && (ConfigData.RemapObjects)) {
     CanonNode = getCanonicalPtr (allocaptr);
     updatePtrMetaData (debugmetadataptr,
                        globalfreeID,
@@ -598,7 +605,6 @@ __sc_dbg_poolunregister_stack (DebugPoolTy *Pool, void * allocaptr) {
   _internal_poolunregister (Pool, allocaptr, Stack, "Unknown", 0);
   return;
 }
-
 
 void
 __sc_dbg_poolunregister_stack_debug (DebugPoolTy *Pool,
