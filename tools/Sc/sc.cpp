@@ -351,17 +351,17 @@ int main(int argc, char **argv) {
     Passes.add (new OptimizeChecks());
     Passes.add (new PoolRegisterElimination());
 
-#ifdef SC_DEBUGTOOL
-    if (EnableDebugInfo)
-      Passes.add (new DebugInstrument());
-#endif
-
     Passes.add(new UnusedCheckElimination());
 
     //
     // Instrument the code so that dangling pointers are detected.
     //
     Passes.add(new DetectDanglingPointers());
+
+#ifdef SC_DEBUGTOOL
+    if (EnableDebugInfo)
+      Passes.add (new DebugInstrument());
+#endif
 
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
