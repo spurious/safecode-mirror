@@ -16,8 +16,8 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -enable-debuginfo -rewrite-oob -check-every-gep-use -pa=multi
-VALGRIND = /usr/bin/valgrind -q --log-file=vglog
+SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -enable-debuginfo -rewrite-oob -check-every-gep-use
+VALGRIND = valgrind -q --log-file=vglog
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks.a
@@ -159,7 +159,7 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
                              Output/%.safecode.diff-llc     \
                              Output/%.LOC.txt
 	@echo > $@
-	@-if test -f Output/$*.nonsc.diff-llc; then \
+	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^program" Output/$*.out-nat.time >> $@;\
         fi
