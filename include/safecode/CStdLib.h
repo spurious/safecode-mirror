@@ -45,7 +45,13 @@ NAMESPACE_SC_BEGIN
 class StringTransform : public ModulePass {
 private:
   // Private methods
+  bool memcpyTransform(Module &M);
+  bool memmoveTransform(Module &M);
+  bool mempcpyTransform(Module &M);
+  bool memsetTransform(Module &M);
   bool strcpyTransform(Module &M);
+  bool strlenTransform(Module &M);
+  bool strncpyTransform(Module &M);
 
   // Private variables
   DSNodePass *dsnPass;

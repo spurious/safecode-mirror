@@ -137,8 +137,16 @@ extern "C" {
   void * boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
   // CStdLib
-  char * pool_strcpy(PPOOL srcPool, PPOOL dstPool, const char *src, char *dst);
+  void * pool_memcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
+  void * pool_memmove(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
+  void * pool_memset(PPOOL sPool, void *s, int c, size_t n);
+  char * pool_strcpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src);
   size_t pool_strlen(PPOOL stringPool, const char *string);
+  char * pool_strncpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, size_t n);
+
+#ifdef _GNU_SOURCE
+  void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
+#endif
 
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);
