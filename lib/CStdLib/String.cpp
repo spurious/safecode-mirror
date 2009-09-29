@@ -24,17 +24,25 @@ STATISTIC(stat_transform_memcpy, "Total memcpy() calls transformed");
 STATISTIC(stat_transform_memmove, "Total memmove() calls transformed");
 STATISTIC(stat_transform_mempcpy, "Total mempcpy() calls transformed");
 STATISTIC(stat_transform_memset, "Total memset() calls transformed");
+#if 0
 STATISTIC(stat_transform_strcat, "Total strcat() calls transformed");
+#endif
 STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
+#if 0
 STATISTIC(stat_transform_strlcat, "Total strlcat() calls transformed");
 STATISTIC(stat_transform_strlcpy, "Total strlcpy() calls transformed");
+#endif
 STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
+#if 0
 STATISTIC(stat_transform_strncat, "Total strncat() calls transformed");
+#endif
 STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
+#if 0
 STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_wcscpy, "Total wcscpy() calls transformed");
 STATISTIC(stat_transform_wmemcpy, "Total wmemcpy() calls transformed");
 STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
+#endif
 
 static RegisterPass<StringTransform>
 ST("string_transform", "Secure C standard string library calls");
