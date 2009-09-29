@@ -250,7 +250,7 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
   // do this, but it's easier to implement it here, and I doubt accessing argv
   // strings is performance critical.
   //
-  ExternalObjects.insert(argv, argv + argc - 1);
+  ExternalObjects.insert(argv, ((unsigned char *)(&(argv[argc]))) - 1);
   return;
 }
 
@@ -772,7 +772,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
       OutOfBoundsViolation v;
       v.type = ViolationInfo::FAULT_LOAD_STORE,
         v.faultPC = (const void*)program_counter,
-        v.faultPtr = faultAddr,
+        v.faultPtr = tag,
         v.dbgMetaData = NULL,
         v.SourceFile = Filename,
         v.lineNo = lineno,
