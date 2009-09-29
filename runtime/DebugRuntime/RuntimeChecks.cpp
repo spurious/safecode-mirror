@@ -337,7 +337,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
     // value and continue processing
     //
     if (logregs) {
-      fprintf (stderr, "unrewrite(2): (0x%p) -> (0x%p, 0x%p) \n", Source, RealSrc, Dest);
+      fprintf (stderr, "unrewrite(2): %p -> %p, Dest: %p, Obj: %p - %p\n", Source, RealSrc, Dest, ObjStart, ObjEnd);
       fflush (stderr);
     }
 
