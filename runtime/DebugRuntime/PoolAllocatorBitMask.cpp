@@ -172,7 +172,6 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     installAllocHooks();
   }
 
-#if SC_DEBUGTOOL  
   //
   // Initialize the dummy pool.
   //
@@ -193,7 +192,6 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
-#endif
 
   // Initialize all global pools
   __poolalloc_init();
@@ -761,7 +759,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     program_counter = mycontext->uc_mcontext.gregs[14];
 #endif
 
-#if SC_ENABLE_OOB
     void * start = faultAddr;
     void * tag = 0;
     void * end;
@@ -782,7 +779,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
 
       ReportMemoryViolation(&v);
     }
-#endif
+
     extern FILE * ReportLog;
     fprintf(ReportLog, "signal handler: no debug meta data for %p: eip=%p\n", faultAddr, (void*)program_counter);
     fflush(ReportLog);

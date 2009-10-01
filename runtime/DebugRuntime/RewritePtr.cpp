@@ -60,9 +60,7 @@ rewrite_ptr (DebugPoolTy * Pool,
              const char * SourceFile,
              unsigned lineno) {
 
-#if SC_ENABLE_OOB
   static unsigned char * invalidptr = 0;
-#endif
 
   //
   // If this pointer has already been rewritten, do not rewrite it again.
@@ -71,7 +69,6 @@ rewrite_ptr (DebugPoolTy * Pool,
     return const_cast<void*>(RewrittenPointers[p]);
   }
 
-#if SC_ENABLE_OOB
   //
   // Calculate a new rewrite pointer.
   //
@@ -119,9 +116,6 @@ rewrite_ptr (DebugPoolTy * Pool,
   RewrittenPointers[p] = invalidptr;
   RewrittenObjs[invalidptr] = std::make_pair(ObjStart, ObjEnd);
   return invalidptr;
-#else
-  return (void *) p;
-#endif
 }
 
 NAMESPACE_SC_END

@@ -93,11 +93,7 @@ enum CheckingRuntimeType {
   RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA 
 };
 
-#ifdef SC_DEBUGTOOL
 enum CheckingRuntimeType DefaultRuntime = RUNTIME_DEBUG;
-#else
-enum CheckingRuntimeType DefaultRuntime = RUNTIME_SINGLETHREAD;
-#endif
 
 static cl::opt<enum CheckingRuntimeType>
 CheckingRuntime("runtime", cl::init(DefaultRuntime),
@@ -358,10 +354,8 @@ int main(int argc, char **argv) {
     //
     Passes.add(new DetectDanglingPointers());
 
-#ifdef SC_DEBUGTOOL
     if (EnableDebugInfo)
       Passes.add (new DebugInstrument());
-#endif
 
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass

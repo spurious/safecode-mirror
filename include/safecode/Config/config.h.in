@@ -509,9 +509,3 @@
 /* Define to 1 if building for use with the Linux kernel */
 #undef LLVA_KERNEL
 
-/* Define to 1 if building SAFECode for use as a debugging tool */
-#undef SC_DEBUGTOOL
-
-/* Define to 1 if enable OOB pointer rewriting */
-#undef SC_ENABLE_OOB
-

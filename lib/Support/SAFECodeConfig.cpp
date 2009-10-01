@@ -27,14 +27,10 @@ namespace {
            cl::init(false),
            cl::desc("Perform Dangling Pointer Checks"));
 
-#ifdef SC_ENABLE_OOB
   cl::opt<bool>
   RewritePtrs("rewrite-oob",
               cl::init(false),
               cl::desc("Rewrite Out of Bound (OOB) Pointers"));
-#else
-  bool RewritePtrs = false;
-#endif
   
   cl::opt<bool>
   StopOnFirstError("terminate",

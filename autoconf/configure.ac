@@ -80,20 +80,6 @@ AC_ARG_ENABLE(kernel,
                   AC_DEFINE(LLVA_KERNEL,[[1]]),
                   )
 
-dnl --enable-debugtool: compile SAFECode for use as a debugging tool
-AC_ARG_ENABLE(debugtool,
-  AS_HELP_STRING(--enable-debugtool,
-                 [Use SAFECode as a debugging tool (default is NO)]),
-                  AC_DEFINE(SC_DEBUGTOOL,[[1]]),
-                  )
-
-dnl --enable-oob-ptr: Enable Out Of Bounds Pointer Rewriting
-AC_ARG_ENABLE(oob-ptr,
-  AS_HELP_STRING(--enable-oob-ptr,
-                 [Enable Out Of Bounds Pointer Rewriting (default is NO)]),
-                  AC_DEFINE(SC_ENABLE_OOB ,[[1]]),
-                  )
-
 dnl **************************************************************************
 dnl * Set the location of various third-party software packages
 dnl **************************************************************************
