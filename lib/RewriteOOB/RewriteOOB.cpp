@@ -215,7 +215,6 @@ RewriteOOB::addGetActualValues (Module & M) {
         }
       }
 
-#if 0
       if (PtrToIntInst * CastInst = dyn_cast<PtrToIntInst>(&*I)) {
         //
         // Replace all pointer operands with a call to getActualValue().
@@ -227,7 +226,6 @@ RewriteOOB::addGetActualValues (Module & M) {
           modified = true;
         }
       }
-#endif
     }
   }
 
