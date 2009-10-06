@@ -146,6 +146,13 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
+  // For readability, make sure that both the base pointer and the result
+  // pointer have names.
+  //
+  if (!(BasePointer->hasName())) BasePointer->setName("base");
+  if (!(ResultPointer->hasName())) ResultPointer->setName("result");
+
+  //
   // Cast the operands to the correct type.
   //
   if (BasePointer->getType() != VoidPtrType)
