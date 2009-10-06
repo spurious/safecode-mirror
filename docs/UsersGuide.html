@@ -163,18 +163,39 @@ Options to the sc tool include:
 
   <li>
   <tt>-pa</tt>:
-  Use automatic pool allocation instead of simple pool allocation.  Automatic
-  pool allocation can increase the performance of SAFECode but is still
-  experimental.
+  Indicates which type of pool allocation the sc tool should use.  Options
+  include:
+  <ul>
+    <li>
+    -pa=simple<br>
+    This option uses a single pool to record bounds information for memory
+    objects.
+    </li>
+
+    <li>
+    -pa=multi<br>
+    This option uses multiple context-insensitive pools to store bounds
+    information on memory objects.
+    </li>
+
+    <li>
+    -pa=apa<br>
+    This option uses full-blown, context-sensitive, pools to store information
+    on memory objects.
+    </li>
+  </ul>
   </li>
 
   <li>
   <tt>-rewrite-oob</tt>:
-  Enable Out of Bounds (OOB) pointer rewriting.  The C standard permits
-  pointers to go out of bounds as long as they are only used in comparisons.
-  Some non-standards-compliant programs may also create Out of Bounds pointers
-  but never dereference them.  This option eases the restrictions on pointer
-  indexing to allow such shenanigans.
+  Permit Out of Bounds (OOB) pointers to be created as long as they are not
+  dereferenced.  By default, SAFECode only permits pointers to move one byte
+  past the end of the object provided that the pointer is not dereferenced
+  (this behavior is consistent with the C programming language standard); all
+  other Out of Bounds pointers are flagged as an error.  With this option
+  enabled, arbitrary Out of Bounds pointers are permitted as long as they are
+  not dereferenced.  This option eases the restrictions on pointer indexing for
+  programs that are memory safe but do not follow the C standard strictly.
   </li>
 
   <li>
@@ -231,8 +252,7 @@ Debug, or Profile version of SAFECode):
   <li>
   <tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
   <i>Configuration</i>/lib/libsc_dbg_rt.a
-  <i>Configuration</i>/lib/libpoolalloc_safe_rt.a
-  <i>Configuration</i>/lib/libUserPoolSystem.a</tt>
+  <i>Configuration</i>/lib/libpoolalloc_bitmap.a
   </li>
 </ul>
 
