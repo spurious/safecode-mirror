@@ -187,6 +187,13 @@ convertExpression (ConstantExpr * CE, Instruction * InsertPt) {
     }
 
     case Instruction:: Select:
+      NewInst = SelectInst::Create (CE->getOperand(0),
+                                    CE->getOperand(1),
+                                    CE->getOperand(2),
+                                    CE->getName(),
+                                    InsertPt);
+      break;
+
     case Instruction:: ExtractElement:
     case Instruction:: InsertElement:
     case Instruction:: ShuffleVector:
