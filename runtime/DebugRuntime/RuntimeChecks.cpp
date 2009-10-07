@@ -28,11 +28,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SafeCodeRuntime.h"
 #include "DebugReport.h"
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "ConfigData.h"
+
+#include "safecode/Runtime/DebugRuntime.h"
 
 #include <map>
 #include <cstdarg>

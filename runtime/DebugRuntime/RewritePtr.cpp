@@ -11,12 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SafeCodeRuntime.h"
 #include "PageManager.h"
 #include "PoolAllocator.h"
 #include "DebugReport.h"
 
 #include "llvm/ADT/DenseMap.h"
+
+#include "safecode/Runtime/DebugRuntime.h"
 
 #include <map>
 

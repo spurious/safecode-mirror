@@ -15,7 +15,7 @@
 #ifndef _SC_POOLALLOCATOR_RUNTIME_H_
 #define _SC_POOLALLOCATOR_RUNTIME_H_
 
-#include "SafeCodeRuntime.h"
+#include "safecode/Runtime/DebugRuntime.h"
 
 #include "llvm/ADT/DenseMap.h"
 

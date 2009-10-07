@@ -16,7 +16,7 @@
 #ifndef _DEBUG_REPORT_H_
 #define _DEBUG_REPORT_H_
 
-#include "SafeCodeRuntime.h"
+#include "safecode/Runtime/DebugRuntime.h"
 #include "safecode/Runtime/Report.h"
 
 NAMESPACE_SC_BEGIN

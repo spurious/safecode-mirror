@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SafeCodeRuntime.h"
+#include "safecode/Runtime/DebugRuntime.h"
 
 #include <algorithm>
 #include <cassert>
