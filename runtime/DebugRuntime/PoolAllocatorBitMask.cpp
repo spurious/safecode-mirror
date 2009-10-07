@@ -249,7 +249,9 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
   // do this, but it's easier to implement it here, and I doubt accessing argv
   // strings is performance critical.
   //
-  ExternalObjects.insert(argv, ((unsigned char *)(&(argv[argc]))) - 1);
+  // Note that the argv array is supposed to end with a NULL pointer element.
+  //
+  ExternalObjects.insert(argv, ((unsigned char *)(&(argv[argc+1]))) - 1);
   return;
 }
 
