@@ -83,6 +83,9 @@ NAMESPACE_SC_BEGIN
     DSNode * getDSNodeForGlobalVariable(const GlobalValue * GV);
     unsigned getDSNodeOffset(const Value *V, Function *F);
     Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
+    const Type * getPoolType (void) {
+      return (paPass->getPoolType());
+    }
 
     void addCheckedDSNode(const DSNode * node);
     void addCheckedValue(const Value * value);
