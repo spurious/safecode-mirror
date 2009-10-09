@@ -344,8 +344,8 @@ poolallocarray(BitmapPoolTy* Pool, unsigned Size) {
 //
 // Inputs:
 //  Pool - The pool to which the pointer should belong.
-//  Node - A pointer to the beginning of the object to free.  For dangling
-//         pointer detection, this is a pointer to the shadow page.
+//  Node - A pointer to the beginning of the object to free.  This pointer is
+//         allowed to be NULL.
 //
 // Notes:
 //  This routine should be resistent to several types of deallocation errors:
@@ -362,6 +362,11 @@ __pa_bitmap_poolfree(BitmapPoolTy *Pool, void *Node) {
     fprintf(stderr, "poolfree: 1368: Pool=%p, addr=%p\n", (void*) Pool, Node);
     fflush (stderr);
   }
+
+  //
+  // If the pointer is NULL, that is okay.  Just do nothing.
+  //
+  if (Node == 0) return;
 
   // Canonical pointer for the pointer we're freeing
   void * CanonNode = Node;
