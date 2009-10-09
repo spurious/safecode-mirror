@@ -163,7 +163,7 @@ RemapPages (void * va, unsigned length) {
   //
   // Find the beginning and end of the physical pages for this memory object.
   //
-  source_addr = (void *) ((unsigned long)va & ~(PageSize - 1));
+  source_addr = (void *) ((unsigned long)va & ~(PPageSize - 1));
   finish_addr = (void *) (((unsigned long)va + length) & ~(PPageSize - 1));
 
   unsigned int NumPages = ((uintptr_t)finish_addr - (uintptr_t)source_addr) / PPageSize;
@@ -172,11 +172,21 @@ RemapPages (void * va, unsigned length) {
   //
   // Find the length in bytes of the memory we want to remap.
   //
-  unsigned map_length = PageSize;
+  unsigned map_length = ((unsigned) finish_addr - (unsigned) source_addr) + PPageSize - 1;
 
+  //
+  // The below code seems to double map physical memory correctly.  However,
+  // it does not remap the memory pages that the caller has requested.  I
+  // suspect the code to calculate the length and address is somehow incorrect
+  // and needs to be fixed.
+  //
+  // target_addr = mremap (va, 0, PPageSize, MREMAP_MAYMOVE);
+
+#if 0
 fprintf (stderr, "remap: %p %x -> %p %x\n", va, map_length, source_addr, map_length);
 fflush (stderr);
-  target_addr = mremap (source_addr, 0, PageSize, MREMAP_MAYMOVE);
+#endif
+  target_addr = mremap (source_addr, 0, map_length, MREMAP_MAYMOVE);
   if (target_addr == MAP_FAILED) {
     perror ("RemapPage: Failed to create shadow page: ");
   }
@@ -186,9 +196,9 @@ fflush (stderr);
   volatile unsigned int * q = (unsigned int *) target_addr;
 
   p[0] = 0xbeefbeef;
-fprintf (stderr, "value: %x=%x, %x=%x\n", p, p[0], q, q[0]);
+fprintf (stderr, "value: %p=%x, %p=%x\n", (void *) p, p[0], (void *) q, q[0]);
   p[0] = 0xdeeddeed;
-fprintf (stderr, "value: %x=%x, %x=%x\n", p, p[0], q, q[0]);
+fprintf (stderr, "value: %p=%x, %p=%x\n", (void *) p, p[0], (void *) q, q[0]);
 fflush (stderr);
 #endif
   return target_addr;
