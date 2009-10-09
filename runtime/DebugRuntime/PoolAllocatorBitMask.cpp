@@ -497,8 +497,8 @@ _internal_poolunregister (DebugPoolTy *Pool,
           "poolfree: No debugmetadataptr\n");
 
   if (logregs) {
-    fprintf(stderr, "poolfree:1387: start = 0x%08x, end = 0x%x, offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
-    fprintf(stderr, "poolfree:1388: len = %d\n", len);
+    fprintf(stderr, "pool_unregister:1387: start = 0x%08x, end = 0x%x, offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
+    fprintf(stderr, "pool_unregister:1388: len = %d\n", len);
     fflush (stderr);
   }
 
@@ -575,13 +575,14 @@ _internal_poolunregister (DebugPoolTy *Pool,
   }
 
   if (logregs) {
-    fprintf(stderr, " poolfree:1397: NumPPage = %d\n", NumPPage);
-    fprintf(stderr, " poolfree:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
+    fprintf(stderr, "pool_unregister:1397: NumPPage = %d\n", NumPPage);
+    fprintf(stderr, "pool_unregister:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
     fflush (stderr);
   }
 
   if (logregs) {
-    fprintf (stderr, "pooluregister: %p\n", allocaptr);
+    fprintf (stderr, "pool_uregister: %p: %s %d\n", allocaptr, SourceFilep, lineno);
+    fflush (stderr);
   }
 }
 
@@ -886,6 +887,10 @@ pool_shadow (void * CanonPtr, unsigned NumBytes) {
   dummyPool.OOB.insert (shadowptr, 
                            (char*) shadowptr + NumBytes - 1,
                            CanonPtr);
+  if (logregs) {
+    fprintf (stderr, "pool_shadow: %p -> %p\n", CanonPtr, shadowptr);
+    fflush (stderr);
+  }
   return shadowptr;
 }
 
@@ -933,6 +938,11 @@ pool_unshadow (void * Node) {
     return Node;
   }
 
+  if (logregs) {
+    fprintf (stderr, "pool_unshadow: %p\n", Node);
+    fflush (stderr);
+  }
+
   //
   // Determine the number of pages that the object occupies.
   //
@@ -976,11 +986,35 @@ __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
                          unsigned NumBytes, TAG,
                          const char * SourceFilep,
                          unsigned lineno) {
+  //
+  // Allocate the desired amount of memory.
+  //
   void * New = __sc_dbg_src_poolalloc (Pool, Number * NumBytes, tag, SourceFilep, lineno);
+
+  //
+  // If the allocation succeeded, zero out the memory and do needed SAFECode
+  // operations.
+  //
   if (New) {
+    // Zero the memory
     bzero (New, Number * NumBytes);
+
+    //
+    // If dangling pointer detection is enabled, then create a shadow copy of
+    // the object.
+    //
+    if (ConfigData.RemapObjects)
+      New = pool_shadow (New, Number * NumBytes);
+
+    //
+    // Register the object with the splay tree.
+    //
     __sc_dbg_src_poolregister (Pool, New, Number * NumBytes, tag, SourceFilep, lineno);
   }
+
+  //
+  // Print out some debugging information.
+  //
   if (logregs) {
     fprintf (ReportLog, "poolcalloc_debug: %p: %p %x: %s %d\n", (void*) Pool, (void*)New, Number * NumBytes, SourceFilep, lineno);
     fflush (ReportLog);
@@ -996,10 +1030,12 @@ __sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
 void *
 __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   //
-  // If the object has never been allocated before, allocate it now.
+  // If the object has never been allocated before, allocate it now, create a
+  // shadow object (if necessary), and register the object as a heap object.
   //
   if (Node == 0) {
     void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
+    if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
     __sc_dbg_poolregister (Pool, New, NumBytes);
     return New;
   }
@@ -1008,8 +1044,8 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Reallocate an object to 0 bytes means that we wish to free it.
   //
   if (NumBytes == 0) {
-    pool_unshadow (Node);
     _internal_poolunregister (Pool, Node, Heap, "Unknown", 0);
+    if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
     __pa_bitmap_poolfree(Pool, Node);
     return 0;
   }
@@ -1019,9 +1055,6 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // we will simply allocate a new object and copy the data from the old object
   // into the new object.
   //
-  void *New;
-  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
-    return 0;
 
   //
   // Get the bounds of the old object.  If we cannot get the bounds, then
@@ -1033,8 +1066,17 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   }
 
   //
-  // Register the new object with the pool.
+  // Allocate a new object.  If we fail, return NULL.
   //
+  void *New;
+  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
+    return 0;
+
+  //
+  // Create a shadow of the new object (if necessary) and register it with the
+  // pool.
+  //
+  if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
   __sc_dbg_poolregister (Pool, New, NumBytes);
 
   //
@@ -1054,8 +1096,8 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Invalidate the old object and its bounds and return the pointer to the
   // new object.
   //
-  pool_unshadow (Node);
   _internal_poolunregister(Pool, Node, Heap, "Unknown", 0);
+  if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
   __pa_bitmap_poolfree(Pool, Node);
   return New;
 }
