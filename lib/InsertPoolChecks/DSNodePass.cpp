@@ -86,6 +86,14 @@ DSNodePass::getPoolHandle (const Value *V,
   assert (collapsed && "For now, we must always handle collapsed pools!\n");
 
   //
+  // First, strip all pointers casts off of the value.  In some cases,
+  // additional casts have been added for which we cannot find the pool handle.
+  // Since a cast should exist within the same pool as the original pointer,
+  // just find the original pointer.
+  //
+  V = V->stripPointerCasts();
+
+  //
   // Get the DSNode for the value.  Don't worry about mapping back to the
   // original function because getDSNode() will take care of that for us.
   //
