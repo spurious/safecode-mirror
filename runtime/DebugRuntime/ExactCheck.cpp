@@ -133,7 +133,7 @@ exactcheck_check (const void * ObjStart,
     //
     // Determine if this is a rewrite pointer that is being indexed.
     //
-    if ((logregs) && (((unsigned)Dest > (unsigned)0xc0000000))) {
+    if ((logregs) && (((uintptr_t)Dest > (uintptr_t)0xc0000000))) {
       fprintf (stderr, "Was a rewrite: %p\n", Dest);
       fflush (stderr);
     }
