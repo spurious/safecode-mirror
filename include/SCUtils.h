@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef _SCUTILS_H_
+#define _SCUTILS_H_
 
 #include "llvm/BasicBlock.h"
 #include "llvm/Constants.h"
@@ -211,3 +213,6 @@ peelCasts (Value * PointerOperand, std::set<Value *> & Chain) {
 }
 
 }
+
+#endif
+
