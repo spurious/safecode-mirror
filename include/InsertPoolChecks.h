@@ -19,6 +19,7 @@
 #include "safecode/SAFECode.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "safecode/PoolHandles.h"
@@ -117,6 +118,8 @@ struct RegisterStackObjPass : public FunctionPass {
 
       AU.addRequired<TargetData>();
       AU.addRequired<LoopInfo>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominanceFrontier>();
       AU.addRequired<InsertSCIntrinsic>();
 
       //
@@ -137,12 +140,16 @@ struct RegisterStackObjPass : public FunctionPass {
     LoopInfo * LI;
     DSNodePass * dsnPass;
     DominatorTree * DT;
+    DominanceFrontier * DF;
     InsertSCIntrinsic * intrinsic;
 
     // The pool registration function
     Constant *PoolRegister;
 
     CallInst * registerAllocaInst(AllocaInst *AI);
+    void insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
+                          const std::vector<Instruction *> & ExitPoints,
+                          LLVMContext * Context);
  };
 
  extern ModulePass * createClearCheckAttributesPass();

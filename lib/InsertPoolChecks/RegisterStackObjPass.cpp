@@ -22,6 +22,8 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
+
 #include "safecode/VectorListHelper.h"
 
 NAMESPACE_SC_BEGIN
@@ -58,10 +60,11 @@ static Constant * StackFree = 0;
 //                  return.
 //  Context       - The LLVM Context in which to insert instructions.
 //
-static void
-insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
-                 const std::vector<Instruction *> & ExitPoints,
-                 LLVMContext * Context) {
+void
+RegisterStackObjPass::insertPoolFrees
+  (const std::vector<CallInst *> & PoolRegisters,
+   const std::vector<Instruction *> & ExitPoints,
+   LLVMContext * Context) {
   // List of alloca instructions we create to store the pointers to be
   // deregistered.
   std::vector<AllocaInst *> PtrList;
@@ -150,6 +153,11 @@ insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
       CallInst::Create (StackFree, args.begin(), args.end(), "", Return);
     }
   }
+
+  //
+  // Lastly, promote the allocas we created into LLVM virtual registers.
+  //
+  PromoteMemToReg(PtrList, *DT, *DF, getGlobalContext());
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -180,6 +188,8 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   TD = &getAnalysis<TargetData>();
   LI = &getAnalysis<LoopInfo>();
+  DT = &getAnalysis<DominatorTree>();
+  DF = &getAnalysis<DominanceFrontier>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   dsnPass = &getAnalysis<DSNodePass>();
   paPass = dsnPass->paPass;
