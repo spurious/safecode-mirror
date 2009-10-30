@@ -1,1 +1,14 @@
-Need to change a few definitions in Makefile to use the Makefile.
+SAFECode Compiler
+=================
+
+Welcome to the SAFECode compiler!
+
+The license for the software can be found in LICENSE.TXT in the top-level
+directory.  If there is any third-party code with different or additional
+licensing information, it will have a separate LICENSE.TXT in its top-level
+directory.
+
+Documentation can be found in the docs directory.
+
+Enjoy!
+
