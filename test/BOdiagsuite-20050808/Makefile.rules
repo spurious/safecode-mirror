@@ -31,7 +31,7 @@ quiet_cmd_safecode_link_rt = SC-RT $<
 cmd_safecode_link_rt = $(LLVMLDPROG) -disable-opt -link-as-library $? -o $@
 
 quiet_cmd_as = CC $<
-cmd_as = $(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+cmd_as = $(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++ -lpthread -lm
 
 ifeq ($(V),1)
 echo-cmd = echo '  $(call escsq,$(cmd_$(1)))$'';
