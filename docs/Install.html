@@ -108,7 +108,7 @@ the trick:
 
 <ul>
   <li><tt>cd <i>where-you-want-llvm-to-live</i></tt></li>
-  <li><tt>svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm</tt></li>
+  <li><tt>svn co http://llvm.org/svn/llvm-project/llvm/branches/release_16 llvm</tt></li>
   <li><tt>cd llvm/projects</tt></li>
   <li><tt>
   svn co  http://llvm.org/svn/llvm-project/poolalloc/trunk poolalloc
@@ -125,7 +125,7 @@ You may optionally want to get the LLVM Test Suite (test-suite) source code:
 <ul>
   <li><tt>cd llvm/projects</tt></li>
   <li><tt>
-  svn co svn co http://llvm.org/svn/llvm-project/test-suite/trunk llvm-test
+  svn co http://llvm.org/svn/llvm-project/test-suite/trunk llvm-test
   </tt></li>
 </ul>
 
@@ -150,7 +150,7 @@ LLVM Getting Started Guide
 
 <p>
 Once you have the source code checked out, you should be able to configure LLVM
-and the related projects using just the top level LLVM configure script.  You
+and the poolalloc project using just the top level LLVM configure script.  You
 will need to add the following options to the command line when running
 <tt>configure</tt> in order to configure Automatic Pool Allocation and SAFECode
 correctly:
@@ -186,6 +186,17 @@ Additional options include:
   <li><tt>--with-poolalloc-objdir</tt>:
   Specifies the location of the object code for Automatic Pool Allocation.
   </li>
+</ul>
+
+Note that LLVM 2.6 does not automatically configure SAFECode, so you will need
+to configure it separately.  The overall process will look something like the
+following:
+
+<ul>
+  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
+  <li><tt>./configure [options]</tt></li>
+  <li><tt>cd projects/safecode</tt></li>
+  <li><tt>./configure [options]</tt></li>
 </ul>
 
 </div>
