@@ -170,7 +170,8 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   //
   // Look for the object in the splay of regular objects.
   //
-  void * S, * end;
+  void * S = 0;
+  void * end = 0;
   bool found = Pool->Objects.find(Node, S, end);
 
   //

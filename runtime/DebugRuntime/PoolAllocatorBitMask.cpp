@@ -448,7 +448,8 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   // Find the beginning and end values of the current node.  This information
   // will be used for invalid free detection.
-  void * start, * end;
+  void * start = 0;
+  void * end = 0;
   Pool->Objects.find (allocaptr, start, end);
 
   //
