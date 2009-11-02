@@ -39,11 +39,9 @@ PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 SC_RT := libsc_dbg_rt libpoolalloc_bitmap
 
 ifdef DEBUG_SAFECODE
-POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.a
 PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .a,$(SC_RT)))
 else
 PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/,$(addsuffix .bca,$(SC_RT)))
-POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
 endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
@@ -82,20 +80,20 @@ Output/%.presc.bc: Output/%.$(WHOLE_PROGRAM_BC_SUFFIX) $(LOPT) $(PA_PRE_RT_BC)
 # Create a SAFECode executable without pointer rewriting.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB.bc): \
-Output/%.noOOB.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.noOOB.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOPTS) $< -f -o $@.noOOB 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.noOOB.ld $@.noOOB $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.noOOB.ld $@.noOOB $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.noOOB.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # Create a SAFECode executable with pointer rewriting.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
-Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOPTS) $(SCOPTS2) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
@@ -122,20 +120,20 @@ Output/%.noOOB.cbe.c: Output/%.noOOB.bc $(LLC)
 #
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM_RT_O)
-	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O)
+	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.cbe.c
 	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM_RT_O)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+Output/%.safecode: Output/%.safecode.s $(PA_RT_O)
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 endif
 
 ##############################################################################
