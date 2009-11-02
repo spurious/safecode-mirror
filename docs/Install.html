@@ -153,7 +153,7 @@ LLVM Getting Started Guide
 Once you have the source code checked out, you should be able to configure LLVM
 and the poolalloc project using just the top level LLVM configure script.  You
 can then configure SAFECode separately (currently, the LLVM configure script
-does not configure SAFECode automatically).  You will need to add the following
+does not configure SAFECode automatically).  You may need to add the following
 options to the command line when running <tt>configure</tt> in order to
 configure Automatic Pool Allocation and SAFECode correctly:
 </p>
@@ -164,7 +164,9 @@ configure Automatic Pool Allocation and SAFECode correctly:
   Specifies the location of the LLVM source directory.  This option is used by
   the Automatic Pool Allocation and SAFECode build systems to find the LLVM
   source tree; it is ignored by the LLVM configure script but passed to the
-  Automatic Pool Allocation and SAFECode configure scripts.
+  Automatic Pool Allocation configure script.  This option is not needed if
+  building in the source tree (i.e., SRCDIR == OBJDIR) and the project
+  (poolalloc or safecode) is in the LLVM projects subdirectory.
   </li>
 
   <li>
@@ -172,7 +174,9 @@ configure Automatic Pool Allocation and SAFECode correctly:
   Specifies the location of the LLVM object directory. This option is used by
   the Automatic Pool Allocation and SAFECode build systems to find the LLVM
   object tree; it is ignored by the LLVM configure script but passed to the
-  Automatic Pool Allocation and SAFECode configure scripts.
+  Automatic Pool Allocation configure script.  This option is not needed if
+  building in the source tree (i.e., SRCDIR == OBJDIR) and the project
+  (poolalloc or safecode) is in the LLVM projects subdirectory.
   </li>
 </ul>
 
