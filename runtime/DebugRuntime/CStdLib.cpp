@@ -11,7 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "safecode/Runtime/DebugRuntime.h"
+#include "DebugReport.h"
+#include "PoolAllocator.h"
 
 #include <algorithm>
 #include <cassert>
@@ -74,6 +75,22 @@ static size_t strncpy_asm(char *dst, const char *src, size_t size) {
 }
 
 /**
+ * Function to search within the object and external object pools
+ *
+ * @param   pool       Pool handle
+ * @param   poolBegin  Pointer to set to the beginning of the pool handle
+ * @param   poolEnd    Pointer to set to the end of the pool handle
+ * @return  Object found in pool
+ */
+bool pool_find(DebugPoolTy *pool, void *&poolBegin, void *&poolEnd) {
+  // Retrieve memory area's bounds from pool handle.
+  if (pool->Objects.find(poolBegin, poolBegin, poolEnd) || ExternalObjects.find(poolBegin, poolBegin, poolEnd))
+    return true;
+
+  return false;
+}
+
+/**
  * Secure runtime wrapper function to replace memcpy()
  *
  * @param   dstPool  Pool handle for destination memory area
@@ -89,24 +106,88 @@ void *pool_memcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, void *dst, const v
 
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve destination memory area's bounds from pool handle.
-  bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "Destination buffer not found in pool!");
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
+  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
 
-  // Retrieve source memory area's bounds from pool handle.
-  bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "Source string not found in pool!");
+  // Check that both the destination and source pointers fall within their respective bounds.
+  if (dstBegin > dstEnd) {
+    std::cout << "Destination pointer out of bounds!\n";
 
-  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
-  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = dstBegin,
+    v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  if (srcBegin > srcEnd) {
+    std::cout << "Source pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = srcBegin,
+    v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - (char *)dst + 1;
   srcSize = (char *)srcEnd - (char *)src + 1;
-  assert(n <= srcSize && "Cannot copy more bytes than the size of the source!");
+
+  if (n > srcSize) {
+    std::cout << "Cannot copy more bytes than the size of the source!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   stop = std::min(n, srcSize);
-  assert(stop <= dstSize && "Copy violated destination bounds!");
+
+  if (stop > dstSize) {
+    std::cout << "Copy violated destination bounds!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   memcpy(dst, src, stop);
 
@@ -129,24 +210,88 @@ void *pool_memmove(DebugPoolTy *dstPool, DebugPoolTy *srcPool, void *dst, const 
 
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve destination memory area's bounds from pool handle.
-  bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "Destination buffer not found in pool!");
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
+  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
 
-  // Retrieve source memory area's bounds from pool handle.
-  bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "Source string not found in pool!");
+  // Check that both the destination and source pointers fall within their respective bounds.
+  if (dstBegin > dstEnd) {
+    std::cout << "Destination pointer out of bounds!\n";
 
-  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
-  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = dstBegin,
+    v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  if (srcBegin > srcEnd) {
+    std::cout << "Source pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = srcBegin,
+    v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - (char *)dst + 1;
   srcSize = (char *)srcEnd - (char *)src + 1;
-  assert(n <= srcSize && "Cannot copy more bytes than the size of the source!");
+
+  if (n > srcSize) {
+    std::cout << "Cannot copy more bytes than the size of the source!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   stop = std::min(n, srcSize);
-  assert(stop <= dstSize && "Copy violated destination bounds!");
+
+  if (stop > dstSize) {
+    std::cout << "Copy violated destination bounds!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   memmove(dst, src, stop);
 
@@ -169,24 +314,88 @@ void *pool_mempcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, void *dst, const 
 
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve destination memory area's bounds from pool handle.
-  bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "Destination buffer not found in pool!");
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
+  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
 
-  // Retrieve source memory area's bounds from pool handle.
-  bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "Source string not found in pool!");
+  // Check that both the destination and source pointers fall within their respective bounds.
+  if (dstBegin > dstEnd) {
+    std::cout << "Destination pointer out of bounds!\n";
 
-  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
-  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = dstBegin,
+    v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  if (srcBegin > srcEnd) {
+    std::cout << "Source pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = srcBegin,
+    v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - (char *)dst + 1;
   srcSize = (char *)srcEnd - (char *)src + 1;
-  assert(n <= srcSize && "Cannot copy more bytes than the size of the source!");
+
+  if (n > srcSize) {
+    std::cout << "Cannot copy more bytes than the size of the source!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   stop = std::min(n, srcSize);
-  assert(stop <= dstSize && "Copy violated destination bounds!");
+
+  if (stop > dstSize) {
+    std::cout << "Copy violated destination bounds!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
 #ifndef _GNU_SOURCE
   mempcpy(dst, src, stop);
@@ -198,25 +407,55 @@ void *pool_mempcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, void *dst, const 
 /**
  * Secure runtime wrapper function to replace memset()
  *
- * @param   sPool  Pool handle for s
- * @param   s      Pointer to memory area
+ * @param   stringPool  Pool handle for the string
+ * @param   string      String pointer
  * @return  Pointer to memory area
  */
-void *pool_memset(DebugPoolTy *sPool, void *s, int c, size_t n) {
-  size_t sSize = 0, stop = 0;
-  void *sBegin = s, *sEnd = NULL;
+void *pool_memset(DebugPoolTy *stringPool, void *string, int c, size_t n) {
+  size_t stringSize = 0, stop = 0;
+  void *stringBegin = string, *stringEnd = NULL;
 
-  assert(sPool && s && "Null pool parameters!");
+  assert(stringPool && string && "Null pool parameters!");
+  assert(pool_find(stringPool, stringBegin, stringEnd) && "S not found in pool!");
 
-  bool foundS = sPool->Objects.find(sBegin, sBegin, sEnd);
-  assert(foundS && "S not found in pool!");
-  assert(sBegin <= sEnd && "S pointer out of bounds!");
+  if (stringBegin > stringEnd) {
+    std::cout << "String pointer out of bounds!\n";
 
-  sSize = (char *)sEnd - (char *)s + 1;
-  assert(n <= sSize && "n larger than s!");
+    OutOfBoundsViolation v;
 
-  stop = std::min(n, sSize);
-  return memset(s, c, stop);
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  stringSize = (char *)stringEnd - (char *)string + 1;
+  if (n > stringSize) {
+    std::cout << "Cannot write more bytes than the size of the destination string!\n";
+
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = stringPool,
+    v.dstSize = stringSize,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
+
+  stop = std::min(n, stringSize);
+  return memset(string, c, stop);
 }
 
 /**
@@ -232,19 +471,49 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
   size_t copied = 0, dstSize = 0, srcSize = 0, stop = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
 
-  // Ensure that all pointers.
+  // Ensure all valid pointers.
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve destination buffer's bounds from pool handle.
-  bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "Destination buffer not found in pool!");
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
+  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
 
-  // Retrieve source string's bounds from pool handle.
-  bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "Source string not found in pool!");
+  // Check that both the destination and source pointers fall within their respective bounds.
+  if (dstBegin > dstEnd) {
+    std::cout << "Destination pointer out of bounds!\n";
 
-  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
-  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = dstBegin,
+    v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  if (srcBegin > srcEnd) {
+    std::cout << "Source pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = srcBegin,
+    v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - dst + 1;
@@ -254,10 +523,24 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
   // Copy the source string to the destination buffer and record the number of bytes copied (including \0).
   copied = strncpy_asm(dst, src, stop);
 
-  std::cout << "Destination: " << dstSize << ", source: " << srcSize << ", copied: " << copied << std::endl;
-  std::cout << dst[copied - 1] << std::endl;
+  if (dst[copied - 1]) {
+    std::cout << "Copy violated destination bounds!\n";
 
-  assert(!dst[copied - 1] && "Copy violated destination bounds!");
+    WriteOOBViolation v;
+
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.PoolHandle = srcPool,
+    v.dstSize = dstSize,
+    v.srcSize = srcSize,
+    v.copied = copied,
+    v.dbgMetaData = NULL;
+
+    ReportMemoryViolation(&v);
+  }
 
   return dst;
 }
@@ -274,14 +557,46 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
   void *stringBegin = (char *)string, *stringEnd = NULL;
 
   assert(stringPool && string && "Null pool parameters!");
+  assert(pool_find(stringPool, stringBegin, stringEnd) && "String not found in pool!");
 
-  bool foundString = stringPool->Objects.find(stringBegin, stringBegin, stringEnd);
-  assert(foundString && "String not found in pool!");
-  assert(stringBegin <= stringEnd && "String pointer out of bounds!");
+  if (stringBegin > stringEnd) {
+    std::cout << "String pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   maxlen = (char *)stringEnd - (char *)string;
   len = strnlen(string, maxlen);
-  assert((len < maxlen || !string[maxlen]) && "String not terminated within bounds!");
+
+  if (len >= maxlen || string[maxlen]) {
+    std::cout << "String not terminated within bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   return len;
 }
@@ -302,16 +617,46 @@ char *pool_strncpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const 
 
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve destination buffer's bounds from pool handle.
-  bool foundDst = dstPool->Objects.find(dstBegin, dstBegin, dstEnd);
-  assert(foundDst && "Destination buffer not found in pool!");
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
+  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
 
-  // Retrieve source string's bounds from pool handle.
-  bool foundSrc = srcPool->Objects.find(srcBegin, srcBegin, srcEnd);
-  assert(foundSrc && "Source string not found in pool!");
+  // Check that both the destination and source pointers fall within their respective bounds.
+  if (dstBegin > dstEnd) {
+    std::cout << "Destination pointer out of bounds!\n";
 
-  assert(dstBegin <= dstEnd && "Destination pointer out of bounds!");
-  assert(srcBegin <= srcEnd && "Source pointer out of bounds!");
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = dstBegin,
+    v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
+  if (srcBegin > srcEnd) {
+    std::cout << "Source pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = srcBegin,
+    v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - dst + 1;
@@ -320,19 +665,48 @@ char *pool_strncpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const 
 
   if (stop < n) {
     copied = strncpy_asm(dst, src, stop);
-  std::cout << "HI! Destination: " << dstSize << ", source: " << srcSize << ", copied: " << copied << ", stop: " << stop << std::endl;
-    assert(copied != stop && "Copy violated destination bounds!");
-//    assert(!dst[copied - 1] && "Copy violated destination bounds!");
+
+    if (copied == stop) {
+      std::cout << "Copy violated destination bounds!\n";
+
+      WriteOOBViolation v;
+
+      v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = srcBegin,
+      v.SourceFile = __FILE__,
+      v.lineNo = __LINE__,
+      v.PoolHandle = srcPool,
+      v.dstSize = dstSize,
+      v.srcSize = srcSize,
+      v.copied = copied,
+      v.dbgMetaData = NULL;
+
+      ReportMemoryViolation(&v);
+    }
   } else {
     copied = strncpy_asm(dst, src, n);
-  std::cout << "Destination: " << dstSize << ", source: " << srcSize << ", copied: " << copied << ", stop: " << stop << std::endl;
 
     // Possibly not NULL terminated
-    if (copied > dstSize)
-      assert(copied > dstSize && "Copy violated destination bounds!");
-  }
+    if (copied > dstSize) {
+      std::cout << "Copy violated destination bounds!\n";
 
-  std::cout << dst[copied - 1] << std::endl;
+      WriteOOBViolation v;
+
+      v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = srcBegin,
+      v.SourceFile = __FILE__,
+      v.lineNo = __LINE__,
+      v.PoolHandle = srcPool,
+      v.dstSize = dstSize,
+      v.srcSize = srcSize,
+      v.copied = copied,
+      v.dbgMetaData = NULL;
+
+      ReportMemoryViolation(&v);
+    }
+  }
 
   return dst;
 }
@@ -349,15 +723,65 @@ size_t pool_strnlen(DebugPoolTy *stringPool, const char *string, size_t maxlen) 
   void *stringBegin = (char *)string, *stringEnd = NULL;
 
   assert(stringPool && string && "Null pool parameters!");
+  assert(pool_find(stringPool, stringBegin, stringEnd) && "String not found in pool!");
 
-  bool foundString = stringPool->Objects.find(stringBegin, stringBegin, stringEnd);
-  assert(foundString && "String not found in pool!");
-  assert(stringBegin <= stringEnd && "String pointer out of bounds!");
+  if (stringBegin > stringEnd) {
+    std::cout << "String pointer out of bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   difflen = (char *)stringEnd - (char *)string;
-  assert(difflen <= maxlen && "String in pool longer than maxlen!");
+
+  if (difflen > maxlen) {
+    std::cout << "String in pool longer than maxlen!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
+
   len = strnlen(string, difflen);
-  assert((len < difflen || !string[difflen]) && "String not terminated within bounds!");
+
+  if (len >= difflen || string[difflen]) {
+    std::cout << "String not terminated within bounds!\n";
+
+    OutOfBoundsViolation v;
+
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = stringBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = stringPool,
+    v.SourceFile = __FILE__,
+    v.lineNo = __LINE__,
+    v.objStart = stringBegin,
+    v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
+
+    ReportMemoryViolation(&v);
+  }
 
   return len;
 }

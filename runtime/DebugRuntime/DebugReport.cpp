@@ -75,6 +75,33 @@ AlignmentViolation::print(std::ostream & OS) const {
 }
 
 void
+WriteOOBViolation::print(std::ostream & OS) const {
+  //
+  // Print out the regular error information.
+  //
+  DebugViolationInfo::print(OS);
+
+  //
+  // Print information on the writing (or copying) out of bounds.
+  //
+  if (-1 != this->srcSize) {
+    OS << std::dec
+       << "= Source size (in bytes)                :\t" 
+       << this->srcSize << "\n";
+  }
+
+  OS << std::dec
+     << "= Destination size (in bytes)           :\t"
+     << this->dstSize << "\n";
+
+  if (-1 != this->copied) {
+    OS << std::dec
+       << "= Number of bytes copied                :\t"
+       << this->copied << "\n";
+  }
+}
+
+void
 DebugMetaData::print(std::ostream & OS) const {
   OS << "= Object address                        :\t" << std::hex
      << this->canonAddr << "\n"

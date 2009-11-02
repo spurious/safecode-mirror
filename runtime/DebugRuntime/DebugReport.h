@@ -23,7 +23,7 @@ NAMESPACE_SC_BEGIN
 
 struct DebugViolationInfo : public ViolationInfo {
   const DebugMetaData * dbgMetaData;
-	const void * PoolHandle;
+  const void * PoolHandle;
   const char * SourceFile;
   unsigned int lineNo;
   virtual void print (std::ostream & OS) const;
@@ -41,6 +41,14 @@ struct OutOfBoundsViolation : public DebugViolationInfo {
 struct AlignmentViolation : public OutOfBoundsViolation {
   unsigned int alignment;
   virtual void print (std::ostream & OS) const;
+};
+
+struct WriteOOBViolation : public DebugViolationInfo {
+  int copied;
+  int dstSize;
+  int srcSize;
+  virtual void print (std::ostream & OS) const;
+  WriteOOBViolation() : copied(-1), srcSize(-1) {}
 };
 
 NAMESPACE_SC_END

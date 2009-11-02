@@ -30,7 +30,8 @@ struct ViolationInfo {
     FAULT_NOTHEAP_FREE,
     FAULT_OUT_OF_BOUNDS,
     FAULT_LOAD_STORE,
-    FAULT_ALIGN
+    FAULT_ALIGN,
+    FAULT_WRITE_OUT_OF_BOUNDS
   };
 
   /// Type of violation

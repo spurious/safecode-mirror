@@ -59,6 +59,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "Out of Bounds Error";
       break;
 
+    case FAULT_WRITE_OUT_OF_BOUNDS:
+      typestring = "Writing Out of Bounds Error";
+      break;
+
     case FAULT_LOAD_STORE:
       typestring = "Load/Store Error";
       break;
