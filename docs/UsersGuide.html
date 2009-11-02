@@ -72,6 +72,15 @@ and linked with the SAFECode run-time library.
 </p>
 
 <p>
+The sc tool utilizes <i>whole-program analysis</i>: this
+means that you <i><b>must</b></i> compile your program into separate LLVM
+bitcode files, link these files together into a single bitcode file, process
+the complete bitcode file with sc, and then generate native code.
+You <i><b>cannot</b></i> run individiual bitcode object files through sc and
+then link them together.
+</p>
+
+<p>
 The steps for compiling a program with SAFECode are as follows:
 </p>
 
@@ -111,9 +120,11 @@ to llvm-gcc:
 
 <p>
 Once all of the the source files have been compiled, they can be linked
-together into a single bitcode file.  The llvm-ld tool can be used to do this;
-other options include the new Gold linker and extensions to the Mac OS X linker
-(both of these have been extended to link together LLVM bitcode files).
+together into a single bitcode file.  The llvm-ld tool can be used to do this.
+<!--
+  other options include the new Gold linker and extensions to the Mac OS X
+  linker (both of these have been extended to link together LLVM bitcode files).
+-->
 </p>
 
 <p>
@@ -151,7 +162,7 @@ Options to the sc tool include:
   <li>
   <tt>-f</tt>:
   Overwrite the output file if it already exists.  By default, the sc tool will
-  not overwrite a pre-existing file given in the -o option.
+  not overwrite a pre-existing file.
   </li>
 
   <li>
@@ -243,9 +254,14 @@ Generating native code can be done using the LLVM llc tool:
 </ul>
 
 <p>
-Creating the final executable can be done using GCC (<i>Configuration</i> is
-either Release, Debug, or Profile depending upon whether you built a Release,
-Debug, or Profile version of SAFECode):
+Creating the final executable can be done using GCC.  At a minimum, you need to
+link in the two SAFECode run-time libraries and the C++ standard library.  You
+will also need to link in any additional native code libraries that were not
+linked in as LLVM bitcode libraries.
+
+Below is an example of creating the final executable.  In the example,
+<i>Configuration</i> is either Release, Debug, or Profile depending upon
+whether you built a Release, Debug, or Profile version of SAFECode:
 </p>
 
 <ul>
@@ -253,6 +269,7 @@ Debug, or Profile version of SAFECode):
   <tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
   <i>Configuration</i>/lib/libsc_dbg_rt.a
   <i>Configuration</i>/lib/libpoolalloc_bitmap.a
+  -lstdc++
   </li>
 </ul>
 
