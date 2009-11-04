@@ -522,9 +522,12 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.pool_unregister_stack", "__sc_dbg_poolunregister_stack" },
       {"sc.pool_unregister_debug", "__sc_dbg_poolunregister_debug" },
       {"sc.pool_unregister_stack_debug", "__sc_dbg_poolunregister_stack_debug" },
+      {"poolalloc",         "__pa_bitmap_poolalloc"},
+
       {"sc.init_pool_runtime", "pool_init_runtime"},
       {"sc.pool_register_debug", "__sc_dbg_src_poolregister"},
       {"sc.pool_register_stack_debug", "__sc_dbg_src_poolregister_stack"},
+      {"sc.pool_register_stack", "__sc_dbg_poolregister_stack"},
       {"sc.lscheck_debug",      "poolcheck_debug"},
       {"sc.lscheckalign_debug", "poolcheckalign_debug"},
       {"sc.boundscheck_debug",  "boundscheck_debug"},

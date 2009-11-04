@@ -105,8 +105,9 @@ extern "C" {
 
   void __sc_dbg_poolargvregister (int argc, char ** argv);
 
-  void __sc_dbg_poolregister(PPOOL, void *allocaptr, unsigned NumBytes, TAG);
+  void __sc_dbg_poolregister(PPOOL, void *allocaptr, unsigned NumBytes);
   void __sc_dbg_src_poolregister (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
+  void __sc_dbg_poolregister_stack (PPOOL, void * p, unsigned size);
   void __sc_dbg_src_poolregister_stack (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
   void __sc_dbg_src_poolregister_global (PPOOL, void * p, unsigned size, TAG, SRC_INFO);
 

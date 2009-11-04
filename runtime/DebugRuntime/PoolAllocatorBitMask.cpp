@@ -370,6 +370,30 @@ __sc_dbg_src_poolregister_stack (DebugPoolTy *Pool,
 }
 
 //
+// Function: __sc_dbg_poolregister_stack()
+//
+// Description:
+//  This function is externally visible and is called by code to register
+//  a stack allocation without debug information.
+//
+void
+__sc_dbg_poolregister_stack (DebugPoolTy *Pool,
+                             void * allocaptr,
+                             unsigned NumBytes) {
+  //
+  // Use the common registration function.  Mark the allocation as a stack
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, 0,
+                          "<Unknown>",
+                          0,
+                          Stack);
+}
+
+
+//
 // Function: __sc_dbg_src_poolregister_global()
 //
 // Description:
