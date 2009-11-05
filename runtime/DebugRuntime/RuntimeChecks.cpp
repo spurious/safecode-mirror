@@ -292,7 +292,8 @@ boundscheck_lookup (DebugPoolTy * Pool, void * & Source, void * & End ) {
 //  any valid object.
 //
 static void *
-boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Pool,
+boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
+                   DebugPoolTy * Pool,
                    void * Source, void * Dest, bool CanFail,
                    const char * SourceFile, unsigned int lineno) {
   //
@@ -303,7 +304,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
   if (isRewritePtr (Source)) {
     //
     // Get the real pointer value (which is outside the bounds of a valid
-    // object.
+    // object).
     //
     void * RealSrc = pchk_getActualValue (Pool, Source);
 
@@ -497,6 +498,62 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd, DebugPoolTy * Poo
 
   }
 
+  //
+  // Perform one last-ditch check for incomplete nodes.  It may be possible
+  // that we're doing a GEP off a pointer into a freed object.  If dangling
+  // pointer detection is enabled, we can determine if the source pointer
+  // was freed and reject the indexing operation.
+  //
+  PDebugMetaData debugmetadataptr = NULL;
+  if ((ConfigData.RemapObjects) &&
+      (dummyPool.DPTree.find (Source, ObjStart, ObjEnd, debugmetadataptr))) {
+    //
+    // If the indexing operation stays within the bounds of a freed object,
+    // then don't flag an error.  Dereferences of the pointer will flag an
+    // error.
+    //
+    if (__builtin_expect (((ObjStart <= Dest) && ((Dest <= ObjEnd))), 1)) {
+      return Dest;
+    }
+
+    //
+    // Otherwise, do what we always do: either rewrite the pointer or generate
+    // an array indexing error report.
+    //
+    if ((ConfigData.StrictIndexing == false) ||
+        (((char *) Dest) == (((char *)ObjEnd)+1))) {
+      void * ptr = rewrite_ptr (Pool, Dest, ObjStart, ObjEnd, SourceFile, lineno);
+      if (logregs) {
+        fprintf (ReportLog, "boundscheck: rewrite(4): %p %p %p %p at pc=%p to %p at %s (%d)\n",
+                 ObjStart, ObjEnd, Source, Dest, (void*)__builtin_return_address(0), ptr, SourceFile, lineno);
+        fflush (ReportLog);
+      }
+      return ptr;
+    } else {
+      unsigned allocPC = 0;
+      unsigned allocID = 0;
+      unsigned char * allocSF = (unsigned char *) "<Unknown>";
+      unsigned allocLN = 0;
+      allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+      allocID  = debugmetadataptr->allocID;
+      allocSF  = (unsigned char *) debugmetadataptr->SourceFile;
+      allocLN  = debugmetadataptr->lineno;
+
+      OutOfBoundsViolation v;
+      v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+        v.faultPC = __builtin_return_address(0),
+        v.faultPtr = Dest,
+        v.dbgMetaData = debugmetadataptr,
+				v.PoolHandle = Pool, 
+        v.SourceFile = SourceFile,
+        v.lineNo = lineno,
+        v.objStart = ObjStart,
+        v.objLen = (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1;
+
+      ReportMemoryViolation(&v);
+      return Dest;
+    }
+  }
   return Dest;
 }
 
