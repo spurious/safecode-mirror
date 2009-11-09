@@ -449,13 +449,7 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
       }
     } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
-      if (!isa<Function>(FunctionOp)) {
-        if (!SCConfig.svaEnabled()) {
-          // The ASM Writer does not handle inline assembly very well
-          llvm::cerr << "JTC: Indirect Function Call Check: "
-                     << F.getName().str() << " : "
-                     << *(CI->getOperand(0)) << std::endl;
-        }
+      if (!isa<Function>(FunctionOp->stripPointerCasts())) {
         if (isClonedFunc) {
           assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
           const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
