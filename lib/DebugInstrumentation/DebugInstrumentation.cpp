@@ -359,6 +359,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (intrinsic.getIntrinsic("sc.pool_register_stack").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.pool_unregister").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.pool_unregister_stack").F, LInfo);
+  transformFunction (M.getFunction ("pool_strcpy"), LInfo);
   return true;
 }
 

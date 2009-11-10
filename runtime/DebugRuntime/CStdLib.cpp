@@ -19,6 +19,9 @@
 #include <cstring>
 #include <iostream> // Debug
 
+#define TAG unsigned tag
+#define SRC_INFO const char *SourceFile, unsigned lineNo
+
 using namespace NAMESPACE_SC;
 
 extern "C" {
@@ -458,25 +461,46 @@ void *pool_memset(DebugPoolTy *stringPool, void *string, int c, size_t n) {
   return memset(string, c, stop);
 }
 
-/**
- * Secure runtime wrapper function to replace strcpy()
- *
- * @param   dstPool  Pool handle for destination buffer
- * @param   srcPool  Pool handle for source string
- * @param   dst      Destination string pointer
- * @param   src      Source string pointer
- * @return  Destination string pointer
- */
-char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src) {
+char *pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src, TAG, SRC_INFO) {
   size_t copied = 0, dstSize = 0, srcSize = 0, stop = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
 
   // Ensure all valid pointers.
   assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
-  // Retrieve both the destination and source buffer's bounds from the pool handle.
-  assert(pool_find(dstPool, dstBegin, dstEnd) && "Destination buffer not found in pool!");
-  assert(pool_find(srcPool, srcBegin, srcEnd) && "Source string not found in pool!");
+  // Retrieve the destination buffer's bounds from the pool handle.
+  if (!pool_find(dstPool, dstBegin, dstEnd)) {
+    std::cout << "Destination buffer not found in pool!\n";
+
+    DebugViolationInfo v;
+
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = dstBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = dstPool,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo;
+
+    ReportMemoryViolation(&v);
+  }
+
+  // Retrieve the source buffer's bounds from the pool handle.
+  if (!pool_find(srcPool, srcBegin, srcEnd)) {
+    std::cout << "Source string not found in pool!\n";
+
+    DebugViolationInfo v;
+
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = srcBegin,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = srcPool,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo;
+
+    ReportMemoryViolation(&v);
+  }
 
   // Check that both the destination and source pointers fall within their respective bounds.
   if (dstBegin > dstEnd) {
@@ -489,8 +513,8 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
     v.faultPtr = dstBegin,
     v.dbgMetaData = NULL,
     v.PoolHandle = dstPool,
-    v.SourceFile = __FILE__,
-    v.lineNo = __LINE__,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo;
     v.objStart = dstBegin,
     v.objLen = (unsigned)((char *)dstEnd - (char *)dstBegin) + 1;
 
@@ -507,8 +531,8 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
     v.faultPtr = srcBegin,
     v.dbgMetaData = NULL,
     v.PoolHandle = srcPool,
-    v.SourceFile = __FILE__,
-    v.lineNo = __LINE__,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo;
     v.objStart = srcBegin,
     v.objLen = (unsigned)((char *)srcEnd - (char *)srcBegin) + 1;
 
@@ -531,8 +555,8 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
     v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = srcBegin,
-    v.SourceFile = __FILE__,
-    v.lineNo = __LINE__,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo;
     v.PoolHandle = srcPool,
     v.dstSize = dstSize,
     v.srcSize = srcSize,
@@ -543,6 +567,19 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
   }
 
   return dst;
+}
+
+/**
+ * Secure runtime wrapper function to replace strcpy()
+ *
+ * @param   dstPool  Pool handle for destination buffer
+ * @param   srcPool  Pool handle for source string
+ * @param   dst      Destination string pointer
+ * @param   src      Source string pointer
+ * @return  Destination string pointer
+ */
+char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src) {
+  return pool_strcpy_debug(dstPool, srcPool, dst, src, 0, "<Unknown>", 0);
 }
 
 /**
