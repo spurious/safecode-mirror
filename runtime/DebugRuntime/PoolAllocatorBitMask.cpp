@@ -43,6 +43,11 @@
 
 #include <cstring>
 
+// This must be defined for Snow Leopard to get the ucontext definitions
+#if defined(__APPLE__)
+#define _XOPEN_SOURCE 1
+#endif
+
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -964,7 +969,7 @@ pool_unshadow (void * Node) {
   }
 
   if (logregs) {
-    fprintf (stderr, "pool_unshadow: %p\n", Node);
+    fprintf (stderr, "pool_unshadow: Start: %p\n", Node);
     fflush (stderr);
   }
 
@@ -977,8 +982,17 @@ pool_unshadow (void * Node) {
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
     NumPPage++;
 
+  if (logregs) {
+    fprintf (stderr, "pool_unshadow: Middle: %p\n", Node);
+    fflush (stderr);
+  }
+
   // Protect the shadow pages of the object
   ProtectShadowPage((void *)((long)Node & ~(PPageSize - 1)), NumPPage);
+  if (logregs) {
+    fprintf (stderr, "pool_unshadow: Done: %p\n", Node);
+    fflush (stderr);
+  }
   return debugmetadataptr->canonAddr;
 }
 
