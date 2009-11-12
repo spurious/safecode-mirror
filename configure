@@ -628,6 +628,8 @@ EXEEXT
 OBJEXT
 poolallocsrcdir
 poolallocobjdir
+testsrcdir
+testobjdir
 LIBOBJS
 LTLIBOBJS'
 ac_subst_files=''
@@ -1219,6 +1221,8 @@ Optional Packages:
   --with-llvmobj          Location of LLVM Object Code
   --with-poolalloc-srcdir Specify location of Pool Allocation source code
   --with-poolalloc-objdir Specify location of Pool Allocation object code
+  --with-test-srcdir      Specify location of LLVM Test Suite source code
+  --with-test-objdir      Specify location of LLVM Test Suite object code
 
 Some influential environment variables:
   CC          C compiler command
@@ -2860,6 +2864,30 @@ fi
 
 
 
+# Check whether --with-test-srcdir was given.
+if test "${with_test_srcdir+set}" = set; then
+  withval=$with_test_srcdir; testsrcdir="$withval"
+
+else
+  testsrcdir="$LLVM_SRC_ROOT/projects/test-suite"
+
+
+fi
+
+
+
+# Check whether --with-test-objdir was given.
+if test "${with_test_objdir+set}" = set; then
+  withval=$with_test_objdir; testobjdir="$withval"
+
+else
+  testobjdir="$LLVM_OBJ_ROOT/projects/test-suite"
+
+
+fi
+
+
+
 ac_config_headers="$ac_config_headers include/safecode/Config/config.h"
 
 cat >confcache <<\_ACEOF
@@ -3546,11 +3574,13 @@ EXEEXT!$EXEEXT$ac_delim
 OBJEXT!$OBJEXT$ac_delim
 poolallocsrcdir!$poolallocsrcdir$ac_delim
 poolallocobjdir!$poolallocobjdir$ac_delim
+testsrcdir!$testsrcdir$ac_delim
+testobjdir!$testobjdir$ac_delim
 LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 51; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 53; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

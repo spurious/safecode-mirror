@@ -23,6 +23,10 @@ PROJ_INSTALL_ROOT := @prefix@
 POOLALLOC_SRCDIR := @poolallocsrcdir@
 POOLALLOC_OBJDIR := @poolallocobjdir@
 
+# Set the location of the LLVM Test Suite
+TEST_SRCDIR := @testsrcdir@
+TEST_OBJDIR := @testobjdir@
+
 # All of the code should additionally look inside the pool allocation source
 # code for include files
 SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall

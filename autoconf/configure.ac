@@ -99,6 +99,21 @@ AC_ARG_WITH(poolalloc-objdir,
     AC_SUBST(poolallocobjdir,"$LLVM_OBJ_ROOT/projects/poolalloc"
     ))
 
+dnl Specify the location of the LLVM Test Suite
+AC_ARG_WITH(test-srcdir,
+  AS_HELP_STRING([--with-test-srcdir],
+    [Specify location of LLVM Test Suite source code]),
+    AC_SUBST(testsrcdir,"$withval"),
+    AC_SUBST(testsrcdir,"$LLVM_SRC_ROOT/projects/test-suite"
+    ))
+
+AC_ARG_WITH(test-objdir,
+  AS_HELP_STRING([--with-test-objdir],
+    [Specify location of LLVM Test Suite object code]),
+    AC_SUBST(testobjdir,"$withval"),
+    AC_SUBST(testobjdir,"$LLVM_OBJ_ROOT/projects/test-suite"
+    ))
+
 dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************

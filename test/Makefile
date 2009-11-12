@@ -38,7 +38,7 @@ LARGE_PROBLEM_SIZE_DIRS :=
 
 
 LARGE_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(LARGE_PROBLEM_SIZE_DIRS))
+   $(addprefix $(TEST_OBJDIR)/,$(LARGE_PROBLEM_SIZE_DIRS))
 
 #DEBUG_SAFECODE := DEBUG_SAFECODE=1
 
@@ -50,12 +50,12 @@ NORMAL_PROBLEM_SIZE_DIRS := \
   #External/SPEC/CINT2000/176.gcc \
   #External/SPEC/CINT2000/175.vpr \
   #MultiSource/Benchmarks/Olden \
+  #MultiSource/Benchmarks/Olden/bh \
   #External/SPEC/CINT2000/197.parser \
   #External/SPEC/CINT2000/254.gap \
   #External/SPEC/CINT2000/300.twolf \
   #External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/252.eon \
-  #MultiSource/Benchmarks/Olden/bh \
   #MultiSource/Applications/Burg \
   #MultiSource/Benchmarks/Olden/bisort \
   #MultiSource/Benchmarks/Olden/health \
@@ -88,7 +88,7 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(NORMAL_PROBLEM_SIZE_DIRS))
+   $(addprefix $(TEST_OBJDIR)/,$(NORMAL_PROBLEM_SIZE_DIRS))
 
 ##############################################################################
 # Targets for gathering statistics for programs for papers
@@ -334,61 +334,61 @@ progcputrack::
 # test target - Descend into projects/llvm-test and run the TEST.safecode.Makefile
 # tests...
 test::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=safecode \
                    $(LARGESIZE) $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 pacompiletime::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=pacompiletime \
                    report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 ptrcomp::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
                    $(LARGESIZE) $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 ptrcomptest::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
                    $(LARGESIZE) report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
                    test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 perf::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
                    test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 optzn::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=optzn \
                    $(LARGESIZE) $(STABLERUN) test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 p4perf::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
                    test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 strace::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=strace \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 cputrack::
-	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+	(cd $(TEST_OBJDIR)/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
                    report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
