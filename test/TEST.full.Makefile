@@ -23,10 +23,10 @@ SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 #   SCOPTS: SAFECode options common to all experimental runs
 #
 SCOPTS  := -disable-staticchecks -terminate
-SCOOB   := $(SCOPTS) -rewrite-oob
-SCDEBUG := $(SCOPTS) -rewrite-oob -enable-debuginfo
-SCPA    := $(SCOPTS) -rewrite-oob -pa
-SCDP    := $(SCOPTS) -rewrite-oob -dpchecks
+SCOOB   := $(SCOPTS) -rewrite-oob -disable-debuginfo
+SCDEBUG := $(SCOPTS) -rewrite-oob
+SCPA    := $(SCOPTS) -rewrite-oob -pa -disable-debuginfo
+SCDP    := $(SCOPTS) -rewrite-oob -dpchecks -disable-debuginfo
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/addchecks.o
