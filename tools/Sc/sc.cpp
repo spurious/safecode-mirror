@@ -76,8 +76,8 @@ static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
 
 static cl::opt<bool>
-EnableDebugInfo("enable-debuginfo", cl::init(false),
-                cl::desc("Enable Debugging Info in Run-time Errors"));
+DisableDebugInfo("disable-debuginfo", cl::init(false),
+                 cl::desc("Disable Debugging Info in Run-time Errors"));
 
 static cl::opt<bool>
 DisableCStdLib("disable-cstdlib", cl::init(true), cl::desc("Disable transformations that secure C standard library calls"));
@@ -354,7 +354,7 @@ int main(int argc, char **argv) {
     //
     Passes.add(new DetectDanglingPointers());
 
-    if (EnableDebugInfo)
+    if (!DisableDebugInfo)
       Passes.add (new DebugInstrument());
 
     // Lower the checking intrinsics into appropriate runtime function calls.
