@@ -23,7 +23,7 @@ NAMESPACE_SC_BEGIN
 char DSNodePass::ID = 0; 
 static RegisterPass<DSNodePass> passDSNode("ds-node", "Prepare DS Graph and Pool Handle information for SAFECode", true, true);
 
-cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(false),
+cl::opt<bool> CheckEveryGEPUse("check-every-gep-use", cl::init(true),
   cl::desc("Check every use of GEP"));
 
 bool
