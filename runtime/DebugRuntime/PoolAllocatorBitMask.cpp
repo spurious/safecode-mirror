@@ -306,12 +306,20 @@ _internal_poolregister (DebugPoolTy *Pool,
   }
 
   //
+  // Generate a generation number for this object registration.  We only do
+  // this for heap allocations.
+  //
+  unsigned allocID = 0;
+  if (allocationType == Heap) {
+    allocID = ++globalallocID;
+  }
+
+  //
   // Create the meta data object containing the debug information for this
   // pointer.
   //
   PDebugMetaData debugmetadataPtr;
-  globalallocID++;
-  debugmetadataPtr = createPtrMetaData (globalallocID,
+  debugmetadataPtr = createPtrMetaData (allocID,
                                         globalfreeID,
                                         allocationType,
                                         __builtin_return_address(0),
@@ -492,7 +500,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   // Increment the ID number for this deallocation.
   //
-  globalfreeID++;
+  ++globalfreeID;
 
   // FIXME: figure what NumPPAge and len are for
   unsigned len = 1;
