@@ -218,12 +218,14 @@ Options to the sc tool include:
   </li>
 
   <li>
-  <tt>-enable-debuginfo</tt>:
-  Enable debug information.  If the program has debug information compiled into
-  it (i.e., the -g option was used on the llvm-gcc command line when creating
-  the bitcode input files), then memory safety errors reported at run-time will
-  attempt to print out the source file name and line number of where the error
-  occurred.
+  <tt>-disable-debuginfo</tt>:
+  Disable debug information.  By default, if the program has debug information
+  compiled into it (i.e., the -g option was used on the llvm-gcc command line
+  when creating the bitcode input files), then memory safety errors reported at
+  run-time will attempt to print out the source file name and line number of
+  where the error occurred.  With this option, the processed program will still
+  catch memory errors but will not attempt to provide detailed information to
+  help diagnose the error.
   </li>
 
   <li>
