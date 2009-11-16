@@ -516,19 +516,6 @@ _internal_poolunregister (DebugPoolTy *Pool,
   void * E;
   bool found = dummyPool.DPTree.find (allocaptr, S, E, debugmetadataptr);
 
-  //
-  // If we cannot find the meta-data for this pointer, then the free is
-  // invalid.  Report it as an error and then continue executing if possible.
-  //
-  if (!found) {
-    ViolationInfo v;
-    v.type = ViolationInfo::FAULT_INVALID_FREE,
-      v.faultPC = __builtin_return_address(0),
-      v.faultPtr = allocaptr;
-    ReportMemoryViolation(&v);
-    return;
-  }
-
   // Assert that we either didn't find the object or we found the object *and*
   // it has meta-data associated with it.
   assert ((!found || (found && debugmetadataptr)) &&
@@ -538,6 +525,23 @@ _internal_poolunregister (DebugPoolTy *Pool,
     fprintf(stderr, "pool_unregister:1387: start = 0x%p, end = 0x%p, offset = 0x%08x\n", start, end, offset);
     fprintf(stderr, "pool_unregister:1388: len = %d\n", len);
     fflush (stderr);
+  }
+
+  //
+  // If we cannot find the meta-data for this pointer, then the free is
+  // invalid.  Report it as an error and then continue executing if possible.
+  //
+  if (!found) {
+    DebugViolationInfo v;
+    v.type = DebugViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = allocaptr;
+      v.PoolHandle = Pool;
+      v.dbgMetaData = debugmetadataptr;
+      v.SourceFile = SourceFilep;
+      v.lineNo = lineno;
+    ReportMemoryViolation(&v);
+    return;
   }
 
   //
