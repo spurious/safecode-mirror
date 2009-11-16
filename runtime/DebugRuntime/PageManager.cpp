@@ -172,7 +172,7 @@ RemapPages (void * va, unsigned length) {
   //
   // Find the length in bytes of the memory we want to remap.
   //
-  unsigned map_length = ((unsigned) finish_addr - (unsigned) source_addr) + PPageSize - 1;
+  ptrdiff_t map_length = ((intptr_t) finish_addr - (intptr_t) source_addr) + PPageSize - 1;
 
   //
   // The below code seems to double map physical memory correctly.  However,

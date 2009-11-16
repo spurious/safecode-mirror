@@ -535,7 +535,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
           "poolfree: No debugmetadataptr\n");
 
   if (logregs) {
-    fprintf(stderr, "pool_unregister:1387: start = 0x%08x, end = 0x%x, offset = 0x%08x\n", (unsigned)start, (unsigned)(end), offset);
+    fprintf(stderr, "pool_unregister:1387: start = 0x%p, end = 0x%p, offset = 0x%08x\n", start, end, offset);
     fprintf(stderr, "pool_unregister:1388: len = %d\n", len);
     fflush (stderr);
   }
@@ -572,7 +572,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
       v.SourceFile = SourceFilep,
       v.lineNo = lineno,
       v.objStart = start;
-      v.objLen =  (unsigned)end - (unsigned)start + 1;
+      v.objLen =  (intptr_t)end - (intptr_t)start + 1;
     ReportMemoryViolation(&v);
     return;
   }
@@ -614,7 +614,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
 
   if (logregs) {
     fprintf(stderr, "pool_unregister:1397: NumPPage = %d\n", NumPPage);
-    fprintf(stderr, "pool_unregister:1398: canonical address is 0x%x\n", (unsigned)CanonNode);
+    fprintf(stderr, "pool_unregister:1398: canonical address is 0x%p\n", CanonNode);
     fflush (stderr);
   }
 
@@ -984,7 +984,7 @@ pool_unshadow (void * Node) {
   //
   // Determine the number of pages that the object occupies.
   //
-  unsigned len = (unsigned)end - (unsigned)start;
+  ptrdiff_t len = (intptr_t)end - (intptr_t)start;
   unsigned offset = (unsigned)((long)Node & (PPageSize - 1));
   unsigned NumPPage = (len / PPageSize) + 1;
   if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
@@ -1129,9 +1129,9 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   //
   // Determine the number of bytes to copy into the new object.
   //
-  unsigned length = NumBytes;
-  if ((((unsigned)(end)) - ((unsigned)(S)) + 1) < NumBytes) {
-    length = ((unsigned)(end)) - ((unsigned)(S)) + 1;
+  ptrdiff_t length = NumBytes;
+  if ((((intptr_t)(end)) - ((intptr_t)(S)) + 1) < NumBytes) {
+    length = ((intptr_t)(end)) - ((intptr_t)(S)) + 1;
   }
 
   //

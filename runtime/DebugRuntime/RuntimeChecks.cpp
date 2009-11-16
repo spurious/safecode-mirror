@@ -93,7 +93,7 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
 //
 static bool
 isRewritePtr (void * p) {
-  unsigned ptr = (unsigned) p;
+  intptr_t ptr = (intptr_t) p;
 
   if ((InvalidLower < ptr ) && (ptr < InvalidUpper))
     return true;
@@ -312,7 +312,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
     // Compute the real result pointer (the value the GEP would really have on
     // the original pointer value).
     //
-    Dest = (void *)((unsigned) RealSrc + ((unsigned) Dest - (unsigned) Source));
+    Dest = (void *)((intptr_t) RealSrc + ((intptr_t) Dest - (intptr_t) Source));
 
     //
     // Retrieve the original bounds of the object.
@@ -365,14 +365,14 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
       }
       return ptr;
     } else {
-      unsigned allocPC = 0;
+      intptr_t allocPC = 0;
       unsigned allocID = 0;
       unsigned char * allocSF = (unsigned char *) "<Unknown>";
       unsigned allocLN = 0;
       PDebugMetaData debugmetadataptr = NULL;
       void * S , * end;
       if (dummyPool.DPTree.find(ObjStart, S, end, debugmetadataptr)) {
-        allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+        allocPC = ((intptr_t) (debugmetadataptr->allocPC)) - 5;
         allocID  = debugmetadataptr->allocID;
         allocSF  = (unsigned char *) debugmetadataptr->SourceFile;
         allocLN  = debugmetadataptr->lineno;
@@ -530,11 +530,11 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
       }
       return ptr;
     } else {
-      unsigned allocPC = 0;
+      intptr_t allocPC = 0;
       unsigned allocID = 0;
       unsigned char * allocSF = (unsigned char *) "<Unknown>";
       unsigned allocLN = 0;
-      allocPC = ((unsigned) (debugmetadataptr->allocPC)) - 5;
+      allocPC = ((intptr_t) (debugmetadataptr->allocPC)) - 5;
       allocID  = debugmetadataptr->allocID;
       allocSF  = (unsigned char *) debugmetadataptr->SourceFile;
       allocLN  = debugmetadataptr->lineno;

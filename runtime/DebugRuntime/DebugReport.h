@@ -34,7 +34,7 @@ struct OutOfBoundsViolation : public DebugViolationInfo {
   //  objstart - The start of the object in which the source pointer was found.
   //  objlen   - The length of the object in which the source pointer was found.
   const void * objStart;
-  unsigned int objLen;
+  ptrdiff_t objLen;
   virtual void print (std::ostream & OS) const;
 };
 
