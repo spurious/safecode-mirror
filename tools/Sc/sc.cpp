@@ -342,10 +342,12 @@ int main(int argc, char **argv) {
       Passes.add(new DuplicateLoopAnalysis());
 
     //
-    // Attempt to optimize the checks.
+    // Attempt to optimize the checks.  Do not optimize object registration
+    // in debug mode because we need to use pool_unregister to detect invalid
+    // frees.
     //
     Passes.add (new OptimizeChecks());
-    Passes.add (new PoolRegisterElimination());
+    if (DisableDebugInfo) Passes.add (new PoolRegisterElimination());
 
     Passes.add(new UnusedCheckElimination());
 
