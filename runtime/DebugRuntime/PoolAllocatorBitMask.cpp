@@ -1130,7 +1130,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Determine the number of bytes to copy into the new object.
   //
   ptrdiff_t length = NumBytes;
-  if ((((intptr_t)(end)) - ((intptr_t)(S)) + 1) < NumBytes) {
+  if ((((uintptr_t)(end)) - ((uintptr_t)(S)) + 1) < NumBytes) {
     length = ((intptr_t)(end)) - ((intptr_t)(S)) + 1;
   }
 
