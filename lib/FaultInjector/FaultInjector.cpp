@@ -104,6 +104,7 @@ namespace {
   STATISTIC (BadSizes,       "Number of Bad Allocation Size Faults Injected");
   STATISTIC (BadIndices,     "Number of Bad Indexing Faults Injected");
   STATISTIC (UsesBeforeInit, "Number of Injected Uses Before Initialization");
+  STATISTIC (NumFuncs,       "Number of Functions Examined");
 
   // Threshold for determining whether a fault will be inserted
   int threshold;
@@ -262,6 +263,10 @@ getFunctionList (Module & M, std::vector<Function *> & List) {
     }
   }
 
+  //
+  // Update the statistics on how many functions we'll examine.
+  //
+  NumFuncs += List.size();
   return;
 }
 
@@ -435,6 +440,7 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
   // Scan through each instruction of the function looking for malloc
   // instructions.  Free the pointer immediently after the allocation.
   //
+  std::vector<MallocInst *> Worklist;
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator bI = BB.begin(), bE = BB.end(); bI != bE; ++bI) {
@@ -445,25 +451,38 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
       // memory.  If so, then free the pointer before the store.
       //
       if (MallocInst * MI = dyn_cast<MallocInst>(I)) {
-        //
-        // Insert a call to free to deallocate the allocated memory.
-        //
-
         // Skip if we should not insert a fault.
         if (!doFault()) continue;
 
-        BasicBlock::iterator InsertPt = MI;
-        ++InsertPt;
-
         //
-        // Print information about where the fault is being inserted.
+        // Add the malloc instruction to the list of places to insert frees.
+        // We do this here to avoid iterator invalidation.
         //
-        printSourceInfo ("Real dangling pointer", I);
-
-        new FreeInst (MI, InsertPt);
-        ++DPFaults;
+        Worklist.push_back (MI);
       }
     }
+  }
+
+  //
+  // Insert a free after every malloc in the work list.
+  //
+  while (Worklist.size()) {
+    MallocInst * MI = Worklist.back();
+    Worklist.pop_back();
+
+    BasicBlock::iterator InsertPt = MI;
+    ++InsertPt;
+
+    //
+    // Print information about where the fault is being inserted.
+    //
+    printSourceInfo ("Real dangling pointer", MI);
+
+    //
+    // Insert a call to free to deallocate the allocated memory.
+    //
+    new FreeInst (MI, InsertPt);
+    ++DPFaults;
   }
 
   return (DPFaults > 0);
