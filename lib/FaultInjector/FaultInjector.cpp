@@ -15,8 +15,11 @@
 #define DEBUG_TYPE "FaultInjector"
 
 #include "dsa/DSGraph.h"
+
+#include "llvm/Analysis/DebugInfo.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
+#include "llvm/IntrinsicInst.h"
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
@@ -24,6 +27,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
+
 #include "safecode/FaultInjector.h"
 #include "SCUtils.h"
 
@@ -197,6 +201,44 @@ typeContainsPointer (const Type * Ty, std::vector<Value *> & Indices,
 }
 
 //
+// Function: printSourceInfo()
+//
+// Description:
+//  Print source file and line number information about the instruction to
+//  standard output.
+//
+static void
+printSourceInfo (std::string errorType, Instruction * I) {
+  //
+  // Print out where the fault will be inserted in the source code.
+  //
+  const DbgStopPointInst * StopPt = findStopPoint (I);
+  std::string fname = "<Unknown>";
+  uint64_t lineno = 0;
+  if (StopPt) {
+    Value * LineNumber = StopPt->getLineValue();
+    Value * SourceFile = StopPt->getFileName();
+
+    if (ConstantExpr * SrcGEP = dyn_cast<ConstantExpr>(SourceFile)) {
+      if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SrcGEP->getOperand(0))) {
+        if (ConstantArray * CA = dyn_cast<ConstantArray>(GV->getInitializer())) {
+          fname = CA->getAsString();
+        }
+      }
+    } else {
+      std::cerr << *SourceFile << std::endl;
+    }
+    if (ConstantInt * CI = dyn_cast<ConstantInt>(LineNumber)) {
+      lineno = CI->getValue().getZExtValue();
+    }
+  }
+
+  std::cout << "Inject: " << errorType << ": "
+            << fname << ": " << lineno << "\n";
+  return;
+}
+
+//
 // Function: getFunctionList()
 //
 // Description:
@@ -288,6 +330,11 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
         // Skip if we should not insert a fault.
         if (!doFault()) continue;
 
+        //
+        // Print information about where the fault is being inserted.
+        //
+        printSourceInfo ("Easy dangling pointer", I);
+
         new FreeInst (Pointer, I);
         ++DPFaults;
       }
@@ -351,6 +398,11 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
             // Skip if we should not insert a fault.
             if (!doFault()) continue;
 
+            //
+            // Print information about where the fault is being inserted.
+            //
+            printSourceInfo ("Hard dangling pointer", I);
+
             new FreeInst (Pointer, I);
             ++DPFaults;
           }
@@ -403,6 +455,11 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
         BasicBlock::iterator InsertPt = MI;
         ++InsertPt;
 
+        //
+        // Print information about where the fault is being inserted.
+        //
+        printSourceInfo ("Real dangling pointer", I);
+
         new FreeInst (MI, InsertPt);
         ++DPFaults;
       }
@@ -446,6 +503,11 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
   while (WorkList.size()) {
     AllocationInst * AI = WorkList.back();
     WorkList.pop_back();
+
+    //
+    // Print information about where the fault is being inserted.
+    //
+    printSourceInfo ("Bad allocation size", AI);
 
     Instruction * NewAlloc = 0;
     if (isa<MallocInst>(AI))
@@ -558,6 +620,11 @@ FaultInjector::insertBadIndexing (Function & F) {
     GetElementPtrInst * GEP = WorkList.back();
     WorkList.pop_back();
 
+    //
+    // Print out where the fault will be inserted in the source code.
+    //
+    printSourceInfo ("Bad indexing", GEP);
+
     // The index arguments to the new GEP
     std::vector<Value *> args;
 
@@ -651,6 +718,11 @@ FaultInjector::insertUninitializedUse (Function & F) {
 
     // Get the set of indices that we found for accessing the pointer element
     std::vector<Value *> Indices = i->second;
+
+    //
+    // Print information about where the fault is being inserted.
+    //
+    printSourceInfo ("Uninitialized pointer", AI);
 
     //
     // Find the insertion point; it should be the next instruction after the
