@@ -212,9 +212,11 @@ static void
 printSourceInfo (std::string errorType, Instruction * I) {
   //
   // Print out where the fault will be inserted in the source code.
+  // If we can't find the source line information, use a dummy line number and
+  // the function name by default.
   //
   const DbgStopPointInst * StopPt = findStopPoint (I);
-  std::string fname = "<Unknown>";
+  std::string fname = I->getParent()->getParent()->getNameStr();
   uint64_t lineno = 0;
   if (StopPt) {
     Value * LineNumber = StopPt->getLineValue();
