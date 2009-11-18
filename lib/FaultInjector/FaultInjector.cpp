@@ -768,6 +768,14 @@ FaultInjector::insertUninitializedUse (Function & F) {
     LoadInst * BadPtr = new LoadInst (GEP, "badptr", InsertPt);
 
     //
+    // Check to see if the type of the loaded pointer is a function pointer.
+    // If so, we cannot create a load from it.
+    //
+    const PointerType * PT = dyn_cast<PointerType>(BadPtr->getType());
+    assert (PT && "Load of non-pointer type!\n");
+    if (isa<FunctionType>(PT->getElementType())) continue;
+
+    //
     // Now my evil plan is complete!  Dereference this pointer and take the
     // first step into oblivion!
     //
