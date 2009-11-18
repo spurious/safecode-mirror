@@ -93,7 +93,7 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
 //
 static bool
 isRewritePtr (void * p) {
-  intptr_t ptr = (intptr_t) p;
+  uintptr_t ptr = (uintptr_t) p;
 
   if ((InvalidLower < ptr ) && (ptr < InvalidUpper))
     return true;
