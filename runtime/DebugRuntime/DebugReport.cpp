@@ -109,13 +109,15 @@ DebugMetaData::print(std::ostream & OS) const {
      << this->allocPC << "\n";
   OS << "= Allocated in Source File              :\t"
      << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
-     << ":" << std::dec << this->lineno << "\n"
-     << "= Object allocation generation number   :\t" << std::dec
-     << this->allocID << "\n"
-     << "= Object freed at PC                    :\t" << std::hex
-     << this->freePC << "\n"
-     << "= Object free generation number         :\t" << std::dec
-     << this->freeID << "\n";
+     << ":" << std::dec << this->lineno << "\n";
+  if (this->allocID) {
+    OS << "= Object allocation generation number   :\t" << std::dec
+       << this->allocID << "\n"
+       << "= Object freed at PC                    :\t" << std::hex
+       << this->freePC << "\n"
+       << "= Object free generation number         :\t" << std::dec
+       << this->freeID << "\n";
+  }
 }
 
 NAMESPACE_SC_END
