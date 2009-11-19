@@ -118,6 +118,15 @@ DebugMetaData::print(std::ostream & OS) const {
        << "= Object free generation number         :\t" << std::dec
        << this->freeID << "\n";
   }
+
+  //
+  // Print deallocation information if it is available.
+  //
+  if (this->FreeSourceFile) {
+    OS << "= Freed in Source File                  :\t"
+       << (char *) this->FreeSourceFile
+       << ":" << std::dec << this->Freelineno << "\n";
+  }
 }
 
 NAMESPACE_SC_END

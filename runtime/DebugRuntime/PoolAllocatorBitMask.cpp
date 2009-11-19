@@ -98,7 +98,9 @@ static void bus_error_handler(int, siginfo_t *, void *);
 
 // creates a new PtrMetaData structure to record pointer information
 static void * getCanonicalPtr (void * ShadowPtr);
-static inline void updatePtrMetaData(PDebugMetaData, unsigned, void *);
+static inline void updatePtrMetaData(PDebugMetaData, unsigned, void *,
+                                     void *,
+                                     unsigned);
 static PDebugMetaData createPtrMetaData (unsigned,
                                          unsigned,
                                          allocType,
@@ -613,7 +615,9 @@ _internal_poolunregister (DebugPoolTy *Pool,
     CanonNode = getCanonicalPtr (allocaptr);
     updatePtrMetaData (debugmetadataptr,
                        globalfreeID,
-                       __builtin_return_address(0));
+                       __builtin_return_address(0),
+                       (void *)SourceFilep,
+                       lineno);
   }
 
   if (logregs) {
@@ -744,15 +748,21 @@ createPtrMetaData (unsigned AllocID,
   ret->lineno = lineno;
   ret->allocationType = allocationType;
 
+  ret->FreeSourceFile = 0;
+  ret->Freelineno = 0;
   return ret;
 }
 
 static inline void
 updatePtrMetaData (PDebugMetaData debugmetadataptr,
                    unsigned globalfreeID,
-                   void * paramFreePC) {
+                   void * paramFreePC,
+                   void * SourceFile,
+                   unsigned lineno) {
   debugmetadataptr->freeID = globalfreeID;
   debugmetadataptr->freePC = paramFreePC;
+  debugmetadataptr->FreeSourceFile = SourceFile;
+  debugmetadataptr->Freelineno = lineno;
   return;
 }
 

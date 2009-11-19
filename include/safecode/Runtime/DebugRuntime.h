@@ -65,8 +65,15 @@ typedef struct DebugMetaData {
   // Source filename
   void * SourceFile;
 
+  // Source filename for deallocation
+  void * FreeSourceFile;
+
   // Line number
   unsigned lineno;
+
+  // Line number for deallocation
+  unsigned Freelineno;
+
   void print(std::ostream & OS) const;
 } DebugMetaData;
 typedef DebugMetaData * PDebugMetaData;
