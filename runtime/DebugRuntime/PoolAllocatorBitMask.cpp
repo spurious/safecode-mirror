@@ -83,9 +83,9 @@ NAMESPACE_SC_END
 
 using namespace NAMESPACE_SC;
 
-// global variable declarations
-static unsigned globalallocID = 0;
-static unsigned globalfreeID = 0;
+// Map between call site tags and allocation sequence numbers
+std::map<unsigned,unsigned> allocSeqMap;
+std::map<unsigned,unsigned> freeSeqMap;
 
 /// UNUSED in production version
 FILE * ReportLog = 0;
@@ -313,7 +313,7 @@ _internal_poolregister (DebugPoolTy *Pool,
   //
   unsigned allocID = 0;
   if (allocationType == Heap) {
-    allocID = ++globalallocID;
+    allocID = (allocSeqMap[tag] += 1);
   }
 
   //
@@ -322,7 +322,7 @@ _internal_poolregister (DebugPoolTy *Pool,
   //
   PDebugMetaData debugmetadataPtr;
   debugmetadataPtr = createPtrMetaData (allocID,
-                                        globalfreeID,
+                                        0,
                                         allocationType,
                                         __builtin_return_address(0),
                                         0,
@@ -466,12 +466,13 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 //  much debug information around.
 //
 // TODO: The above note is no longer correct; this function is called for stack
-//       and heap allocated objects.  We need a separate function for
-//       registering stack objects.
+//       and heap allocated objects.  A parameter flags whether the object is
+//       a heap object or a stack/global object.
 //
 static inline void
 _internal_poolunregister (DebugPoolTy *Pool,
                           void * allocaptr, allocType Type,
+                          unsigned tag,
                           const char * SourceFilep,
                           unsigned lineno) {
   //
@@ -502,7 +503,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   // Increment the ID number for this deallocation.
   //
-  ++globalfreeID;
+  unsigned freeID = (freeSeqMap[tag] += 1);
 
   // FIXME: figure what NumPPAge and len are for
   unsigned len = 1;
@@ -545,6 +546,15 @@ _internal_poolunregister (DebugPoolTy *Pool,
     ReportMemoryViolation(&v);
     return;
   }
+
+  //
+  // Update the debugging metadata information for this object.
+  //
+  updatePtrMetaData (debugmetadataptr,
+                     freeID,
+                     __builtin_return_address(0),
+                     (void *)SourceFilep,
+                     lineno);
 
   //
   // Determine if we are doing something stupid like deallocating a global
@@ -608,16 +618,10 @@ _internal_poolunregister (DebugPoolTy *Pool,
     NumPPage++;
 
   //
-  // If this is a remapped pointer, find its canonical address and update its
-  // metadata.
+  // If this is a remapped pointer, find its canonical address.
   //
   if ((Type != Stack) && (ConfigData.RemapObjects)) {
     CanonNode = getCanonicalPtr (allocaptr);
-    updatePtrMetaData (debugmetadataptr,
-                       globalfreeID,
-                       __builtin_return_address(0),
-                       (void *)SourceFilep,
-                       lineno);
   }
 
   if (logregs) {
@@ -634,7 +638,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
 
 void
 __sc_dbg_poolunregister (DebugPoolTy *Pool, void * allocaptr) {
-  _internal_poolunregister (Pool, allocaptr, Heap, "Unknown", 0);
+  _internal_poolunregister (Pool, allocaptr, Heap, 0, "Unknown", 0);
   return;
 }
 
@@ -644,13 +648,13 @@ __sc_dbg_poolunregister_debug (DebugPoolTy *Pool,
                                TAG,
                                const char * SourceFilep,
                                unsigned lineno) {
-  _internal_poolunregister (Pool, allocaptr, Heap, SourceFilep, lineno);
+  _internal_poolunregister (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   return;
 }
 
 void
 __sc_dbg_poolunregister_stack (DebugPoolTy *Pool, void * allocaptr) {
-  _internal_poolunregister (Pool, allocaptr, Stack, "Unknown", 0);
+  _internal_poolunregister (Pool, allocaptr, Stack, 0, "Unknown", 0);
   return;
 }
 
@@ -660,7 +664,7 @@ __sc_dbg_poolunregister_stack_debug (DebugPoolTy *Pool,
                                      TAG,
                                      const char * SourceFilep,
                                      unsigned lineno) {
-  _internal_poolunregister (Pool, allocaptr, Stack, SourceFilep, lineno);
+  _internal_poolunregister (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   return;
 }
 
@@ -755,11 +759,11 @@ createPtrMetaData (unsigned AllocID,
 
 static inline void
 updatePtrMetaData (PDebugMetaData debugmetadataptr,
-                   unsigned globalfreeID,
+                   unsigned freeID,
                    void * paramFreePC,
                    void * SourceFile,
                    unsigned lineno) {
-  debugmetadataptr->freeID = globalfreeID;
+  debugmetadataptr->freeID = freeID;
   debugmetadataptr->freePC = paramFreePC;
   debugmetadataptr->FreeSourceFile = SourceFile;
   debugmetadataptr->Freelineno = lineno;
@@ -1147,7 +1151,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Reallocate an object to 0 bytes means that we wish to free it.
   //
   if (NumBytes == 0) {
-    _internal_poolunregister (Pool, Node, Heap, "Unknown", 0);
+    _internal_poolunregister (Pool, Node, Heap, 0, "Unknown", 0);
     if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
     __pa_bitmap_poolfree(Pool, Node);
     return 0;
@@ -1199,7 +1203,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Invalidate the old object and its bounds and return the pointer to the
   // new object.
   //
-  _internal_poolunregister(Pool, Node, Heap, "Unknown", 0);
+  _internal_poolunregister(Pool, Node, Heap, 0, "Unknown", 0);
   if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
   __pa_bitmap_poolfree(Pool, Node);
   return New;
