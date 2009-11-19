@@ -34,7 +34,9 @@ DebugViolationInfo::print(std::ostream & OS) const {
   //
   // Print the pool handle.
   //
+#if 0
   OS << "= Pool Handle                           :\t" << this->PoolHandle << "\n";
+#endif
 
   //
   // Print the debug metata.
@@ -105,28 +107,36 @@ void
 DebugMetaData::print(std::ostream & OS) const {
   OS << "= Object address                        :\t" << std::hex
      << this->canonAddr << "\n"
+     << "=\n"
      << "= Object allocated at PC                :\t" << std::hex
      << this->allocPC << "\n";
+
+  //
+  // Print object allocation information if available.
+  //
   OS << "= Allocated in Source File              :\t"
      << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
      << ":" << std::dec << this->lineno << "\n";
   if (this->allocID) {
-    OS << "= Object allocation generation number   :\t" << std::dec
-       << this->allocID << "\n"
-       << "= Object freed at PC                    :\t" << std::hex
-       << this->freePC << "\n"
-       << "= Object free generation number         :\t" << std::dec
-       << this->freeID << "\n";
+    OS << "= Object allocation sequence number     :\t" << std::dec
+       << this->allocID << "\n";
   }
 
   //
   // Print deallocation information if it is available.
   //
-  if (this->FreeSourceFile) {
+  if (this->freeID) {
+    OS << "=\n"
+       << "= Object freed at PC                    :\t" << std::hex
+       << this->freePC << "\n";
     OS << "= Freed in Source File                  :\t"
-       << (char *) this->FreeSourceFile
+       << (this->FreeSourceFile ? (char *) this->FreeSourceFile : "<unknown>")
        << ":" << std::dec << this->Freelineno << "\n";
+    OS << "= Object free sequence number           :\t" << std::dec
+       << this->freeID << "\n";
   }
+
+  return;
 }
 
 NAMESPACE_SC_END
