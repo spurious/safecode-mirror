@@ -32,13 +32,8 @@ extern RangeSplaySet<> ExternalObjects;
 // exactcheck() calls
 extern DebugPoolTy OOBPool;
 
-// Map between rewrite pointer and source file information
-extern llvm::DenseMap<void *, const char*> RewriteSourcefile;
-extern llvm::DenseMap<void *, unsigned>    RewriteLineno;
-extern std::map<const void *, const void *>RewrittenPointers;
-
 // Record from which object an OOB pointer originates
-extern llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
+//extern llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
 
 
 NAMESPACE_SC_END

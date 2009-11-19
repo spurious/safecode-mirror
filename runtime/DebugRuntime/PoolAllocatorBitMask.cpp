@@ -38,6 +38,7 @@
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "DebugReport.h"
+#include "RewritePtr.h"
 
 #include "safecode/Runtime/DebugRuntime.h"
 
@@ -875,6 +876,10 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
       char * Filename = (char *)(RewriteSourcefile[faultAddr]);
       unsigned lineno = RewriteLineno[faultAddr];
 
+      //
+      // Get the bounds of the original object.
+      //
+      getOOBObject (faultAddr, start, end);
       OutOfBoundsViolation v;
       v.type = ViolationInfo::FAULT_LOAD_STORE,
         v.faultPC = (const void*)program_counter,
@@ -882,9 +887,9 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
         v.dbgMetaData = NULL,
         v.SourceFile = Filename,
         v.lineNo = lineno,
-        v.objStart = RewrittenObjs[faultAddr].first,
+        v.objStart = start,
         // FIXME: Make sure there is no off by one error in the line below
-        v.objLen = (char *)(RewrittenObjs[faultAddr].second) - (char *)(RewrittenObjs[faultAddr].first);
+        v.objLen = (char *)(end) - (char *)(start);
 
       ReportMemoryViolation(&v);
     }

@@ -32,6 +32,7 @@
 #include "PoolAllocator.h"
 #include "PageManager.h"
 #include "ConfigData.h"
+#include "RewritePtr.h"
 
 #include "safecode/Runtime/DebugRuntime.h"
 
@@ -79,30 +80,24 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   return false;
 }
 
-
 //
-// Function: isRewritePtr()
+// Function: poolcheck_debug()
 //
 // Description:
-//  Determines whether the specified pointer value is a rewritten value for an
-//  Out-of-Bounds pointer value.
+//  This function performs a load/store check.  It ensures that the given
+//  pointer points into a valid memory object.
 //
-// Return value:
-//  true  - The pointer value is an OOB pointer rewrite value.
-//  false - The pointer value is the actual value of the pointer.
-//
-static bool
-isRewritePtr (void * p) {
-  uintptr_t ptr = (uintptr_t) p;
-
-  if ((InvalidLower < ptr ) && (ptr < InvalidUpper))
-    return true;
-  return false;
-}
-
-
 void
-poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, unsigned lineno) {
+poolcheck_debug (DebugPoolTy *Pool,
+                 void *Node,
+                 TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+
+  //
+  // Check to see if the pointer points to an object within the pool.  If it
+  // does, the check succeeds, so just return to the caller.
+  //
   if (_barebone_poolcheck (Pool, Node))
     return;
 
@@ -110,14 +105,11 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
   // Look for the object within the splay tree of external objects.
   //
   int fs = 0;
-  void * S, *end;
-	if (1) {
-		S = Node;
-		fs = ExternalObjects.find (Node, S, end);
-		if ((fs) && (S <= Node) && (Node <= end)) {
-			return;
-		}
-	}
+  void * start, *end;
+  fs = ExternalObjects.find (Node, start, end);
+  if ((fs) && (start <= Node) && (Node <= end)) {
+    return;
+  }
 
   //
   // If it's a rewrite pointer, convert it back into its original value so
@@ -127,6 +119,11 @@ poolcheck_debug (DebugPoolTy *Pool, void *Node, TAG, const char * SourceFilep, u
     Node = pchk_getActualValue (Pool, Node);
   }
 
+  //
+  // If dangling pointer detection is enabled, see if the pointer points within
+  // a freed memory object.  If so, this is a dangling pointer error.
+  // Otherwise, it is just a regular load/store error.
+  //
   DebugViolationInfo v;
   v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -317,10 +314,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
     //
     // Retrieve the original bounds of the object.
     //
-    // FIXME: the casts are hacks to deal with C++ type systems
-    //
-    ObjStart = const_cast<void*>(RewrittenObjs[Source].first);
-    ObjEnd   = const_cast<void*>(RewrittenObjs[Source].second);
+    getOOBObject (Source, ObjStart, ObjEnd);
 
     //
     // Redo the bounds check.  If it succeeds, return the real value.

@@ -14,6 +14,7 @@
 #include "PageManager.h"
 #include "PoolAllocator.h"
 #include "DebugReport.h"
+#include "RewritePtr.h"
 
 #include "llvm/ADT/DenseMap.h"
 
@@ -176,3 +177,4 @@ pchk_getActualValue (DebugPoolTy * Pool, void * p) {
   }
   return p;
 }
+
