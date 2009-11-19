@@ -906,7 +906,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   
   //void* S = info->si_addr;
   // printing reports
-  void * address = 0;
+  void * address = info->si_addr;
 
   DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_DANGLING_PTR,
