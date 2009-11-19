@@ -839,8 +839,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   const unsigned lowerUninit = 0xc0000000u;
   const unsigned upperUninit = 0xffffffffu;
 #else
-  const unsigned lowerUninit = 0x00000000u;
-  const unsigned upperUninit = 0x00000fffu;
+  unsigned lowerUninit = 0x00000000u;
+  unsigned upperUninit = 0x00000fffu;
 #endif
   if ((lowerUninit <= (uintptr_t)(faultAddr)) &&
       ((uintptr_t)(faultAddr) <= upperUninit)) {
