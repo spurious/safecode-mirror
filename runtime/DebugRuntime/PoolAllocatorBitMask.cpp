@@ -756,6 +756,39 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
   return;
 }
 
+//
+// Function: getProgramCounter()
+//
+// Description:
+//  This function determines the program counter at which a fault was taken.
+//
+// Inputs:
+//  context - A pointer to the context in which the fault occurred.  This is
+//            a paramter that is passed into signal handlers.
+//
+// Return value:
+//  0  - The program counter could not be determined on this platform.
+//  ~0 - Otherwise, the program counter at which the fault occurred is
+//       returned.
+//
+static unsigned
+getProgramCounter (void * context) {
+#if defined(__APPLE__)
+#if defined(i386) || defined(__i386__) || defined(__x86__)
+  // Cast parameters to the desired type
+  ucontext_t * mycontext = (ucontext_t *) context;
+  return (mycontext->uc_mcontext->__ss.__eip);
+#endif
+#endif
+
+#if defined(__linux__)
+  // Cast parameters to the desired type
+  ucontext_t * mycontext = (ucontext_t *) context;
+  return (mycontext->uc_mcontext.gregs[14]);
+#endif
+
+  return 0;
+}
 
 //
 // Function: bus_error_handler()
@@ -770,9 +803,16 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     fflush (stderr);
   }
 
+  //
+  // Disable the signal handler for now.  If this function does something
+  // wrong, we want the bus error to terminate the program.
+  //
   signal(SIGBUS, NULL);
 
-  unsigned program_counter = 0;
+  //
+  // Get the program counter for where the fault occurred.
+  //
+  unsigned program_counter = getProgramCounter (context);
 
   //
   // Get the address causing the fault.
@@ -780,6 +820,29 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   void * faultAddr = info->si_addr, *end;
   PDebugMetaData debugmetadataptr;
   int fs = 0;
+
+  //
+  // If the faulting pointer is within the zero page or the reserved memory
+  // region for uninitialized variables, then report an error.
+  //
+#if defined(__linux__)
+  const unsigned lowerUninit = 0xc0000000u;
+  const unsigned upperUninit = 0xffffffffu;
+#else
+  const unsigned lowerUninit = 0x00000000u;
+  const unsigned upperUninit = 0x00000fffu;
+#endif
+  if ((lowerUninit <= (uintptr_t)(faultAddr)) &&
+      ((uintptr_t)(faultAddr) <= upperUninit)) {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_UNINIT,
+      v.faultPC = (const void*) program_counter,
+      v.faultPtr = faultAddr,
+      v.dbgMetaData = 0;
+
+    ReportMemoryViolation(&v);
+    return;
+  }
 
   //
   // Attempt to look up dangling pointer information for the faulting pointer.
@@ -791,20 +854,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // perhaps it is an Out of Bounds Rewrite Pointer.  Check for that now.
   //
   if (0 == fs) {
-#if defined(__APPLE__)
-#if defined(i386) || defined(__i386__) || defined(__x86__)
-    // Cast parameters to the desired type
-    ucontext_t * mycontext = (ucontext_t *) context;
-    program_counter = mycontext->uc_mcontext->__ss.__eip;
-#endif
-#endif
-
-#if defined(__linux__)
-    // Cast parameters to the desired type
-    ucontext_t * mycontext = (ucontext_t *) context;
-    program_counter = mycontext->uc_mcontext.gregs[14];
-#endif
-
     void * start = faultAddr;
     void * tag = 0;
     void * end;
@@ -848,16 +897,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   //void* S = info->si_addr;
   // printing reports
   void * address = 0;
-  program_counter = 0;
 
-#if defined(__APPLE__)
-#if defined(i386) || defined(__i386__) || defined(__x86__)
-  // Cast parameters to the desired type
-  ucontext_t * mycontext = (ucontext_t *) context;
-  program_counter = mycontext->uc_mcontext->__ss.__eip;
-#endif
-#endif
-  
   DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_DANGLING_PTR,
       v.faultPC = (const void*) program_counter,
@@ -866,7 +906,9 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
 
   ReportMemoryViolation(&v);
 
-  // reinstall the signal handler for subsequent faults
+  //
+  // Reinstall the signal handler for subsequent faults
+  //
   struct sigaction sa;
   sa.sa_sigaction = bus_error_handler;
   sa.sa_flags = SA_SIGINFO;
