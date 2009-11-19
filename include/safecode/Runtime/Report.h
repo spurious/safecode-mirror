@@ -31,7 +31,8 @@ struct ViolationInfo {
     FAULT_OUT_OF_BOUNDS,
     FAULT_LOAD_STORE,
     FAULT_ALIGN,
-    FAULT_WRITE_OUT_OF_BOUNDS
+    FAULT_WRITE_OUT_OF_BOUNDS,
+    FAULT_UNINIT
   };
 
   /// Type of violation

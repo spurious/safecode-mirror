@@ -71,6 +71,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "Alignment Error";
       break;
 
+    case FAULT_UNINIT:
+      typestring = "Potential Uninitialized Pointer Error";
+      break;
+
     default:
       typestring = "Unknown Error";
       break;
