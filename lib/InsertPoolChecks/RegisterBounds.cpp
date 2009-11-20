@@ -72,7 +72,7 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
 
 bool
 RegisterGlobalVariables::runOnModule(Module & M) {
-  init(M);
+  init("sc.pool_register_global");
   dsnPass = &getAnalysis<DSNodePass>();
   TD = &getAnalysis<TargetData>();
 
@@ -115,7 +115,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
 
 bool
 RegisterMainArgs::runOnModule(Module & M) {
-  init(M);
+  init("sc.pool_register");
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
     llvm::cerr << "Cannot do array bounds check for this program"
@@ -179,7 +179,7 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
 
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
-  init(M);
+  init("sc.pool_register");
   dsnPass = &getAnalysis<DSNodePass>();
   paPass = &getAnalysis<PoolAllocateGroup>();
 
@@ -286,11 +286,20 @@ RegisterVariables::CreateRegistrationFunction(Function * F) {
 
 RegisterVariables::~RegisterVariables() {}
 
+//
+// Method: init()
+//
+// Description:
+//  This method performs some initialization that is common to all subclasses
+//  of this pass.
+//
+// Inputs:
+//  registerName - The name of the function with which to register object.
+//
 void
-RegisterVariables::init(Module & M) {
+RegisterVariables::init(std::string registerName) {
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  PoolRegisterFunc =
-    intrinsic->getIntrinsic("sc.pool_register").F;  
+  PoolRegisterFunc = intrinsic->getIntrinsic(registerName).F;  
 }
 
 
@@ -318,7 +327,7 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
 
 bool
 RegisterFunctionByvalArguments::runOnModule(Module & M) {
-  init(M);
+  init("sc.pool_register");
   dsnPass = &getAnalysis<DSNodePass>();
   TD = &getAnalysis<TargetData>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();

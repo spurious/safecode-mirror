@@ -408,20 +408,43 @@ __sc_dbg_poolregister_stack (DebugPoolTy *Pool,
                           Stack);
 }
 
-
 //
 // Function: __sc_dbg_src_poolregister_global()
 //
 // Description:
 //  This function is externally visible and is called by code to register
-//  a global value.
+//  a global variable.
 //
 void
-__sc_dbg_src_poolregister_global (DebugPoolTy *Pool,
-                                 void * allocaptr,
-                                 unsigned NumBytes, TAG,
-                                 const char * SourceFilep,
-                                 unsigned lineno) {
+__sc_dbg_poolregister_global (DebugPoolTy *Pool,
+                              void * allocaptr,
+                              unsigned NumBytes) {
+  //
+  // Use the common registration function.  Mark the allocation as a stack
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes,
+                          0,
+                          "<unknown>",
+                          0,
+                          Global);
+}
+
+//
+// Function: __sc_dbg_src_poolregister_global_debug()
+//
+// Description:
+//  This function is externally visible and is called by code to register
+//  a global variable with debugging information attached.
+//
+void
+__sc_dbg_src_poolregister_global_debug (DebugPoolTy *Pool,
+                                        void * allocaptr,
+                                        unsigned NumBytes, TAG,
+                                        const char * SourceFilep,
+                                        unsigned lineno) {
   //
   // Use the common registration function.  Mark the allocation as a stack
   // allocation.

@@ -32,7 +32,15 @@ public:
   virtual ~RegisterVariables();
   virtual bool runOnModule(llvm::Module & M) = 0;
 protected:
-  void init(llvm::Module & M);
+  //
+  // Method: init()
+  //
+  // Description:
+  //  This method performs some initialization that is common to all subclasses
+  //  of this pass.
+  //
+  void init(std::string registerName);
+
   /// Helper function to register the bound information of a variable into a
   /// particular pool.
   void RegisterVariableIntoPool(llvm::Value * PH, llvm::Value * val, llvm::Value * AllocSize, llvm::Instruction * InsertBefore);
