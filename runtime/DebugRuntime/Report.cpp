@@ -72,7 +72,7 @@ ViolationInfo::print(std::ostream & OS) const {
       break;
 
     case FAULT_UNINIT:
-      typestring = "Potential Uninitialized Pointer Error";
+      typestring = "Uninitialized or NULL Pointer Error";
       break;
 
     default:
