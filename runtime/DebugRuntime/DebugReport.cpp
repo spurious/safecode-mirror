@@ -136,6 +136,7 @@ DebugMetaData::print(std::ostream & OS) const {
        << this->freeID << "\n";
   }
 
+  OS << std::flush;
   return;
 }
 

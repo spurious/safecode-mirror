@@ -32,7 +32,7 @@ ViolationInfo::print(std::ostream & OS) const {
   OS << std::showbase << std::hex 
      << "SAFECode:Violation Type " << this->type << " "
      << "when accessing  " << this->faultPtr << " "
-     << "at IP=" << this->faultPC << "\n";
+     << "at IP=" << this->faultPC << std::endl;
 
   //
   // Determine which descriptive string to use to describe the error.
@@ -92,8 +92,11 @@ ViolationInfo::print(std::ostream & OS) const {
 
 void
 ReportMemoryViolation(const ViolationInfo *v) {
-	v->print(std::cerr);
-	abort();
+	v->print(std::cout);
+  static unsigned count = 20;
+  --count;
+  if (!count) abort();
+  return;
 }
 
 NAMESPACE_SC_END
