@@ -217,6 +217,7 @@ printSourceInfo (std::string errorType, Instruction * I) {
   //
   const DbgStopPointInst * StopPt = findStopPoint (I);
   std::string fname = I->getParent()->getParent()->getNameStr();
+  std::string funcname = fname;
   uint64_t lineno = 0;
   if (StopPt) {
     Value * LineNumber = StopPt->getLineValue();
@@ -237,7 +238,7 @@ printSourceInfo (std::string errorType, Instruction * I) {
   }
 
   std::cout << "Inject: " << errorType << ": "
-            << fname << ": " << lineno << "\n";
+            << funcname   << ": " << fname << ": " << lineno << "\n";
   return;
 }
 
