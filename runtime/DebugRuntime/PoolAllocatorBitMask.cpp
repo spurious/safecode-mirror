@@ -920,14 +920,36 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
         v.objLen = (char *)(end) - (char *)(start);
 
       ReportMemoryViolation(&v);
+    } else {
+      //
+      // This is not a dangling pointer, uninitialized pointer, or a rewrite
+      // pointer.  This is some load/store that has obviously gone wrong (even
+      // if we consider the possibility of incompletenes).  Report it as a
+      // load/store error.
+      //
+      DebugViolationInfo v;
+      v.type = ViolationInfo::FAULT_LOAD_STORE,
+        v.faultPC = (const void*)program_counter,
+        v.faultPtr = faultAddr,
+        v.SourceFile = 0,
+        v.lineNo = 0;
+
+      ReportMemoryViolation(&v);
     }
 
-    extern FILE * ReportLog;
-    fprintf(ReportLog, "signal handler: no debug meta data for %p: eip=%p\n", faultAddr, (void*)program_counter);
-    fflush(ReportLog);
-    abort();
-  }
+    //
+    // Reinstall the signal handler for subsequent faults
+    //
+    struct sigaction sa;
+    sa.sa_sigaction = bus_error_handler;
+    sa.sa_flags = SA_SIGINFO;
+    if (sigaction(SIGBUS, &sa, NULL) == -1)
+      printf("sigaction installer failed!");
+    if (sigaction(SIGSEGV, &sa, NULL) == -1)
+      printf("sigaction installer failed!");
 
+    return;
+  }
  
   // FIXME: Correct the semantics for calculating NumPPage 
   unsigned NumPPage;
