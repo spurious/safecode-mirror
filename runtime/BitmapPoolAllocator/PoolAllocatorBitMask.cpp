@@ -375,6 +375,12 @@ __pa_bitmap_poolfree(BitmapPoolTy *Pool, void *Node) {
   unsigned TheIndex;
   PS = SearchForContainingSlab(Pool, CanonNode, TheIndex);
   Idx = TheIndex;
+
+  //
+  // If no slab can be found, then the pointer we were given is invalid.  Since
+  // we want to tolerate invalid frees, go ahead and return.
+  //
+  if (!PS) return;
   assert (PS && "poolfree: No poolslab found for object!\n");
   PS->freeElement(Idx);
 
