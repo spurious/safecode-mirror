@@ -40,7 +40,7 @@ ViolationInfo::print(std::ostream & OS) const {
   const char * typestring;
   switch (type) {
     case FAULT_DANGLING_PTR:
-      typestring = "Dangling Pointer Error";
+      typestring = "Use After Free Error";
       break;
 
     case FAULT_INVALID_FREE:
@@ -72,7 +72,7 @@ ViolationInfo::print(std::ostream & OS) const {
       break;
 
     case FAULT_UNINIT:
-      typestring = "Uninitialized or NULL Pointer Error";
+      typestring = "Uninitialized/NULL Pointer Error";
       break;
 
     default:
