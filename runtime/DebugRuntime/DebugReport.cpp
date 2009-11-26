@@ -105,16 +105,23 @@ WriteOOBViolation::print(std::ostream & OS) const {
 
 void
 DebugMetaData::print(std::ostream & OS) const {
-  OS << "= Object address                        :\t" << std::hex
-     << this->canonAddr << "\n"
-     << "=\n"
-     << "= Object allocated at PC                :\t" << std::hex
-     << this->allocPC << "\n";
+  //
+  // Only print the cononical address when debugging SAFECode itself.
+  // The MMU remapping magic should not be exposed to the programmer during
+  // regular operation.
+  //
+#if 0
+  OS << "= Canonical object address              :\t" << std::hex
+     << this->canonAddr << "\n";
+#endif
 
   //
   // Print object allocation information if available.
   //
-  OS << "= Allocated in Source File              :\t"
+  OS << "=\n"
+     << "= Object allocated at PC                :\t" << std::hex
+     << this->allocPC << "\n"
+     << "= Allocated in Source File              :\t"
      << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
      << ":" << std::dec << this->lineno << "\n";
   if (this->allocID) {
