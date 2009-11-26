@@ -86,8 +86,8 @@ ViolationInfo::print(std::ostream & OS) const {
   OS << "\n";
   OS << "=======+++++++    SAFECODE RUNTIME ALERT +++++++=======\n";
   OS << "= Error type                            :\t" << typestring << "\n";
-  OS << "= Program counter                       :\t" << this->faultPC << "\n";
   OS << "= Faulting pointer                      :\t" << this->faultPtr << "\n";
+  OS << "= Program counter                       :\t" << this->faultPC << "\n";
 }
 
 void
