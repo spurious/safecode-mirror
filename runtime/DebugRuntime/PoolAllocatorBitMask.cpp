@@ -1265,6 +1265,82 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
 }
 
 //
+// Function: poolstrdup()
+//
+// Description:
+//  This is a pool allocated version of the strdup() function call.  It ensures
+//  that the object is properly registered in the correct pool.
+//
+// Inputs:
+//  Pool        - The pool in which the new string should reside.
+//  Node        - The string which should be duplicated.
+//  tag         - The tag associated with the call site.
+//  SourceFilep - The source file name in which the call site is located.
+//  lineno      - The source line number at which the call site is located.
+//
+// Return value:
+//  0 - The duplication failed.
+//  Otherwise, a pointer to the duplicated string is returned.
+//
+void *
+internal_poolstrdup (DebugPoolTy * Pool,
+                     const char * String,
+                     TAG,
+                     const char * SourceFilep,
+                     unsigned lineno) {
+  //
+  // First determine the size of the string.  We use pool_strlen() to ensure
+  // that we do this safely.  Remember to increment the length by 1 to handle
+  // the fact that there is space for the string terminator byte.
+  //
+  extern size_t pool_strlen(DebugPoolTy *stringPool, const char *string);
+  unsigned length = pool_strlen(Pool, String) + 1;
+
+  //
+  // Now call the pool allocator's strdup() function.
+  //
+  const void * Node = String;
+  void * NewNode = __pa_bitmap_poolstrdup (static_cast<BitmapPoolTy*>(Pool),
+                                           (void *)(Node));
+
+  if (NewNode) {
+    //
+    // Create a shadow copy of the object if dangling pointer detection is
+    // enabled.
+    //
+    if (ConfigData.RemapObjects)
+      NewNode = pool_shadow (NewNode, length);
+
+    //
+    // Register the size of the newly allocated object with the run-time.
+    //
+    _internal_poolregister (Pool,
+                            NewNode,
+                            length,
+                            tag,
+                            SourceFilep,
+                            lineno,
+                            Heap);
+  }
+
+  return NewNode;
+}
+
+void *
+__sc_dbg_poolstrdup (DebugPoolTy * Pool, const char * Node) {
+  return (internal_poolstrdup (Pool, Node, 0, "<Unknown>", 0));
+}
+
+void *
+__sc_dbg_poolstrdup_debug (DebugPoolTy * Pool,
+                           const char * Node,
+                           TAG,
+                           const char * SourceFilep,
+                           unsigned lineno) {
+  return (internal_poolstrdup (Pool, Node, tag, SourceFilep, lineno));
+}
+
+//
 // Function: poolinit()
 //
 // Description:
