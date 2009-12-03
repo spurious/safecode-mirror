@@ -10,7 +10,7 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 #
 # Turn on debug information for use with the SAFECode tool
 #
-CFLAGS = -g -O2 -fno-strict-aliasing
+CFLAGS = -g -O2 -m32 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
