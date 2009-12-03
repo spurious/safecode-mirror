@@ -615,9 +615,9 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
   }
 
   maxlen = (char *)stringEnd - (char *)string;
-  len = strnlen(string, maxlen);
+  len = strnlen(string, maxlen + 1);
 
-  if (len >= maxlen || string[maxlen]) {
+  if (len > maxlen) {
     std::cout << "String not terminated within bounds!\n";
 
     OutOfBoundsViolation v;
@@ -800,9 +800,9 @@ size_t pool_strnlen(DebugPoolTy *stringPool, const char *string, size_t maxlen) 
     ReportMemoryViolation(&v);
   }
 
-  len = strnlen(string, difflen);
+  len = strnlen(string, difflen + 1);
 
-  if (len >= difflen || string[difflen]) {
+  if (len > difflen) {
     std::cout << "String not terminated within bounds!\n";
 
     OutOfBoundsViolation v;
