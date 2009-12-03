@@ -325,7 +325,7 @@ _internal_poolregister (DebugPoolTy *Pool,
   debugmetadataPtr = createPtrMetaData (allocID,
                                         0,
                                         allocationType,
-                                        __builtin_return_address(1),
+                                        __builtin_return_address(0),
                                         0,
                                         getCanonicalPtr(allocaptr),
                                         SourceFile, lineno);
@@ -566,7 +566,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   if (!found) {
     DebugViolationInfo v;
     v.type = DebugViolationInfo::FAULT_INVALID_FREE,
-      v.faultPC = __builtin_return_address(1),
+      v.faultPC = __builtin_return_address(0),
       v.faultPtr = allocaptr;
       v.PoolHandle = Pool;
       v.dbgMetaData = debugmetadataptr;
@@ -581,7 +581,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   updatePtrMetaData (debugmetadataptr,
                      freeID,
-                     __builtin_return_address(1),
+                     __builtin_return_address(0),
                      (void *)SourceFilep,
                      lineno);
 
@@ -594,7 +594,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
     if (debugmetadataptr->allocationType != Heap) {
         DebugViolationInfo v;
         v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
-        v.faultPC = __builtin_return_address(1);
+        v.faultPC = __builtin_return_address(0);
         v.PoolHandle = Pool;
         v.dbgMetaData = debugmetadataptr;
         v.SourceFile = SourceFilep;
@@ -611,7 +611,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   if (allocaptr != start) {
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_INVALID_FREE,
-      v.faultPC = __builtin_return_address(1),
+      v.faultPC = __builtin_return_address(0),
       v.faultPtr = allocaptr,
       v.dbgMetaData = debugmetadataptr,
       v.SourceFile = SourceFilep,
