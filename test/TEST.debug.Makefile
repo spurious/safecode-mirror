@@ -9,14 +9,14 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 EXTRA_LOPT_OPTIONS :=
 
 ifdef DEBUG_SAFECODE
-CFLAGS := -g -O0 -fno-strict-aliasing -fno-merge-constants -m32
+CFLAGS := -g -O0 -fno-strict-aliasing -fno-merge-constants
 LLCFLAGS := -disable-fp-elim
 LLVMLDFLAGS := -disable-opt
 OPTZN_PASSES := -mem2reg -simplifycfg -adce
 
 WHOLE_PROGRAM_BC_SUFFIX := linked.rbc
 else
-CFLAGS := -g -O2 -fno-strict-aliasing -fno-merge-constants -m32
+CFLAGS := -g -O2 -fno-strict-aliasing -fno-merge-constants
 OPTZN_PASSES := -std-compile-opts
 
 WHOLE_PROGRAM_BC_SUFFIX := llvm.bc

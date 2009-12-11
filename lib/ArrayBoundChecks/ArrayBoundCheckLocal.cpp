@@ -80,19 +80,32 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   if (!objSize)
     return false;
 
-  const SCEV * GEPBase = SE->getSCEV(PointerOperand);
-
   //
   // Calculate the:
   //  offset: Distance from base pointer to calculated pointer
+  //  zero  : The zero value
   //  bounds: The size of the object
   //  diff  : The difference between the bounds and the offset
-  //  zero  : The zero value
   //
+  // SCEVs for GEP indexing operations seems to be the size of a pointer.
+  // Therefore, use an integer size equal to the pointer size.
+  //
+  const SCEV * GEPBase = SE->getSCEV(PointerOperand);
   const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(GEP), GEPBase);
+  const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(getGlobalContext())));
+
+  //
+  // Create an SCEV describing the bounds of the object.  On 64-bit platforms,
+  // this may be a 32-bit integer while the offset value may be a 64-bit
+  // integer.  In that case, we need to create a new SCEV that zero-extends
+  // the object size from 32 to 64 bits.
+  //
   const SCEV * bounds = SE->getSCEV(objSize);
+  if ((TD->getTypeAllocSize (bounds->getType())) < 
+      (TD->getTypeAllocSize (offset->getType()))) {
+    bounds = SE->getZeroExtendExpr(bounds, offset->getType());
+  }
   const SCEV * diff = SE->getMinusSCEV(bounds, offset);
-  const SCEV * zero = SE->getSCEV(Constant::getNullValue(IntegerType::getInt32Ty(getGlobalContext())));
 
   //
   // If the offset is less than zero, then we know that we are indexing
