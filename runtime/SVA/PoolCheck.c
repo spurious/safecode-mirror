@@ -17,7 +17,7 @@
 #include "PoolSystem.h"
 #include "adl_splay.h"
 
-#include <sys/types.h>
+#include <stdint.h>
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
 #endif
