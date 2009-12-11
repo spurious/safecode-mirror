@@ -16,6 +16,8 @@
 #include "PoolCheck.h"
 #include "PoolSystem.h"
 #include "adl_splay.h"
+
+#include <sys/types.h>
 #ifdef LLVA_KERNEL
 #include <stdarg.h>
 #endif
@@ -60,7 +62,7 @@ struct node {
   void* tag;
 };
 
-#define maskaddr(_a) ((void*) ((unsigned)_a & ~(4096 - 1)))
+#define maskaddr(_a) ((void*) ((uintptr_t)_a & ~(((uintptr_t)(4096u)) - 1)))
 
 static int isInCache(MetaPoolTy*  MP, void* addr) {
   addr = maskaddr(addr);
@@ -1103,8 +1105,8 @@ pchk_iccheck (void * addr) {
   return;
 }
 
-const unsigned InvalidUpper = 4096;
-const unsigned InvalidLower = 0x03;
+const uintptr_t InvalidUpper = 4096;
+const uintptr_t InvalidLower = 0x03;
 
 
 /* if src is an out of object pointer, get the original value */
@@ -1112,10 +1114,10 @@ void* pchk_getActualValue(MetaPoolTy* MP, void* src) {
   __sva_rt_lock_t lock;
   void * tag;
   if (!pchk_ready || !MP || !use_oob) return src;
-  if ((unsigned)src <= InvalidLower) return src;
+  if ((uintptr_t)src <= InvalidLower) return src;
   tag = 0;
   /* outside rewrite zone */
-  if ((unsigned)src & ~(InvalidUpper - 1)) return src;
+  if ((uintptr_t)src & ~(InvalidUpper - 1)) return src;
   __sva_rt_lock(&lock);
   if (adl_splay_retrieve(&MP->OOB, &src, 0, &tag)) {
     __sva_rt_unlock(&lock);
@@ -1485,7 +1487,7 @@ void* pchk_bounds(MetaPoolTy* MP, void* src, void* dest) {
     ++invalidptr;
     P = invalidptr;
     __sva_rt_unlock(&lock);
-    if ((unsigned)P & ~(InvalidUpper - 1)) {
+    if ((uintptr_t)P & ~(InvalidUpper - 1)) {
       if(do_fail) __sva_report("poolcheck failure: out of rewrite ptrs");
       return dest;
     }
@@ -1558,7 +1560,7 @@ void* pchk_bounds_i(MetaPoolTy* MP, void* src, void* dest) {
     if (invalidptr == 0) invalidptr = (unsigned char*)0x03;
     ++invalidptr;
     P = invalidptr;
-    if ((unsigned)P & ~(InvalidUpper - 1)) {
+    if ((uintptr_t)P & ~(InvalidUpper - 1)) {
       __sva_rt_unlock(&lock);
       if(do_fail) __sva_report("poolcheck failure: out of rewrite ptrs\n");
       return dest;

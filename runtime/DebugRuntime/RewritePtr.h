@@ -36,11 +36,11 @@ NAMESPACE_SC_BEGIN
 //                       write permissions for the pages contained within it.
 //
 #if defined(__linux__)
-static const unsigned InvalidUpper = 0xf0000000;
-static const unsigned InvalidLower = 0xc0000000;
+static const uintptr_t InvalidUpper = 0xf0000000;
+static const uintptr_t InvalidLower = 0xc0000000;
 #else
-extern unsigned InvalidUpper;
-extern unsigned InvalidLower;
+extern uintptr_t InvalidUpper;
+extern uintptr_t InvalidLower;
 #endif
 
 // Map between rewrite pointer and source file information

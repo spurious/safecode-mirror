@@ -82,8 +82,8 @@ rewrite_ptr (DebugPoolTy * Pool,
   //
   void* P = invalidptr;
   if ((uintptr_t) P == InvalidUpper) {
-    fprintf (stderr, "rewrite: out of rewrite ptrs: %x %x, pc=%p\n",
-             InvalidLower, InvalidUpper, invalidptr);
+    fprintf (stderr, "rewrite: out of rewrite ptrs: %p %p, pc=%p\n",
+             (void *) InvalidLower, (void *) InvalidUpper, invalidptr);
     fflush (stderr);
     return const_cast<void*>(p);
   }

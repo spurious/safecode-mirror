@@ -76,8 +76,8 @@ struct ConfigData ConfigData = {false, true, false};
 
 // Invalid address range
 #if !defined(__linux__)
-unsigned InvalidUpper = 0x00000000;
-unsigned InvalidLower = 0x00000003;
+uintptr_t InvalidUpper = 0x00000000;
+uintptr_t InvalidLower = 0x00000003;
 #endif
 
 NAMESPACE_SC_END
@@ -158,11 +158,12 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   }
   //memset (Addr, 0x00, invalidsize);
   madvise (Addr, invalidsize, MADV_FREE);
-  InvalidLower = (unsigned int) Addr;
-  InvalidUpper = (unsigned int) Addr + invalidsize;
+  InvalidLower = (uintptr_t) Addr;
+  InvalidUpper = (uintptr_t) Addr + invalidsize;
 
   if (logregs) {
-    fprintf (stderr, "OOB Area: 0x%x - 0x%x\n", InvalidLower, InvalidUpper);
+    fprintf (stderr, "OOB Area: %p - %p\n", (void *) InvalidLower,
+                                            (void *) InvalidUpper);
     fflush (stderr);
   }
 #endif
