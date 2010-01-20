@@ -10,7 +10,7 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 #
 # Turn on debug information for use with the SAFECode tool
 #
-CFLAGS = -g -O2 -m32 -fno-strict-aliasing
+CFLAGS = -g -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
@@ -18,6 +18,7 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
 VALGRIND = valgrind -q --log-file=vglog
+#VALGRIND = valgrind -q --log-file=vglog --tool=exp-ptrcheck
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/Debug/lib/libaddchecks.a
@@ -80,19 +81,19 @@ Output/%.nonsc.cbe.c: Output/%.nonsc.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -static -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.cbe.c
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O) $(POOLSYSTEM)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM) $(LDFLAGS) -o $@ -static -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc): \
 Output/%.nonsc: Output/%.nonsc.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
 endif
 
 ##############################################################################

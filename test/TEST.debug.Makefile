@@ -122,19 +122,19 @@ Output/%.noOOB.cbe.c: Output/%.noOOB.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.cbe.c
-	-$(CC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -static -lstdc++
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O)
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
 endif
 
 ##############################################################################
