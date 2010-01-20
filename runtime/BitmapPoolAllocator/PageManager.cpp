@@ -66,7 +66,7 @@ InitializePageManager() {
 
 #if !USE_MEMALIGN
 void *GetPages(unsigned NumPages) {
-#if defined(i386) || defined(__i386__) || defined(__x86__)
+#if defined(i386) || defined(__i386__) || defined(__x86__) || defined(__x86_64__)
   /* Linux and *BSD tend to have these flags named differently. */
 #if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
 # define MAP_ANONYMOUS MAP_ANON
