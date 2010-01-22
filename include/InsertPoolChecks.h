@@ -57,22 +57,22 @@ struct InsertPoolChecks : public FunctionPass {
     private:
     InsertSCIntrinsic * intrinsic;
     ArrayBoundsCheckGroup * abcPass;
-  PoolAllocateGroup * paPass;
-  TargetData * TD;
-  DSNodePass * dsnPass;
-  Function *PoolCheck;
-  Function *PoolCheckUI;
-  Function *PoolCheckAlign;
-  Function *PoolCheckAlignUI;
-  Function *PoolCheckArray;
-  Function *PoolCheckArrayUI;
-  Function *FunctionCheck;
-	void addCheckProto(Module &M);
-  void addPoolChecks(Function &F);
-  void addGetElementPtrChecks(GetElementPtrInst * GEP);
-  void addLoadStoreChecks(Function &F);
-  void insertAlignmentCheck (LoadInst * LI);
-  void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
+    PoolAllocateGroup * paPass;
+    TargetData * TD;
+    DSNodePass * dsnPass;
+    Function *PoolCheck;
+    Function *PoolCheckUI;
+    Function *PoolCheckAlign;
+    Function *PoolCheckAlignUI;
+    Function *PoolCheckArray;
+    Function *PoolCheckArrayUI;
+    Function *FunctionCheck;
+    void addCheckProto(Module &M);
+    void addPoolChecks(Function &F);
+    void addGetElementPtrChecks(GetElementPtrInst * GEP);
+    void addLoadStoreChecks(Function &F);
+    void insertAlignmentCheck (LoadInst * LI);
+    void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
 };
 
 /// Monotonic Loop Optimization
