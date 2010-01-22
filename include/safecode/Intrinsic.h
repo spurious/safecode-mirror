@@ -34,21 +34,30 @@ NAMESPACE_SC_BEGIN
 class InsertSCIntrinsic : public ModulePass {
   public:
     static char ID;
+
+    //
+    // Enumeration: IntrinsicFlags
+    //
+    // Description:
+    //  These flags describes various properties of the SAFECode intrinsics.
+    //  Note that they form a bitfield; each bit flags a specific property.
+    //
     enum IntrinsicFlags {
-      SC_INTRINSIC_NO_OP	    	= 0,      // No-op intrinsic
-      SC_INTRINSIC_HAS_POOL_HANDLE      = 1,
-      SC_INTRINSIC_HAS_VALUE_POINTER    = 1 << 1,
-      SC_INTRINSIC_CHECK         	= 1 << 2,
+      SC_INTRINSIC_NO_OP                 = 0,      // No-op intrinsic
+      SC_INTRINSIC_HAS_POOL_HANDLE       = 1,
+      SC_INTRINSIC_HAS_VALUE_POINTER     = 1 << 1,
+      SC_INTRINSIC_CHECK                 = 1 << 2,
       // Memory check intrinsic
-      SC_INTRINSIC_MEMCHECK     	= 1 << 3,
+      SC_INTRINSIC_MEMCHECK              = 1 << 3,
       // Indexing (GEP) check intrinsic
-      SC_INTRINSIC_BOUNDSCHECK     	= 1 << 4,
+      SC_INTRINSIC_BOUNDSCHECK           = 1 << 4,
       // Out-of-bounds pointer rewriting
-      SC_INTRINSIC_REGISTRATION        	= 1 << 5,
-      SC_INTRINSIC_OOB                  = 1 << 6,
-      SC_INTRINSIC_POOL_CONTROL         = 1 << 7,
-      SC_INTRINSIC_DEBUG_INSTRUMENTATION= 1 << 8,
-      SC_INTRINSIC_MISC                 = 1 << 9
+      SC_INTRINSIC_REGISTRATION          = 1 << 5,
+      SC_INTRINSIC_OOB                   = 1 << 6,
+      SC_INTRINSIC_POOL_CONTROL          = 1 << 7,
+      SC_INTRINSIC_DEBUG_INSTRUMENTATION = 1 << 8,
+      SC_INTRINSIC_MISC                  = 1 << 9,
+      SC_ANY                             = 0xffffu
     } IntrinsicFlags;
 
     typedef struct IntrinsicInfo {

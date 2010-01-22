@@ -59,7 +59,8 @@ UnusedCheckElimination::runOnModule (Module & M) {
   InsertSCIntrinsic::intrinsic_const_iterator i = intrinsic->intrinsic_begin();
   InsertSCIntrinsic::intrinsic_const_iterator e = intrinsic->intrinsic_end();
   for (; i != e; ++i) {
-    if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_CHECK | InsertSCIntrinsic::SC_INTRINSIC_OOB)) {
+    if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_CHECK |
+                   InsertSCIntrinsic::SC_INTRINSIC_OOB)) {
       for (Value::use_iterator I = i->F->use_begin(), E = i->F->use_end();
            I != E;
            ++I) {
@@ -69,14 +70,15 @@ UnusedCheckElimination::runOnModule (Module & M) {
         // from may have uses (other than the casts).
         //
         CallInst * CI = cast<CallInst>(*I);
-        Value * CheckedPointer = intrinsic->getValuePointer(CI)
-                                           ->stripPointerCasts();
+        if (Value * CheckedPointer = intrinsic->getValuePointer(CI)) {
+          CheckedPointer = CheckedPointer->stripPointerCasts();
 
-        //
-        // If the checked pointer has no uses, schedule the run-time check for
-        // deletion.
-        //
-        if (CheckedPointer->use_empty()) unusedChecks.push_back(CI);
+          //
+          // If the checked pointer has no uses, schedule the run-time check for
+          // deletion.
+          //
+          if (CheckedPointer->use_empty()) unusedChecks.push_back(CI);
+        }
       }
     }
   }

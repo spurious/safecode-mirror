@@ -291,11 +291,11 @@ InsertSCIntrinsic::getIntrinsic(const std::string & name) const {
 }
 
 //
-// Method: isSCIntrinsic()
+// Method: isSCIntrinsicWithFlags()
 //
 // Description:
 //  Determine whether the specified LLVM value is a call to a SAFECode
-//  intrinsic.
+//  intrinsic with the specified flags.
 //
 // Inputs:
 //  inst - The LLVM Value to check.  It can be any value, including
@@ -303,7 +303,8 @@ InsertSCIntrinsic::getIntrinsic(const std::string & name) const {
 //  flag - Indicate the property in the desired intrinsic
 //
 // Return value:
-//  true  - The LLVM value is a call to a SAFECode run-time function.
+//  true  - The LLVM value is a call to a SAFECode run-time function and has
+//          one or more of the specified flags.
 //  false - The LLVM value is not a call to a SAFECode run-time function.
 //
 bool
@@ -325,9 +326,25 @@ InsertSCIntrinsic::isSCIntrinsicWithFlags(Value * inst, unsigned flag) const {
     return false;
 
   const IntrinsicInfoTy & info = intrinsics[it->getValue()];
-  return info.flag && flag;
+  return (info.flag & flag);
 }
 
+//
+// Method: getValuePointer()
+//
+// Description:
+//  This method returns the pointer value that is used in an intrinsic call.
+//  For run-time checks, this is usually the pointer that is being checked.
+//
+// Inputs:
+//  CI - The call instruction for which the pointer operand is desired.  Note
+//       that can be a non-intrinsic call.
+//
+// Return value:
+//  0 - This call is not a SAFECode intrinsic call or there is no pointer value 
+//      associated with this call.
+//  Otherwise, a pointer to the pointer value operand is returned.
+//
 Value *
 InsertSCIntrinsic::getValuePointer (CallInst * CI) {
   if (isSCIntrinsicWithFlags (CI, SC_INTRINSIC_HAS_VALUE_POINTER)) {
