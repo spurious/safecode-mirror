@@ -27,7 +27,8 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -terminate -check-every-gep-use -rewrite-oob
-SCOPTS2 := -pa=multi
+SCOPTS2 := -pa=apa
+#SCOPTS2 := -pa=multi
 #SCOPTS2 := -dpchecks
 SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
@@ -62,6 +63,15 @@ else
 LDFLAGS += -lrt -lpthread
 endif
 
+#
+# When compiling on Linux, statically link in libstdc++.
+# For other platforms, link it in normally.
+#
+ifeq ($(OS),Linux)
+STATICFLAGS := -static
+else
+STATICFLAGS :=
+endif
 # DEBUGGING
 #   o) Don't add -g to CFLAGS, CXXFLAGS, or CPPFLAGS; these are used by the
 #      rules to compile code with llvm-gcc and enable LLVM debug information;
@@ -122,19 +132,19 @@ Output/%.noOOB.cbe.c: Output/%.noOOB.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.cbe.c
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ -static -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O)
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.s
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -static -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
 endif
 
 ##############################################################################
