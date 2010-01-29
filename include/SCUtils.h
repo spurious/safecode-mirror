@@ -70,6 +70,7 @@ castTo (Value * V, const Type * Ty, Twine Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
+  assert (V && "castTo: trying to cast a NULL Value!\n");
   if (V->getType() == Ty)
     return V;
                                                                                 
@@ -92,6 +93,7 @@ castTo (Instruction * I, const Type * Ty, Twine Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
+  assert (I && "castTo: trying to cast a NULL Instruction!\n");
   if (I->getType() == Ty)
     return I;
                                                                                 
