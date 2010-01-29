@@ -72,6 +72,7 @@ STATICFLAGS := -static
 else
 STATICFLAGS :=
 endif
+
 # DEBUGGING
 #   o) Don't add -g to CFLAGS, CXXFLAGS, or CPPFLAGS; these are used by the
 #      rules to compile code with llvm-gcc and enable LLVM debug information;
@@ -132,19 +133,19 @@ Output/%.noOOB.cbe.c: Output/%.noOOB.bc $(LLC)
 ifdef SC_USECBE
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.cbe.c
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
+	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s $(PA_RT_O)
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
 Output/%.noOOB: Output/%.noOOB.s
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAG) -lstdc++
+	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
 endif
 
 ##############################################################################
