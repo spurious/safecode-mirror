@@ -135,6 +135,16 @@ PoolRegisterElimination::markUsedAliasSet(const char * name) {
   }
 }
 
+//
+// Method: removeUnusedRegistration()
+//
+// Description:
+//  This method take the name of a registration function and removes all
+//  registrations made with that function for pointers that are never checked.
+//
+// Inputs:
+//  name - The name of the registration intrinsic.
+//
 void
 PoolRegisterElimination::removeUnusedRegistration(const char * name) {
   Function * F = intrinsic->getIntrinsic(name).F;
