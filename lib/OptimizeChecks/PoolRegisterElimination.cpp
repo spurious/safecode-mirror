@@ -19,8 +19,6 @@
 #include "safecode/Support/AllocatorInfo.h"
 #include "SCUtils.h"
 
-#include "llvm/Analysis/AliasSetTracker.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Statistic.h"
 
 
@@ -36,25 +34,16 @@ namespace {
 }
 
 //
-// Data structure: usedSet
+// Method: findCheckedAliasSets()
 //
 // Description:
-//  This set contains all AliasSets which are used in run-time checks that
-//  perform an object lookup.  It conservatively tell us which pointers must
-//  be registered with the SAFECode run-time.
+//  This method finds all alias sets which contain pointers that have been used
+//  in run-time checks that require a splay-tree lookup.
 //
-static DenseSet<AliasSet*> usedSet;
-
-bool
-PoolRegisterElimination::runOnModule(Module & M) {
-  usedSet.clear();
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  AA = &getAnalysis<AliasAnalysis>();
-  AST = new AliasSetTracker(*AA);
-
+void
+PoolRegisterElimination::findCheckedAliasSets () {
   // FIXME: The list of intrinsics should be selected via scanning through the
   // intrinsic lists with specified flags.
-
   const char * splayTreeCheckIntrinsics[] = {
     "sc.lscheck",
     "sc.lscheckui",
@@ -75,36 +64,37 @@ PoolRegisterElimination::runOnModule(Module & M) {
     markUsedAliasSet(splayTreeCheckIntrinsics[i]);
   }
 
+  return;
+}
+
+bool
+PoolRegisterElimination::runOnModule(Module & M) {
   //
-  // List of registration intrinsics.
+  // Clear out the set of used alias groups.
   //
-  // FIXME:
-  //  It is possible that removeUnusedRegistration() will properly detect
-  //  that pointers *within* argv are not used.  This should be investigated
-  //  before sc.pool_argvregister() is added back into the list.
-  //
-  // Note that sc.pool_argvregister() is not in this list.  This is because
-  // it registers both the argv array and all the command line arguments whose
-  // pointers are within the argv array.
-  //
-  const char * registerIntrinsics[] = {
-    "sc.pool_register",
-    "sc.pool_register_stack",
-    "sc.pool_register_global",
-    "sc.pool_unregister",
-    "sc.pool_unregister_stack",
-  };
+  usedSet.clear();
 
   //
-  // Process each registration function by removing those objects that are
-  // are not checked by any run-time function requiring an object lookup.
+  // Get access to prequisite analysis passes.
   //
-  for (size_t i = 0;
-       i < sizeof(registerIntrinsics) / sizeof (const char*);
-       ++i) {
-    removeUnusedRegistration(registerIntrinsics[i]);
-  }
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
+  AA = &getAnalysis<AliasAnalysis>();
+  AST = new AliasSetTracker(*AA);
 
+  //
+  // Find all alias sets that have a pointer that is passed to a run-time
+  // check that does a splay-tree lookup.
+  //
+  findCheckedAliasSets();
+
+  //
+  // Remove all unused registrations.
+  //
+  removeUnusedRegistrations ();
+
+  //
+  // Deallocate memory and return;
+  //
   delete AST;
   return true;
 }
@@ -136,6 +126,26 @@ PoolRegisterElimination::markUsedAliasSet(const char * name) {
 }
 
 //
+// Method: isSafeToRemove()
+//
+// Description:
+//  Determine whether the registration for the specified pointer value can be
+//  safely removed.
+//
+// Inputs:
+//  Ptr - The pointer value that is registered.
+//
+// Return value:
+//  true  - The registration of this value can be safely removed.
+//  false - The registration of this value may not be safely removed.
+//
+bool
+PoolRegisterElimination::isSafeToRemove (Value * Ptr) {
+  AliasSet * aliasSet = AST->getAliasSetForPointerIfExists(Ptr, 0);
+  return (usedSet.count(aliasSet) == 0);
+}
+
+//
 // Method: removeUnusedRegistration()
 //
 // Description:
@@ -146,20 +156,59 @@ PoolRegisterElimination::markUsedAliasSet(const char * name) {
 //  name - The name of the registration intrinsic.
 //
 void
-PoolRegisterElimination::removeUnusedRegistration(const char * name) {
-  Function * F = intrinsic->getIntrinsic(name).F;
+PoolRegisterElimination::removeUnusedRegistrations (void) {
+  //
+  // List of registration intrinsics.
+  //
+  // FIXME:
+  //  It is possible that removeUnusedRegistration() will properly detect
+  //  that pointers *within* argv are not used.  This should be investigated
+  //  before sc.pool_argvregister() is added back into the list.
+  //
+  // Note that sc.pool_argvregister() is not in this list.  This is because
+  // it registers both the argv array and all the command line arguments whose
+  // pointers are within the argv array.
+  //
+  const char * registerIntrinsics[] = {
+    "sc.pool_register",
+    "sc.pool_register_stack",
+    "sc.pool_register_global",
+    "sc.pool_unregister",
+    "sc.pool_unregister_stack",
+  };
+
+  //
+  // Scan through all uses of each registration function and see if it can be
+  // safely removed.  If so, schedule it for removal.
+  //
   std::vector<CallInst*> toBeRemoved;
-  for(Value::use_iterator UI=F->use_begin(), UE=F->use_end(); UI != UE; ++UI) {
-    CallInst * CI = cast<CallInst>(*UI);
-    Value * checkedPtr = intrinsic->getValuePointer(CI);
-    AliasSet * aliasSet = AST->getAliasSetForPointerIfExists(checkedPtr, 0);
-    if (usedSet.count(aliasSet) == 0) {
-      toBeRemoved.push_back(CI);
+  unsigned numberOfIntrinsics=sizeof(registerIntrinsics) / sizeof (const char*);
+  for (size_t i = 0; i < numberOfIntrinsics; ++i) {
+    Function * F = intrinsic->getIntrinsic(registerIntrinsics[i]).F;
+
+    //
+    // Look for and record all registrations that can be deleted.
+    //
+    for (Value::use_iterator UI=F->use_begin(), UE=F->use_end();
+         UI != UE;
+         ++UI) {
+      CallInst * CI = cast<CallInst>(*UI);
+      if (isSafeToRemove (intrinsic->getValuePointer(CI))) {
+        toBeRemoved.push_back(CI);
+      }
     }
   }
 
+  //
+  // Update the statistics.
+  //
   RemovedRegistration += toBeRemoved.size();
-  for(std::vector<CallInst*>::iterator it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
+
+  //
+  // Remove the unnecesary registrations.
+  //
+  std::vector<CallInst*>::iterator it, end;
+  for (it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
     (*it)->eraseFromParent();
   }
 }

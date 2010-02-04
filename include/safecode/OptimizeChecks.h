@@ -18,6 +18,8 @@
 #include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
 
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Module.h"
@@ -137,8 +139,22 @@ struct PoolRegisterElimination : public ModulePass {
   InsertSCIntrinsic * intrinsic;
   AliasAnalysis * AA;
   AliasSetTracker * AST;
+
+  //
+  // Data structure: usedSet
+  //
+  // Description:
+  //  This set contains all AliasSets which are used in run-time checks that
+  //  perform an object lookup.  It conservatively tell us which pointers must
+  //  be registered with the SAFECode run-time.
+  //
+  DenseSet<AliasSet*> usedSet;
+
+  // Private methods
   void markUsedAliasSet(const char * name);
-  void removeUnusedRegistration(const char * name);
+  void removeUnusedRegistrations (void);
+  bool isSafeToRemove (Value * Ptr);
+  void findCheckedAliasSets ();
 };
 
 //
