@@ -75,13 +75,24 @@ PoolRegisterElimination::runOnModule(Module & M) {
     markUsedAliasSet(splayTreeCheckIntrinsics[i]);
   }
 
+  //
+  // List of registration intrinsics.
+  //
+  // FIXME:
+  //  It is possible that removeUnusedRegistration() will properly detect
+  //  that pointers *within* argv are not used.  This should be investigated
+  //  before sc.pool_argvregister() is added back into the list.
+  //
+  // Note that sc.pool_argvregister() is not in this list.  This is because
+  // it registers both the argv array and all the command line arguments whose
+  // pointers are within the argv array.
+  //
   const char * registerIntrinsics[] = {
     "sc.pool_register",
     "sc.pool_register_stack",
     "sc.pool_register_global",
     "sc.pool_unregister",
     "sc.pool_unregister_stack",
-    "sc.pool_argvregister"
   };
 
   //
