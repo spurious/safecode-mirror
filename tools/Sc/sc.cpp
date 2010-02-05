@@ -347,7 +347,11 @@ int main(int argc, char **argv) {
     // frees.
     //
     Passes.add (new OptimizeChecks());
-    if (DisableDebugInfo) Passes.add (new PoolRegisterElimination());
+    if (DisableDebugInfo) {
+      Passes.add (new PoolRegisterElimination());
+    } else {
+      Passes.add (new DebugPoolRegisterElimination());
+    }
 
     Passes.add(new UnusedCheckElimination());
 

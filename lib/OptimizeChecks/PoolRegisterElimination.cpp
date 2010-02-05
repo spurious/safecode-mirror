@@ -61,7 +61,7 @@ PoolRegisterElimination::findCheckedAliasSets () {
   for (size_t i = 0;
        i < sizeof(splayTreeCheckIntrinsics) / sizeof (const char*);
        ++i) {
-    markUsedAliasSet(splayTreeCheckIntrinsics[i]);
+    markUsedAliasSet(splayTreeCheckIntrinsics[i], usedSet);
   }
 
   return;
@@ -88,9 +88,103 @@ PoolRegisterElimination::runOnModule(Module & M) {
   findCheckedAliasSets();
 
   //
+  // List of registration intrinsics.
+  //
+  // FIXME:
+  //  It is possible that removeUnusedRegistration() will properly detect
+  //  that pointers *within* argv are not used.  This should be investigated
+  //  before sc.pool_argvregister() is added back into the list.
+  //
+  // Note that sc.pool_argvregister() is not in this list.  This is because
+  // it registers both the argv array and all the command line arguments whose
+  // pointers are within the argv array.
+  //
+  const char * registerIntrinsics[] = {
+    "sc.pool_register",
+    "sc.pool_register_stack",
+    "sc.pool_register_global",
+    "sc.pool_unregister",
+    "sc.pool_unregister_stack",
+  };
+
+  //
   // Remove all unused registrations.
   //
-  removeUnusedRegistrations ();
+  unsigned numberOfIntrinsics=sizeof(registerIntrinsics) / sizeof (const char*);
+  for (size_t i = 0; i < numberOfIntrinsics; ++i) {
+    removeUnusedRegistrations (registerIntrinsics[i]);
+  }
+
+  //
+  // Deallocate memory and return;
+  //
+  delete AST;
+  return true;
+}
+
+//
+// Method: findFreedAliasSets()
+//
+// Description:
+//  This method will find and record all the alias sets that have pointers that
+//  have been used in deallocation functions.
+//
+void
+DebugPoolRegisterElimination::findFreedAliasSets (void) {
+  return;
+}
+
+bool
+DebugPoolRegisterElimination::runOnModule(Module & M) {
+  //
+  // Clear out the set of used alias groups.
+  //
+  usedSet.clear();
+
+  //
+  // Get access to prequisite analysis passes.
+  //
+  intrinsic = &getAnalysis<InsertSCIntrinsic>();
+  AA = &getAnalysis<AliasAnalysis>();
+  AST = new AliasSetTracker(*AA);
+
+  //
+  // Find all alias sets that have a pointer that is passed to a run-time
+  // check that does a splay-tree lookup.
+  //
+  findCheckedAliasSets();
+
+  //
+  // Find all alias sets that have a pointer that is freed.  Such pointers are
+  // considered "used" since we need to do invalid free checks on them.
+  //
+  markUsedAliasSet ("sc.pool_unregister", usedSet);
+
+  //
+  // List of registration intrinsics.
+  //
+  // FIXME:
+  //  It is possible that removeUnusedRegistration() will properly detect
+  //  that pointers *within* argv are not used.  This should be investigated
+  //  before sc.pool_argvregister() is added back into the list.
+  //
+  // Note that sc.pool_argvregister() is not in this list.  This is because
+  // it registers both the argv array and all the command line arguments whose
+  // pointers are within the argv array.
+  //
+  const char * registerIntrinsics[] = {
+    "sc.pool_register_global",
+    "sc.pool_register_stack",
+    "sc.pool_unregister_stack",
+  };
+
+  //
+  // Remove all unused registrations.
+  //
+  unsigned numberOfIntrinsics=sizeof(registerIntrinsics) / sizeof (const char*);
+  for (size_t i = 0; i < numberOfIntrinsics; ++i) {
+    removeUnusedRegistrations (registerIntrinsics[i]);
+  }
 
   //
   // Deallocate memory and return;
@@ -103,25 +197,25 @@ PoolRegisterElimination::runOnModule(Module & M) {
 // Method: markUsedAliasSet
 //
 // Description:
-//  This method takes the name of a run-time check and determines which alias
-//  sets are ever passed into the function.
+//  This method takes the name of a SAFECode run-time function and determines
+//  which alias sets are ever passed into the function.
 //
 // Inputs:
 //  name - The name of the run-time function for which to find uses.
 //
-// Side-effects:
-//  Any alias sets that are checked by the specified run-time function will
-//  have been added to the usedSet variable.
+// Outputs:
+//  set  - The set into which alias sets that use the function should go.
 //
 void
-PoolRegisterElimination::markUsedAliasSet(const char * name) {
+PoolRegisterElimination::markUsedAliasSet (const char * name,
+                                           DenseSet<AliasSet*> & set) {
   Function * F = intrinsic->getIntrinsic(name).F;
 
   for(Value::use_iterator UI=F->use_begin(), UE=F->use_end(); UI != UE; ++UI) {
     CallInst * CI = cast<CallInst>(*UI);
     Value * checkedPtr = intrinsic->getValuePointer(CI);
     AliasSet & aliasSet = AST->getAliasSetForPointer(checkedPtr, 0);
-    usedSet.insert(&aliasSet);
+    set.insert(&aliasSet);
   }
 }
 
@@ -156,46 +250,23 @@ PoolRegisterElimination::isSafeToRemove (Value * Ptr) {
 //  name - The name of the registration intrinsic.
 //
 void
-PoolRegisterElimination::removeUnusedRegistrations (void) {
-  //
-  // List of registration intrinsics.
-  //
-  // FIXME:
-  //  It is possible that removeUnusedRegistration() will properly detect
-  //  that pointers *within* argv are not used.  This should be investigated
-  //  before sc.pool_argvregister() is added back into the list.
-  //
-  // Note that sc.pool_argvregister() is not in this list.  This is because
-  // it registers both the argv array and all the command line arguments whose
-  // pointers are within the argv array.
-  //
-  const char * registerIntrinsics[] = {
-    "sc.pool_register",
-    "sc.pool_register_stack",
-    "sc.pool_register_global",
-    "sc.pool_unregister",
-    "sc.pool_unregister_stack",
-  };
-
+PoolRegisterElimination::removeUnusedRegistrations (const char * name) {
   //
   // Scan through all uses of each registration function and see if it can be
   // safely removed.  If so, schedule it for removal.
   //
   std::vector<CallInst*> toBeRemoved;
-  unsigned numberOfIntrinsics=sizeof(registerIntrinsics) / sizeof (const char*);
-  for (size_t i = 0; i < numberOfIntrinsics; ++i) {
-    Function * F = intrinsic->getIntrinsic(registerIntrinsics[i]).F;
+  Function * F = intrinsic->getIntrinsic(name).F;
 
-    //
-    // Look for and record all registrations that can be deleted.
-    //
-    for (Value::use_iterator UI=F->use_begin(), UE=F->use_end();
-         UI != UE;
-         ++UI) {
-      CallInst * CI = cast<CallInst>(*UI);
-      if (isSafeToRemove (intrinsic->getValuePointer(CI))) {
-        toBeRemoved.push_back(CI);
-      }
+  //
+  // Look for and record all registrations that can be deleted.
+  //
+  for (Value::use_iterator UI=F->use_begin(), UE=F->use_end();
+       UI != UE;
+       ++UI) {
+    CallInst * CI = cast<CallInst>(*UI);
+    if (isSafeToRemove (intrinsic->getValuePointer(CI))) {
+      toBeRemoved.push_back(CI);
     }
   }
 
@@ -213,6 +284,7 @@ PoolRegisterElimination::removeUnusedRegistrations (void) {
   }
 }
 
-char PoolRegisterElimination::ID = 0;
+char PoolRegisterElimination::ID      = 0;
+char DebugPoolRegisterElimination::ID = 0;
 
 NAMESPACE_SC_END

@@ -121,6 +121,7 @@ struct PoolRegisterElimination : public ModulePass {
  public:
   static char ID;
   PoolRegisterElimination() : ModulePass((intptr_t)(&ID)) {}
+  PoolRegisterElimination(char * ID) : ModulePass((intptr_t)(ID)) {}
   virtual bool runOnModule (Module & M);
   const char *getPassName() const {
     return "Pool Register Elimination";
@@ -134,7 +135,7 @@ struct PoolRegisterElimination : public ModulePass {
     AU.setPreservesCFG();
   }
 
- private:
+ protected:
   // References to required analysis passes
   InsertSCIntrinsic * intrinsic;
   AliasAnalysis * AA;
@@ -150,11 +151,33 @@ struct PoolRegisterElimination : public ModulePass {
   //
   DenseSet<AliasSet*> usedSet;
 
-  // Private methods
-  void markUsedAliasSet(const char * name);
-  void removeUnusedRegistrations (void);
+  // Protected methods
+  void markUsedAliasSet(const char * name, DenseSet<AliasSet*> & set);
+  void removeUnusedRegistrations (const char * name);
   bool isSafeToRemove (Value * Ptr);
   void findCheckedAliasSets ();
+};
+
+//
+// Pass: DebugPoolRegisterElimination
+//
+// Description:
+//  This pass is identical to the PoolRegisterElimination pass except that it
+//  will not disrupt the debugging features of the SAFECode debug tool.  It
+//  aims to provide some optimization while providing good debug information.
+//
+struct DebugPoolRegisterElimination : public PoolRegisterElimination {
+ public:
+  static char ID;
+  DebugPoolRegisterElimination() : PoolRegisterElimination(&ID) {}
+  virtual bool runOnModule (Module & M);
+  const char *getPassName() const {
+    return "Debugging-Safe Pool Register Elimination";
+  }
+
+ protected:
+  // Protected methods
+  void findFreedAliasSets (void);
 };
 
 //
