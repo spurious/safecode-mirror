@@ -18,6 +18,7 @@ SAFECode Users Guide
 <!-- ********************************************************************** -->
 <ul>
   <li><a href="#overview">Overview</a></li>
+  <li><a href="#lto">SAFECode/LLVM-GCC Integration</a></li>
   <li><a href="#sc">The sc tool</a></li>
 </ul>
 
@@ -39,21 +40,80 @@ SAFECode Users Guide
 
 <p>
 This manual provides information on using the tools that come with the SAFECode
-compiler.  There are two primary tools provided in the SAFECode distribution:
-the first is the SAFECode compiler itself, also known as the sc tool or sc.
-The second tool is a fault injection tool named injectf.
+compiler.  There are two primary methods in which to use SAFECode: it
+can be integreated into the system linker via a plugin, or it can be run
+explicitly on a program using the sc tool.  The first method is the easiest to
+use when compiling large programs with SAFECode; it lets llvm-gcc take care of
+compiling files into a single bitcode file and performs the SAFECode compiler
+transformations right before code generation within the linker.
+The second method requires that
+you first compile your program to a single LLVM bitcode file before feeding it
+into the sc tool; it is harder to use in that you must determine, on your own,
+how to get your program compiled into a single LLVM bitcode file.  However, on
+the plus side, the sc tool is easier to control with its vast array of
+command-line options.
+</p>
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="lto"><b>SAFECode/LLVM-GCC Integration</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+
+<p>
+The easiest way to use SAFECode is to use the SAFECode libLTO plugin that
+integrates with the linker (the Mac OS X and Gold linker are currently
+supported).  When used in this way, the SAFECode transforms are performed
+transparently by the linker when it creates the final executable.
 </p>
 
 <p>
-All of these tools operate on LLVM bitcode, meaning that you must first compile
-your program to an LLVM bitcode file, feed that bitcode file through the sc or
-injectf tools, and then generate native code from the output of the sc/inject
-tool.  Furthermore, the sc tool utilizes <i>whole-program analysis</i>: this
-means that you must compile your program into separate LLVM bitcode files, link
-these files together into a single bitcode file, process the complete bitcode
-file with sc, and then generate native code.  You <i>cannot</i> run individiual
-bitcode object files through sc and then link them together.
+To install the SAFECode libLTO linker, follow the steps below:
 </p>
+
+<ol>
+<li>
+Make a backup of your system's currently existing libLTO.so or libLTO.dylib.
+</li>
+
+<li>
+Copy the SAFECode libLTO.so (Linux) or libLTO.dylib (Mac OS X) over your
+system's libLTO.so (or libLTO.dylib, as appropriate).
+</li>
+
+<li>
+Make a directory somewhere.  We'll refer to it as $PREFIX.  Make a symbolic
+link from $PREFIX/gcc to llvm-gcc; do the same for $PREFIX/g++ and llvm-g++.
+This step is needed for some versions of libtool that don't understand 
+that llvm-gcc is a compiler driver.
+</li>
+</ol>
+
+<p>
+That's it!  Now, when you want to compile a program with SAFECode, you simply
+use the <tt>-O4</tt> option to llvm-gcc and link in the SAFECode run-time
+libraries.  To configure an autoconf-based software package to use SAFECode, do
+the following:
+</p>
+
+<ol>
+<li> Set the environment variable CC to $PREFIX/gcc.</li>
+<li> Set the environment variable CXX to $PREFIX/g++.</li>
+<li> Set the environment variable CFLAGS to "-O4"</li>
+<li> Set the environment variable LDFLAGS to
+     "-L$SAFECODE/$CONFIG/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where:
+    <ol>
+    <li> $SAFECODE is the root of the SAFECode object tree.</li>
+    <li> $CONFIG is the type of build (Debug, Release, or Profile).</li>
+    </ol>
+</li>
+<li> Run the configure script</li>
+<li> Type "make" to compile the source code.</li>
+</ol>
+
 </div>
 
 <!-- *********************************************************************** -->
