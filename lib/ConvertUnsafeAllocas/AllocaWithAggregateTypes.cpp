@@ -67,12 +67,12 @@ NAMESPACE_SC_BEGIN
   //  operating systems).
   //
 #ifdef LLVA_KERNEL
-  static const unsigned meminitvalue = 0x00;
+  static const unsigned char meminitvalue = 0x00;
 #else
 #if defined(__linux__)
-  static const unsigned meminitvalue = 0xcc;
+  static const unsigned char meminitvalue = 0xcc;
 #else
-  static const unsigned meminitvalue = 0x00;
+  static const unsigned char meminitvalue = 0x00;
 #endif
 #endif
 
@@ -80,7 +80,7 @@ NAMESPACE_SC_BEGIN
   InitAllocas::TypeContainsPointer(const Type *Ty) {
     //
     // FIXME:
-    //  What this should really do is ask Pool Allocation if the given memory.
+    //  What this should really do is ask Pool Allocation if the given memory
     //  object is a pool descriptor.  However, I don't think Pool Allocation
     //  has a good API for requesting that information.
     //
@@ -188,10 +188,12 @@ NAMESPACE_SC_BEGIN
     //
     // Add the memset function to the program.
     //
-    memsetF = M.getOrInsertFunction ("memset", VoidType,
+    memsetF = M.getOrInsertFunction ("llvm.memset.i32", VoidType,
                                                VoidPtrType,
+                                               Int8Type,
                                                Int32Type,
-                                               Int32Type, NULL);
+                                               Int32Type,
+                                               NULL);
 
     return true;
   }
@@ -276,8 +278,9 @@ NAMESPACE_SC_BEGIN
           Value * TheAlloca = castTo (AllocInst, VoidPtrType, "cast", iptI);
 
           std::vector<Value *> args(1, TheAlloca);
-          args.push_back (ConstantInt::get (Int32Type, meminitvalue));
+          args.push_back (ConstantInt::get (Int8Type, meminitvalue));
           args.push_back (AllocSize);
+          args.push_back (ConstantInt::get (Int32Type, 0));
           CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
           ++InitedAllocas;
         }
