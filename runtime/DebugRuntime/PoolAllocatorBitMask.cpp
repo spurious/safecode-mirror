@@ -299,6 +299,7 @@ _internal_poolregister (DebugPoolTy *Pool,
   //
   // If the pool is NULL or the object has zero length, don't do anything.
   //
+  assert (NumBytes && "NumBytes must be more than zero!\n");
   if ((!Pool) || (NumBytes == 0)) return;
 
   //
@@ -378,6 +379,12 @@ __sc_dbg_src_poolregister_stack (DebugPoolTy *Pool,
   // Use the common registration function.  Mark the allocation as a stack
   // allocation.
   //
+#if 0
+  fprintf (ReportLog, "poolreg_stack(%d): %p: %p-%p: %d %d %s %d\n", tag,
+           (void*) Pool, (void*)allocaptr,
+           ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFilep, lineno);
+  fflush (ReportLog);
+#endif
   _internal_poolregister (Pool,
                           allocaptr,
                           NumBytes, tag,
@@ -536,9 +543,9 @@ _internal_poolunregister (DebugPoolTy *Pool,
   unsigned freeID = (freeSeqMap[tag] += 1);
 
   // FIXME: figure what NumPPAge and len are for
-  unsigned len = 1;
-  unsigned NumPPage = 0;
-  unsigned offset = (unsigned)((long)allocaptr & (PPageSize - 1));
+  uintptr_t len = 1;
+  uintptr_t NumPPage = 0;
+  uintptr_t offset = (uintptr_t)((uintptr_t)allocaptr & (PPageSize - 1));
   PDebugMetaData debugmetadataptr = 0;
   
   //
@@ -555,8 +562,8 @@ _internal_poolunregister (DebugPoolTy *Pool,
           "poolfree: No debugmetadataptr\n");
 
   if (logregs) {
-    fprintf(stderr, "pool_unregister:1387: start = 0x%p, end = 0x%p, offset = 0x%08x\n", start, end, offset);
-    fprintf(stderr, "pool_unregister:1388: len = %d\n", len);
+    fprintf(stderr, "pool_unregister:1387: start = 0x%p, end = 0x%p, offset = %p\n", start, end, (void *)offset);
+    fprintf(stderr, "pool_unregister:1388: len = %p\n", (void *) len);
     fflush (stderr);
   }
 
@@ -655,7 +662,7 @@ _internal_poolunregister (DebugPoolTy *Pool,
   }
 
   if (logregs) {
-    fprintf(stderr, "pool_unregister:1397: NumPPage = %d\n", NumPPage);
+    fprintf(stderr, "pool_unregister:1397: NumPPage = %p\n", (void *) NumPPage);
     fprintf(stderr, "pool_unregister:1398: canonical address is 0x%p\n", CanonNode);
     fflush (stderr);
   }

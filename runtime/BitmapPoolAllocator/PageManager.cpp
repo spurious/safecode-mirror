@@ -35,13 +35,13 @@ FreePagesListType FreePages;
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
 extern "C" {
-unsigned PageSize = 0;
+uintptr_t PageSize = 0;
 }
 
 static unsigned poolmemusage = 0;
 
 // Physical page size
-unsigned PPageSize;
+uintptr_t PPageSize;
 
 //
 // Function: InitializePageManager()

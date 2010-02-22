@@ -60,11 +60,11 @@ void *GetPages(unsigned NumPages);
 /// AllocatePage.  This is a value that is typically several kilobytes in size,
 /// and is guaranteed to be a power of two.
 ///
-extern "C" unsigned PageSize;
+extern "C" uintptr_t PageSize;
 
 /// PPageSize - Contains the size of a single physical page.  This is the
 /// smallest granularity at which virtual memory operations can be performed.
-extern unsigned PPageSize;
+extern uintptr_t PPageSize;
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by getPageSize().
@@ -97,8 +97,6 @@ void FreePage(void *Page);
 // The set of free memory pages we retrieved from the OS.
 typedef std::vector<void*> FreePagesListType;
 extern FreePagesListType FreePages;
-
-extern "C" unsigned int PageSize;
 
 NAMESPACE_SC_END
 

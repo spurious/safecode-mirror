@@ -85,8 +85,8 @@ RemapPages (void * va, unsigned length) {
   vm_prot_t          prot_max = VM_PROT_READ | VM_PROT_WRITE;
   vm_map_t           self     = mach_task_self();
 
-  source_addr = (mach_vm_address_t) ((unsigned long)va & ~(PPageSize - 1));
-  unsigned offset = (unsigned long)va & (PPageSize - 1);
+  source_addr = (mach_vm_address_t) ((uintptr_t)va & ~(PPageSize - 1));
+  uintptr_t offset = (uintptr_t)va & (PPageSize - 1);
   unsigned NumPPage = 0;
 
   NumPPage = (length / PPageSize) + 1;
@@ -96,7 +96,7 @@ RemapPages (void * va, unsigned length) {
   //}
 
   if (logregs) {
-    fprintf (stderr, " RemapPage:117: source_addr = 0x%p, offset = 0x%016x, NumPPage = %d\n", (void*)source_addr, offset, NumPPage);
+    fprintf (stderr, " RemapPage:117: source_addr = %p, offset = %p, NumPPage = %d\n", (void*)source_addr, (void *) offset, NumPPage);
     fflush(stderr);
   }
 
@@ -108,11 +108,11 @@ RemapPages (void * va, unsigned length) {
   }
 #endif
 
-  unsigned byteToMap = length + offset;
+  uintptr_t byteToMap = length + offset;
 
   if (logregs) {
-    fprintf(stderr, " RemapPage127: remapping page of size %d covering %d page with offset %d and byteToMap = %d",
-    length, NumPPage, offset, byteToMap);
+    fprintf(stderr, " RemapPage127: remapping page of size %p covering %d page with offset %p and byteToMap = %p",
+    (void *) length, NumPPage, (void *) offset, (void *) byteToMap);
     fflush(stderr);
   }
   kr = mach_vm_remap (self,
@@ -129,7 +129,7 @@ RemapPages (void * va, unsigned length) {
  
   if (kr != KERN_SUCCESS) {
     fprintf(stderr, " mach_vm_remap error: %d \n", kr);
-    fprintf(stderr, " failed to remap %dB of memory from source_addr = 0x%08x\n", byteToMap, (unsigned)source_addr);
+    fprintf(stderr, " failed to remap %p of memory from source_addr = %p\n", (void *) byteToMap, (void *)source_addr);
     //printf(" no of pages used %d %d  %d\n", AddressSpaceUsage1, AddressSpaceUsage2, AddressSpaceUsage2+AddressSpaceUsage1);
     fprintf(stderr, "%s\n", mach_error_string(kr));
     // Mach don't modify and don't mark the string as constants..
