@@ -822,13 +822,19 @@ updatePtrMetaData (PDebugMetaData debugmetadataptr,
 //  ~0 - Otherwise, the program counter at which the fault occurred is
 //       returned.
 //
-static unsigned
+static uintptr_t
 getProgramCounter (void * context) {
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   // Cast parameters to the desired type
   ucontext_t * mycontext = (ucontext_t *) context;
   return (mycontext->uc_mcontext->__ss.__eip);
+#endif
+
+#if defined(__x86_64__)
+  // Cast parameters to the desired type
+  ucontext_t * mycontext = (ucontext_t *) context;
+  return (mycontext->uc_mcontext->__ss.__rip);
 #endif
 #endif
 
@@ -863,7 +869,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   //
   // Get the program counter for where the fault occurred.
   //
-  unsigned program_counter = getProgramCounter (context);
+  uintptr_t program_counter = getProgramCounter (context);
 
   //
   // Get the address causing the fault.
