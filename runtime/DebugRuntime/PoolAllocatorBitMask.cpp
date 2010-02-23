@@ -69,6 +69,7 @@
 
 NAMESPACE_SC_BEGIN
 
+// Dummy pool for holding global memory object information
 DebugPoolTy dummyPool;
 
 // Structure defining configuration data
@@ -79,6 +80,9 @@ struct ConfigData ConfigData = {false, true, false};
 uintptr_t InvalidUpper = 0x00000000;
 uintptr_t InvalidLower = 0x00000003;
 #endif
+
+// Splay tree for mapping shadow pointers to canonical pointers
+static RangeSplayMap<void *> ShadowMap;
 
 NAMESPACE_SC_END
 
@@ -221,7 +225,13 @@ __sc_dbg_newpool(unsigned NodeSize) {
   return Pool;
 }
 
-// pooldestroy - Release all memory allocated for a pool
+//
+// Function: pooldestroy()
+//
+// Description:
+//  Release all memory allocated for a pool.  The compiler inserts a call to
+//  this function when it knows that all objects within the specified pool are
+//  unreachable and can be safely deallocated.
 //
 // FIXME: determine how to adjust debug logs when 
 //        pooldestroy is called
@@ -229,11 +239,18 @@ void
 __sc_dbg_pooldestroy(DebugPoolTy * Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
+  //
+  // Deallocate all object meta-data stored in the pool.
+  //
   Pool->Objects.clear();
   Pool->OOB.clear();
   Pool->DPTree.clear();
+
+  //
+  // Let the pool allocator run-time free all objects allocated within the
+  // pool.
+  //
   __pa_bitmap_pooldestroy(Pool);
-  delete Pool;
 }
 
 //
@@ -309,32 +326,20 @@ _internal_poolregister (DebugPoolTy *Pool,
     assert (0 && "poolregister failed: Object already registered!\n");
     abort();
   }
+}
 
-  //
-  // Generate a generation number for this object registration.  We only do
-  // this for heap allocations.
-  //
-  unsigned allocID = 0;
-  if (allocationType == Heap) {
-    allocID = (allocSeqMap[tag] += 1);
-  }
-
-  //
-  // Create the meta data object containing the debug information for this
-  // pointer.
-  //
-  PDebugMetaData debugmetadataPtr;
-  debugmetadataPtr = createPtrMetaData (allocID,
-                                        0,
-                                        allocationType,
-                                        __builtin_return_address(0),
-                                        0,
-                                        getCanonicalPtr(allocaptr),
-                                        SourceFile, lineno);
-  dummyPool.DPTree.insert (allocaptr,
-                           (char*) allocaptr + NumBytes - 1,
-                           debugmetadataPtr);
-
+//
+// Function: poolregister()
+//
+// Description:
+//  Register the memory starting at the specified pointer of the specified size
+//  with the given Pool.  This version will also record debug information about
+//  the object being registered.
+//
+void
+__sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
+                       unsigned NumBytes) {
+  __sc_dbg_src_poolregister (Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
 }
 
 //
@@ -360,6 +365,28 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                           SourceFilep,
                           lineno,
                           Heap);
+
+  //
+  // Generate a generation number for this object registration.  We only do
+  // this for heap allocations.
+  //
+  unsigned allocID = (allocSeqMap[tag] += 1);
+
+  //
+  // Create the meta data object containing the debug information for this
+  // pointer.
+  //
+  PDebugMetaData debugmetadataPtr;
+  debugmetadataPtr = createPtrMetaData (allocID,
+                                        0,
+                                        Heap,
+                                        __builtin_return_address(0),
+                                        0,
+                                        getCanonicalPtr(allocaptr),
+                                        (char *) SourceFilep, lineno);
+  dummyPool.DPTree.insert (allocaptr,
+                           (char*) allocaptr + NumBytes - 1,
+                           debugmetadataPtr);
 }
 
 //
@@ -379,18 +406,29 @@ __sc_dbg_src_poolregister_stack (DebugPoolTy *Pool,
   // Use the common registration function.  Mark the allocation as a stack
   // allocation.
   //
-#if 0
-  fprintf (ReportLog, "poolreg_stack(%d): %p: %p-%p: %d %d %s %d\n", tag,
-           (void*) Pool, (void*)allocaptr,
-           ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFilep, lineno);
-  fflush (ReportLog);
-#endif
   _internal_poolregister (Pool,
                           allocaptr,
                           NumBytes, tag,
                           SourceFilep,
                           lineno,
                           Stack);
+
+  //
+  // Create the meta data object containing the debug information for this
+  // pointer.
+  //
+  PDebugMetaData debugmetadataPtr;
+  debugmetadataPtr = createPtrMetaData (0,
+                                        0,
+                                        Stack,
+                                        __builtin_return_address(0),
+                                        0,
+                                        getCanonicalPtr(allocaptr),
+                                        (char *) SourceFilep, lineno);
+  dummyPool.DPTree.insert (allocaptr,
+                           (char*) allocaptr + NumBytes - 1,
+                           debugmetadataPtr);
+
 }
 
 //
@@ -463,109 +501,56 @@ __sc_dbg_src_poolregister_global_debug (DebugPoolTy *Pool,
                           SourceFilep,
                           lineno,
                           Global);
+
+  //
+  // Create the meta data object containing the debug information for this
+  // pointer.
+  //
+  PDebugMetaData debugmetadataPtr;
+  debugmetadataPtr = createPtrMetaData (0,
+                                        0,
+                                        Global,
+                                        __builtin_return_address(0),
+                                        0,
+                                        getCanonicalPtr(allocaptr),
+                                        (char *) SourceFilep, lineno);
+  dummyPool.DPTree.insert (allocaptr,
+                           (char*) allocaptr + NumBytes - 1,
+                           debugmetadataPtr);
+
 }
 
 //
-// Function: poolregister()
+// Function: checkForBadFrees()
 //
 // Description:
-//  Register the memory starting at the specified pointer of the specified size
-//  with the given Pool.  This version will also record debug information about
-//  the object being registered.
-//
-void
-__sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
-                       unsigned NumBytes) {
-  __sc_dbg_src_poolregister (Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
-}
-
-//
-// Function: poolunregister()
-//
-// Description:
-//  Remove the specified object from the set of valid objects in the Pool.
-//
-// Inputs:
-//  Pool      - The pool in which the object should belong.
-//  allocaptr - A pointer to the object to remove.  It can be NULL.
-//
-// Notes:
-//  Note that this function currently deallocates debug information about the
-//  allocation.  This is safe because this function is only called on stack
-//  objects.  This is less-than-ideal because we lose debug information about
-//  the allocation of the stack object if it is later dereferenced outside its
-//  function (dangling pointer), but it is currently too expensive to keep that
-//  much debug information around.
-//
-// TODO: The above note is no longer correct; this function is called for stack
-//       and heap allocated objects.  A parameter flags whether the object is
-//       a heap object or a stack/global object.
+//  This function can be called by pool_unregister() functions to determine if
+//  an invalid free is being performed.
 //
 static inline void
-_internal_poolunregister (DebugPoolTy *Pool,
+checkForBadFrees (DebugPoolTy *Pool,
                           void * allocaptr, allocType Type,
                           unsigned tag,
                           const char * SourceFilep,
                           unsigned lineno) {
-  if (logregs) {
-    fprintf (stderr, "pool_unregister: Start: %p: %s %d\n", allocaptr, SourceFilep, lineno);
-    fflush (stderr);
-  }
-
-  //
-  // If no pool was specified, then do nothing.
-  //
-  if (!Pool) return;
-
-  //
-  // For the NULL pointer, we take no action but flag no error.
-  //
-  if (!allocaptr) return;
-
-  //
-  // Find the beginning and end values of the current node.  This information
-  // will be used for invalid free detection.
-  void * start = 0;
-  void * end = 0;
-  Pool->Objects.find (allocaptr, start, end);
-
-  //
-  // Remove the object from the pool's splay tree.
-  //
-  Pool->Objects.remove (allocaptr);
-
-  // Canonical pointer for the pointer we're freeing
-  void * CanonNode = allocaptr;
-
   //
   // Increment the ID number for this deallocation.
   //
   unsigned freeID = (freeSeqMap[tag] += 1);
 
-  // FIXME: figure what NumPPAge and len are for
-  uintptr_t len = 1;
-  uintptr_t NumPPage = 0;
-  uintptr_t offset = (uintptr_t)((uintptr_t)allocaptr & (PPageSize - 1));
-  PDebugMetaData debugmetadataptr = 0;
-  
   //
   // Retrieve the debug information about the node.  This will include a
   // pointer to the canonical page.
   //
-  void * S;
-  void * E;
-  bool found = dummyPool.DPTree.find (allocaptr, S, E, debugmetadataptr);
+  void * start;
+  void * end;
+  PDebugMetaData debugmetadataptr = 0;
+  bool found = dummyPool.DPTree.find (allocaptr, start, end, debugmetadataptr);
 
   // Assert that we either didn't find the object or we found the object *and*
   // it has meta-data associated with it.
   assert ((!found || (found && debugmetadataptr)) &&
-          "poolfree: No debugmetadataptr\n");
-
-  if (logregs) {
-    fprintf(stderr, "pool_unregister:1387: start = 0x%p, end = 0x%p, offset = %p\n", start, end, (void *)offset);
-    fprintf(stderr, "pool_unregister:1388: len = %p\n", (void *) len);
-    fflush (stderr);
-  }
+          "checkForBadFrees: No debugmetadataptr\n");
 
   //
   // If we cannot find the meta-data for this pointer, then the free is
@@ -643,29 +628,56 @@ _internal_poolunregister (DebugPoolTy *Pool,
     dummyPool.DPTree.remove (allocaptr);
   }
 
-  // figure out how many pages does this object span to
-  //  protect the pages. First we sum the offset and len
-  //  to get the total size we originally remapped.
-  //  Then, we determine if this sum is a multiple of
-  //  physical page size. If it is not, then we increment
-  //  the number of pages to protect.
-  //  FIXME!!!
-  NumPPage = (len / PPageSize) + 1;
-  if ( (len - (NumPPage-1) * PPageSize) > (PPageSize - offset) )
-    NumPPage++;
+  return;
+}
 
-  //
-  // If this is a remapped pointer, find its canonical address.
-  //
-  if ((Type != Stack) && (ConfigData.RemapObjects)) {
-    CanonNode = getCanonicalPtr (allocaptr);
-  }
-
+//
+// Function: poolunregister()
+//
+// Description:
+//  Remove the specified object from the set of valid objects in the Pool.
+//
+// Inputs:
+//  Pool      - The pool in which the object should belong.
+//  allocaptr - A pointer to the object to remove.  It can be NULL.
+//
+// Notes:
+//  Note that this function currently deallocates debug information about the
+//  allocation.  This is safe because this function is only called on stack
+//  objects.  This is less-than-ideal because we lose debug information about
+//  the allocation of the stack object if it is later dereferenced outside its
+//  function (dangling pointer), but it is currently too expensive to keep that
+//  much debug information around.
+//
+// TODO: The above note is no longer correct; this function is called for stack
+//       and heap allocated objects.  A parameter flags whether the object is
+//       a heap object or a stack/global object.
+//
+static inline void
+_internal_poolunregister (DebugPoolTy *Pool,
+                          void * allocaptr, allocType Type,
+                          unsigned tag,
+                          const char * SourceFilep,
+                          unsigned lineno) {
   if (logregs) {
-    fprintf(stderr, "pool_unregister:1397: NumPPage = %p\n", (void *) NumPPage);
-    fprintf(stderr, "pool_unregister:1398: canonical address is 0x%p\n", CanonNode);
+    fprintf (stderr, "pool_unregister: Start: %p: %s %d\n", allocaptr, SourceFilep, lineno);
     fflush (stderr);
   }
+
+  //
+  // If no pool was specified, then do nothing.
+  //
+  if (!Pool) return;
+
+  //
+  // For the NULL pointer, we take no action but flag no error.
+  //
+  if (!allocaptr) return;
+
+  //
+  // Remove the object from the pool's splay tree.
+  //
+  Pool->Objects.remove (allocaptr);
 
   if (logregs) {
     fprintf (stderr, "pool_unregister: Done: %p: %s %d\n", allocaptr, SourceFilep, lineno);
@@ -685,6 +697,7 @@ __sc_dbg_poolunregister_debug (DebugPoolTy *Pool,
                                TAG,
                                const char * SourceFilep,
                                unsigned lineno) {
+  checkForBadFrees (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   _internal_poolunregister (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   return;
 }
@@ -701,6 +714,7 @@ __sc_dbg_poolunregister_stack_debug (DebugPoolTy *Pool,
                                      TAG,
                                      const char * SourceFilep,
                                      unsigned lineno) {
+  checkForBadFrees (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   _internal_poolunregister (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   return;
 }
@@ -1011,7 +1025,7 @@ getCanonicalPtr (void * ShadowPtr) {
   //
   void * start, * end;
   void * CanonPtr = 0;
-  bool found = dummyPool.OOB.find (ShadowPtr, start, end, CanonPtr);
+  bool found = ShadowMap.find (ShadowPtr, start, end, CanonPtr);
   return (found ? CanonPtr : ShadowPtr);
 }
 
@@ -1051,7 +1065,7 @@ pool_shadow (void * CanonPtr, unsigned NumBytes) {
   //
   // Record the mapping from shadow pointer to canonical pointer.
   //
-  dummyPool.OOB.insert (shadowptr, 
+  ShadowMap.insert (shadowptr, 
                         (char*) shadowptr + NumBytes - 1,
                         CanonPtr);
   if (logregs) {
