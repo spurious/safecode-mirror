@@ -16,6 +16,8 @@
 #ifndef _POSIX_MAPPED_FILES
 #define _POSIX_MAPPED_FILES
 #endif
+
+#include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc/Support/MallocAllocator.h"
 #include "poolalloc/MMAPSupport.h"
 #include "safecode/Runtime/BitmapAllocator.h"
@@ -54,7 +56,7 @@ struct ShadowInfo {
 };
 
 // Map canonical pages to their shadow pages
-llvm::DenseMap<void *,std::vector<struct ShadowInfo> > ShadowPages;
+hash_map<void *,std::vector<struct ShadowInfo> > ShadowPages;
 
 // If not compiling on Mac OS X, define types and values to make the same code
 // work on multiple platforms.
@@ -239,16 +241,17 @@ RemapObject (void * va, unsigned length) {
   unsigned char * phy_page_start;
 
   // The offset within the physical page in which the object lives
-  unsigned phy_offset = (unsigned long)va & (PPageSize - 1);
+  uintptr_t phy_offset = (unsigned long)va & (PPageSize - 1);
   //  unsigned offset     = (unsigned long)va & (PageSize - 1);
 
   //
   // Compute the location of the object relative to the page and physical page.
   //
-  page_start     = (unsigned char *)((unsigned long)va & ~(PageSize - 1));
-  phy_page_start = (unsigned char *)((unsigned long)va & ~(PPageSize - 1));
+  page_start     = (unsigned char *)((uintptr_t)va & ~(PageSize - 1));
+  phy_page_start = (unsigned char *)((uintptr_t)va & ~(PPageSize - 1));
 
-  unsigned StartPage = ((uintptr_t)phy_page_start >> 12) - ((uintptr_t)page_start >> 12);
+  uintptr_t StartPage = ((uintptr_t)phy_page_start >> 12) -
+                        ((uintptr_t)page_start     >> 12);
   //unsigned EndPage   = ((phy_page_start + length - page_start) / PPageSize) + 1;
 
   //
@@ -258,8 +261,8 @@ RemapObject (void * va, unsigned length) {
     return (void *)(phy_page_start);
 
   // Create a mask to easily tell if the needed pages are available
-  unsigned mask = 0;
-  for (unsigned i = StartPage; i < PageMultiplier; ++i) {
+  uintptr_t mask = 0;
+  for (uintptr_t i = StartPage; i < PageMultiplier; ++i) {
     if (((unsigned char *)(page_start) + i*PPageSize) <= ((unsigned char *)(va)+length) )
       mask |= (1u << i);
     else
@@ -270,8 +273,8 @@ RemapObject (void * va, unsigned length) {
   // First, look to see if a pre-existing shadow page is available.
   //
   if (ShadowPages.find(page_start) != ShadowPages.end()) {
-    unsigned int numfull = 0;
-    for (unsigned i = 0; i < NumShadows; ++i) {
+    uintptr_t numfull = 0;
+    for (uintptr_t i = 0; i < NumShadows; ++i) {
       struct ShadowInfo Shadow = ShadowPages[page_start][i];
       if ((Shadow.ShadowStart) && ((Shadow.InUse & mask) == 0)) {
         // Set the shadow pages as being used
