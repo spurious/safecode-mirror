@@ -185,7 +185,7 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Initialize the dummy pool.
   //
-  __pa_bitmap_poolinit(static_cast<BitmapPoolTy*>(&dummyPool), 1);
+  __sc_dbg_poolinit(&dummyPool, 1, 0);
 
   //
   // Initialize the signal handlers for catching errors.
@@ -1052,8 +1052,8 @@ pool_shadow (void * CanonPtr, unsigned NumBytes) {
   // Record the mapping from shadow pointer to canonical pointer.
   //
   dummyPool.OOB.insert (shadowptr, 
-                           (char*) shadowptr + NumBytes - 1,
-                           CanonPtr);
+                        (char*) shadowptr + NumBytes - 1,
+                        CanonPtr);
   if (logregs) {
     fprintf (stderr, "pool_shadow: %p -> %p\n", CanonPtr, shadowptr);
     fflush (stderr);
