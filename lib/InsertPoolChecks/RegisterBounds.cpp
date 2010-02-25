@@ -57,6 +57,28 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
     return;
   } 
 
+#if 1
+  //
+  // Create an alias that points into a global variable.
+  //
+  if (const StructType * ST = dyn_cast<StructType>(GV->getType()->getContainedType(0))) {
+    //
+    // Create a constant GEP expression into the structure.
+    //
+    const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+    Constant * Indices[2];
+    Indices[0] = (ConstantInt::get(Int32Type, 0));
+    Indices[1] = (ConstantInt::get(Int32Type, ST->getNumElements() - 1));
+    Constant * CE = ConstantExpr::getGetElementPtr (GV, Indices, 2);
+
+    //
+    // Create the global alias.
+    //
+    new GlobalAlias (GV->getType(), GV->getLinkage(), "jtcalias",
+              CE, GV->getParent());
+  }
+#endif
+
   DSNode *DSN  = dsnPass->getDSNodeForGlobalVariable(GV);
   if (DSN) {  
     const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
