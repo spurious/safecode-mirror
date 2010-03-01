@@ -162,9 +162,21 @@ NAMESPACE_SC_BEGIN
         return false;
 
       //
-      // Get the type of object allocated.
+      // If we do not know everything that happens to the pointer (i.e., it is
+      // incomplete or comes from external code), then go ahead and assume that
+      // a pointer is within it somewhere.
+      //
+      if (Node->isIncompleteNode())
+        return true;
+
+      //
+      // Get the type of object allocated.  If there is no type, then it is
+      // implicitly of void type.
       //
       const Type * TypeCreated = Node->getType();
+      if (!TypeCreated) {
+        return false;
+      }
 
       //
       // If the type contains a pointer, it must be changed.
