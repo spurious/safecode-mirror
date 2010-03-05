@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "safecode/SAFECode.h"
+#include "llvm/Support/DataTypes.h"
 
 #include <string>
 
