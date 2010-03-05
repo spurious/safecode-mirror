@@ -28,6 +28,8 @@
 #include "AffineExpressions.h"
 #include "BottomUpCallGraph.h"
 
+#include "dsa/DataStructure.h"
+
 #include <map>
 #include <set>
 
