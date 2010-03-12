@@ -26,7 +26,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/Mangler.h"
+#include "llvm/Target/Mangler.h"
 #include "llvm/DerivedTypes.h"
 
 using namespace std;
@@ -95,17 +95,16 @@ makeNameProper (string x) {
 //  Omega calculator name is less error-prone than having the code call
 //  makeNameProper() directly.
 //
+// TODO:
+//  This mangler class needs to be expanded to include functionality that was
+//  present in the LLVM 2.6 Mangler class.  This class has been removed in
+//  LLVM 2.7, and this code is currently unused, so it's modified just enough
+//  to keep compilation working.  Eventually, we should either get this code
+//  working or remove it entirely.
+//
 class OmegaMangler {
-  protected:
-    Mangler * mang;
-
   public:
     OmegaMangler (Module & M) {
-      mang = new Mangler (M);
-    }
-
-    virtual ~OmegaMangler () {
-      delete mang;
     }
 
     std::string getValueName (const Value *V) {
@@ -117,16 +116,15 @@ class OmegaMangler {
       // so we must replicate the functionality here.
       //
       if (V->hasName()) {
-        return (makeNameProper (mang->makeNameProper(V->getName())));
+        return (makeNameProper ((V->getName())));
       }
 
       std::ostrstream intstr;
       intstr << "noname" << (++id_counter);
-      return (makeNameProper (mang->makeNameProper(intstr.str())));
+      return (makeNameProper ((intstr.str())));
     }
 };
 
-#
 //
 // Class: LinearExpr
 //

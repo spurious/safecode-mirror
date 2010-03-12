@@ -18,7 +18,7 @@
 #include "safecode/Config/config.h"
 #include "safecode/Runtime/BitmapAllocator.h"
 
-#include "llvm/Support/DataTypes.h"
+#include <stdint.h>
 
 #include <cstdio>
 

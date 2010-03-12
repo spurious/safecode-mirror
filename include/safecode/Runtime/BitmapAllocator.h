@@ -15,9 +15,9 @@
 #ifndef _PA_BITMAP_RUNTIME_H_
 #define _PA_BITMAP_RUNTIME_H_
 
+#include "safecode/ADT/HashExtras.h"
 #include "safecode/SAFECode.h"
 #include "safecode/Config/config.h"
-#include "poolalloc/ADT/HashExtras.h"
 
 #include <string>
 

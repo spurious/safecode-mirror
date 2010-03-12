@@ -17,7 +17,7 @@
 
 #include "safecode/SAFECode.h"
 
-#include "llvm/Support/DataTypes.h"
+#include <stdint.h>
 
 #include <vector>
 
