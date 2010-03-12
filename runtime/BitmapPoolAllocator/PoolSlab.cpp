@@ -13,6 +13,8 @@
 
 #include "PoolSlab.h"
 
+#include <cstdio>
+
 NAMESPACE_SC_BEGIN
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.

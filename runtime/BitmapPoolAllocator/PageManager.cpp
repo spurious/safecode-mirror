@@ -21,11 +21,14 @@
 #include <unistd.h>
 
 #include <cassert>
+#include <cstdio>
 #include <iostream>
 #include <vector>
 #include <map>
 #include <utility>
 #include <cstring>
+
+#include <errno.h>
 
 NAMESPACE_SC_BEGIN
 

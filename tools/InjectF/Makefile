@@ -9,6 +9,7 @@
 
 LEVEL = ../..
 TOOLNAME=injectf
+REQUIRES_EH := 1
 
 # Initialize the USEDLIBS so we can add to it
 

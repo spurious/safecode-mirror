@@ -17,6 +17,8 @@
 
 #include "safecode/SAFECode.h"
 
+#include "llvm/Support/DataTypes.h"
+
 #include <vector>
 
 NAMESPACE_SC_BEGIN

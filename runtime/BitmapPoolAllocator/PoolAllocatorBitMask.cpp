@@ -22,6 +22,7 @@
 #include "PoolSlab.h"
 
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 
 #define DEBUG(x)

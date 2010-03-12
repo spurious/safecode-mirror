@@ -114,6 +114,12 @@ AC_ARG_WITH(test-objdir,
     AC_SUBST(testobjdir,"$LLVM_OBJ_ROOT/projects/test-suite"
     ))
 
+dnl Ensure that all pathnames are absolute pathnames
+poolallocsrcdir=`cd $poolallocsrcdir; pwd`
+poolallocobjdir=`cd $poolallocobjdir; pwd`
+testsrcdir=`cd $testsrcdir; pwd`
+testobjdir=`cd $testobjdir; pwd`
+
 dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************

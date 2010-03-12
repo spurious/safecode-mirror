@@ -9,6 +9,7 @@
 
 LEVEL = ../..
 TOOLNAME=sc
+REQUIRES_EH := 1
 
 LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
 										nativecodegen

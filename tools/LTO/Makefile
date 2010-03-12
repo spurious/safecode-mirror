@@ -11,7 +11,16 @@ LEVEL = ../..
 LIBRARYNAME = LTO
 
 LINK_LIBS_IN_SHARED = 1
+
+#
+# Build shared libraries on all platforms except Cygwin and MingW (which do
+# not support them).
+#
+ifneq ($(OS),Cygwin)
+ifneq ($(OS),MingW)
 SHARED_LIBRARY = 1
+endif
+endif
 
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) ipo scalaropts linker bitreader bitwriter
 

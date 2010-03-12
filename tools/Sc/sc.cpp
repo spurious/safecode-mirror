@@ -152,8 +152,6 @@ namespace {
 // main - Entry point for the sc compiler.
 //
 int main(int argc, char **argv) {
-  std::string mt;
-  std::string & msg = mt;
   LLVMContext &Context = getGlobalContext();
   llvm_shutdown_obj ShutdownObject;
 
@@ -434,7 +432,7 @@ int main(int argc, char **argv) {
     if (Out != &std::cout) delete Out;
   
     return 0;
-  } catch (msg) {
+  } catch (const std::string & msg) {
     std::cerr << argv[0] << ": " << msg << "\n";
   } catch (...) {
     std::cerr << argv[0] << ": Unexpected unknown exception occurred.\n";

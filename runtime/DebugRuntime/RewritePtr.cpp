@@ -20,6 +20,7 @@
 
 #include "safecode/Runtime/DebugRuntime.h"
 
+#include <cstdio>
 #include <map>
 
 extern FILE * ReportLog;

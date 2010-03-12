@@ -38,6 +38,7 @@
 
 #include <map>
 #include <cstdarg>
+#include <cstdio>
 #include <cassert>
 
 #define TAG unsigned tag

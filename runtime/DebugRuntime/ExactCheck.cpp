@@ -18,6 +18,10 @@
 #include "safecode/Config/config.h"
 #include "safecode/Runtime/BitmapAllocator.h"
 
+#include "llvm/Support/DataTypes.h"
+
+#include <cstdio>
+
 extern FILE * ReportLog;
 
 using namespace NAMESPACE_SC;
