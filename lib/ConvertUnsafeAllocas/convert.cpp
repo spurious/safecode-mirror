@@ -68,22 +68,37 @@ static Constant * StackAlloc;
 static Constant * NewStack;
 static Constant * DelStack;
 
-static void
-createProtos (Module & M) {
+void
+ConvertUnsafeAllocas::createProtos (Module & M) {
+  //
+  // Get a reference to the heap allocation function to use for alloca
+  // instructions promoted to the heap.  For kernel code, this is the
+  // sp_malloc() function and is implemented in the kernel.  For user-space
+  // programs, this is our beloved malloc() function.
+  //
 #ifdef LLVA_KERNEL
-  //
-  // Get a reference to the sp_malloc() function (a function in the kernel
-  // used for allocating promoted stack allocations).
-  //
-  std::vector<const Type *> Arg(1, Int32Type);
-  FunctionType *kmallocTy = FunctionType::get(VoidPtrTy, Arg, false);
-  kmalloc = M.getOrInsertFunction("sp_malloc", kmallocTy);
+  std::string malloc_name = "sp_malloc";
+  std::string free_name   = "sp_free";
+#else
+  std::string malloc_name = "malloc";
+  std::string free_name   = "free";
+#endif
+  std::vector<const Type *> Arg(1, IntegerType::getInt32Ty(getGlobalContext()));
+  FunctionType *kmallocTy = FunctionType::get(getVoidPtrType(), Arg, false);
+  kmalloc = M.getOrInsertFunction(malloc_name, kmallocTy);
 
   //
-  // If we fail to get the kmalloc function, generate an error.
+  // Get the corresponding heap deallocation function.
+  //
+  std::vector<const Type *> Args(1, getVoidPtrType());
+  FunctionType *kfreeTy = FunctionType::get(VoidType, Arg, false);
+  kfree = M.getOrInsertFunction(free_name, kfreeTy);
+
+  //
+  // If we fail to get a reference to the heap allocator, generate an error.
   //
   assert ((kmalloc != 0) && "No kmalloc function found!\n");
-#endif
+  assert ((kfree   != 0) && "No kfree   function found!\n");
 }
 
 bool
@@ -151,7 +166,7 @@ bool ConvertUnsafeAllocas::markReachableAllocasInt(DSNode *DSN) {
 //  malloc instruction is freed on function exit.
 //
 void
-ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
+ConvertUnsafeAllocas::InsertFreesAtEnd(Instruction *MI) {
   assert (MI && "MI is NULL!\n");
 
   //
@@ -218,7 +233,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(MallocInst *MI) {
     //
     Instruction *InsertPt = *fpI;
     if (domTree->dominates (MI->getParent(), InsertPt->getParent())) {
-      new FreeInst(MI, InsertPt);
+      CallInst::Create (kfree, MI, "", InsertPt);
     } else {
       ++MissingFrees;
     }
@@ -241,7 +256,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
     DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
 
 #ifndef LLVA_KERNEL    
-    MallocInst *MI = 0;
+    Instruction *MI = 0;
 #else
     Value *MI = 0;
 #endif
@@ -256,24 +271,25 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
 
       if (SMI->second.getNode() == DSN) {
         if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
-          //create a new malloc instruction
+          //
+          // Create a new heap allocation instruction.
+          //
           if (AI->getParent() != 0) {
-#ifndef LLVA_KERNEL	  
-            MI = new MallocInst(AI->getType()->getElementType(),
-                                AI->getArraySize(), AI->getName(), AI);
-#else
-            Value *AllocSize =
-            ConstantInt::get(Int32Type,
-                              TD->getTypeAllocSize(AI->getAllocatedType()));
-	    
+            //
+            // Create an LLVM value representing the size of the allocation.
+            // If it's an array allocation, we'll need to insert a
+            // multiplication instruction to get the size times the number of
+            // elements.
+            //
+            unsigned long size = TD->getTypeAllocSize(AI->getAllocatedType());
+            Value *AllocSize = ConstantInt::get(Int32Type, size);
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
             std::vector<Value *> args(1, AllocSize);
-            CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
+            CallInst *CI = CallInst::Create (kmalloc, args.begin(), args.end(), "", AI);
             MI = castTo (CI, AI->getType(), "", AI);
-#endif	    
             DSN->setHeapMarker();
             AI->replaceAllUsesWith(MI);
             SM.erase(SMI++);
@@ -430,12 +446,11 @@ DSNode * ConvertUnsafeAllocas::getTDDSNode(const Value *V, Function *F) {
 //
 Value *
 ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
-#ifndef LLVA_KERNEL
-  MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
-                                  AI->getArraySize(), AI->getName(), 
-                                  AI);
-  InsertFreesAtEnd (MI);
-#else
+  //
+  // Create an LLVM value representing the size of the memory allocation in
+  // bytes.  If the alloca allocates an array, insert a multiplication
+  // instruction to find the size of the entire array in bytes.
+  //
   Value *AllocSize;
   AllocSize = ConstantInt::get (Int32Type,
                                 TD->getTypeAllocSize(AI->getAllocatedType()));
@@ -444,10 +459,17 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
                                         AI->getOperand(0), "sizetmp",
                                         AI);	    
 
+  //
+  // Insert a call to the heap allocator.
+  //
   std::vector<Value *> args (1, AllocSize);
-  CallInst *CI = new CallInst (kmalloc, args.begin(), args.end(), "", AI);
-  Value * MI = castTo (CI, AI->getType(), "", AI);
-#endif
+  CallInst *CI = CallInst::Create (kmalloc, args.begin(), args.end(), "", AI);
+
+  //
+  // Insert calls to the heap deallocator to free the heap object when the
+  // function exits.
+  //
+  InsertFreesAtEnd (CI);
 
   //
   // Update the pointer analysis to know that pointers to this object can now
@@ -455,17 +477,17 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   //
   Node->setHeapMarker();
 
-#if 1
   //
   // Update the scalar map so that we know what the DSNode is for this new
   // instruction.
   //
+  Value * MI = castTo (CI, AI->getType(), "", AI);
   Node->getParentGraph()->getScalarMap().replaceScalar (AI, MI);
-#endif
 
   //
   // Replace all uses of the old alloca instruction with the new heap
   // allocation.
+  //
   AI->replaceAllUsesWith(MI);
 
   return MI;
@@ -494,12 +516,6 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
            SMI != SME; ) {
         if (AllocaInst *AI = dyn_cast<AllocaInst>((Value *)(SMI->first))) {
           if (SMI->second.getNode()->isNodeCompletelyFolded()) {
-#ifndef LLVA_KERNEL
-            MallocInst *MI = new MallocInst(AI->getType()->getElementType(),
-                                            AI->getArraySize(), AI->getName(), 
-                                            AI);
-	    	    InsertFreesAtEnd(MI);
-#else
             Value *AllocSize =
             ConstantInt::get(Int32Type,
                               TD->getTypeAllocSize(AI->getAllocatedType()));
@@ -508,10 +524,9 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
                                                  AI->getOperand(0), "sizetmp",
                                                  AI);	    
 
-            std::vector<Value *> args(1, AllocSize);
-            CallInst *CI = new CallInst(kmalloc, args.begin(), args.end(), "", AI);
+            CallInst *CI = CallInst::Create (kmalloc, AllocSize, "", AI);
             Value * MI = castTo (CI, AI->getType(), "", AI);
-#endif
+	    	    InsertFreesAtEnd(CI);
             AI->replaceAllUsesWith(MI);
             SMI->second.getNode()->setHeapMarker();
             SM.erase(SMI++);
@@ -726,7 +741,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
-  // Add prototype for run-time functions.
+  // Add prototypes for run-time functions.
   //
   createProtos(M);
 
@@ -736,13 +751,13 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   //
   Type * VoidPtrTy = getVoidPtrType();
   std::vector<const Type *> Arg;
-  Arg.push_back (PointerType::getUnqual(paPass->getPoolType()));
+  Arg.push_back (PointerType::getUnqual(paPass->getPoolType(&getGlobalContext())));
   Arg.push_back (Int32Type);
   FunctionType * FuncTy = FunctionType::get (VoidPtrTy, Arg, false);
   StackAlloc = M.getOrInsertFunction ("pool_alloca", FuncTy);
 
   Arg.clear();
-  Arg.push_back (PointerType::getUnqual(paPass->getPoolType()));
+  Arg.push_back (PointerType::getUnqual(paPass->getPoolType(&getGlobalContext())));
   FuncTy = FunctionType::get (VoidType, Arg, false);
   NewStack = M.getOrInsertFunction ("pool_newstack", FuncTy);
   DelStack = M.getOrInsertFunction ("pool_delstack", FuncTy);

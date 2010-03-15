@@ -109,7 +109,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
 
     // The set of Malloc Instructions that are a result of conversion from
     // alloca's due to static array bounds detection failure
-    std::set<const MallocInst *>  ArrayMallocs;
+    std::set<const Instruction *>  ArrayMallocs;
 
   protected:
     TargetData         * TD;
@@ -120,8 +120,9 @@ struct ConvertUnsafeAllocas : public ModulePass {
     const Type * VoidType;
     const Type * Int32Type;
 
-#ifdef LLVA_KERNEL
     Constant *kmalloc;
+    Constant *kfree;
+#ifdef LLVA_KERNEL
     Constant *StackPromote;
 #endif
 
@@ -134,7 +135,8 @@ struct ConvertUnsafeAllocas : public ModulePass {
     void TransformCSSAllocasToMallocs(Module & M, std::set<DSNode *> & cssAllocaNodes);
     void getUnsafeAllocsFromABC(Module &M);
     void TransformCollapsedAllocas(Module &M);
-    virtual void InsertFreesAtEnd(MallocInst *MI);
+    void createProtos(Module & M);
+    virtual void InsertFreesAtEnd(Instruction *MI);
     virtual Value * promoteAlloca(AllocaInst * AI, DSNode * Node);
 };
 

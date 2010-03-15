@@ -34,6 +34,8 @@
 
 using namespace llvm;
 
+static RegisterPass<BottomUpCallGraph> bucg("bucg","Call Graph from CBUDS");
+
 namespace llvm {
 
 char BottomUpCallGraph::ID = 0;
@@ -49,11 +51,12 @@ bool
 BottomUpCallGraph::runOnModule(Module &M) {
   EQTDDataStructures &CBU = getAnalysis<EQTDDataStructures>();
 
+  const DSCallGraph & callGraph = CBU.getCallGraph();
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     for (inst_iterator I = inst_begin(MI), E = inst_end(MI); I != E; ++I) {
       if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-        EQTDDataStructures::callee_iterator cI = CBU.callee_begin(CI),
-                                            cE = CBU.callee_end(CI);
+        DSCallGraph::iterator cI = callGraph.callee_begin(CI),
+                              cE = callGraph.callee_end(CI);
         if (cI == cE) {
           // This call site is not included in the cbuds
           // so we need to extra stuff.
@@ -71,24 +74,28 @@ BottomUpCallGraph::runOnModule(Module &M) {
       }
     }
   }
-  
+
+#if 0
   //
   // Get the set of instructions for which the points-to graph has callee
   // information.
   //
   std::vector<const Instruction *> Instructions;
   CBU.callee_get_keys (Instructions);
+#endif
 
   //
-  // Process each callee of each indirect call site.
+  // Process each callee of each indirect call site.  We scan through each
+  // indirect call site known by the EQTD DSA pass and process its callees.
   //
-  std::vector<const Instruction *>::iterator I, E;
-  for (I = Instructions.begin(), E = Instructions.end(); I != E; ++I) {
-    Instruction * CI = (Instruction *)*I;
-    EQTDDataStructures::callee_iterator i, e;
-    for (i = CBU.callee_begin (CI), e = CBU.callee_end(CI); i != e; ++i) {
+  DSCallGraph::key_iterator I = callGraph.key_begin();
+  DSCallGraph::key_iterator E = callGraph.key_end();
+  for (; I != E; ++I) {
+    CallSite CS = *I;
+    DSCallGraph::iterator i = callGraph.callee_begin(CS);
+    DSCallGraph::iterator e = callGraph.callee_end(CS);
+    for (; i != e; ++i) {
       const Function * Target = *i;
-      CallSite CS = CallSite::get(CI);
 #if 0
       DOUT << "CALLEE: " << Target->getName()
            << " from : " << *(CI) << std::endl;
@@ -100,7 +107,7 @@ BottomUpCallGraph::runOnModule(Module &M) {
       //
       // Determine if this is equivalent to any other callsites of this
       // function.
-      Function *parenFunc = CI->getParent()->getParent();
+      Function *parenFunc = CS.getInstruction()->getParent()->getParent();
       DSNode *calleeNode = CBU.getDSGraph(*parenFunc)
                              ->getNodeForValue(CS.getCalledValue()).getNode();
       CalleeNodeCallSiteMapTy::const_iterator cI, cE;
@@ -165,4 +172,3 @@ BottomUpCallGraph::figureOutSCCs (Module &M) {
 }
 }
 
-  RegisterPass<BottomUpCallGraph> bucg("bucg","Call Graph from CBUDS");

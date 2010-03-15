@@ -170,20 +170,40 @@ NAMESPACE_SC_BEGIN
         return true;
 
       //
-      // Get the type of object allocated.  If there is no type, then it is
-      // implicitly of void type.
+      // Scan through all types associated with the DSNode to determine if
+      // it contains a type that contains a pointer.
       //
-      const Type * TypeCreated = Node->getType();
-      if (!TypeCreated) {
-        return false;
+      DSNode::type_iterator tyi;
+      for (tyi = Node->type_begin(); tyi != Node->type_end(); ++tyi) {
+        for (sv::set<const Type*>::const_iterator tyii = tyi->second->begin(),
+               tyee = tyi->second->end(); tyii != tyee; ++tyii) {
+          //
+          // Get the type of object allocated.  If there is no type, then it is
+          // implicitly of void type.
+          //
+          const Type * TypeCreated = *tyii;
+          if (!TypeCreated) {
+            return false;
+          }
+
+          //
+          // If the type contains a pointer, it must be changed.
+          //
+          if (TypeContainsPointer(TypeCreated))
+            return true;
+        }
       }
 
       //
-      // If the type contains a pointer, it must be changed.
+      // We have scanned through all types associated with the pointer, and
+      // none of them contains a pointer.
       //
-      if (TypeContainsPointer(TypeCreated))
-        return true;
+      return false;
     }
+
+    //
+    // Type type contains no pointer.
+    //
     return false;
   }
 
@@ -231,45 +251,28 @@ NAMESPACE_SC_BEGIN
     //
     // Get the type of a pool descriptor.
     //
-    PoolType = paPass->getPoolType();
+    PoolType = paPass->getPoolType(&getGlobalContext());
 
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I) {
       for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
            IAddrBegin != IAddrEnd;
            ++IAddrBegin) {
         //
+        // Skip any instruction that is not a stack allocation.
+        //
+        AllocaInst * AI = dyn_cast<AllocaInst>(IAddrBegin);
+        if (!AI) continue;
+
+        //
         // Determine if the instruction needs to be changed.
         //
         if (changeType (IAddrBegin)) {
-          AllocationInst * AllocInst = cast<AllocationInst>(IAddrBegin);
-#if 0
-          //
-          // Get the type of object allocated.
-          //
-          const Type * TypeCreated = AllocInst->getAllocatedType ();
-
-          MallocInst * TheMalloc = 
-          new MallocInst(TypeCreated, 0, AllocInst->getName(), 
-          IAddrBegin);
-          std::cerr << "Found alloca that is struct or array" << std::endl;
-
-          //
-          // Remove old uses of the old instructions.
-          //
-          AllocInst->replaceAllUsesWith (TheMalloc);
-
-          //
-          // Remove the old instruction.
-          //
-          AllocInst->getParent()->getInstList().erase(AllocInst);
-          modified = true;
-#endif
           // Insert object registration at the end of allocas.
           Instruction * iptI = ++IAddrBegin;
           --IAddrBegin;
-          if (AllocInst->getParent() == (&(AllocInst->getParent()->getParent()->getEntryBlock()))) {
-            BasicBlock::iterator InsertPt = AllocInst->getParent()->begin();
-            while (&(*(InsertPt)) != AllocInst)
+          if (AI->getParent() == (&(AI->getParent()->getParent()->getEntryBlock()))) {
+            BasicBlock::iterator InsertPt = AI->getParent()->begin();
+            while (&(*(InsertPt)) != AI)
               ++InsertPt;
             while (isa<AllocaInst>(InsertPt))
               ++InsertPt;
@@ -277,17 +280,17 @@ NAMESPACE_SC_BEGIN
           }
 
           // Create a value that calculates the alloca's size
-          const Type * AllocaType = AllocInst->getAllocatedType();
+          const Type * AllocaType = AI->getAllocatedType();
           Value *AllocSize = ConstantInt::get (Int32Type,
                                                TD.getTypeAllocSize(AllocaType));
 
-          if (AllocInst->isArrayAllocation())
+          if (AI->isArrayAllocation())
             AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
-                                               AllocInst->getOperand(0),
+                                               AI->getOperand(0),
                                                "sizetmp",
                                                iptI);
 
-          Value * TheAlloca = castTo (AllocInst, VoidPtrType, "cast", iptI);
+          Value * TheAlloca = castTo (AI, VoidPtrType, "cast", iptI);
 
           std::vector<Value *> args(1, TheAlloca);
           args.push_back (ConstantInt::get (Int8Type, meminitvalue));
