@@ -110,7 +110,7 @@ bool StringTransform::memcpyTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 3) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 3 && "memcpy() takes 3 arguments!\n");
         continue;
       }
@@ -129,7 +129,7 @@ bool StringTransform::memcpyTransform(Module &M) {
       Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
       if (!dstPH || !srcPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
       assert(srcPH && "No pool handle for source pointer!\n");
 
@@ -197,7 +197,7 @@ bool StringTransform::memmoveTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 3) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 3 && "memmove() takes 3 arguments!\n");
         continue;
       }
@@ -216,7 +216,7 @@ bool StringTransform::memmoveTransform(Module &M) {
       Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
       if (!dstPH || !srcPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
       assert(srcPH && "No pool handle for source pointer!\n");
 
@@ -284,7 +284,7 @@ bool StringTransform::mempcpyTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 3) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 3 && "mempcpy() takes 3 arguments!\n");
         continue;
       }
@@ -303,7 +303,7 @@ bool StringTransform::mempcpyTransform(Module &M) {
       Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
       if (!dstPH || !srcPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
       assert(srcPH && "No pool handle for source pointer!\n");
 
@@ -371,7 +371,7 @@ bool StringTransform::memsetTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 3) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 3 && "memset() takes 3 arguments!\n");
         continue;
       }
@@ -390,7 +390,7 @@ bool StringTransform::memsetTransform(Module &M) {
       Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
 
       if (!dstPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
 
       Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
@@ -457,7 +457,7 @@ bool StringTransform::strcpyTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 2) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 2 && "strcpy() takes 2 arguments!\n");
         continue;
       }
@@ -473,7 +473,7 @@ bool StringTransform::strcpyTransform(Module &M) {
       Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
       if (!dstPH || !srcPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
       assert(srcPH && "No pool handle for source pointer!\n");
 
@@ -541,7 +541,7 @@ bool StringTransform::strlenTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 1) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 1 && "strlen() takes 1 argument!\n");
         continue;
       }
@@ -555,7 +555,7 @@ bool StringTransform::strlenTransform(Module &M) {
       Value *stringPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
 
       if (!stringPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(stringPH && "No pool handle for string!\n");
       Value *Casted_stringPH = castTo(stringPH, VoidPtrTy, stringPH->getName() + ".casted", I);
 
@@ -619,7 +619,7 @@ bool StringTransform::strncpyTransform(Module &M) {
 
       // Check that the function uses the correct number of arguments.
       if (CS.arg_size() != 3) {
-        std::cerr << *I << std::endl;
+        I->dump();
         assert(CS.arg_size() == 3 && "strncpy() takes 3 arguments!\n");
         continue;
       }
@@ -638,7 +638,7 @@ bool StringTransform::strncpyTransform(Module &M) {
       Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
 
       if (!dstPH || !srcPH)
-        std::cerr << *I << std::endl;
+        I->dump();
       assert(dstPH && "No pool handle for destination pointer!\n");
       assert(srcPH && "No pool handle for source pointer!\n");
 

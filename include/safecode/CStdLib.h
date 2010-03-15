@@ -31,6 +31,8 @@
 #include "safecode/PoolHandles.h"
 #include "safecode/SAFECode.h"
 
+#include "dsa/DSSupport.h"
+
 #include <algorithm>
 #include <iostream> // std::cerr
 #include <vector>
@@ -70,8 +72,6 @@ public:
     // Pretend that we don't modify anything
     AU.setPreservesAll();
   }
-
-  virtual void print(std::ostream &O, const Module *M) const {}
 };
 
 NAMESPACE_SC_END

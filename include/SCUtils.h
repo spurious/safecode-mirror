@@ -17,6 +17,7 @@
 #include "llvm/BasicBlock.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
+#include "llvm/LLVMContext.h"
 
 #include <vector>
 #include <set>
