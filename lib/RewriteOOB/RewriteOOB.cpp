@@ -40,6 +40,8 @@
 #include "safecode/RewriteOOB.h"
 #include "SCUtils.h"
 
+#include "dsa/DSSupport.h"
+
 #include <iostream>
 
 
@@ -273,7 +275,10 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
     Function * F = Inst->getParent()->getParent();
     PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
     PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
-  } else if (isa<Constant>(peeledOp) || isa<AllocationInst>(peeledOp)) {
+  } else if (isa<Constant>(peeledOp) || isa<AllocaInst>(peeledOp)) {
+    //
+    // FIXME:
+    //  Add a case for calls to heap allocation functions.
     //
     // Rewrite pointers are generated from calls to the SAFECode run-time
     // checks.  Therefore, constants and return values from allocation
@@ -283,7 +288,7 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   }
 
   if (!PH)
-    std::cerr << "Error: No Pool Handle: " << *peeledOp << "\n" << std::endl;
+    std::cerr << "Error: No Pool Handle: " << peeledOp->getNameStr() << "\n" << std::endl;
 
   assert (PH && "addGetActualValue: No Pool Handle for operand!\n");
 

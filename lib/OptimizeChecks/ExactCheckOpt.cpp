@@ -19,6 +19,8 @@
 #include "safecode/Support/AllocatorInfo.h"
 #include "SCUtils.h"
 
+#include "dsa/DSSupport.h"
+
 #include "llvm/ADT/Statistic.h"
 
 NAMESPACE_SC_BEGIN

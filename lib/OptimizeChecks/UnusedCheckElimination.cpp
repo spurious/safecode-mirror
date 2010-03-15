@@ -21,6 +21,8 @@
 #include "safecode/OptimizeChecks.h"
 #include "SCUtils.h"
 
+#include "dsa/DSSupport.h"
+
 #include <iostream>
 #include <set>
 
