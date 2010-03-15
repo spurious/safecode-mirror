@@ -157,7 +157,7 @@ RegisterStackObjPass::insertPoolFrees
   //
   // Lastly, promote the allocas we created into LLVM virtual registers.
   //
-  PromoteMemToReg(PtrList, *DT, *DF, getGlobalContext());
+  PromoteMemToReg(PtrList, *DT, *DF);
 }
 
 ////////////////////////////////////////////////////////////////////////////

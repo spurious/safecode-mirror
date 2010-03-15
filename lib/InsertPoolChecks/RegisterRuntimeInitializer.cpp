@@ -15,6 +15,7 @@
 #include "safecode/SAFECodeConfig.h"
 
 #include "llvm/Constants.h"
+#include "llvm/LLVMContext.h"
 
 using namespace llvm;
 
@@ -91,7 +92,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   std::vector<Constant *> CtorInits;
   CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
   CtorInits.push_back (RuntimeCtor);
-  Constant * RuntimeCtorInit=ConstantStruct::get(getGlobalContext(), CtorInits);
+  Constant * RuntimeCtorInit=ConstantStruct::get(getGlobalContext(),CtorInits, false);
 
   //
   // Get the current set of static global constructors and add the new ctor
@@ -103,7 +104,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   if (GVCtor) {
     if (Constant * C = GVCtor->getInitializer()) {
       for (unsigned index = 0; index < C->getNumOperands(); ++index) {
-        CurrentCtors.push_back (C->getOperand (index));
+        CurrentCtors.push_back (cast<Constant>(C->getOperand (index)));
       }
     }
 

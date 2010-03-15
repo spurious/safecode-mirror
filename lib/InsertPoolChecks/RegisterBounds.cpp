@@ -66,7 +66,7 @@ RegisterGlobalVariables::registerGV(GlobalVariable * GV, Instruction * InsertBef
     Value * PH = dsnPass->paPass->getGlobalPool (DSN);
     RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
   } else {
-    llvm::cerr << "Warning: Missing DSNode for global" << *GV << "\n";
+    llvm::errs() << "Warning: Missing DSNode for global" << *GV << "\n";
   }
 }
 
@@ -118,7 +118,7 @@ RegisterMainArgs::runOnModule(Module & M) {
   init("sc.pool_register");
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    llvm::cerr << "Cannot do array bounds check for this program"
+    llvm::errs() << "Cannot do array bounds check for this program"
                << "no 'main' function yet!\n";
     abort();
   }
@@ -306,7 +306,8 @@ RegisterVariables::init(std::string registerName) {
 void
 RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * AllocSize, Instruction * InsertBefore) {
   if (!PH) {
-    llvm::cerr << "pool descriptor not present for " << *val << std::endl;
+    llvm::errs() << "pool descriptor not present for " << val->getNameStr()
+                 << "\n";
     return;
   }
   Instruction *GVCasted = 

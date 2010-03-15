@@ -210,8 +210,9 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   //
   DSNode * Node = dsnPass->getDSNode (LI->getPointerOperand(), F);
   if (!Node) return;
-  for (unsigned i = 0 ; i < Node->getNumLinks(); i+=4) {
-    DSNodeHandle & LinkNode = Node->getLink(i);
+  DSNode::LinkMapTy::iterator linki = Node->edge_begin();
+  for (; linki != Node->edge_end(); ++linki) {
+    DSNodeHandle LinkNode = linki->second;
     if (LinkNode.getNode() == LoadResultNode) {
       // Insertion point for this check is *after* the load.
       BasicBlock::iterator InsertPt = LI;
@@ -323,7 +324,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   //  3) Pointers that may have been integers casted into pointers.
   //
   if (Node &&
-      (Node->isNodeCompletelyFolded() || Node->isArray() ||
+      (Node->isNodeCompletelyFolded() || Node->isArrayNode() ||
        Node->isIntToPtrNode())) {
     // I am amazed the check here since the commet says that I is an load/store
     // instruction! 
@@ -363,6 +364,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
     } else {
       //
       // FIXME:
+      //  The code below should also perform the optimization for heap
+      //  allocations (which appear as calls to an allocator function).
+      //
+      // FIXME:
       //  The next two lines should ensure that the allocation size is large
       //  enough for whatever value is being loaded/stored.
       //
@@ -370,7 +375,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
       // valid (load/store to allocated memory or a global variable), don't
       // bother doing a check.
       //
-      if ((isa<AllocationInst>(Vnew)) || (isa<GlobalVariable>(Vnew)))
+      if ((isa<AllocaInst>(Vnew)) || (isa<GlobalVariable>(Vnew)))
         return;
 
         CastInst *CastVI = 
@@ -430,7 +435,7 @@ void InsertPoolChecks::addLoadStoreChecks(Function &F){
     } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
       Value *P = SI->getPointerOperand();
       if (isClonedFunc) {
-        std::cerr << *(SI) << std::endl;
+        SI->dump();
 #if 0
         assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
 #else
