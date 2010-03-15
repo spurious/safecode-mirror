@@ -19,6 +19,7 @@
 #include "llvm/InstrTypes.h"
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Support/InstIterator.h"
 
 #include "safecode/BreakConstantGEPs.h"
@@ -177,7 +178,7 @@ convertExpression (ConstantExpr * CE, Instruction * InsertPt) {
     case Instruction:: FCmp:
     case Instruction:: ICmp: {
       Instruction::OtherOps Op = (Instruction::OtherOps)(CE->getOpcode());
-      NewInst = CmpInst::Create (getGlobalContext(), Op,
+      NewInst = CmpInst::Create (Op,
                                  CE->getPredicate(),
                                  CE->getOperand(0),
                                  CE->getOperand(1),
