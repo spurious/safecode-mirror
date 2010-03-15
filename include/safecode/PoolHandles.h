@@ -17,14 +17,13 @@
 #ifndef POOLHANDLES_H
 #define POOLHANDLES_H
 
+#include "llvm/LLVMContext.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "safecode/Config/config.h"
 #include "safecode/SAFECodeConfig.h"
 
 #include "poolalloc/PoolAllocate.h"
-
-#include "dsa/DSNode.h"
 
 using namespace llvm;
 
@@ -84,7 +83,7 @@ NAMESPACE_SC_BEGIN
     unsigned getDSNodeOffset(const Value *V, Function *F);
     Value * getPoolHandle(const Value *V, Function *F, PA::FuncInfo &FI, bool collapsed = true);
     const Type * getPoolType (void) {
-      return (paPass->getPoolType());
+      return (paPass->getPoolType(&(getGlobalContext())));
     }
 
     void addCheckedDSNode(const DSNode * node);
