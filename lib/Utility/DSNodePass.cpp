@@ -135,7 +135,7 @@ DSNodePass::getPoolHandle (const Value *V,
 
   // Get the pool handle for this DSNode...
   //  assert(!Node->isUnknownNode() && "Unknown node \n");
-  const Type *PoolDescType = paPass->getPoolType();
+  const Type *PoolDescType = paPass->getPoolType(&getGlobalContext());
   const Type *PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   if (Node->isUnknownNode()) {
     //
@@ -151,7 +151,7 @@ DSNodePass::getPoolHandle (const Value *V,
         std::cerr << "ERROR: we don't handle middle of structs yet"
                   << std::endl;
 #endif
-std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
+std::cerr << "JTC: PH: Null 1: " << V->getNameStr() << std::endl;
       return ConstantAggregateZero::get(PoolDescPtrTy);
     }
   }
@@ -201,7 +201,7 @@ std::cerr << "JTC: PH: Null 1: " << *V << std::endl;
 
   if (isClone)
     std::cerr << "JTC: No Pool: " << FClone->getName().str() << ": "
-              << *V << std::endl;
+              << V->getNameStr() << std::endl;
   return 0;
 }
 

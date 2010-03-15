@@ -20,6 +20,7 @@
 #include "llvm/InstrTypes.h"
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Support/InstIterator.h"
 
 #include "safecode/BreakConstantStrings.h"

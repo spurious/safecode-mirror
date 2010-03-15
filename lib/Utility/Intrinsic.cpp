@@ -19,6 +19,7 @@
 #include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/Module.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
 #include "llvm/Constants.h"
@@ -412,7 +413,7 @@ InsertSCIntrinsic::getObjectSize(Value * V) {
     return ConstantInt::get(Int32Type, TD->getTypeAllocSize (GV->getType()->getElementType()));
   }
 
-  if (AllocationInst * AI = dyn_cast<AllocationInst>(V)) {
+  if (AllocaInst * AI = dyn_cast<AllocaInst>(V)) {
     unsigned int type_size = TD->getTypeAllocSize (AI->getAllocatedType());
     if (AI->isArrayAllocation()) {
       if (ConstantInt * CI = dyn_cast<ConstantInt>(AI->getArraySize())) {
