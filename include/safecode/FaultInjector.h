@@ -38,7 +38,8 @@ namespace llvm {
     private :
       // Private variables
       TargetData        * TD;
-      TDDataStructures * TDPass;
+      TDDataStructures  * TDPass;
+      Function          * Free;
 
       // Private methods
       bool insertEasyDanglingPointers (Function & F);

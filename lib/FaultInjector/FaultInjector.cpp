@@ -215,31 +215,28 @@ printSourceInfo (std::string errorType, Instruction * I) {
   // If we can't find the source line information, use a dummy line number and
   // the function name by default.
   //
-  const DbgStopPointInst * StopPt = findStopPoint (I);
   std::string fname = I->getParent()->getParent()->getNameStr();
   std::string funcname = fname;
   uint64_t lineno = 0;
-  if (StopPt) {
-    Value * LineNumber = StopPt->getLineValue();
-    Value * SourceFile = StopPt->getFileName();
-
-    if (ConstantExpr * SrcGEP = dyn_cast<ConstantExpr>(SourceFile)) {
-      if (GlobalVariable * GV = dyn_cast<GlobalVariable>(SrcGEP->getOperand(0))) {
-        if (ConstantArray * CA = dyn_cast<ConstantArray>(GV->getInitializer())) {
-          fname = CA->getAsString();
-        }
-      }
-    } else {
-      std::cerr << *SourceFile << std::endl;
-    }
-    if (ConstantInt * CI = dyn_cast<ConstantInt>(LineNumber)) {
-      lineno = CI->getValue().getZExtValue();
-    }
+  unsigned dbgKind = getGlobalContext().getMDKindID("dbg");
+  if (MDNode *Dbg = I->getMetadata(dbgKind)) {
+    DILocation Loc (Dbg);
+    fname = Loc.getDirectory().str() + Loc.getFilename().str();
+    lineno   = Loc.getLineNumber();
   }
 
   std::cout << "Inject: " << errorType << ": "
             << funcname   << ": " << fname << ": " << lineno << "\n";
   return;
+}
+
+static inline Function *
+createFreeFunction (Module & M) {
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  return (Function *) M.getOrInsertFunction ("free",
+                                             VoidType,
+                                             getVoidPtrType(),
+                                             NULL);
 }
 
 //
@@ -343,7 +340,7 @@ FaultInjector::insertEasyDanglingPointers (Function & F) {
         //
         printSourceInfo ("Easy dangling pointer", I);
 
-        new FreeInst (Pointer, I);
+        CallInst::Create (Free, Pointer, "", I);
         ++DPFaults;
       }
     }
@@ -411,7 +408,7 @@ FaultInjector::insertHardDanglingPointers (Function & F) {
             //
             printSourceInfo ("Hard dangling pointer", I);
 
-            new FreeInst (Pointer, I);
+            CallInst::Create (Free, Pointer, "", I);
             ++DPFaults;
           }
         }
@@ -443,6 +440,7 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
   // Scan through each instruction of the function looking for malloc
   // instructions.  Free the pointer immediently after the allocation.
   //
+#if 0
   std::vector<MallocInst *> Worklist;
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
@@ -489,6 +487,9 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
   }
 
   return (DPFaults > 0);
+#else
+  return false;
+#endif
 }
 
 //
@@ -506,12 +507,12 @@ FaultInjector::insertRealDanglingPointers (Function & F) {
 bool
 FaultInjector::insertBadAllocationSizes  (Function & F) {
   // Worklist of allocation sites to rewrite
-  std::vector<AllocationInst * > WorkList;
+  std::vector<AllocaInst * > WorkList;
 
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
-      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+      if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
         if (AI->isArrayAllocation()) {
           // Skip if we should not insert a fault.
           if (!doFault()) continue;
@@ -523,7 +524,7 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
   }
 
   while (WorkList.size()) {
-    AllocationInst * AI = WorkList.back();
+    AllocaInst * AI = WorkList.back();
     WorkList.pop_back();
 
     //
@@ -532,19 +533,11 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
     printSourceInfo ("Bad allocation size", AI);
 
     Instruction * NewAlloc = 0;
-    if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (AI->getAllocatedType(),
-                                  ConstantInt::get(Int32Type,0),
-                                  AI->getAlignment(),
-                                  AI->getName(),
-                                  AI);
-    else
-      NewAlloc =  new AllocaInst (AI->getAllocatedType(),
-                                  ConstantInt::get(Int32Type,0),
-                                  AI->getAlignment(),
-                                  AI->getName(),
-                                  AI);
-
+    NewAlloc =  new AllocaInst (AI->getAllocatedType(),
+                                ConstantInt::get(Int32Type,0),
+                                AI->getAlignment(),
+                                AI->getName(),
+                                AI);
     AI->replaceAllUsesWith (NewAlloc);
     AI->eraseFromParent();
     ++BadSizes;
@@ -557,7 +550,7 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
-      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+      if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
         //
         // Determine if this is a data type that we can make smaller.
         //
@@ -573,23 +566,15 @@ FaultInjector::insertBadAllocationSizes  (Function & F) {
   // result back into the appropriate type.
   //
   while (WorkList.size()) {
-    AllocationInst * AI = WorkList.back();
+    AllocaInst * AI = WorkList.back();
     WorkList.pop_back();
 
     Instruction * NewAlloc = 0;
-    if (isa<MallocInst>(AI))
-      NewAlloc =  new MallocInst (Int32Type,
-                                  AI->getArraySize(),
-                                  AI->getAlignment(),
-                                  AI->getName(),
-                                  AI);
-    else
-      NewAlloc =  new AllocaInst (Int32Type,
-                                  AI->getArraySize(),
-                                  AI->getAlignment(),
-                                  AI->getName(),
-                                  AI);
-
+    NewAlloc =  new AllocaInst (Int32Type,
+                                AI->getArraySize(),
+                                AI->getAlignment(),
+                                AI->getName(),
+                                AI);
     NewAlloc = castTo (NewAlloc, AI->getType(), "", AI);
     AI->replaceAllUsesWith (NewAlloc);
     AI->eraseFromParent();
@@ -702,7 +687,7 @@ FaultInjector::insertBadIndexing (Function & F) {
 bool
 FaultInjector::insertUninitializedUse (Function & F) {
   // Worklist of allocation sites to instrument
-  std::map<AllocationInst *, std::vector<Value *> > WorkList;
+  std::map<AllocaInst *, std::vector<Value *> > WorkList;
 
   //
   // Look for allocation instructions that allocate structures with pointers
@@ -711,7 +696,7 @@ FaultInjector::insertUninitializedUse (Function & F) {
   for (Function::iterator fI = F.begin(), fE = F.end(); fI != fE; ++fI) {
     BasicBlock & BB = *fI;
     for (BasicBlock::iterator I = BB.begin(), bE = BB.end(); I != bE; ++I) {
-      if (AllocationInst * AI = dyn_cast<AllocationInst>(I)) {
+      if (AllocaInst * AI = dyn_cast<AllocaInst>(I)) {
         //
         // Only inject a fault if the allocated memory has a pointer in it.
         //
@@ -733,10 +718,10 @@ FaultInjector::insertUninitializedUse (Function & F) {
   //
   bool modified = (WorkList.size() > 0);
 
-  std::map<AllocationInst *, std::vector<Value *> >::iterator i;
+  std::map<AllocaInst *, std::vector<Value *> >::iterator i;
   for (i = WorkList.begin(); i != WorkList.end(); ++i) {
     // Get the allocation instruction which we will use.
-    AllocationInst * AI = i->first;
+    AllocaInst * AI = i->first;
 
     // Get the set of indices that we found for accessing the pointer element
     std::vector<Value *> Indices = i->second;
@@ -822,6 +807,9 @@ FaultInjector::runOnModule(Module &M) {
 
   // Calculate the threshold for when a fault should be inserted
   threshold = (RAND_MAX / 100 * Frequency);
+
+  // Create the heap deallocation function
+  Free = createFreeFunction (M);
 
   // List of functions to process
   std::vector<Function *> FunctionList;
