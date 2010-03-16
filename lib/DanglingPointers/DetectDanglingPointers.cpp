@@ -28,6 +28,8 @@
 #include "safecode/Support/AllocatorInfo.h"
 #include "safecode/DetectDanglingPointers.h"
 
+#include "dsa/DSSupport.h"
+
 #include <iostream>
 #include <utility>
 #include <vector>
