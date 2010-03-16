@@ -9,12 +9,12 @@ PARALLEL_DIRS = Support \
                 StackSafety \
                 SpeculativeChecking \
                 RewriteOOB \
-                FaultInjector \
-                IndirectCallChecks \
                 DebugInstrumentation \
                 DanglingPointers \
                 CStdLib \
                 Utility \
+                FaultInjector \
+#                IndirectCallChecks \
 #                PointerChecks \
 
 include $(LEVEL)/Makefile.common
