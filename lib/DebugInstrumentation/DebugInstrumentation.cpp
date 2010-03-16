@@ -105,29 +105,37 @@ LocationSourceInfo::operator() (CallInst * CI) {
   ++QueriedSrcInfo;
 
   //
-  // Get the line number and source file information for the call.
+  // Create default debugging values in case we don't find any debug
+  // information.  The filename becomes the function name (if the function
+  // has a name) and the line number becomes a unique identifier.
   //
-  const DbgStopPointInst * StopPt = findStopPoint (CI);
-  Value * LineNumber;
-  Value * SourceFile;
-  if (StopPt) {
-    LineNumber = StopPt->getLineValue();
-    SourceFile = StopPt->getFileName();
+  std::string filename = "<unknown>";
+  unsigned int lineno  = ++count;
+  if (CI->getParent()->getParent()->hasName())
+    filename = CI->getParent()->getParent()->getName();
+
+  //
+  // Get the line number and source file information for the call if it exists.
+  //
+  if (MDNode *Dbg = CI->getMetadata(dbgKind)) {
+    DILocation Loc (Dbg);
+    filename = Loc.getDirectory().str() + Loc.getFilename().str();
+    lineno   = Loc.getLineNumber();
     ++FoundSrcInfo;
-  } else {
-    std::string filename = "<unknown>";
-    if (CI->getParent()->getParent()->hasName())
-      filename = CI->getParent()->getParent()->getName();
-    LineNumber = ConstantInt::get (Int32Type, ++count);
-    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
-    Module * M = CI->getParent()->getParent()->getParent();
-    SourceFile = new GlobalVariable (*M,
-                                     FInit->getType(),
-                                     true,
-                                     GlobalValue::InternalLinkage,
-                                     FInit,
-                                     "sourcefile");
   }
+
+  //
+  // Convert the source filename and line number information into LLVM values.
+  //
+  Value * LineNumber = ConstantInt::get (Int32Type, lineno);
+  Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
+  Module * M = CI->getParent()->getParent()->getParent();
+  Value * SourceFile = new GlobalVariable (*M,
+                                           FInit->getType(),
+                                           true,
+                                           GlobalValue::InternalLinkage,
+                                           FInit,
+                                           "sourcefile");
 
   return std::make_pair (SourceFile, LineNumber);
 }
@@ -170,6 +178,14 @@ VariableSourceInfo::operator() (CallInst * CI) {
                                    "srcfile");
 
   //
+  // FIXME:
+  //  This code is currently unused, but I believe that is because it didn't
+  //  work very well under LLVM 2.6.  If we update this code to the LLVM 2.7
+  //  API, it might work better and might be worth re-enabling for poolregister
+  //  operations.
+  //
+#if 0
+  //
   // Get the value for which we want debug information.
   //
   Value * V = CI->getOperand(2)->stripPointerCasts();
@@ -206,6 +222,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
                                        "srcfile");
     }
   }
+#endif
 
   return std::make_pair (SourceFile, LineNumber);
 }
@@ -342,10 +359,16 @@ DebugInstrument::runOnModule (Module &M) {
   Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   //
+  // Get the ID number for debug metadata.
+  //
+  unsigned dbgKind = getGlobalContext().getMDKindID("dbg");
+
+  //
   // Transform allocations, load/store checks, and bounds checks.
   //
-  LocationSourceInfo LInfo;
-  VariableSourceInfo VInfo;
+  LocationSourceInfo LInfo (dbgKind);
+  VariableSourceInfo VInfo (dbgKind);
+
   // FIXME: Technically it should user intrinsic everywhere..
   transformFunction (M.getFunction ("poolalloc"), LInfo);
   transformFunction (M.getFunction ("poolcalloc"), LInfo);

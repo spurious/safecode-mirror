@@ -29,18 +29,25 @@ using namespace llvm;
 NAMESPACE_SC_BEGIN
 
 class GetSourceInfo {
+  protected:
+    // The ID for debug metadata
+    unsigned dbgKind;
+
   public:
+    GetSourceInfo (unsigned dbgKindID) : dbgKind(dbgKindID) {}
     virtual std::pair<Value *, Value *> operator() (CallInst * I) = 0;
     virtual ~GetSourceInfo();
 };
 
 class LocationSourceInfo : public GetSourceInfo {
   public:
+    LocationSourceInfo (unsigned dbgKindID) : GetSourceInfo (dbgKindID) {}
     virtual std::pair<Value *, Value *> operator() (CallInst * I);
 };
 
 class VariableSourceInfo : public GetSourceInfo {
   public:
+    VariableSourceInfo (unsigned dbgKindID) : GetSourceInfo (dbgKindID) {}
     virtual std::pair<Value *, Value *> operator() (CallInst * I);
 };
 
