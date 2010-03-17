@@ -43,7 +43,7 @@ public:
   static char ID;
   /// Determine whether a particular GEP instruction is always safe of not.
   virtual bool isGEPSafe(GetElementPtrInst * GEP) { return false; }
-  virtual ~ArrayBoundsCheckGroup();
+  virtual ~ArrayBoundsCheckGroup() = 0;
 };
 
 /// This is the dummy version of array bounds checking. It simply assumes that
