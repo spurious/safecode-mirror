@@ -39,7 +39,7 @@ Pass *createABCPreProcessPass();
   DominatorSet *ds;
   PostDominatorSet *pds;
 #endif
-  virtual void print(ostream &out, const Module * M) const;
+  virtual void print(llvm::raw_ostream &out, const Module * M) const;
   void indVariables(Loop *L);
 
   public :
