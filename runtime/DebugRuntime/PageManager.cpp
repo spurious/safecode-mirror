@@ -17,9 +17,9 @@
 #define _POSIX_MAPPED_FILES
 #endif
 
-#include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc/Support/MallocAllocator.h"
 #include "poolalloc/MMAPSupport.h"
+#include "safecode/ADT/HashExtras.h"
 #include "safecode/Runtime/BitmapAllocator.h"
 
 #include <unistd.h>
