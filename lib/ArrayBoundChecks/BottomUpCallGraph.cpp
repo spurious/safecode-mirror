@@ -55,8 +55,8 @@ BottomUpCallGraph::runOnModule(Module &M) {
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     for (inst_iterator I = inst_begin(MI), E = inst_end(MI); I != E; ++I) {
       if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-        DSCallGraph::iterator cI = callGraph.callee_begin(CI),
-                              cE = callGraph.callee_end(CI);
+        DSCallGraph::callee_iterator cI = callGraph.callee_begin(CI),
+                                     cE = callGraph.callee_end(CI);
         if (cI == cE) {
           // This call site is not included in the cbuds
           // so we need to extra stuff.
@@ -92,8 +92,8 @@ BottomUpCallGraph::runOnModule(Module &M) {
   DSCallGraph::key_iterator E = callGraph.key_end();
   for (; I != E; ++I) {
     CallSite CS = *I;
-    DSCallGraph::iterator i = callGraph.callee_begin(CS);
-    DSCallGraph::iterator e = callGraph.callee_end(CS);
+    DSCallGraph::callee_iterator i = callGraph.callee_begin(CS);
+    DSCallGraph::callee_iterator e = callGraph.callee_end(CS);
     for (; i != e; ++i) {
       const Function * Target = *i;
 #if 0
