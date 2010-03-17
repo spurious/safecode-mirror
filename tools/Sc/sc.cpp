@@ -34,13 +34,17 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "poolalloc/PoolAllocate.h"
 
+#include "ArrayBoundsCheck.h"
 #include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
+#if 0
 #include "IndirectCallChecks.h"
+#endif
 #include "safecode/BreakConstantGEPs.h"
 #include "safecode/BreakConstantStrings.h"
 #include "safecode/CStdLib.h"
@@ -197,19 +201,6 @@ int main(int argc, char **argv) {
     // Remove all constant GEP expressions
     NOT_FOR_SVA(Passes.add(new BreakConstantGEPs()));
 
-    // Ensure that all malloc/free calls are changed into LLVM instructions
-    NOT_FOR_SVA(Passes.add(createRaiseAllocationsPass()));
-
-    //
-    // Remove indirect calls to malloc and free functions.  This can be done
-    // here because none of the SAFECode transforms will add indirect calls to
-    // malloc() and free().
-    //
-    NOT_FOR_SVA(Passes.add(createIndMemRemPass()));
-
-    // Ensure that all malloc/free calls are changed into LLVM instructions
-    NOT_FOR_SVA(Passes.add(createRaiseAllocationsPass()));
-
     //
     // Ensure that all functions have only a single return instruction.  We do
     // this to make stack-to-heap promotion easier (with a single return
@@ -288,8 +279,10 @@ int main(int argc, char **argv) {
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
     
+#if 0
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
+#endif
 
     if (!DisableCStdLib) {
       NOT_FOR_SVA(Passes.add(new StringTransform()));
@@ -373,7 +366,8 @@ int main(int argc, char **argv) {
     Passes.add(createVerifierPass());
 
     // Figure out where we are going to send the output...
-    std::ostream *Out = 0;
+    raw_fd_ostream *Out = 0;
+    std::string error;
     if (OutputFilename != "") {
       if (OutputFilename != "-") {
         // Specified an output filename?
@@ -384,18 +378,18 @@ int main(int argc, char **argv) {
                     << "Use -f command line argument to force output\n";
           return 1;
         }
-        Out = new std::ofstream(OutputFilename.c_str());
+        Out = new raw_fd_ostream (OutputFilename.c_str(), error);
 
         // Make sure that the Out file gets unlinked from the disk if we get a
         // SIGINT
         sys::RemoveFileOnSignal(sys::Path(OutputFilename));
       } else {
-        Out = &std::cout;
+        Out = new raw_stdout_ostream();
       }
     } else {
       if (InputFilename == "-") {
         OutputFilename = "-";
-        Out = &std::cout;
+        Out = new raw_stdout_ostream();
       } else {
         OutputFilename = GetFileNameRoot(InputFilename);
 
@@ -410,8 +404,8 @@ int main(int argc, char **argv) {
           return 1;
       }
       
-      Out = new std::ofstream(OutputFilename.c_str());
-      if (!Out->good()) {
+      Out = new raw_fd_ostream(OutputFilename.c_str(), error);
+      if (error.length()) {
         std::cerr << argv[0] << ": error opening " << OutputFilename << "!\n";
         delete Out;
         return 1;
@@ -423,13 +417,13 @@ int main(int argc, char **argv) {
     }
 
     // Add the writing of the output file to the list of passes
-    Passes.add (CreateBitcodeWriterPass(*Out));
+    Passes.add (createBitcodeWriterPass(*Out));
 
     // Run our queue of passes all at once now, efficiently.
     Passes.run(*M.get());
 
-    // Delete the ostream if it's not a stdout stream
-    if (Out != &std::cout) delete Out;
+    // Delete the ostream
+    delete Out;
   
     return 0;
   } catch (const std::string & msg) {
