@@ -48,7 +48,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).bc): \
 Output/%.$(TEST).bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.bc): \

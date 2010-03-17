@@ -85,7 +85,7 @@ endif
 $(PROGRAMS_TO_TEST:%=Output/%.presc.bc): \
 Output/%.presc.bc: Output/%.$(WHOLE_PROGRAM_BC_SUFFIX) $(LOPT) $(PA_PRE_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@ 2>&1 > $@.out
 
 #
@@ -95,7 +95,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.noOOB.bc): \
 Output/%.noOOB.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOPTS) $< -f -o $@.noOOB 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.noOOB.ld $@.noOOB $(PA_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.noOOB.ld $@.noOOB $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.noOOB.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
@@ -105,7 +105,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
 Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOPTS) $(SCOPTS2) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
