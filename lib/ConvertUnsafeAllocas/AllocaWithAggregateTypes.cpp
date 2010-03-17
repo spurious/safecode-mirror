@@ -175,7 +175,7 @@ NAMESPACE_SC_BEGIN
       //
       DSNode::type_iterator tyi;
       for (tyi = Node->type_begin(); tyi != Node->type_end(); ++tyi) {
-        for (sv::set<const Type*>::const_iterator tyii = tyi->second->begin(),
+        for (svset<const Type*>::const_iterator tyii = tyi->second->begin(),
                tyee = tyi->second->end(); tyii != tyee; ++tyii) {
           //
           // Get the type of object allocated.  If there is no type, then it is
