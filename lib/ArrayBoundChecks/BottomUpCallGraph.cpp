@@ -88,8 +88,8 @@ BottomUpCallGraph::runOnModule(Module &M) {
   // Process each callee of each indirect call site.  We scan through each
   // indirect call site known by the EQTD DSA pass and process its callees.
   //
-  DSCallGraph::key_iterator I = callGraph.key_begin();
-  DSCallGraph::key_iterator E = callGraph.key_end();
+  DSCallGraph::callee_key_iterator I = callGraph.key_begin();
+  DSCallGraph::callee_key_iterator E = callGraph.key_end();
   for (; I != E; ++I) {
     CallSite CS = *I;
     DSCallGraph::callee_iterator i = callGraph.callee_begin(CS);
