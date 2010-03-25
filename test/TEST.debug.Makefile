@@ -23,7 +23,7 @@ WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
 endif
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(TEST_SRCDIR); pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -terminate -check-every-gep-use -rewrite-oob
@@ -212,6 +212,7 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
                              Output/%.safecode.diff-llc     \
                              Output/%.LOC.txt
 	@echo > $@
+	@echo ">>> ========= " \'$*\' Program >> $@
 	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^user" Output/$*.out-nat.time >> $@;\
