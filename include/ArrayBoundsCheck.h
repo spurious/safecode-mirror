@@ -52,6 +52,12 @@ class ArrayBoundsCheckDummy : public ArrayBoundsCheckGroup, public ImmutablePass
 public:
   static char ID;
   ArrayBoundsCheckDummy() : ImmutablePass((intptr_t) &ID) {}
+  /// When chaining analyses, changing the pointer to the correct pass
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+      if (PI->isPassID(&ArrayBoundsCheckGroup::ID))
+        return (ArrayBoundsCheckGroup*)this;
+      return this;
+  }
 };
 
 /// ArrayBoundsCheckStruct - This pass attempts to prove whether a GEP is safe
@@ -71,6 +77,12 @@ public:
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
+  /// When chaining analyses, changing the pointer to the correct pass
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+      if (PI->isPassID(&ArrayBoundsCheckGroup::ID))
+        return (ArrayBoundsCheckGroup*)this;
+      return this;
+  }
 private:
   TargetData * TD;
   DSNodePass * dsaPass;
@@ -93,6 +105,12 @@ public:
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
+  /// When chaining analyses, changing the pointer to the correct pass
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+      if (PI->isPassID(&ArrayBoundsCheckGroup::ID))
+        return (ArrayBoundsCheckGroup*)this;
+      return this;
+  }
 private:
   InsertSCIntrinsic * intrinsicPass;
   TargetData * TD;
@@ -136,6 +154,13 @@ struct ArrayBoundsCheck : public ArrayBoundsCheckGroup, public ModulePass {
       // Clear the map.
       //
       UnsafeGetElemPtrs.clear();
+    }
+
+    /// When chaining analyses, changing the pointer to the correct pass
+    virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&ArrayBoundsCheckGroup::ID))
+          return (ArrayBoundsCheckGroup*)this;
+        return this;
     }
 
     std::map<BasicBlock *,std::set<Instruction*>*> UnsafeGetElemPtrs;
