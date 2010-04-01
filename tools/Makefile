@@ -1,5 +1,5 @@
 LEVEL = ..
-PARALLEL_DIRS = Sc InjectF 
+PARALLEL_DIRS = Sc InjectF WatchDog
 #LTO
 # QueueSpeed
 

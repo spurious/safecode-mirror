@@ -16,7 +16,8 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
+WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
+SC       := $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
 VALGRIND = valgrind -q --log-file=vglog
 #VALGRIND = valgrind -q --log-file=vglog --tool=exp-ptrcheck
 
@@ -108,11 +109,11 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-llc): \
 Output/%.nonsc.out-llc: Output/%.nonsc
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(VALGRIND) $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $(VALGRIND) $< $(RUN_OPTIONS)
 
 else
 
@@ -124,7 +125,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
 	-$(SPEC_SANDBOX) safecodecbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/safecodecbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/safecodecbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -132,7 +133,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.nonsc.out-llc): \
 Output/%.nonsc.out-llc: Output/%.nonsc
 	-$(SPEC_SANDBOX) nonsccbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(VALGRIND) ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) $(VALGRIND) ../../$< $(RUN_OPTIONS)
 	-(cd Output/nonsccbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/nonsccbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 

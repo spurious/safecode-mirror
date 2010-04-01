@@ -23,14 +23,15 @@ WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
 endif
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(TEST_SRCDIR); pwd)/
+PROGDIR := $(shell cd $(HOME)/src/llvm27/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -terminate -check-every-gep-use -rewrite-oob
 SCOPTS2 := -pa=apa
 #SCOPTS2 := -pa=multi
 #SCOPTS2 := -dpchecks
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
+SC       := $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
@@ -160,11 +161,11 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.noOOB.out-llc): \
 Output/%.noOOB.out-llc: Output/%.noOOB
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 else
 
@@ -176,7 +177,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
 	-$(SPEC_SANDBOX) safecodecbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/safecodecbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/safecodecbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -184,7 +185,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.noOOB.out-llc): \
 Output/%.noOOB.out-llc: Output/%.noOOB
 	-$(SPEC_SANDBOX) noOOBcbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/noOOBcbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/noOOBcbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 

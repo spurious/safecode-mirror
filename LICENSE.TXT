@@ -65,4 +65,5 @@ Program             Directory
 -------             ---------
 Autoconf            safecode/autoconf
 BOdiagsuite         safecode/test/BOdiagsuite-20050808/testcases
+WatchDog            safecode/tools/WatchDog
 
