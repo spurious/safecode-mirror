@@ -90,8 +90,8 @@ ConvertUnsafeAllocas::createProtos (Module & M) {
   //
   // Get the corresponding heap deallocation function.
   //
-  std::vector<const Type *> Args(1, getVoidPtrType());
-  FunctionType *kfreeTy = FunctionType::get(VoidType, Arg, false);
+  std::vector<const Type *> FreeArgs(1, getVoidPtrType());
+  FunctionType *kfreeTy = FunctionType::get(VoidType, FreeArgs, false);
   kfree = M.getOrInsertFunction(free_name, kfreeTy);
 
   //
