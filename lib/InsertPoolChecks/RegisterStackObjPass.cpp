@@ -191,8 +191,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   DT = &getAnalysis<DominatorTree>();
   DF = &getAnalysis<DominanceFrontier>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  dsnPass = &getAnalysis<DSNodePass>();
-  paPass = dsnPass->paPass;
+  poolPass = &getAnalysis<QueryPoolPass>();
 
   //
   // Get pointers to the functions for registering and unregistering pointers.
@@ -281,53 +280,6 @@ RegisterStackObjPass::runOnFunction(Function & F) {
 //
 CallInst *
 RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
-  //
-  // Get the function information for this function.
-  //
-  Function *F = AI->getParent()->getParent();
-  PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-  Value *temp = FI->MapValueToOriginal(AI);
-  AllocaInst *AIOrig = AI;
-  if (temp)
-    AIOrig = dyn_cast<AllocaInst>(temp);
-
-  //
-  // Get the pool handle for the node that this contributes to...
-  //
-  Function *FOrig  = AIOrig->getParent()->getParent();
-  DSNode *Node = dsnPass->getDSNode(AIOrig, FOrig);
-  assert (Node && "Alloca does not have DSNode!\n");
-  assert ((Node->isAllocaNode()) && "DSNode for alloca is missing stack flag!");
-
-  //
-  // Only register the stack allocation if it may be the subject of a
-  // run-time check.  This can only occur when the object is used like an
-  // array because:
-  //  1) GEP checks are only done when accessing arrays.
-  //  2) Load/Store checks are only done on collapsed nodes (which appear to
-  //     be used like arrays).
-  //
-#if 0
-  if (!(Node->isArray()))
-    return 0;
-#endif
-
-  //
-  // Determine if we have ever done a check on this alloca or a pointer
-  // aliasing this alloca.  If not, then we can forego the check (even if we
-  // can't trace through all the data flow).
-  //
-  // FIXME:
-  //  This implementation is incorrect.  A node in the DSGraph will have
-  //  different DSNodes in different functions (because each function has its
-  //  own copy of the DSGraph).  We will need to find another way to do this
-  //  optimization.
-  //
-  if (dsnPass->isDSNodeChecked(Node)) {
-    ++SavedRegAllocs;
-    return 0;
-  }
-
   //
   // Determine if any use (direct or indirect) escapes this function.  If
   // not, then none of the checks will consult the MetaPool, and we can
@@ -425,7 +377,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   // Insert the alloca registration.
   //
-  Value *PH = dsnPass->getPoolHandle(AIOrig, FOrig, *FI);
+  Value *PH = poolPass->getPool (AI);
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return 0;
 
   //

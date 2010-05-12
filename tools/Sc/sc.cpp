@@ -232,6 +232,11 @@ int main(int argc, char **argv) {
     //
 	 	addPoolAllocationPass(Passes);
 
+    //
+    // Add meta-data to record pool information for values that we will check.
+    //
+    Passes.add(new PoolMDPass());
+
 #if 0
     // Convert Unsafe alloc instructions first.  This version relies upon
     // pool allocation,
@@ -361,6 +366,11 @@ int main(int argc, char **argv) {
     // Make all strings non-constant so that the linker doesn't try to merge
     // them together.
     Passes.add(new BreakConstantStrings());
+
+    //
+    // Remove pool metadata.
+    //
+    Passes.add(new RemovePoolMDPass());
 
     // Verify the final result
     Passes.add(createVerifierPass());

@@ -34,8 +34,6 @@ extern bool isSVAEnabled();
 
 NAMESPACE_SC_BEGIN
 
-using namespace CUA;
-
 struct InsertPoolChecks : public FunctionPass {
     public :
     static char ID;
@@ -48,6 +46,7 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<DSNodePass>();
+      AU.addRequired<QueryPoolPass>();
 			//lying!
       DSNodePass::preservePAandDSA(AU);
       AU.addPreserved<InsertSCIntrinsic>();
@@ -60,6 +59,7 @@ struct InsertPoolChecks : public FunctionPass {
     PoolAllocateGroup * paPass;
     TargetData * TD;
     DSNodePass * dsnPass;
+    QueryPoolPass * poolPass;
     Function *PoolCheck;
     Function *PoolCheckUI;
     Function *PoolCheckAlign;
@@ -114,6 +114,7 @@ struct RegisterStackObjPass : public FunctionPass {
       return "Register stack variables into pool";
     }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<QueryPoolPass>();
       AU.addRequiredTransitive<DSNodePass>();
 
       AU.addRequired<TargetData>();
@@ -130,15 +131,15 @@ struct RegisterStackObjPass : public FunctionPass {
       //
       DSNodePass::preservePAandDSA(AU);
       AU.addPreserved<InsertSCIntrinsic>();
+      AU.addPreserved<QueryPoolPass>();
       AU.setPreservesAll();
     };
 
   private:
     // References to other LLVM passes
-    PoolAllocateGroup * paPass;
     TargetData * TD;
     LoopInfo * LI;
-    DSNodePass * dsnPass;
+    QueryPoolPass * poolPass;
     DominatorTree * DT;
     DominanceFrontier * DF;
     InsertSCIntrinsic * intrinsic;

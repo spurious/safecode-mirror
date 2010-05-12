@@ -13,7 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Module.h"
+
 #include "safecode/LowerSafecodeIntrinsic.h"
+#include "SCUtils.h"
 
 using namespace llvm;
 
@@ -30,13 +32,31 @@ namespace llvm {
 
   bool
   LowerSafecodeIntrinsic::runOnModule(Module & M) {
-    for (std::vector<IntrinsicMappingEntry>::const_iterator it = mReplaceList.begin(), end = mReplaceList.end(); it != end; ++it) {
-      if (it->intrinsicName == it->functionName)
-        continue;
-
+    std::vector<IntrinsicMappingEntry>::const_iterator it=mReplaceList.begin();
+    std::vector<IntrinsicMappingEntry>::const_iterator end=mReplaceList.end();
+    for (; it != end; ++it) {
+      //
+      // Get a reference to the original function (if it exists).
+      //
       Function * origF = M.getFunction(it->intrinsicName);
+
+      //
+      // If the intrinsic should not be renamed, then we need to remove the
+      // dummy function body created by the intrinsic insertion pass.
+      //
+      if (it->intrinsicName == it->functionName) {
+        destroyFunction (origF);
+        continue;
+      }
+
+      //
+      // If the new function has a name different from the old function, create
+      // a function prototype of the new function and replace uses of the old
+      // function with it.
+      //
       if (origF) {
-        Constant * newF = M.getOrInsertFunction(it->functionName, origF->getFunctionType());
+        Constant * newF = M.getOrInsertFunction (it->functionName,
+                                                 origF->getFunctionType());
         origF->replaceAllUsesWith(newF);
       }
     }   

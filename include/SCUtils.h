@@ -18,6 +18,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/LLVMContext.h"
+#include "llvm/Function.h"
 
 #include <vector>
 #include <set>
@@ -213,6 +214,85 @@ peelCasts (Value * PointerOperand, std::set<Value *> & Chain) {
   }
 
   return SourcePointer;
+}
+
+//
+// Function: destroyFunction()
+//
+// Description:
+//  This function removes all of the existing instructions from an LLVM
+//  function and changes it to be a function declaration (i.e., no body).
+//
+// Inputs:
+//  F - A pointer to the LLVM function to destroy.
+//
+// Outputs:
+//  F - The LLVM function is modified to have no instructions.
+//
+static inline void
+destroyFunction (Function * F) {
+  //
+  // Null functions have nothing to destroy.
+  //
+  if (!F) return;
+
+  // Worklist of instructions that should be removed.
+  std::vector<Instruction *> toRemove;
+
+  //
+  // Schedule all of the instructions in the function for deletion.  We use a
+  // worklist to avoid any potential iterator invalidation.
+  //
+  for (Function::iterator BB = F->begin(); BB != F->end(); ++BB) {
+    for (BasicBlock::iterator I = BB->begin(); I != BB->end(); ++I) {
+        toRemove.push_back (&*I);
+    }
+  }
+
+  //
+  // Remove all of the remaining instructions from each basic block first.
+  //
+  for (unsigned index = 0; index < toRemove.size(); ++index) {
+    Instruction * I = toRemove[index];
+
+    //
+    // Change all the operands so that the instruction is not using anything.
+    //
+    for (unsigned i = 0; i < I->getNumOperands(); ++i) {
+      I->setOperand (i, UndefValue::get (I->getOperand(i)->getType()));
+    }
+
+    //
+    // Remove the instruction from its basic block.
+    //
+    I->removeFromParent();
+  }
+
+  //
+  // We can now deallocate all of the old instructions.
+  //
+  while (toRemove.size()) {
+    Instruction * I = toRemove.back();
+    toRemove.pop_back();
+    delete I;
+  }
+
+  //
+  // Remove all dead basic blocks.  Again, we use a worklist to avoid any
+  // potential iterator invalidation.
+  //
+  std::vector<BasicBlock *> toRemoveBB;
+  for (Function::iterator BB = F->begin(); BB != F->end(); ++BB) {
+    toRemoveBB.push_back (&*BB);
+  }
+
+  while (toRemoveBB.size()) {
+    BasicBlock * BB = toRemoveBB.back();
+    toRemoveBB.pop_back();
+    BB->eraseFromParent();
+  }
+
+  return;
 }
 
 }

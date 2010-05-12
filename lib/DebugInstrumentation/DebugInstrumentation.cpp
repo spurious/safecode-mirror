@@ -255,12 +255,39 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   ParamTypes.push_back (VoidPtrTy);
   ParamTypes.push_back (Int32Type);
 
+  //
+  // Check to see if the debug version of the function already exists.
+  //
+  bool hadToCreateFunction = true;
+  if (F->getParent()->getFunction(F->getName().str() + "_debug"))
+    hadToCreateFunction = false;
+
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
                                                     false);
   std::string funcdebugname = F->getName().str() + "_debug";
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
+
+  //
+  // Give the function a body.  This is used for ensuring that SAFECode plays
+  // nicely with LLVM's bugpoint tool.  By having a body, the program will link
+  // correctly even when the intrinsic renaming pass is removed by bugpoint.
+  //
+  if (hadToCreateFunction) {
+    Function * DebugFunc = dyn_cast<Function>(FDebug);
+    assert (DebugFunc);
+
+    LLVMContext & Context = getGlobalContext();
+    BasicBlock * entryBB=BasicBlock::Create (Context, "entry", DebugFunc);
+    const Type * VoidTy = Type::getVoidTy(Context);
+    if (DebugFunc->getReturnType() == VoidTy) {
+      ReturnInst::Create (Context, entryBB);
+    } else {
+      Value * retValue = UndefValue::get (DebugFunc->getReturnType());
+      ReturnInst::Create (Context, retValue, entryBB);
+    }
+  }
 
   //
   // Create a set of call instructions that must be modified.

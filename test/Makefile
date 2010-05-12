@@ -44,9 +44,10 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden \
-  External/Namd \
-  External/Povray \
-  External/SPEC/CINT2000 \
+  #External/SPEC/CINT2000/186.crafty \
+  #External/Namd \
+  #External/Povray \
+  #External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/176.gcc \
   #External/SPEC/CINT2000/175.vpr \
   #MultiSource/Benchmarks/Olden \
@@ -78,7 +79,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 #   External/SPEC/CINT2000 \
 #   External/SPEC/CINT2000/181.mcf \
 #   External/SPEC/CINT2000/256.bzip2 \
-   #External/SPEC/CINT2000/186.crafty \
    #External/SPEC/CFP2000/188.ammp \
    #MultiSource/Applications/ghttpd \
    #MultiSource/Benchmarks/Olden/bh \

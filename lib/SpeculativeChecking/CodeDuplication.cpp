@@ -24,13 +24,13 @@
 #include "safecode/CodeDuplication.h"
 #include "SCUtils.h"
 
-/*
+#if 0
 static llvm::RegisterPass<llvm::CodeDuplicationAnalysis> sCodeDuplicationAnalysisPass("-code-dup-analysis", "Analysis for code duplication", false, false);
 
 static llvm::RegisterPass<llvm::RemoveSelfLoopEdge> sRemoveSelfLoopEdgePass("-break-self-loop-edge", "Break all self-loop edges in basic blocks");
 
 static llvm::RegisterPass<llvm::DuplicateCodeTransform> sDuplicateCodeTransformPass("-duplicate-code-transformation", "Duplicate codes for SAFECode checking");
-*/
+#endif
 
 static llvm::RegisterPass<llvm::DuplicateLoopAnalysis> sDuplicateLoopAnalysis("dup-loop-analysis", "Analysis for duplicating loop", false, false);
 

@@ -35,15 +35,13 @@ using namespace llvm;
 
 NAMESPACE_SC_BEGIN
 
-using namespace CUA;
-
 //
 // Command line options
 //
-cl::opt<bool> DisableStackPromote ("disable-stackpromote", cl::Hidden,
-                                   cl::init(false),
-                                   cl::desc("Do not promote stack allocations"));
-                                                                                
+cl::opt<bool>
+DisableStackPromote ("disable-stackpromote", cl::Hidden,
+                     cl::init(false),
+                     cl::desc("Do not promote stack allocations to the heap"));
 
 //
 // Statistics
@@ -59,8 +57,8 @@ namespace {
   ("paconvalloca", "Converts Unsafe Allocas using Pool Allocation Run-Time");
 }
 
-char CUA::ConvertUnsafeAllocas::ID = 0;
-char CUA::PAConvertUnsafeAllocas::ID = 0;
+char ConvertUnsafeAllocas::ID = 0;
+char PAConvertUnsafeAllocas::ID = 0;
 char InitAllocas::ID = 0;
 
 // Function pointers

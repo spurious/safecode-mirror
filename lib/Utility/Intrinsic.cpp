@@ -270,11 +270,38 @@ InsertSCIntrinsic::addIntrinsic (const char * name,
   IntrinsicInfoTy info;
 
   //
+  // Check to see if the function exists.
+  //
+  bool hadToCreateFunction = true;
+  if (Function * F = currentModule->getFunction(name))
+    if (F->getFunctionType() == FTy)
+      hadToCreateFunction = false;
+
+  //
   // Create the new intrinsic function and configure its SAFECode attributes.
   //
   info.flag = flag;
   info.F = dyn_cast<Function> (currentModule->getOrInsertFunction(name, FTy));
   info.ptrindex = ptrindex;
+
+  //
+  // Give the function a body.  This is used for ensuring that SAFECode plays
+  // nicely with LLVM's bugpoint tool.  By having a body, the program will link
+  // correctly even when the intrinsic renaming pass is removed by bugpoint.
+  //
+#if 1
+  if (hadToCreateFunction) {
+    LLVMContext & Context = getGlobalContext();
+    BasicBlock * entryBB=BasicBlock::Create (Context, "entry", info.F);
+    const Type * VoidTy = Type::getVoidTy(Context);
+    if (FTy->getReturnType() == VoidTy) {
+      ReturnInst::Create (Context, entryBB);
+    } else {
+      Value * retValue = UndefValue::get (FTy->getReturnType());
+      ReturnInst::Create (Context, retValue, entryBB);
+    }
+  }
+#endif
 
   //
   // Map the function name and LLVM Function pointer to its SAFECode attributes.

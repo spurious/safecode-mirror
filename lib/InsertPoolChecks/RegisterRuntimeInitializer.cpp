@@ -13,6 +13,7 @@
 
 #include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
 #include "safecode/SAFECodeConfig.h"
+#include "SCUtils.h"
 
 #include "llvm/Constants.h"
 #include "llvm/LLVMContext.h"
@@ -23,7 +24,8 @@ NAMESPACE_SC_BEGIN
 
 char RegisterRuntimeInitializer::ID = 0;
 
-static llvm::RegisterPass<RegisterRuntimeInitializer> X1 ("reg-runtime-init", "Register runtime initializer into programs");
+static llvm::RegisterPass<RegisterRuntimeInitializer>
+X1 ("reg-runtime-init", "Register runtime initializer into programs");
 
 
 bool
@@ -41,7 +43,6 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   // run-time constructor; it will be called by static global variable
   // constructor magic before main() is called.
   //
-
   Function * RuntimeCtor = intrinsic->getIntrinsic("sc.init_runtime").F;
   Function * RuntimeInit = intrinsic->getIntrinsic("sc.init_pool_runtime").F;
   Function * RegGlobals  = intrinsic->getIntrinsic("sc.register_globals").F;
@@ -50,6 +51,12 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   // Make the runtime constructor compatible with other ctors
   RuntimeCtor->setDoesNotThrow();
   RuntimeCtor->setLinkage(GlobalValue::InternalLinkage);
+
+  //
+  // Empty out the default definition of the SAFECode constructor function.
+  // We'll replace it with our own code.
+  //
+  destroyFunction (RuntimeCtor);
 
   //
   // Add a call in the new constructor function to the SAFECode initialization

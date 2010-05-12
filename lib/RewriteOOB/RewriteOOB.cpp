@@ -268,13 +268,9 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   Value *PH = 0;
   if (Argument *arg = dyn_cast<Argument>(peeledOp)) {
-    Function * F = arg->getParent();
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
+    PH = poolPass->getPool (arg);
   } else if (Instruction *Inst = dyn_cast<Instruction>(peeledOp)) {
-    Function * F = Inst->getParent()->getParent();
-    PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-    PH = dsnPass->getPoolHandle(peeledOp, F, *FI);
+    PH = poolPass->getPool (Inst);
   } else if (isa<Constant>(peeledOp) || isa<AllocaInst>(peeledOp)) {
     //
     // FIXME:
@@ -341,8 +337,7 @@ RewriteOOB::runOnModule (Module & M) {
   //
   // Get prerequisite analysis results.
   //
-  dsnPass    = &getAnalysis<DSNodePass>();
-  paPass     = dsnPass->paPass;
+  poolPass   = &getAnalysis<QueryPoolPass>();
   intrinPass = &getAnalysis<InsertSCIntrinsic>();
 
   //
