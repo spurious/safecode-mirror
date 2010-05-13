@@ -38,9 +38,6 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "poolalloc/PoolAllocate.h"
-
-#include "ArrayBoundsCheck.h"
-#include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #if 0
 #include "IndirectCallChecks.h"
@@ -217,6 +214,11 @@ int main(int argc, char **argv) {
       NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
     }
 
+    //
+    // Ensure that all type-safe stack allocations are initialized.
+    //
+    NOT_FOR_SVA(Passes.add(new InitAllocas()));
+
 #if 0
     // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
     // Bottom-Up Call Graph pass doesn't work after pool allocation has
@@ -252,6 +254,17 @@ int main(int argc, char **argv) {
 #endif
 
     //
+    // Use static analysis to determine which indexing operations (GEPs) do not
+    // require run-time checks.  This is scheduled right before the check
+    // insertion pass because it seems that the PassManager will invalidate the
+    // results if they are not consumed immediently.
+    //
+    addStaticGEPCheckingPass(Passes);
+
+    Passes.add(new InsertPoolChecks());
+    Passes.add (new DummyUse());
+
+    //
     // Instrument the code so that memory objects are registered into the
     // correct pools.  Note that user-space SAFECode requires a few additional
     // transforms to do this.
@@ -269,21 +282,10 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
-    //
-    // Use static analysis to determine which indexing operations (GEPs) do not
-    // require run-time checks.  This is scheduled right before the check
-    // insertion pass because it seems that the PassManager will invalidate the
-    // results if they are not consumed immediently.
-    //
-    addStaticGEPCheckingPass(Passes);
-
-    Passes.add(new InsertPoolChecks());
-
     Passes.add(new ExactCheckOpt());
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
-    NOT_FOR_SVA(Passes.add(new InitAllocas()));
-    
+
 #if 0
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
@@ -318,8 +320,6 @@ int main(int argc, char **argv) {
       Passes.add (new OptimizeChecks());
       Passes.add(new RewriteOOB());
     }
-
-    Passes.add (new DummyUse());
 
 #if 0
     //
@@ -456,7 +456,6 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
 #if 0
-			Passes.add(new ABCPreProcess());
 			Passes.add(new ArrayBoundsCheckStruct());
 			Passes.add(new ArrayBoundsCheck());
 #else

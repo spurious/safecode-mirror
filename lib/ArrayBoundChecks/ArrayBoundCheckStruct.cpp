@@ -33,7 +33,7 @@ using namespace llvm;
 
 namespace {
   STATISTIC (allGEPs ,  "Total Number of GEPs Queried");
-  STATISTIC (safeGEPs , "Number of GEPs Proven Safe Statically");
+  STATISTIC (safeGEPs , "Number of GEPs on Structures Proven Safe Statically");
 }
 
 NAMESPACE_SC_BEGIN
@@ -71,8 +71,7 @@ ArrayBoundsCheckStruct::runOnFunction(Function & F) {
   // Get required analysis results from other passes.
   //
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-  dsaPass = &getAnalysis<DSNodePass>();
-  TD = &getAnalysis<TargetData>();
+  poolPass = &getAnalysis<QueryPoolPass>();
 
   //
   // We don't make any changes, so return false.
@@ -113,17 +112,14 @@ ArrayBoundsCheckStruct::isGEPSafe (GetElementPtrInst * GEP) {
   //
   // Determine whether the pointer is for a type-known object.
   //
-  Function * F = GEP->getParent()->getParent();
-  if (DSNode *  DSN = dsaPass->getDSNode(PointerOperand, F)) {
-    if (!(DSN->isNodeCompletelyFolded())) {
-      //
-      // The pointer points to a type-known object.  If the indices all index
-      // into structures, then the GEP is safe.
-      //
-      if (indexesStructsOnly (GEP)) {
-        ++safeGEPs;
-        return true;
-      }
+  if (poolPass->isTypeKnown (PointerOperand)) {
+    //
+    // The pointer points to a type-known object.  If the indices all index
+    // into structures, then the GEP is safe.
+    //
+    if (indexesStructsOnly (GEP)) {
+      ++safeGEPs;
+      return true;
     }
   }
 

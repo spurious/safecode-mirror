@@ -51,8 +51,7 @@ struct InitAllocas : public FunctionPass {
     // Private data
     Constant * memsetF;
     DominatorTree * domTree;
-    DSNodePass * dsnPass;
-    PoolAllocateGroup * paPass;
+    EQTDDataStructures * dsaPass;
 
     // The type of a pool descriptor
     const Type * PoolType;
@@ -68,9 +67,7 @@ struct InitAllocas : public FunctionPass {
     virtual bool runOnFunction (Function &F);
     virtual bool doInitialization (Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
-      AU.addRequired<DSNodePass>();
-			DSNodePass::preservePAandDSA(AU);
+      AU.addRequired<EQTDDataStructures>();
       AU.setPreservesCFG();
     }
 };

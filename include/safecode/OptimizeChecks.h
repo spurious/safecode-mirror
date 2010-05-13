@@ -65,9 +65,6 @@ struct OptimizeChecks : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // We need to know about SAFECode intrinsics
       AU.addRequired<InsertSCIntrinsic>();
-
-      // Pretend that we don't modify anything
-      DSNodePass::preservePAandDSA(AU);
       AU.setPreservesCFG();
     }
 };
@@ -93,8 +90,6 @@ struct ExactCheckOpt : public ModulePass {
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // We need to know about SAFECode intrinsics
     AU.addRequired<InsertSCIntrinsic>();
-    // Pretend that we don't modify DSA and PA
-		DSNodePass::preservePAandDSA(AU);
     AU.setPreservesCFG();
   }
 

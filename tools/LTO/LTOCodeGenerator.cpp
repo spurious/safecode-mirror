@@ -23,7 +23,6 @@
 
 #include "poolalloc/PoolAllocate.h"
 
-#include "ABCPreProcess.h"
 #include "InsertPoolChecks.h"
 #include "ArrayBoundsCheck.h"
 #include "safecode/BreakConstantGEPs.h"
@@ -69,7 +68,7 @@
 #include "llvm/Target/TargetSelect.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
-
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include <cstdlib>
 #include <fstream>

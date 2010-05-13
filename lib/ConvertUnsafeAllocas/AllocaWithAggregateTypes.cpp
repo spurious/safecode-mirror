@@ -78,17 +78,6 @@ NAMESPACE_SC_BEGIN
 
   inline bool
   InitAllocas::TypeContainsPointer(const Type *Ty) {
-    //
-    // FIXME:
-    //  What this should really do is ask Pool Allocation if the given memory
-    //  object is a pool descriptor.  However, I don't think Pool Allocation
-    //  has a good API for requesting that information.
-    //
-    // If this type is a pool descriptor type, then pretend that it doesn't
-    // have any pointer.
-    //
-    if (Ty == PoolType) return false;
-
     if (Ty->getTypeID() == Type::PointerTyID)
       return true;
     else if (Ty->getTypeID() == Type::StructTyID) {
@@ -145,13 +134,9 @@ NAMESPACE_SC_BEGIN
     //
     if (isa<AllocaInst>(Inst)) {
       // Get the DSNode for this instruction
-      DSNode *Node = dsnPass->getDSNode(Inst, Inst->getParent()->getParent());
-
-      //
-      // If this allocation has no DSNode e.g., it's a pool handle, then don't
-      // bother looking at it.
-      //
-      if (!Node) return false;
+      DSGraph * DSG = dsaPass->getDSGraph (*(Inst->getParent()->getParent()));
+      DSNode *Node = DSG->getNodeForValue (Inst).getNode();
+      assert (Node && "Alloca has no DSNode!\n");
 
       //
       // Do not bother to change this allocation if the type is unknown;
@@ -234,24 +219,12 @@ NAMESPACE_SC_BEGIN
   InitAllocas::runOnFunction (Function &F) {
     bool modified = false;
 
-    //
-    // Create needed LLVM types.
-    //
-    Type * VoidPtrType = PointerType::getUnqual(Int8Type);
-
     // Don't bother processing external functions
     if ((F.isDeclaration()) || (F.getName() == "poolcheckglobals"))
       return modified;
 
     // Get references to previous analysis passes
-    TargetData &TD = getAnalysis<TargetData>();
-    dsnPass = &getAnalysis<DSNodePass>();
-    paPass = dsnPass->paPass;
-
-    //
-    // Get the type of a pool descriptor.
-    //
-    PoolType = paPass->getPoolType(&getGlobalContext());
+    dsaPass = &getAnalysis<EQTDDataStructures>();
 
     for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I) {
       for (BasicBlock::iterator IAddrBegin=I->begin(), IAddrEnd = I->end();
@@ -267,36 +240,37 @@ NAMESPACE_SC_BEGIN
         // Determine if the instruction needs to be changed.
         //
         if (changeType (IAddrBegin)) {
-          // Insert object registration at the end of allocas.
+          AllocaInst * AllocInst = cast<AllocaInst>(IAddrBegin);
+          //
+          // Create an aggregate zero value to initialize the alloca.
+          //
+          const Type * AllocedType = AllocInst->getAllocatedType();
+          Constant * Init = Constant::getNullValue (AllocedType);
+
+          //
+          // Scan for a place to insert the instruction to initialize the
+          // allocated memory.
+          //
           Instruction * iptI = ++IAddrBegin;
           --IAddrBegin;
-          if (AI->getParent() == (&(AI->getParent()->getParent()->getEntryBlock()))) {
-            BasicBlock::iterator InsertPt = AI->getParent()->begin();
-            while (&(*(InsertPt)) != AI)
+          BasicBlock & entryBlock = F.getEntryBlock();
+          if (AllocInst->getParent() == (&entryBlock)) {
+            BasicBlock::iterator InsertPt = AllocInst->getParent()->begin();
+            while (&(*(InsertPt)) != AllocInst)
               ++InsertPt;
             while (isa<AllocaInst>(InsertPt))
               ++InsertPt;
             iptI = InsertPt;
           }
 
-          // Create a value that calculates the alloca's size
-          const Type * AllocaType = AI->getAllocatedType();
-          Value *AllocSize = ConstantInt::get (Int32Type,
-                                               TD.getTypeAllocSize(AllocaType));
+          //
+          // Store the zero value into the allocated memory.
+          //
+          new StoreInst (Init, AllocInst, iptI);
 
-          if (AI->isArrayAllocation())
-            AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
-                                               AI->getOperand(0),
-                                               "sizetmp",
-                                               iptI);
-
-          Value * TheAlloca = castTo (AI, VoidPtrType, "cast", iptI);
-
-          std::vector<Value *> args(1, TheAlloca);
-          args.push_back (ConstantInt::get (Int8Type, meminitvalue));
-          args.push_back (AllocSize);
-          args.push_back (ConstantInt::get (Int32Type, 0));
-          CallInst::Create (memsetF, args.begin(), args.end(), "", iptI);
+          //
+          // Update statistics.
+          //
           ++InitedAllocas;
         }
       }
