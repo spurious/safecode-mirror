@@ -148,12 +148,16 @@ void
 PoolMDPass::createOffsetMetaData (LoadInst & LI) {
   //
   // Get the DSNode information for both the result of the load instruction
-  // and its pointer operand.  If the result of the load has no DSNode, then
-  // nothing needs to be done.
+  // and its pointer operand.
   //
   Function * F = LI.getParent()->getParent();
+  const Value * Pointer = LI.getPointerOperand();
   DSNode* ResultNode = dsnPass->getDSNode (&LI, F);
-  DSNode* PtrNode    = dsnPass->getDSNode (LI.getPointerOperand(), F);
+  DSNode* PtrNode    = dsnPass->getDSNode (Pointer, F);
+
+  //
+  //  If the result of the load has no DSNode, then nothing needs to be done.
+  //
   if (!ResultNode) return;
   assert (PtrNode && "Load operand has no DSNode!\n");
 
@@ -162,10 +166,17 @@ PoolMDPass::createOffsetMetaData (LoadInst & LI) {
   // need to determine the offset into the memory object from which the result
   // of the load is loaded.
   //
+  bool found = false;
   DSNode::LinkMapTy::iterator linki = PtrNode->edge_begin();
   for (; linki != PtrNode->edge_end(); ++linki) {
     DSNodeHandle & LinkNode = linki->second;
     if (LinkNode.getNode() == ResultNode) {
+      //
+      // Mark that we found the link from the dereferenced pointer to the
+      // loaded result in the DSGraph.
+      //
+      found = true;
+
       //
       // Get the offset from the DSNodeHandle.
       //
@@ -187,6 +198,7 @@ PoolMDPass::createOffsetMetaData (LoadInst & LI) {
     }
   }
 
+  assert (found && "Did not find link in DSGraph!\n");
   return;
 }
 
@@ -207,6 +219,7 @@ PoolMDPass::visitLoadInst (LoadInst & LI) {
   //
   Function * F = LI.getParent()->getParent();
   createPoolMetaData (LI.getPointerOperand(), F);
+  createOffsetMetaData (LI);
   return;
 }
 
