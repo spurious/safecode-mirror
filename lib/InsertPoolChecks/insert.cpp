@@ -201,7 +201,7 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   // an alignment check.
   //
   Value * Alignment = poolPass->getAlignment (LI);
-  assert (Alignment);
+  assert (Alignment && "Cannot find alignment metadata!\n");
 
   // Insertion point for this check is *after* the load.
   BasicBlock::iterator InsertPt = LI;
