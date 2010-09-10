@@ -3,7 +3,7 @@ LEVEL = ../..
 include $(LEVEL)/Makefile.common
 
 CFLAGS := -g -O0
-CONFIGURATION := Release
+CONFIGURATION := Debug
 LLVMTOOLCURRENT := $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin
 LLVMLDPROG	:= $(LLVMTOOLCURRENT)/llvm-ld$(EXEEXT)
 LLC       	:= $(LLVMTOOLCURRENT)/llc$(EXEEXT)
@@ -11,10 +11,11 @@ LOPT      	:= $(LLVMTOOLCURRENT)/opt$(EXEEXT)
 
 DIFFPROG	:= diff
 
-SCFLAGS := -enable-debuginfo
+SCFLAGS := -terminate -check-every-gep-use -rewrite-oob
 
 TEST_SRC_DIR := $(PROJ_SRC_ROOT)/test/BOdiagsuite-20050808
 SCRIPT_DIR := $(PROJ_SRC_ROOT)/test/Scripts/
+
 include $(TEST_SRC_DIR)/Makefile.rules
 
 SRCS := $(wildcard $(TEST_SRC_DIR)/testcases/*.c)
@@ -30,7 +31,7 @@ GEN_REPORT := $(TEST_SRC_DIR)/Scripts/GenerateReport.sh
 
 #FIXME : Should have LLVM_SRC_ROOT
 RUNTIMELIMIT := 60
-RUNSAFELY := $(PROJ_SRC_ROOT)/../llvm-test/RunSafely.sh $(RUNTIMELIMIT) 0
+RUNSAFELY := $(PROJ_SRC_ROOT)/../test-suite/RunSafely.sh $(RUNTIMELIMIT) 0
 
 TARGET := $(TARGET_BAD) $(TARGET_CORRECT) 
 
