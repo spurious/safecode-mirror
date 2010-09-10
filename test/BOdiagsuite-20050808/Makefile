@@ -1,3 +1,8 @@
+#
+# Makefile for running Buffer Overflow test suite.
+# To run the tests, use make -k report.txt
+#
+
 LEVEL = ../..
 
 include $(LEVEL)/Makefile.common
