@@ -51,10 +51,13 @@ endif
 # output to a file.
 SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
+# Library for DSA
+DSA_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
+
 # Pre processing library for DSA
 ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
 
-PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -mem2reg -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
+PRE_SC_OPT_FLAGS = -load $(DSA_SO) -load $(ASSIST_SO) -mem2reg -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
 
 #EXTRA_LINKTIME_OPT_FLAGS = $(EXTRA_LOPT_OPTIONS) 
 
