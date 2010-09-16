@@ -356,6 +356,11 @@ int main(int argc, char **argv) {
     //
     Passes.add(new DetectDanglingPointers());
 
+    //
+    // Run pool allocation.
+    //
+	 	addPoolAllocationPass(Passes);
+
     if (!DisableDebugInfo)
       Passes.add (new DebugInstrument());
 

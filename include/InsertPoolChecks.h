@@ -114,7 +114,6 @@ struct RegisterStackObjPass : public FunctionPass {
       return "Register stack variables into pool";
     }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<QueryPoolPass>();
       AU.addRequiredTransitive<DSNodePass>();
 
       AU.addRequired<TargetData>();
@@ -139,7 +138,6 @@ struct RegisterStackObjPass : public FunctionPass {
     // References to other LLVM passes
     TargetData * TD;
     LoopInfo * LI;
-    QueryPoolPass * poolPass;
     DominatorTree * DT;
     DominanceFrontier * DF;
     InsertSCIntrinsic * intrinsic;

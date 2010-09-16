@@ -71,7 +71,6 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
-    AU.addRequired<QueryPoolPass>();
     DSNodePass::preservePAandDSA(AU);
     AU.addPreserved<ArrayBoundsCheckGroup>();
     AU.setPreservesCFG();
@@ -81,7 +80,6 @@ public:
 private:
   // Other passes which we query
   TargetData * TD;
-  QueryPoolPass * poolPass;
 
   // Private methods
   void registerGV(GlobalVariable * GV, Instruction * InsertBefore);
@@ -125,13 +123,11 @@ public:
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
-    AU.addRequired<QueryPoolPass>();
     AU.addRequiredTransitive<PoolAllocateGroup>();
     AU.setPreservesAll();
   }
 
 private:
-  QueryPoolPass * poolPass;
   Function * PoolUnregisterFunc;
   void registerAllocationSite(llvm::CallInst * AllocSite, AllocatorInfo * info);
   void registerFreeSite(llvm::CallInst * FreeSite, AllocatorInfo * info);
@@ -149,13 +145,11 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
-    AU.addRequired<QueryPoolPass>();
     // Pretend we do nothing
     AU.setPreservesAll();
   }
 private:
   InsertSCIntrinsic * intrinsic;
-  QueryPoolPass * poolPass;
   TargetData * TD;
   Function * StackFree;
 };

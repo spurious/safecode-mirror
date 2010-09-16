@@ -191,7 +191,6 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   DT = &getAnalysis<DominatorTree>();
   DF = &getAnalysis<DominanceFrontier>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  poolPass = &getAnalysis<QueryPoolPass>();
 
   //
   // Get pointers to the functions for registering and unregistering pointers.
@@ -377,8 +376,6 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   // Insert the alloca registration.
   //
-  Value *PH = poolPass->getPool (AI);
-  if (PH == 0 || isa<ConstantPointerNull>(PH)) return 0;
 
   //
   // Create an LLVM Value for the allocation size.  Insert a multiplication
@@ -412,7 +409,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   PointerType * VoidPtrTy = getVoidPtrType();
   Instruction *Casted = castTo (AI, VoidPtrTy, AI->getName()+".casted", iptI);
-  Value * CastedPH    = castTo (PH, VoidPtrTy, PH->getName() + "casted", iptI);
+  Value * CastedPH    = ConstantPointerNull::get (VoidPtrTy);
   std::vector<Value *> args;
   args.push_back (CastedPH);
   args.push_back (Casted);

@@ -74,7 +74,7 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
   //
   // Get the pool into which the global should be registered.
   //
-  Value * PH = poolPass->getPool (GV);
+  Value * PH = ConstantPointerNull::get (getVoidPtrType());
   if (PH) {  
     const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
     const Type * GlobalType = GV->getType()->getElementType();
@@ -97,7 +97,6 @@ RegisterGlobalVariables::runOnModule(Module & M) {
   // Get required analysis passes.
   //
   TD       = &getAnalysis<TargetData>();
-  poolPass = &getAnalysis<QueryPoolPass>();
 
   Instruction * InsertPt = 
     CreateRegistrationFunction(intrinsic->getIntrinsic("sc.register_globals").F);
@@ -120,9 +119,6 @@ RegisterGlobalVariables::runOnModule(Module & M) {
     GlobalVariable *GV = dyn_cast<GlobalVariable>(GI);
     if (!GV) continue;
     std::string name = GV->getName();
-
-    // Skip pool descriptors
-    if (GV->getType()->getContainedType(0) == poolPass->getPoolType()) continue;
 
     // Skip globals in special sections
     if ((GV->getSection()) == "llvm.metadata") continue;
@@ -208,7 +204,6 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
   init("sc.pool_register");
-  poolPass = &getAnalysis<QueryPoolPass>();
 
   PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
 #if 0
@@ -235,7 +230,7 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   //
   // Get the pool handle for the node.
   //
-  Value *PH = poolPass->getPool (AllocSite);
+  Value * PH = ConstantPointerNull::get (getVoidPtrType());
   assert (PH && "Pool handle is missing!");
 
   BasicBlock::iterator InsertPt = AllocSite;
@@ -264,8 +259,7 @@ RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
   //
   // Get the pool handle for the freed pointer.
   //
-  Value *PH = poolPass->getPool (ptr);
-  assert (PH && "Pool handle is missing!");
+  Value * PH = ConstantPointerNull::get (getVoidPtrType());
 
   //
   // Cast the pointer being unregistered and the pool handle into void pointer
@@ -360,7 +354,6 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
   // Fetch prerequisite analysis passes.
   //
   TD        = &getAnalysis<TargetData>();
-  poolPass  = &getAnalysis<QueryPoolPass>();
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
 
   //
@@ -418,7 +411,7 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
       const Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get
         (IntegerType::getInt32Ty(getGlobalContext()), TD->getTypeAllocSize(ET));
-      Value *PH = poolPass->getPool (&*I);
+      Value * PH = ConstantPointerNull::get (getVoidPtrType());
       Instruction * InsertBefore = &(F.getEntryBlock().front());
       RegisterVariableIntoPool(PH, &*I, AllocSize, InsertBefore);
       registeredArguments.push_back(std::make_pair<Value*, Argument*>(PH, &*I));
