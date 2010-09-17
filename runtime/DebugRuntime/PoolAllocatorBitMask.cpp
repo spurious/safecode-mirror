@@ -50,6 +50,7 @@
 #endif
 
 #include <assert.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -278,6 +279,13 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
   // Note that the argv array is supposed to end with a NULL pointer element.
   //
   ExternalObjects.insert(argv, ((unsigned char *)(&(argv[argc+1]))) - 1);
+
+  //
+  // Register errno for kicks and gibbles.
+  //
+  unsigned char * errnoAdd = (unsigned char *) &errno;
+  ExternalObjects.insert(errnoAdd, errnoAdd + sizeof (errno) - 1);
+
   return;
 }
 
