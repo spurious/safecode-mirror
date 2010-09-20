@@ -38,7 +38,7 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "poolalloc/PoolAllocate.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #if 0
 #include "IndirectCallChecks.h"
 #endif
