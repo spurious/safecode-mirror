@@ -267,10 +267,8 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   // Get the pool handle associated with the pointer.
   //
   Value *PH = 0;
-  if (Argument *arg = dyn_cast<Argument>(peeledOp)) {
-    PH = poolPass->getPool (arg);
-  } else if (Instruction *Inst = dyn_cast<Instruction>(peeledOp)) {
-    PH = poolPass->getPool (Inst);
+  if ((isa<Argument>(peeledOp)) || (isa<Instruction>(peeledOp))) {
+    PH = ConstantPointerNull::get (getVoidPtrType());
   } else if (isa<Constant>(peeledOp) || isa<AllocaInst>(peeledOp)) {
     //
     // FIXME:
@@ -283,43 +281,37 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
     return;
   }
 
-  if (!PH)
-    std::cerr << "Error: No Pool Handle: " << peeledOp->getNameStr() << "\n" << std::endl;
-
-  assert (PH && "addGetActualValue: No Pool Handle for operand!\n");
+  //
+  // Create a call to getActualValue() to convert the pointer back to its
+  // original value.
+  //
 
   //
-  // If we have a pool handle, create a call to getActualValue() to convert
-  // the pointer back to its original value.
+  // Update the number of calls to getActualValue() that we inserted.
   //
-  if (PH) {
-    //
-    // Update the number of calls to getActualValue() that we inserted.
-    //
-    ++GetActuals;
+  ++GetActuals;
 
-    //
-    // Insert the call to getActualValue()
-    //
-    const Type * VoidPtrType = getVoidPtrType();
-    Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
-    Value * OpVptr = castTo (op,
-                             VoidPtrType,
-                             op->getName() + ".casted",
-                             SCI);
+  //
+  // Insert the call to getActualValue()
+  //
+  const Type * VoidPtrType = getVoidPtrType();
+  Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
+  Value * OpVptr = castTo (op,
+                           VoidPtrType,
+                           op->getName() + ".casted",
+                           SCI);
 
-    std::vector<Value *> args = make_vector (PHVptr, OpVptr,0);
-    CallInst *CI = CallInst::Create (GetActualValue,
-                                     args.begin(),
-                                     args.end(),
-                                     "getval",
-                                     SCI);
-    Instruction *CastBack = castTo (CI,
-                                    op->getType(),
-                                    op->getName()+".castback",
-                                    SCI);
-    SCI->setOperand (operand, CastBack);
-  }
+  std::vector<Value *> args = make_vector (PHVptr, OpVptr,0);
+  CallInst *CI = CallInst::Create (GetActualValue,
+                                   args.begin(),
+                                   args.end(),
+                                   "getval",
+                                   SCI);
+  Instruction *CastBack = castTo (CI,
+                                  op->getType(),
+                                  op->getName()+".castback",
+                                  SCI);
+  SCI->setOperand (operand, CastBack);
 }
 
 //

@@ -174,8 +174,7 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   //
   // Get the pool handle for the node.
   //
-  Value *PH = poolPass->getPool (LI);
-  if (!PH) return;
+  Value *PH = ConstantPointerNull::get (getVoidPtrType());
 
   //
   // If the node is incomplete or unknown, then only perform the check if
@@ -262,12 +261,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
     insertAlignmentCheck (LI);
   }
 
-  Value * PH = poolPass->getPool (V);
+  Value * PH = ConstantPointerNull::get (getVoidPtrType());
   unsigned DSFlags = poolPass->getDSFlags (V);
   DSNode* Node = dsnPass->getDSNode(V, F);
-  if (!PH) {
-    return;
-  }
+  assert (Node && "No DSNode for checked pointer!\n");
 
   //
   // Do not perform checks on incomplete nodes.  While external heap
@@ -474,10 +471,7 @@ std::cerr << "Ins   : " << *GEP << std::endl;
     }
 #endif
     if (isa<GetElementPtrInst>(Casted)) {
-      Value *PH = poolPass->getPool (GEP);
-      if (PH && isa<ConstantPointerNull>(PH)) return;
-
-      assert (PH && "Every GEP should have a pool handle!");
+      Value * PH = ConstantPointerNull::get (getVoidPtrType());
 #if 0
       if (!PH) {
         Value *PointerOperand = GEPNew->getPointerOperand();
