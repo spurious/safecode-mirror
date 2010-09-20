@@ -14,7 +14,7 @@
 #include "safecode/SAFECode.h"
 #include <set>
 #include "SCUtils.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/ADT/Statistic.h"
 

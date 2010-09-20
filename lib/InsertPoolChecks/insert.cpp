@@ -27,7 +27,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "SCUtils.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #include "safecode/VectorListHelper.h"
 
 NAMESPACE_SC_BEGIN

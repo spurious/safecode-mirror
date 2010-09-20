@@ -17,7 +17,7 @@
 
 #include "safecode/SAFECode.h"
 #include "safecode/SAFECodeConfig.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 
 #include "poolalloc/PoolAllocate.h"
 

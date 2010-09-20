@@ -20,7 +20,7 @@
 #include "safecode/Config/config.h"
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/VectorListHelper.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #include "SCUtils.h"
 
 using namespace llvm;

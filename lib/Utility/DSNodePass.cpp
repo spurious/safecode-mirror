@@ -15,7 +15,7 @@
 #include <signal.h>
 
 #include "safecode/Config/config.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #include "llvm/Support/CommandLine.h"
 
 NAMESPACE_SC_BEGIN

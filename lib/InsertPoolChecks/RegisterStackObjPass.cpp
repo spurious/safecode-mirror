@@ -17,7 +17,7 @@
 #include "safecode/SAFECode.h"
 
 #include "SCUtils.h"
-#include "InsertPoolChecks.h"
+#include "safecode/InsertChecks.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
 #include "llvm/ADT/VectorExtras.h"

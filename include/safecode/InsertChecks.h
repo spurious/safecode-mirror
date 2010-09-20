@@ -1,4 +1,4 @@
-//===- InsertPoolChecks.h - Insert run-time checks for SAFECode --------------//
+//===- InsertChecks.h - Insert run-time checks for SAFECode ------------------//
 // 
 //                          The SAFECode Compiler 
 //
@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _INSERT_POOLCHECKS_H_
-#define _INSERT_POOLCHECKS_H_
+#ifndef _SAFECODE_INSERT_CHECKS_H_
+#define _SAFECODE_INSERT_CHECKS_H_
 
 #include "safecode/SAFECode.h"
 #include "llvm/Instructions.h"
