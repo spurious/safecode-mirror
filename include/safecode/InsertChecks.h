@@ -35,7 +35,7 @@ extern bool isSVAEnabled();
 NAMESPACE_SC_BEGIN
 
 struct InsertPoolChecks : public FunctionPass {
-    public :
+  public :
     static char ID;
     InsertPoolChecks () : FunctionPass ((intptr_t) &ID) { }
     const char *getPassName() const { return "Inserting Pool checks Pass"; }
@@ -45,21 +45,16 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
-      AU.addRequired<DSNodePass>();
-      AU.addRequired<QueryPoolPass>();
-			//lying!
-      DSNodePass::preservePAandDSA(AU);
+      AU.addRequired<EQTDDataStructures>();
       AU.addPreserved<InsertSCIntrinsic>();
-      AU.addPreserved<DSNodePass>();
       AU.setPreservesCFG();
     };
-    private:
+  private:
     InsertSCIntrinsic * intrinsic;
     ArrayBoundsCheckGroup * abcPass;
-    PoolAllocateGroup * paPass;
     TargetData * TD;
-    DSNodePass * dsnPass;
-    QueryPoolPass * poolPass;
+    EQTDDataStructures * dsaPass;
+
     Function *PoolCheck;
     Function *PoolCheckUI;
     Function *PoolCheckAlign;
@@ -73,6 +68,13 @@ struct InsertPoolChecks : public FunctionPass {
     void addLoadStoreChecks(Function &F);
     void insertAlignmentCheck (LoadInst * LI);
     void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
+
+    // Methods for abstracting the interface to DSA
+    DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
+    DSNode * getDSNode (const Value * V, const Function * F);
+    bool isTypeKnown (const Value * V, const Function * F);
+    unsigned getDSFlags (const Value * V, const Function * F);
+    unsigned getOffset (const Value * V, const Function * F);
 };
 
 /// Monotonic Loop Optimization
@@ -87,9 +89,7 @@ struct MonotonicLoopOpt : public LoopPass {
     AU.addRequired<TargetData>();
     AU.addRequired<LoopInfo>();
     AU.addRequired<ScalarEvolution>();
-		// lying !
-		DSNodePass::preservePAandDSA(AU);
-    AU.addPreserved<DSNodePass>();
+    AU.addPreserved<InsertSCIntrinsic>();
     AU.setPreservesCFG();
   }
   private:
@@ -114,23 +114,13 @@ struct RegisterStackObjPass : public FunctionPass {
       return "Register stack variables into pool";
     }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequiredTransitive<DSNodePass>();
-
       AU.addRequired<TargetData>();
       AU.addRequired<LoopInfo>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
       AU.addRequired<InsertSCIntrinsic>();
 
-      //
-      // Claim that we preserve the DSA and pool allocation results since they
-      // are needed by subsequent SAFECode passes.
-      //
-      // TODO: Determine whether this code is really lying or not.
-      //
-      DSNodePass::preservePAandDSA(AU);
       AU.addPreserved<InsertSCIntrinsic>();
-      AU.addPreserved<QueryPoolPass>();
       AU.setPreservesAll();
     };
 

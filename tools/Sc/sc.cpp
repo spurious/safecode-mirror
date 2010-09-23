@@ -146,7 +146,7 @@ namespace {
   // __alloc_bootmem
   SimpleAllocatorInfo AllocatorBootmem("__alloc_bootmem", "", 1, 1);
   // pool allocator used by user space programs
-  SimpleAllocatorInfo AllocatorPoolAlloc("poolalloc", "poolfree", 2, 2);
+  SimpleAllocatorInfo AllocatorPoolAlloc("malloc", "free", 1, 1);
 }
 
 
@@ -232,12 +232,14 @@ int main(int argc, char **argv) {
     //
     // Run pool allocation.
     //
+#if 0
 	 	addPoolAllocationPass(Passes);
 
     //
     // Add meta-data to record pool information for values that we will check.
     //
     Passes.add(new PoolMDPass());
+#endif
 
 #if 0
     // Convert Unsafe alloc instructions first.  This version relies upon
@@ -262,7 +264,9 @@ int main(int argc, char **argv) {
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
+#if 0
     Passes.add (new DummyUse());
+#endif
 
     //
     // Instrument the code so that memory objects are registered into the
@@ -305,6 +309,11 @@ int main(int argc, char **argv) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
       }
     }
+
+    //
+    // Run pool allocation.
+    //
+	 	addPoolAllocationPass(Passes);
 
     //
     // Do post processing required for Out of Bounds pointer rewriting.
@@ -355,11 +364,6 @@ int main(int argc, char **argv) {
     // Instrument the code so that dangling pointers are detected.
     //
     Passes.add(new DetectDanglingPointers());
-
-    //
-    // Run pool allocation.
-    //
-	 	addPoolAllocationPass(Passes);
 
     if (!DisableDebugInfo)
       Passes.add (new DebugInstrument());
@@ -456,7 +460,9 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			Passes.add(new ArrayBoundsCheckDummy());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+#if 0
 			Passes.add(new ArrayBoundsCheckStruct());
+#endif
 			Passes.add(new ArrayBoundsCheckLocal());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
@@ -470,7 +476,8 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 	}
 }
 
-static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
+static inline void
+addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
   /// Mapping between check intrinsics and implementation
 
   typedef LowerSafecodeIntrinsic::IntrinsicMappingEntry IntrinsicMappingEntry;
@@ -550,6 +557,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
       {"sc.pool_argvregister",  "__sc_dbg_poolargvregister"},
 
       {"poolinit",              "__sc_dbg_poolinit"},
+      {"pooldestroy",           "__sc_dbg_pooldestroy"},
       {"poolalloc_debug",       "__sc_dbg_src_poolalloc"},
       {"poolfree_debug",        "__sc_dbg_src_poolfree"},
 
@@ -659,7 +667,7 @@ static void addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type
   }
 }
 
-static void addPoolAllocationPass(PassManager & Passes) {
+static inline void addPoolAllocationPass(PassManager & Passes) {
   switch (SCConfig.getPAType()) {
   case SAFECodeConfiguration::PA_SINGLE:
     Passes.add(new PoolAllocateSimple(true, true, false));

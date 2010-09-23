@@ -329,7 +329,6 @@ RewriteOOB::runOnModule (Module & M) {
   //
   // Get prerequisite analysis results.
   //
-  poolPass   = &getAnalysis<QueryPoolPass>();
   intrinPass = &getAnalysis<InsertSCIntrinsic>();
 
   //

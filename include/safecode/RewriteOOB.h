@@ -43,7 +43,6 @@ class RewriteOOB : public ModulePass {
     void addGetActualValue (Instruction *SCI, unsigned operand);
 
     // Private variables
-    QueryPoolPass     * poolPass;
     InsertSCIntrinsic * intrinPass;
 
   public:
@@ -57,9 +56,6 @@ class RewriteOOB : public ModulePass {
 
       // This pass gives us information on the various run-time checks
       AU.addRequired<InsertSCIntrinsic>();
-
-      // We require these pass to get information on pool handles
-      AU.addRequired<QueryPoolPass>();
 
       // Pretend that we don't modify anything
       AU.setPreservesAll();

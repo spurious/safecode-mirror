@@ -71,7 +71,6 @@ public:
   ArrayBoundsCheckStruct() : FunctionPass ((intptr_t) &ID) {}
   virtual bool isGEPSafe(GetElementPtrInst * GEP);
   virtual void getAnalysisUsage(AnalysisUsage & AU) const {
-    AU.addRequiredTransitive<QueryPoolPass>();
     AU.addRequiredTransitive<ArrayBoundsCheckGroup>();
     AU.setPreservesAll();  
   }

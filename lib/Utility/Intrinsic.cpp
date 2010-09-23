@@ -289,7 +289,7 @@ InsertSCIntrinsic::addIntrinsic (const char * name,
   // nicely with LLVM's bugpoint tool.  By having a body, the program will link
   // correctly even when the intrinsic renaming pass is removed by bugpoint.
   //
-#if 1
+#if 0
   if (hadToCreateFunction) {
     LLVMContext & Context = getGlobalContext();
     BasicBlock * entryBB=BasicBlock::Create (Context, "entry", info.F);

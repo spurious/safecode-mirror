@@ -79,6 +79,163 @@ namespace {
 // InsertPoolChecks Methods
 ////////////////////////////////////////////////////////////////////////////
 
+//
+// Method: getDSNodeHandle()
+//
+// Description:
+//  This method looks up the DSNodeHandle for a given LLVM value.  The context
+//  of the value is the specified function, although if it is a global value,
+//  the DSNodeHandle may exist within the global DSGraph.
+//
+// Return value:
+//  A DSNodeHandle for the value is returned.  This DSNodeHandle could either
+//  be in the function's DSGraph or from the GlobalsGraph.  Note that the
+//  DSNodeHandle may represent a NULL DSNode.
+//
+DSNodeHandle
+InsertPoolChecks::getDSNodeHandle (const Value * V, const Function * F) {
+  //
+  // Ensure that the function has a DSGraph
+  //
+  assert (dsaPass->hasDSGraph(*F) && "No DSGraph for function!\n");
+
+  //
+  // Lookup the DSNode for the value in the function's DSGraph.
+  //
+  DSGraph * TDG = dsaPass->getDSGraph(*F);
+  DSNodeHandle DSH = TDG->getNodeForValue(V);
+
+  //
+  // If the value wasn't found in the function's DSGraph, then maybe we can
+  // find the value in the globals graph.
+  //
+  if ((DSH.isNull()) && (isa<GlobalValue>(V))) {
+    //
+    // Try looking up this DSNode value in the globals graph.  Note that
+    // globals are put into equivalence classes; we may need to first find the
+    // equivalence class to which our global belongs, find the global that
+    // represents all globals in that equivalence class, and then look up the
+    // DSNode Handle for *that* global.
+    //
+    DSGraph * GlobalsGraph = TDG->getGlobalsGraph ();
+    DSH = GlobalsGraph->getNodeForValue(V);
+    if (DSH.isNull()) {
+      //
+      // DSA does not currently handle global aliases.
+      //
+      if (!isa<GlobalAlias>(V)) {
+        //
+        // We have to dig into the globalEC of the DSGraph to find the DSNode.
+        //
+        const GlobalValue * GV = dyn_cast<GlobalValue>(GV);
+        const GlobalValue * Leader;
+        Leader = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
+        DSH = GlobalsGraph->getNodeForValue(Leader);
+      }
+    }
+  }
+
+  return DSH;
+}
+
+//
+// Method: getDSNode()
+//
+// Description:
+//  This method looks up the DSNode for a given LLVM value.  The context of the
+//  value is the specified function, although if it is a global value, the
+//  DSNode may exist within the global DSGraph.
+//
+// Return value:
+//  NULL - No DSNode was found.
+//  Otherwise, a pointer to the DSNode for this value is returned.  This DSNode
+//  could either be in the function's DSGraph or from the GlobalsGraph.
+//
+DSNode *
+InsertPoolChecks::getDSNode (const Value * V, const Function * F) {
+  //
+  // Simply return the DSNode referenced by the DSNodeHandle.
+  //
+  return getDSNodeHandle (V, F).getNode();
+}
+
+//
+// Method: isTypeKnown()
+//
+// Description:
+//  Determines whether the value is always used in a type-consistent fashion
+//  within the program.
+//
+// Inputs:
+//  V - The value to check for type-consistency.  This value *must* have a
+//      DSNode.
+//
+// Return value:
+//  true  - This value is always used in a type-consistent fashion.
+//  false - This value is not guaranteed to be used in a type-consistent
+//          fashion.
+//
+bool
+InsertPoolChecks::isTypeKnown (const Value * V, const Function * F) {
+  //
+  // First, get the DSNode for the value.
+  //
+  DSNode * DSN = getDSNode (V, F);
+  assert (DSN && "isTypeKnown(): No DSNode for the specified value!\n");
+
+  //
+  // Now determine if it is type-consistent.
+  //
+  return (!(DSN->isNodeCompletelyFolded()));
+}
+
+//
+// Method: getDSFlags()
+//
+// Description:
+//  Return the DSNode flags associated with the specified value.
+//
+// Inputs:
+//  V - The value for which the DSNode flags are requested.  This value *must*
+//      have a DSNode.
+//
+// Return Value:
+//  The DSNode flags (which are a vector of bools in an unsigned int).
+//
+unsigned
+InsertPoolChecks::getDSFlags (const Value * V, const Function * F) {
+  //
+  // First, get the DSNode for the value.
+  //
+  DSNode * DSN = getDSNode (V, F);
+  assert (DSN && "getDSFlags(): No DSNode for the specified value!\n");
+
+  //
+  // Now return the flags for it.
+  //
+  return DSN->getNodeFlags();
+}
+
+//
+// Method: getAlignment()
+//
+// Description:
+//  Determine the offset into the object to which the specified value points.
+//
+unsigned
+InsertPoolChecks::getOffset (const Value * V, const Function * F) {
+  //
+  // Get the DSNodeHandle for this pointer.
+  //
+  DSNodeHandle DSH = getDSNodeHandle (V, F);
+  assert (!(DSH.isNull()));
+
+  //
+  // Return the offset into the object at which the pointer points.
+  //
+  return DSH.getOffset();
+}
+
 void
 InsertPoolChecks::addCheckProto(Module &M) {
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
@@ -119,12 +276,9 @@ InsertPoolChecks::runOnFunction(Function &F) {
     uninitialized = false;
   }
 
-  TD       = &getAnalysis<TargetData>();
-  abcPass  = &getAnalysis<ArrayBoundsCheckGroup>();
-  poolPass = &getAnalysis<QueryPoolPass>();
-  dsnPass  = &getAnalysis<DSNodePass>();
-  paPass   = dsnPass->paPass;
-  assert (paPass && "Pool Allocation Transform *must* be run first!");
+  TD      = &getAnalysis<TargetData>();
+  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
+  dsaPass = &getAnalysis<EQTDDataStructures>();
 
   //
   // FIXME:
@@ -166,9 +320,22 @@ InsertPoolChecks::addPoolChecks(Function &F) {
 //
 void
 InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
+  //
+  // Don't do alignment checks on non-pointer values.
+  //
+  if (!(isa<PointerType>(LI->getType())))
+    return;
+
+  //
+  // Get the function in which the load instruction lives.
+  //
+  Function * F = LI->getParent()->getParent();
+
+  //
   // Get the DSNode for the result of the load instruction.  If it is type
   // unknown, then no alignment check is needed.
-  if (!(poolPass->isTypeKnown (LI)))
+  //
+  if (!isTypeKnown (LI, F))
     return;
 
   //
@@ -181,7 +348,7 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   // checks to incomplete or unknown are allowed.
   //
   Constant * CheckAlignment = PoolCheckAlign;
-  if ((poolPass->getDSFlags (LI)) & (DSNode::IncompleteNode | DSNode::UnknownNode)) {
+  if ((getDSFlags (LI, F)) & (DSNode::IncompleteNode | DSNode::UnknownNode)) {
 #if 0
     if (EnableUnknownChecks) {
       CheckAlignment = PoolCheckAlignUI;
@@ -199,8 +366,8 @@ InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
   // A check is needed.  Fetch the alignment of the loaded pointer and insert
   // an alignment check.
   //
-  Value * Alignment = poolPass->getAlignment (LI);
-  assert (Alignment && "Cannot find alignment metadata!\n");
+  const Type * Int32Type = Type::getInt32Ty(F->getParent()->getContext());
+  Value * Alignment = ConstantInt::get(Int32Type, getOffset (LI, F));
 
   // Insertion point for this check is *after* the load.
   BasicBlock::iterator InsertPt = LI;
@@ -262,8 +429,8 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   }
 
   Value * PH = ConstantPointerNull::get (getVoidPtrType());
-  unsigned DSFlags = poolPass->getDSFlags (V);
-  DSNode* Node = dsnPass->getDSNode(V, F);
+  unsigned DSFlags = getDSFlags (V, F);
+  DSNode* Node = getDSNode (V, F);
   assert (Node && "No DSNode for checked pointer!\n");
 
   //
@@ -287,8 +454,21 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   //     the pointer is within bounds.
   //  3) Pointers that may have been integers casted into pointers.
   //
-  if ((!(poolPass->isTypeKnown (V))) ||
+  // FIXME:
+  //  The type-known optimization is only applicable when dangling pointer
+  //  errors are dealth with correctly (such as using garbage collection or
+  //  automatic pool allocation) or when the points-to analysis is modified to
+  //  reflect type inconsistencies that can occur through dangling pointer
+  //  dereferences.  Since none of these options is currently working when
+  //  pool allocation is performed after check insertion, we have to turn this
+  //  optimization off.
+  //
+#if 0
+  if ((!(isTypeKnown (V, F))) ||
       (DSFlags & (DSNode::ArrayNode | DSNode::IntToPtrNode))) {
+#else
+  if (1) {
+#endif
     // I am amazed the check here since the commet says that I is an load/store
     // instruction! 
     if (dyn_cast<CallInst>(I)) {
@@ -357,75 +537,26 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   }
 }
 
-void InsertPoolChecks::addLoadStoreChecks(Function &F){
-  //here we check that we only do this on original functions
-  //and not the cloned functions, the cloned functions may not have the
-  //DSG
-
-  bool isClonedFunc = false;
-  Function *Forig = &F;
-  PA::FuncInfo *FI = NULL;
-
-  if (!SCConfig.svaEnabled()) {
-    if (paPass->getFuncInfo(F))
-      isClonedFunc = false;
-    else
-      isClonedFunc = true;
-    
-    FI = paPass->getFuncInfoOrClone(F);
-    if (isClonedFunc) {
-      Forig = paPass->getOrigFunctionFromClone(&F);
-    }
-  }
-
-  //we got the original function
-
+//
+// Method: addLoadStoreChecks()
+//
+// Description:
+//  Scan through all the instructions in the specified function and insert
+//  run-time checks for load, store, and indirect call instructions.
+//
+void
+InsertPoolChecks::addLoadStoreChecks (Function & F) {
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
     if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-      // We need to get the LI from the original function
       Value *P = LI->getPointerOperand();
-      if (isClonedFunc) {
-        assert (FI && "No FuncInfo for this function\n");
-        assert((FI->MapValueToOriginal(LI)) && " not in the value map \n");
-        const LoadInst *temp = dyn_cast<LoadInst>(FI->MapValueToOriginal(LI));
-        assert(temp && " Instruction  not there in the NewToOldValue map");
-        const Value *Ptr = temp->getPointerOperand();
-        addLSChecks(P, Ptr, LI, Forig);
-      } else {
-        addLSChecks(P, P, LI, Forig);
-      }
+      addLSChecks(P, P, LI, &F);
     } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
       Value *P = SI->getPointerOperand();
-      if (isClonedFunc) {
-        SI->dump();
-#if 0
-        assert(FI->NewToOldValueMap.count(SI) && " not in the value map \n");
-#else
-        assert((FI->MapValueToOriginal(SI)) && " not in the value map \n");
-#endif
-#if 0
-        const StoreInst *temp = dyn_cast<StoreInst>(FI->NewToOldValueMap[SI]);
-#else
-        const StoreInst *temp = dyn_cast<StoreInst>(FI->MapValueToOriginal(SI));
-#endif
-        assert(temp && " Instruction  not there in the NewToOldValue map");
-        const Value *Ptr = temp->getPointerOperand();
-        addLSChecks(P, Ptr, SI, Forig);
-      } else {
-        addLSChecks(P, P, SI, Forig);
-      }
+      addLSChecks(P, P, SI, &F);
     } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
       if (!isa<Function>(FunctionOp->stripPointerCasts())) {
-        if (isClonedFunc) {
-          assert(FI->MapValueToOriginal(CI) && " not in the value map \n");
-          const CallInst *temp = dyn_cast<CallInst>(FI->MapValueToOriginal(CI));
-          assert(temp && " Instruction  not there in the NewToOldValue map");
-          const Value* FunctionOp1 = temp->getOperand(0);
-          addLSChecks(FunctionOp, FunctionOp1, CI, Forig);
-        } else {
-          addLSChecks(FunctionOp, FunctionOp, CI, Forig);
-        }
+        addLSChecks(FunctionOp, FunctionOp, CI, &F);
       }
     } 
   }
@@ -435,6 +566,11 @@ void
 InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
   if (abcPass->isGEPSafe(GEP))
     return;
+
+  //
+  // Get the function in which the GEP instruction lives.
+  //
+  Function * F = GEP->getParent()->getParent();
 
   Instruction * iCurrent = GEP;
 
@@ -574,10 +710,10 @@ std::cerr << "Ins   : " << *GEP << std::endl;
         args.push_back(Casted);
 
         // Insert it
-        unsigned DSFlags = poolPass->getDSFlags (GEP);
+        unsigned DSFlags = getDSFlags (GEP, F);
 
         Instruction * CI;
-        if ((!(poolPass->isTypeKnown (GEP))) || (DSFlags & DSNode::UnknownNode))
+        if ((!(isTypeKnown (GEP, F))) || (DSFlags & DSNode::UnknownNode))
           CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
                                 "", InsertPt);
         else

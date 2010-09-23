@@ -167,15 +167,11 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
 
-      DSNodePass::getAnalysisUsageForDSA(AU);
-
       AU.addRequired<TargetData>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
 
       AU.addPreserved<ArrayBoundsCheckGroup>();
-      AU.addPreserved<PoolAllocateGroup>();
-
     }
 };
 

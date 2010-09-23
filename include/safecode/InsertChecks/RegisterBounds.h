@@ -71,7 +71,6 @@ public:
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
-    DSNodePass::preservePAandDSA(AU);
     AU.addPreserved<ArrayBoundsCheckGroup>();
     AU.setPreservesCFG();
   }
@@ -123,7 +122,6 @@ public:
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
-    AU.addRequiredTransitive<PoolAllocateGroup>();
     AU.setPreservesAll();
   }
 
