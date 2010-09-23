@@ -236,7 +236,17 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   BasicBlock::iterator InsertPt = AllocSite;
   ++InsertPt;
 
-  RegisterVariableIntoPool (PH, AllocSite, info->getAllocSize(AllocSite), InsertPt);
+  const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
+  Value * AllocSize = info->getAllocSize(AllocSite);
+  if (!AllocSize->getType()->isIntegerTy(32)) {
+    LLVMContext & Context = csiType->getContext();
+    AllocSize = CastInst::CreateIntegerCast (AllocSize,
+                                             Type::getInt32Ty(Context),
+                                             false,
+                                             AllocSize->getName(),
+                                             InsertPt);
+  }
+  RegisterVariableIntoPool (PH, AllocSite, AllocSize, InsertPt);
 }
 
 void
