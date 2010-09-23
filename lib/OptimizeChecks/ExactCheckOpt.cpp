@@ -168,8 +168,14 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
                             CI);
 
   Value * CastBounds = Bounds;
-  if (Bounds->getType() != Int32Type)
-    CastBounds = castTo (Bounds, Int32Type, Bounds->getName()+".ec.casted", CI);
+  if (Bounds->getType() != Int32Type) {
+    LLVMContext & Context = Int32Type->getContext();
+    CastBounds = CastInst::CreateIntegerCast (CastBounds,
+                                              Type::getInt32Ty(Context),
+                                              false,
+                                              CastBounds->getName(),
+                                              CI);
+  }
 
   //
   // Create the call to exactcheck2().
