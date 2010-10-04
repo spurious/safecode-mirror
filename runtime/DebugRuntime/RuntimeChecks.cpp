@@ -263,12 +263,25 @@ poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
 //           last valid byte of the object.
 //
 // Return value:
-//  Returns true if the object is found.
+//  true  - The object was found in the pool.
+//  false - The object was not found in the pool.
 //
 static bool 
 boundscheck_lookup (DebugPoolTy * Pool, void * & Source, void * & End ) {
-  // Search for object for Source in splay tree, return length 
-  return Pool->Objects.find(Source, Source, End);
+  //
+  // If there is a pool, then search for the object within the pool and return
+  // its bounds.
+  //
+  if (Pool) {
+    return Pool->Objects.find(Source, Source, End);
+  }
+
+  //
+  // No pool was given, so we cannot find the object.  Let the run-time use the
+  // slow path to search for externally allocated objects, argv pointers, and
+  // the like.
+  //
+  return false;
 }
 
 //
