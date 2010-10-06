@@ -65,7 +65,7 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   //
   // If the pool handle is NULL, return successful.
   //
-  if (!Pool) return true;
+  if (!Pool) return false;
 
   //
   // Look through the splay trees for an object in which the pointer points.
