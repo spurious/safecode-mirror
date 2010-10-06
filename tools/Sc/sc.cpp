@@ -17,6 +17,7 @@
 #include "safecode/InsertChecks/RegisterBounds.h"
 #include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
 #include "safecode/Support/AllocatorInfo.h"
+#include "safecode/SCPoolHeuristic.h"
 
 #include "llvm/Module.h"
 #include "llvm/LLVMContext.h"
@@ -679,6 +680,7 @@ static inline void addPoolAllocationPass(PassManager & Passes) {
     Passes.add(new PoolAllocateMultipleGlobalPool());
     break;
   case SAFECodeConfiguration::PA_APA:
+    Passes.add(new PA::SCHeuristic());
     Passes.add(new PoolAllocate(true, true));
     break;
   } 
