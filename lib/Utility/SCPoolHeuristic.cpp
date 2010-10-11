@@ -196,14 +196,14 @@ SCHeuristic::getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes) {
   //
   for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
        I != E;
-       ++I){
+       ++I) {
     // Get the DSNode and, if applicable, its mirror in the globals graph
     DSNode * N   = I;
     DSNode * GGN = GlobalsGraphNodeMapping[N].getNode();
 
     //
     // We pool allocate all nodes.  Here, we just want to make sure that this
-    // DSNodes hasn't already been assigned to a global pool.
+    // DSNode hasn't already been assigned to a global pool.
     //
     if (!(GlobalPoolNodes.count (N) || (GGN && GlobalPoolNodes.count (GGN)))) {
       // Otherwise, if it was not passed in from outside the function, it must
