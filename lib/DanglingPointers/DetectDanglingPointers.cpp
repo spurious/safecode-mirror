@@ -27,6 +27,7 @@
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/Support/AllocatorInfo.h"
 #include "safecode/DetectDanglingPointers.h"
+#include "SCUtils.h"
 
 #include "dsa/DSSupport.h"
 
@@ -151,7 +152,7 @@ DetectDanglingPointers::processFrees (Module & M,
       Value *    OrigPtr  = Worklist.back().second;
       Worklist.pop_back();
 
-      FreeCall->setOperand (2, OrigPtr);
+      FreeCall->setOperand (1, OrigPtr);
     }
   }
 
@@ -206,14 +207,26 @@ DetectDanglingPointers::runOnModule (Module & M) {
         if (CallInst * CI = dyn_cast<CallInst>(*it)) {
           if (CI->getCalledFunction() == allocFunc) {
             //
+            // FIXME: This should eventually use an integer that is identical
+            //        in size to the address space.
+            //
+            const Type * Int32Type=IntegerType::getInt32Ty(getGlobalContext());
+            BasicBlock::iterator InsertPt = CI;
+            ++InsertPt;
+            Value * allocSize = info->getAllocSize(CI);
+            allocSize = CastInst::CreateIntegerCast (allocSize,
+                                                     Int32Type,
+                                                     false,
+                                                     allocSize->getName(),
+                                                     InsertPt);
+
+            //
             // This is an allocation site.  Add a call after it to create a
             // shadow copy of the allocated object.
             //
             std::vector<Value *> args;
             args.push_back (CI);
-            args.push_back (info->getAllocSize (CI));
-            BasicBlock::iterator InsertPt = CI;
-            ++InsertPt;
+            args.push_back (allocSize);
             CallInst * Shadow = CallInst::Create (ShadowObj, args.begin(), args.end(), "", InsertPt);
 
             //
