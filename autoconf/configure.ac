@@ -57,6 +57,12 @@ AC_SEARCH_LIBS(fopen64,c,AC_DEFINE([HAVE_FOPEN64],[1],
                [Define if fopen64() is available on this platform.]),
                AC_MSG_WARN([fopen64() not found - Will use fopen() instead]))
 
+dnl Check for GNU GMP
+AC_CHECK_LIB(gmp, __gmpz_init)
+
+dnl Check for CVC3
+AC_CHECK_LIB(cvc3, vc_get_error_status,[],[],[-lgmp -lstdc++])
+
 dnl **************************************************************************
 dnl * Checks for header files.
 dnl **************************************************************************
