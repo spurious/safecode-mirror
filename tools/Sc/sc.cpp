@@ -312,11 +312,6 @@ int main(int argc, char **argv) {
     }
 
     //
-    // Run pool allocation.
-    //
-	 	addPoolAllocationPass(Passes);
-
-    //
     // Do post processing required for Out of Bounds pointer rewriting.
     // Note that the RewriteOOB pass is always required for user-space
     // SAFECode because it is how we handle the C standard allowing pointers to
@@ -330,6 +325,11 @@ int main(int argc, char **argv) {
       Passes.add (new OptimizeChecks());
       Passes.add(new RewriteOOB());
     }
+
+    //
+    // Run pool allocation.
+    //
+	 	addPoolAllocationPass(Passes);
 
 #if 0
     //
