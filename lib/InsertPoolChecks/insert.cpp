@@ -424,9 +424,16 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   // If this is the case, we need to perform an alignment check on the result
   // of the load.  Do that here.
   //
+
+  //
+  // Alignment checks are currently disabled because we're doing load/store
+  // checks on all pointers.
+  //
+#if 0
   if (LoadInst * LI = dyn_cast<LoadInst>(I)) {
     insertAlignmentCheck (LI);
   }
+#endif
 
   Value * PH = ConstantPointerNull::get (getVoidPtrType());
   unsigned DSFlags = getDSFlags (V, F);
@@ -456,7 +463,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   //
   // FIXME:
   //  The type-known optimization is only applicable when dangling pointer
-  //  errors are dealth with correctly (such as using garbage collection or
+  //  errors are dealt with correctly (such as using garbage collection or
   //  automatic pool allocation) or when the points-to analysis is modified to
   //  reflect type inconsistencies that can occur through dangling pointer
   //  dereferences.  Since none of these options is currently working when
