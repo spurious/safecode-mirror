@@ -220,34 +220,6 @@ int main(int argc, char **argv) {
     //
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
 
-#if 0
-    // Schedule the Bottom-Up Call Graph analysis before pool allocation.  The
-    // Bottom-Up Call Graph pass doesn't work after pool allocation has
-    // been run, and PassManager schedules it after pool allocation for
-    // some reason.
-    NOT_FOR_SVA(Passes.add(new BottomUpCallGraph()));
-
-    NOT_FOR_SVA(Passes.add(new ParCheckingCallAnalysis()));
-#endif
- 
-    //
-    // Run pool allocation.
-    //
-#if 0
-	 	addPoolAllocationPass(Passes);
-
-    //
-    // Add meta-data to record pool information for values that we will check.
-    //
-    Passes.add(new PoolMDPass());
-#endif
-
-#if 0
-    // Convert Unsafe alloc instructions first.  This version relies upon
-    // pool allocation,
-    Passes.add(new PAConvertUnsafeAllocas());
-#endif
-
     //
     // Disable this pass for now.  We don't really use it, and it generates
     // lots of compiler warnings.
@@ -265,9 +237,6 @@ int main(int argc, char **argv) {
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
-#if 0
-    Passes.add (new DummyUse());
-#endif
 
     //
     // Instrument the code so that memory objects are registered into the
