@@ -130,7 +130,8 @@ poolcheck_debug (DebugPoolTy *Pool,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
     v.SourceFile = SourceFilep,
-    v.lineNo = lineno;
+    v.lineNo = lineno,
+    v.PoolHandle = Pool;
 
   ReportMemoryViolation(&v);
   return;
@@ -631,7 +632,7 @@ boundscheckui_debug (DebugPoolTy * Pool,
   bool ret = boundscheck_lookup (Pool, ObjStart, ObjEnd); 
 
   if (logregs) {
-    fprintf (stderr, "boundscheckui_debug: %p - %p\n", ObjStart, ObjEnd);
+    fprintf (stderr, "boundscheckui_debug: %p: %p - %p\n", (void *) Pool, ObjStart, ObjEnd);
     fflush (stderr);
   }
 
