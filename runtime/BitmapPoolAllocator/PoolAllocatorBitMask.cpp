@@ -183,7 +183,7 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
       // completely filled up.  If so, move it to the Ptr2 list.
       if (__builtin_expect(PS->isFull(), false)) {
         PS->unlinkFromList();
-	      PS->addToList((PoolSlab**)&Pool->Ptr2);
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
       }     
       return PS->getElementAddress(Element, NodeSize);
     }
@@ -196,7 +196,7 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
         // completely filled up.  If so, move it to the Ptr2 list.
         if (PS->isFull()) {
           PS->unlinkFromList();
-	        PS->addToList((PoolSlab**)&Pool->Ptr2);
+          PS->addToList((PoolSlab**)&Pool->Ptr2);
         }
         return PS->getElementAddress(Element, NodeSize);
       }
@@ -306,7 +306,7 @@ poolallocarray(BitmapPoolTy* Pool, unsigned Size) {
       //
       if (PS->isFull()) {
         PS->unlinkFromList();
-	      PS->addToList((PoolSlab**)&Pool->Ptr2);
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
       }
       
       return PS->getElementAddress(Element, Pool->NodeSize);
