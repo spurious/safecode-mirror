@@ -86,11 +86,18 @@ AC_ARG_ENABLE(kernel,
                   AC_DEFINE(LLVA_KERNEL,[[1]]),
                   )
 
+dnl --enable-capsaicin: compile SAFECode with Capsaicin support
+AC_ARG_ENABLE(capsaicin,
+  AS_HELP_STRING(--enable-capsaicin,
+                 [Enable Capsaicin (default is NO)]),
+                  AC_DEFINE(HAVE_CAPSAICIN,[[1]]),
+                  )
+
 dnl **************************************************************************
 dnl * Set the location of various third-party software packages
 dnl **************************************************************************
 
-dnl Specify the location of the llvm-poolalloc project
+dnl Specify the location of the poolalloc project
 AC_ARG_WITH(poolalloc-srcdir,
   AS_HELP_STRING([--with-poolalloc-srcdir],
     [Specify location of Pool Allocation source code]),
@@ -103,6 +110,21 @@ AC_ARG_WITH(poolalloc-objdir,
     [Specify location of Pool Allocation object code]),
     AC_SUBST(poolallocobjdir,"$withval"),
     AC_SUBST(poolallocobjdir,"$LLVM_OBJ_ROOT/projects/poolalloc"
+    ))
+
+dnl Specify the location of the capsaicin project
+AC_ARG_WITH(capsaicin-srcdir,
+  AS_HELP_STRING([--with-capsaicin-srcdir],
+    [Specify location of Capsaicin source code]),
+    AC_SUBST(capsaicinsrcdir,"$withval"),
+    AC_SUBST(capsaicinsrcdir,"$LLVM_SRC_ROOT/projects/capsaicin"
+    ))
+
+AC_ARG_WITH(capsaicin-objdir,
+  AS_HELP_STRING([--with-capsaicin-objdir],
+    [Specify location of Capsaicin object code]),
+    AC_SUBST(capsaicinobjdir,"$withval"),
+    AC_SUBST(capsaicinobjdir,"$LLVM_OBJ_ROOT/projects/capsaicin"
     ))
 
 dnl Specify the location of the LLVM Test Suite

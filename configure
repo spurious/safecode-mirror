@@ -274,7 +274,7 @@ PACKAGE_STRING='[SAFECode] [1.00]'
 PACKAGE_BUGREPORT='criswell@illinois.edu'
 
 ac_unique_file=""Makefile.common.in""
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ OMEGA CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT poolallocsrcdir poolallocobjdir testsrcdir testobjdir LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ OMEGA CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT poolallocsrcdir poolallocobjdir capsaicinsrcdir capsaicinobjdir testsrcdir testobjdir LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -805,6 +805,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-kernel         Use SAFECode for use with Linux Kernel (default is
                           NO)
+  --enable-capsaicin      Enable Capsaicin (default is NO)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -813,6 +814,8 @@ Optional Packages:
   --with-llvmobj          Location of LLVM Object Code
   --with-poolalloc-srcdir Specify location of Pool Allocation source code
   --with-poolalloc-objdir Specify location of Pool Allocation object code
+  --with-capsaicin-srcdir Specify location of Capsaicin source code
+  --with-capsaicin-objdir Specify location of Capsaicin object code
   --with-test-srcdir      Specify location of LLVM Test Suite source code
   --with-test-objdir      Specify location of LLVM Test Suite object code
 
@@ -2644,6 +2647,15 @@ _ACEOF
 
 fi;
 
+# Check whether --enable-capsaicin or --disable-capsaicin was given.
+if test "${enable_capsaicin+set}" = set; then
+  enableval="$enable_capsaicin"
+  cat >>confdefs.h <<\_ACEOF
+#define HAVE_CAPSAICIN 1
+_ACEOF
+
+fi;
+
 
 
 # Check whether --with-poolalloc-srcdir or --without-poolalloc-srcdir was given.
@@ -2665,6 +2677,30 @@ if test "${with_poolalloc_objdir+set}" = set; then
 
 else
   poolallocobjdir="$LLVM_OBJ_ROOT/projects/poolalloc"
+
+
+fi;
+
+
+# Check whether --with-capsaicin-srcdir or --without-capsaicin-srcdir was given.
+if test "${with_capsaicin_srcdir+set}" = set; then
+  withval="$with_capsaicin_srcdir"
+  capsaicinsrcdir="$withval"
+
+else
+  capsaicinsrcdir="$LLVM_SRC_ROOT/projects/capsaicin"
+
+
+fi;
+
+
+# Check whether --with-capsaicin-objdir or --without-capsaicin-objdir was given.
+if test "${with_capsaicin_objdir+set}" = set; then
+  withval="$with_capsaicin_objdir"
+  capsaicinobjdir="$withval"
+
+else
+  capsaicinobjdir="$LLVM_OBJ_ROOT/projects/capsaicin"
 
 
 fi;
@@ -3344,6 +3380,8 @@ s,@EXEEXT@,$EXEEXT,;t t
 s,@OBJEXT@,$OBJEXT,;t t
 s,@poolallocsrcdir@,$poolallocsrcdir,;t t
 s,@poolallocobjdir@,$poolallocobjdir,;t t
+s,@capsaicinsrcdir@,$capsaicinsrcdir,;t t
+s,@capsaicinobjdir@,$capsaicinobjdir,;t t
 s,@testsrcdir@,$testsrcdir,;t t
 s,@testobjdir@,$testobjdir,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
