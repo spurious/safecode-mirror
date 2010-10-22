@@ -127,7 +127,7 @@ InsertPoolChecks::getDSNodeHandle (const Value * V, const Function * F) {
         //
         // We have to dig into the globalEC of the DSGraph to find the DSNode.
         //
-        const GlobalValue * GV = dyn_cast<GlobalValue>(GV);
+        const GlobalValue * GV = dyn_cast<GlobalValue>(V);
         const GlobalValue * Leader;
         Leader = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
         DSH = GlobalsGraph->getNodeForValue(Leader);
