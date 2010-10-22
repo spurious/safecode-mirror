@@ -29,10 +29,10 @@ TEST_OBJDIR := @testobjdir@
 
 # All of the code should additionally look inside the pool allocation source
 # code for include files
-SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall
-CFLAGS   += @CFLAGS@ $(SC_FLAGS) 
-CPPFLAGS += @CFLAGS@ $(SC_FLAGS)
-CXXFLAGS += @CFLAGS@ $(SC_FLAGS) -Wno-deprecated
+SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall -pedantic
+CFLAGS   += $(SC_FLAGS) 
+CPPFLAGS += $(SC_FLAGS)
+CXXFLAGS += $(SC_FLAGS) -Wno-deprecated
 LIBS     += @LIBS@
 
 # Include LLVM's Master Makefile.
