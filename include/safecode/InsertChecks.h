@@ -22,6 +22,7 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Support/InstVisitor.h"
 #include "safecode/PoolHandles.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"
@@ -33,6 +34,39 @@
 extern bool isSVAEnabled();
 
 NAMESPACE_SC_BEGIN
+
+//
+// Pass: InsertLSChecks
+//
+// Description:
+//  This pass inserts checks on load and store instructions.
+//
+struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
+  public:
+    static char ID;
+    InsertLSChecks () : FunctionPass ((intptr_t) &ID) { }
+    const char *getPassName() const { return "Insert Load/Store Checks"; }
+    virtual bool runOnFunction(Function &F);
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // Required passes
+      AU.addRequired<TargetData>();
+
+      // Preserved passes
+      AU.addPreserved<InsertSCIntrinsic>();
+      AU.setPreservesCFG();
+    };
+
+    // Visitor methods
+    void visitLoadInst  (LoadInst  & LI);
+    void visitStoreInst (StoreInst & SI);
+
+  protected:
+    // Pointers to required passes
+    TargetData * TD;
+
+    // Pointer to load/store run-time check function
+    Function * PoolCheckUI;
+};
 
 struct InsertPoolChecks : public FunctionPass {
   public :
@@ -49,6 +83,7 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addPreserved<InsertSCIntrinsic>();
       AU.setPreservesCFG();
     };
+
   private:
     InsertSCIntrinsic * intrinsic;
     ArrayBoundsCheckGroup * abcPass;

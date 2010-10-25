@@ -554,13 +554,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 void
 InsertPoolChecks::addLoadStoreChecks (Function & F) {
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-    if (LoadInst *LI = dyn_cast<LoadInst>(&*I)) {
-      Value *P = LI->getPointerOperand();
-      addLSChecks(P, P, LI, &F);
-    } else if (StoreInst *SI = dyn_cast<StoreInst>(&*I)) {
-      Value *P = SI->getPointerOperand();
-      addLSChecks(P, P, SI, &F);
-    } else if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
+    if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
       Value *FunctionOp = CI->getOperand(0);
       if (!isa<Function>(FunctionOp->stripPointerCasts())) {
         addLSChecks(FunctionOp, FunctionOp, CI, &F);
