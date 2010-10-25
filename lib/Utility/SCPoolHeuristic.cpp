@@ -94,9 +94,8 @@ GetNodesReachableFromGlobals (DSGraph* G,
 //  pool.  The Automatic Pool Allocation transform will use the returned
 //  information to build global pools for the DSNodes in question.
 //
-//  Note that this method does not assign DSNodes to pools; it merely decides
-//  which DSNodes are reachable from globals and will need a pool of global
-//  scope.
+//  For efficiency, this method also determines which DSNodes should be in the
+//  same pool.
 //
 // Outputs:
 //  Nodes - The DSNodes that are both reachable from globals and which should
@@ -107,18 +106,56 @@ SCHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   // Get the globals graph for the program.
   DSGraph* GG = Graphs->getGlobalsGraph();
 
+  //
   // Get all of the nodes reachable from globals.
-  DenseSet<const DSNode*> GlobalHeapNodes;
-  GetNodesReachableFromGlobals (GG, GlobalHeapNodes);
+  //
+  DenseSet<const DSNode*> GlobalNodes;
+  GetNodesReachableFromGlobals (GG, GlobalNodes);
+
+  //
+  // Create a global pool for each global DSNode.
+  //
+  for (DenseSet<const DSNode *>::iterator NI = GlobalNodes.begin();
+       NI != GlobalNodes.end();
+       ++NI) {
+    const DSNode * N = *NI;
+    PoolMap[N] = OnePool(N);
+  }
 
   //
   // Now find all DSNodes belonging to function-local DSGraphs which are
-  // mirrored in the globals graph.  These DSNodes require a global pool, too.
+  // mirrored in the globals graph.  These DSNodes require a global pool, too,
+  // but must use the same pool as the one assigned to the corresponding global
+  // DSNode.
   //
   for (Module::iterator F = M->begin(); F != M->end(); ++F) {
-    if (Graphs->hasDSGraph(*F)) {
-      DSGraph* G = Graphs->getDSGraph(*F);
-      GetNodesReachableFromGlobals (G, GlobalHeapNodes);
+    //
+    // Ignore functions that have no DSGraph.
+    //
+    if (!(Graphs->hasDSGraph(*F))) continue;
+
+    //
+    // Compute a mapping between local DSNodes and DSNodes in the globals
+    // graph.
+    //
+    DSGraph* G = Graphs->getDSGraph(*F);
+    DSGraph::NodeMapTy NodeMap;
+    G->computeGToGGMapping (NodeMap);
+
+    //
+    // Scan through all DSNodes in the local graph.  If a local DSNode has a
+    // corresponding DSNode in the globals graph that is reachable from a 
+    // global, then add the local DSNode to the set of DSNodes reachable from
+    // a global.
+    //
+    DSGraph::node_iterator ni = G->node_begin();
+    for (; ni != G->node_end(); ++ni) {
+      DSNode * N = ni;
+      DSNode * GGN = NodeMap[N].getNode();
+      if (GGN && GlobalNodes.count (GGN))
+        PoolMap[GGN].NodesInPool.push_back (N);
+      else
+        PoolMap[N] = OnePool(N);
     }
   }
 
@@ -142,7 +179,7 @@ SCHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
          ++I) {
       DSNode * Node = I;
       if (Node->isExternalNode() || Node->isUnknownNode()) {
-        GlobalHeapNodes.insert (Node);
+        GlobalNodes.insert (Node);
       }
     }
   }
@@ -154,8 +191,8 @@ SCHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   // container), so we have to use a loop to copy values from the DenseSet into
   // the output container.
   //
-  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
-         E = GlobalHeapNodes.end(); I != E; ++I) {
+  for (DenseSet<const DSNode*>::iterator I = GlobalNodes.begin(),
+         E = GlobalNodes.end(); I != E; ++I) {
     Nodes.insert (*I);
   }
 
@@ -221,7 +258,22 @@ SCHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
                             Function *F, DSGraph* G,
                             std::vector<OnePool> &ResultPools) {
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-    ResultPools.push_back(OnePool(NodesToPA[i]));
+    if (PoolMap.find (NodesToPA[i]) != PoolMap.end())
+      ResultPools.push_back(PoolMap[NodesToPA[i]]);
+}
+
+//
+// Method: releaseMemory()
+//
+// Description:
+//  This method frees memory consumed by the pass when the pass is no longer
+//  needed.
+//
+void
+SCHeuristic::releaseMemory () {
+  PoolMap.clear();
+  GlobalPoolNodes.clear();
+  return;
 }
 
 bool
