@@ -32,6 +32,9 @@ namespace PA {
       /// Find globally reachable DSNodes that need a pool
       virtual void findGlobalPoolNodes (DSNodeSet_t & Nodes);
 
+      // Map of DSNodes to pool handles
+      std::map<const DSNode *, OnePool> PoolMap;
+
     public:
       // Pass ID
       static char ID;
@@ -46,6 +49,7 @@ namespace PA {
       SCHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (IDp) { }
       virtual ~SCHeuristic () {return;}
       virtual bool runOnModule (Module & M);
+      virtual void releaseMemory ();
       virtual const char * getPassName () const {
         return "SAFECode Pool Allocation Heurisitic";
       }
