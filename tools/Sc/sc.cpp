@@ -14,6 +14,8 @@
 
 #include "safecode/SAFECode.h"
 #include "safecode/SAFECodeConfig.h"
+#include "safecode/CompleteChecks.h"
+#include "safecode/SafeLoadStoreOpts.h"
 #include "safecode/InsertChecks/RegisterBounds.h"
 #include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
 #include "safecode/Support/AllocatorInfo.h"
@@ -237,6 +239,21 @@ int main(int argc, char **argv) {
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
+    Passes.add(new InsertLSChecks());
+
+    //
+    // Go ahead and make all of the run-time checks complete.  This tool can
+    // use DSA (which makes this transform possible).
+    //
+    Passes.add(new CompleteChecks());
+
+    //
+    // Optimize away type-safe load/store checks if we're using automatic pool
+    // allocation.
+    //
+    if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+      Passes.add(new OptimizeSafeLoadStore());
+    }
 
     //
     // Instrument the code so that memory objects are registered into the
