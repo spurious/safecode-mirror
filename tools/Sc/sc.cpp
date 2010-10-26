@@ -447,14 +447,16 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			Passes.add(new ArrayBoundsCheckDummy());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_LOCAL:
-#if 0
-			Passes.add(new ArrayBoundsCheckStruct());
-#endif
+      if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+        Passes.add(new ArrayBoundsCheckStruct());
+      }
 			Passes.add(new ArrayBoundsCheckLocal());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
+      if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+        Passes.add(new ArrayBoundsCheckStruct());
+      }
 #if 0
-			Passes.add(new ArrayBoundsCheckStruct());
 			Passes.add(new ArrayBoundsCheck());
 #else
 			assert (0 && "Omega pass is not working right now!");

@@ -72,6 +72,7 @@ public:
   virtual bool isGEPSafe(GetElementPtrInst * GEP);
   virtual void getAnalysisUsage(AnalysisUsage & AU) const {
     AU.addRequiredTransitive<ArrayBoundsCheckGroup>();
+    AU.addRequiredTransitive<EQTDDataStructures>();
     AU.setPreservesAll();  
   }
   virtual bool runOnFunction(Function & F);
@@ -81,9 +82,12 @@ public:
         return (ArrayBoundsCheckGroup*)this;
       return this;
   }
-private:
-  QueryPoolPass * poolPass;
+protected:
+  // Required passes
   ArrayBoundsCheckGroup * abcPass;
+
+  // Protected methods
+  DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
 };
 
 /// ArrayBoundsCheckLocal - It tries to prove a GEP is safe only based on local
@@ -115,6 +119,25 @@ private:
   ArrayBoundsCheckGroup * abcPass;
 };
 
+/// This is a new SMT-based static array bounds checking pass.
+class ArrayBoundsCheckSMT : public ArrayBoundsCheckGroup, public ModulePass {
+public:
+  static char ID;
+  ArrayBoundsCheckSMT() : ModulePass((intptr_t) &ID) {}
+  /// When chaining analyses, changing the pointer to the correct pass
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+      if (PI->isPassID(&ArrayBoundsCheckGroup::ID))
+        return (ArrayBoundsCheckGroup*)this;
+      return this;
+  }
+  virtual bool runOnModule(Module &M);
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<TargetData>();
+    AU.addRequired<ArrayBoundsCheckGroup>();
+    AU.setPreservesAll();
+  }
+  virtual bool isGEPSafe (GetElementPtrInst * GEP);
+};
 
 /// ArrayBoundsCheck - This is the full static array bounds checker originally
 /// developed for SAFECode.  It performs interprocedural analysis to build up
