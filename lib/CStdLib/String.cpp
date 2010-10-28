@@ -20,11 +20,11 @@ NAMESPACE_SC_BEGIN
 char StringTransform::ID = 0;
 
 // Statistics counters
+#if 0
 STATISTIC(stat_transform_memcpy, "Total memcpy() calls transformed");
 STATISTIC(stat_transform_memmove, "Total memmove() calls transformed");
 STATISTIC(stat_transform_mempcpy, "Total mempcpy() calls transformed");
 STATISTIC(stat_transform_memset, "Total memset() calls transformed");
-#if 0
 STATISTIC(stat_transform_strcat, "Total strcat() calls transformed");
 #endif
 STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
@@ -35,9 +35,7 @@ STATISTIC(stat_transform_strlcpy, "Total strlcpy() calls transformed");
 STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
 #if 0
 STATISTIC(stat_transform_strncat, "Total strncat() calls transformed");
-#endif
 STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
-#if 0
 STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_wcscpy, "Total wcscpy() calls transformed");
 STATISTIC(stat_transform_wmemcpy, "Total wmemcpy() calls transformed");
@@ -46,6 +44,8 @@ STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
 
 static RegisterPass<StringTransform>
 ST("string_transform", "Secure C standard string library calls");
+
+#define DSNODE_NOT_COMPLETE (DSNode::ExternalNode | DSNode::IncompleteNode | DSNode::UnknownNode)
 
 /**
  * Entry point for the LLVM pass that transforms C standard string library calls
@@ -57,47 +57,53 @@ bool StringTransform::runOnModule(Module &M) {
   // Flags whether we modified the module.
   bool modified = false;
 
-  dsnPass = &getAnalysis<DSNodePass>();
-  assert(dsnPass && "Must run DSNode Pass first!");
+  dsaPass = &getAnalysis<EQTDDataStructures>();
+  assert(dsaPass && "Must run DSA Pass first!");
 
-  paPass = &getAnalysis<PoolAllocateGroup>();
-  assert(paPass && "Must run Pool Allocation Transform first!");
+  // Create needed pointer types (char * == i8 * == VoidPtrTy).
+  const Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
+  const Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
-  modified |= memcpyTransform(M);
-  modified |= memmoveTransform(M);
-  modified |= mempcpyTransform(M);
-  modified |= memsetTransform(M);
-  modified |= strcpyTransform(M);
-  modified |= strlenTransform(M);
-  modified |= strncpyTransform(M);
+  modified |= transform(M, "strcpy", 2, 2, VoidPtrTy, stat_transform_strcpy);
+  modified |= transform(M, "strlen", 1, 1, Int32Ty, stat_transform_strlen);
+
+#if 0
+  modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);
+  modified |= transform(M, "memmove", 3, 2, VoidPtrTy, stat_transform_memmove);
+  modified |= transform(M, "mempcpy", 3, 2, VoidPtrTy, stat_transform_mempcpy);
+  modified |= transform(M, "memset", 3, 1, VoidPtrTy, stat_transform_memset);
+  modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
+#endif
 
   return modified;
 }
 
 /**
- * Secures memcpy() by transforming it into pool_memcpy() with correct bounds
+ * Secures C standard string library call by transforming with DSA information
  *
- * @param	M	Module from runOnModule() to scan for memcpy()
+ * @param	M	Module from runOnModule() to scan for functions to transform
  * @return	Whether we modified the module
  */
-bool StringTransform::memcpyTransform(Module &M) {
+bool StringTransform::transform(Module &M, const StringRef FunctionName, const unsigned argc, const unsigned pool_argc, const Type *ReturnTy, Statistic &statistic) {
   // Flag whether we modified the module.
   bool modified = false;
 
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
+  // Create void pointer type for null pool handle.
+  const Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
   PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
-  Function *F_memcpy = M.getFunction("memcpy");
-  if (!F_memcpy)
+  Function *F = M.getFunction(FunctionName);
+  if (!F)
     return modified;
 
-  // Scan through the module and replace memcpy() with pool_memcpy().
-  for (Value::use_iterator UI = F_memcpy->use_begin(), UE = F_memcpy->use_end(); UI != UE;) {
+  // Scan through the module for the desired function to transform.
+  for (Value::use_iterator UI = F->use_begin(), UE = F->use_end(); UI != UE;) {
     Instruction *I = dyn_cast<Instruction>(UI);
     ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
 
     if (I) {
+      unsigned char complete = 0;
       CallSite CS(I);
       Function *CalledF = CS.getCalledFunction();
 
@@ -105,55 +111,87 @@ bool StringTransform::memcpyTransform(Module &M) {
       if (NULL == CalledF)
         continue;
 
-      if (F_memcpy != CalledF)
+      if (F != CalledF)
         continue;
 
       // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 3) {
+      if (CS.arg_size() != argc) {
         I->dump();
-        assert(CS.arg_size() == 3 && "memcpy() takes 3 arguments!\n");
+        assert(CS.arg_size() == argc && "Incorrect number of arguments!");
         continue;
       }
 
-      // Check for correct return type (void * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
+      // Check for correct return type.
+      if (CalledF->getReturnType() != ReturnTy)
         continue;
 
-      // Get the exact type for size_t.
-      const Type *SizeTy = I->getOperand(3)->getType();
+      Function *F_DSA = I->getParent()->getParent();
 
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
+      // Create null pool handles.
+      Value *PH = ConstantPointerNull::get(VoidPtrTy);
 
-      if (!dstPH || !srcPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-      assert(srcPH && "No pool handle for source pointer!\n");
+      SmallVector<Value *, 6> Params;
 
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-      Value *Casted_srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName() + ".casted", I);
+      if (pool_argc == 1) {
+        if (getDSFlags(I->getOperand(1), F_DSA) & DSNODE_NOT_COMPLETE) {
+          complete |= 0x01; // Clear bit 0
+        }
 
-      // Construct pool_memcpy().
-      std::vector<const Type *> ParamTy(4, VoidPtrTy);
-      ParamTy.push_back(SizeTy);
-      Value *Params[] = {Casted_dstPH, Casted_srcPH, I->getOperand(1), I->getOperand(2), I->getOperand(3)};
-      FunctionType *FT_pool_memcpy = FunctionType::get(F_memcpy->getReturnType(), ParamTy, false);
-      Constant *F_pool_memcpy = M.getOrInsertFunction("pool_memcpy", FT_pool_memcpy);
+        Params.push_back(PH);
+        Params.push_back(I->getOperand(1));
+      } else if (pool_argc == 2) {
+        if (getDSFlags(I->getOperand(1), F_DSA) & DSNODE_NOT_COMPLETE) {
+          complete |= 0x01; // Clear bit 0
+        }
 
-      // Create the call instruction for pool_memcpy() and insert it before the current instruction.
-      CallInst *CI_pool_memcpy = CallInst::Create(F_pool_memcpy, Params, array_endof(Params), "", I);
+        if (getDSFlags(I->getOperand(2), F_DSA) & DSNODE_NOT_COMPLETE) {
+          complete |= 0x02; // Clear bit 1
+        }
+
+        Params.push_back(PH);
+        Params.push_back(PH);
+        Params.push_back(I->getOperand(1));
+        Params.push_back(I->getOperand(2));
+      } else {
+        assert("Unsupported number of pool arguments!");
+        continue;
+      }
+
+      // FunctionType::get() needs std::vector<>
+      std::vector<const Type *> ParamTy(2 * pool_argc, VoidPtrTy);
+
+      const Type *Ty = NULL;
+
+      // Add the remaining (non-pool) arguments.
+      if (argc > pool_argc) {
+        unsigned i = argc - pool_argc;
+
+        for (; i > 0; --i) {
+          Params.push_back(I->getOperand(argc - i + 1));
+          Ty = I->getOperand(argc - i + 1)->getType();
+          ParamTy.push_back(Ty);
+        }
+      }
+
+      // Add the DSA completeness bitwise vector.
+      Params.push_back(ConstantInt::get(Int8Ty, complete));
+      ParamTy.push_back(Int8Ty);
+
+      // Construct the transformed function.
+      FunctionType *FT = FunctionType::get(F->getReturnType(), ParamTy, false);
+      Constant *F_pool = M.getOrInsertFunction("pool_" + FunctionName.str(), FT);
+
+      // Create the call instruction for the transformed function and insert it before the current instruction.
+      CallInst *CI = CallInst::Create(F_pool, Params.begin(), Params.end(), "", I);
       
-      // Replace all of the uses of memcpy() with pool_memcpy().
-      I->replaceAllUsesWith(CI_pool_memcpy);
+      // Replace all uses of the function with its transformed equivalent.
+      I->replaceAllUsesWith(CI);
       I->eraseFromParent();
 
       // Record the transform.
-      ++stat_transform_memcpy;
+      ++statistic;
 
-      // Mark the module as modified and continue to the next memcpy() call.
+      // Mark the module as modified and continue to the next function call.
       modified = true;
     }
   }
@@ -161,514 +199,59 @@ bool StringTransform::memcpyTransform(Module &M) {
   return modified;
 }
 
-/**
- * Secures memmove() by transforming it into pool_memmove() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for memmove()
- * @return	Whether we modified the module
- */
-bool StringTransform::memmoveTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
+// Method: getDSFlags()
+//
+// Description:
+//  Return the DSNode flags associated with the specified value.
+//
+// Inputs:
+//  V - The value for which the DSNode flags are requested.  This value *must*
+//      have a DSNode.
+//
+// Return Value:
+//  The DSNode flags (which are a vector of bools in an unsigned int).
+//
+unsigned StringTransform::getDSFlags(const Value *V, const Function *F) {
+  // Ensure that the function has a DSGraph
+  assert(dsaPass->hasDSGraph(*F) && "No DSGraph for function!\n");
 
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
+  // Lookup the DSNode for the value in the function's DSGraph.
+  DSGraph *TDG = dsaPass->getDSGraph(*F);
+  DSNodeHandle DSH = TDG->getNodeForValue(V);
 
-  Function *F_memmove = M.getFunction("memmove");
-  if (!F_memmove)
-    return modified;
-
-  // Scan through the module and replace memmove() with pool_memmove().
-  for (Value::use_iterator UI = F_memmove->use_begin(), UE = F_memmove->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_memmove != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 3) {
-        I->dump();
-        assert(CS.arg_size() == 3 && "memmove() takes 3 arguments!\n");
-        continue;
+  // If the value wasn't found in the function's DSGraph, then maybe we can
+  // find the value in the globals graph.
+  if (DSH.isNull() && isa<GlobalValue>(V)) {
+    // Try looking up this DSNode value in the globals graph.  Note that
+    // globals are put into equivalence classes; we may need to first find the
+    // equivalence class to which our global belongs, find the global that
+    // represents all globals in that equivalence class, and then look up the
+    // DSNode Handle for *that* global.
+    DSGraph *GlobalsGraph = TDG->getGlobalsGraph();
+    DSH = GlobalsGraph->getNodeForValue(V);
+    if (DSH.isNull()) {
+      // DSA does not currently handle global aliases.
+      if (!isa<GlobalAlias>(V)) {
+        // We have to dig into the globalEC of the DSGraph to find the DSNode.
+        const GlobalValue *GV = dyn_cast<GlobalValue>(V);
+        const GlobalValue *Leader;
+        Leader = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
+        DSH = GlobalsGraph->getNodeForValue(Leader);
       }
-
-      // Check for correct return type (void * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
-        continue;
-
-      // Get the exact type for size_t.
-      const Type *SizeTy = I->getOperand(3)->getType();
-
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
-
-      if (!dstPH || !srcPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-      assert(srcPH && "No pool handle for source pointer!\n");
-
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-      Value *Casted_srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName() + ".casted", I);
-
-      // Construct pool_memmove().
-      std::vector<const Type *> ParamTy(4, VoidPtrTy);
-      ParamTy.push_back(SizeTy);
-      Value *Params[] = {Casted_dstPH, Casted_srcPH, I->getOperand(1), I->getOperand(2), I->getOperand(3)};
-      FunctionType *FT_pool_memmove = FunctionType::get(F_memmove->getReturnType(), ParamTy, false);
-      Constant *F_pool_memmove = M.getOrInsertFunction("pool_memmove", FT_pool_memmove);
-
-      // Create the call instruction for pool_memmove() and insert it before the current instruction.
-      CallInst *CI_pool_memmove = CallInst::Create(F_pool_memmove, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of memmove() with pool_memmove().
-      I->replaceAllUsesWith(CI_pool_memmove);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_memmove;
-
-      // Mark the module as modified and continue to the next memmove() call.
-      modified = true;
     }
   }
 
-  return modified;
-}
+  // Get the DSNode for the value.
+  DSNode *DSN = DSH.getNode();
+  assert(DSN && "getDSFlags(): No DSNode for the specified value!\n");
 
-/**
- * Secures mempcpy() by transforming it into pool_mempcpy() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for mempcpy()
- * @return	Whether we modified the module
- */
-bool StringTransform::mempcpyTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
-
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  Function *F_mempcpy = M.getFunction("mempcpy");
-  if (!F_mempcpy)
-    return modified;
-
-  // Scan through the module and replace mempcpy() with pool_mempcpy().
-  for (Value::use_iterator UI = F_mempcpy->use_begin(), UE = F_mempcpy->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_mempcpy != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 3) {
-        I->dump();
-        assert(CS.arg_size() == 3 && "mempcpy() takes 3 arguments!\n");
-        continue;
-      }
-
-      // Check for correct return type (void * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
-        continue;
-
-      // Get the exact type for size_t.
-      const Type *SizeTy = I->getOperand(3)->getType();
-
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
-
-      if (!dstPH || !srcPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-      assert(srcPH && "No pool handle for source pointer!\n");
-
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-      Value *Casted_srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName() + ".casted", I);
-
-      // Construct pool_mempcpy().
-      std::vector<const Type *> ParamTy(4, VoidPtrTy);
-      ParamTy.push_back(SizeTy);
-      Value *Params[] = {Casted_dstPH, Casted_srcPH, I->getOperand(1), I->getOperand(2), I->getOperand(3)};
-      FunctionType *FT_pool_mempcpy = FunctionType::get(F_mempcpy->getReturnType(), ParamTy, false);
-      Constant *F_pool_mempcpy = M.getOrInsertFunction("pool_mempcpy", FT_pool_mempcpy);
-
-      // Create the call instruction for pool_mempcpy() and insert it before the current instruction.
-      CallInst *CI_pool_mempcpy = CallInst::Create(F_pool_mempcpy, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of mempcpy() with pool_mempcpy().
-      I->replaceAllUsesWith(CI_pool_mempcpy);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_mempcpy;
-
-      // Mark the module as modified and continue to the next mempcpy() call.
-      modified = true;
-    }
+#if 0
+  if (DSN->isNodeCompletelyFolded()) {
   }
+#endif
 
-  return modified;
+  // Return its flags
+  return DSN->getNodeFlags();
 }
-
-/**
- * Secures memset() by transforming it into pool_memset() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for memset()
- * @return	Whether we modified the module
- */
-bool StringTransform::memsetTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
-
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  Function *F_memset = M.getFunction("memset");
-  if (!F_memset)
-    return modified;
-
-  // Scan through the module and replace memset() with pool_memset().
-  for (Value::use_iterator UI = F_memset->use_begin(), UE = F_memset->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_memset != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 3) {
-        I->dump();
-        assert(CS.arg_size() == 3 && "memset() takes 3 arguments!\n");
-        continue;
-      }
-
-      // Check for correct return type (void * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
-        continue;
-
-      // Get the exact type for size_t.
-      const Type *IntTy = I->getOperand(2)->getType();
-      const Type *SizeTy = I->getOperand(3)->getType();
-
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-
-      if (!dstPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-
-      // Construct pool_memset().
-      std::vector<const Type *> ParamTy(2, VoidPtrTy);
-      ParamTy.push_back(IntTy);
-      ParamTy.push_back(SizeTy);
-      Value *Params[] = {Casted_dstPH, I->getOperand(1), I->getOperand(2), I->getOperand(3)};
-      FunctionType *FT_pool_memset = FunctionType::get(F_memset->getReturnType(), ParamTy, false);
-      Constant *F_pool_memset = M.getOrInsertFunction("pool_memset", FT_pool_memset);
-
-      // Create the call instruction for pool_memset() and insert it before the current instruction.
-      CallInst *CI_pool_memset = CallInst::Create(F_pool_memset, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of memset() with pool_memset().
-      I->replaceAllUsesWith(CI_pool_memset);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_memset;
-
-      // Mark the module as modified and continue to the next memset() call.
-      modified = true;
-    }
-  }
-
-  return modified;
-}
-
-/**
- * Secures strcpy() by transforming it into pool_strcpy() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for strcpy()
- * @return	Whether we modified the module
- */
-bool StringTransform::strcpyTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
-
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  Function *F_strcpy = M.getFunction("strcpy");
-  if (!F_strcpy)
-    return modified;
-
-  // Scan through the module and replace strcpy() with pool_strcpy().
-  for (Value::use_iterator UI = F_strcpy->use_begin(), UE = F_strcpy->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_strcpy != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 2) {
-        I->dump();
-        assert(CS.arg_size() == 2 && "strcpy() takes 2 arguments!\n");
-        continue;
-      }
-
-      // Check for correct return type (char * == i8 * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
-        continue;
-
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
-
-      if (!dstPH || !srcPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-      assert(srcPH && "No pool handle for source pointer!\n");
-
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-      Value *Casted_srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName() + ".casted", I);
-
-      // Construct pool_strcpy().
-      std::vector<const Type *> ParamTy(4, VoidPtrTy); // SmallVector<const Type *, 4>
-      Value *Params[] = {Casted_dstPH, Casted_srcPH, I->getOperand(1), I->getOperand(2)};
-      FunctionType *FT_pool_strcpy = FunctionType::get(F_strcpy->getReturnType(), ParamTy, false);
-      Constant *F_pool_strcpy = M.getOrInsertFunction("pool_strcpy", FT_pool_strcpy);
-
-      // Create the call instruction for pool_strcpy() and insert it before the current instruction.
-      CallInst *CI_pool_strcpy = CallInst::Create(F_pool_strcpy, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of strcpy() with pool_strcpy().
-      I->replaceAllUsesWith(CI_pool_strcpy);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_strcpy;
-
-      // Mark the module as modified and continue to the next strcpy() call.
-      modified = true;
-    }
-  }
-
-  return modified;
-}
-
-/**
- * Secures strlen() by transforming it into pool_strlen() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for strlen()
- * @return	Whether we modified the module
- */
-bool StringTransform::strlenTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
-
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  const Type *Int32Ty = IntegerType::getInt32Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  Function *F_strlen = M.getFunction("strlen");
-  if (!F_strlen)
-    return modified;
-
-  // Scan through the module and replace strlen() with pool_strlen().
-  for (Value::use_iterator UI = F_strlen->use_begin(), UE = F_strlen->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_strlen != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 1) {
-        I->dump();
-        assert(CS.arg_size() == 1 && "strlen() takes 1 argument!\n");
-        continue;
-      }
-
-      // Check for correct return type (i32).
-      if (CalledF->getReturnType() != Int32Ty)
-        continue;
-
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *stringPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-
-      if (!stringPH)
-        I->dump();
-      assert(stringPH && "No pool handle for string!\n");
-      Value *Casted_stringPH = castTo(stringPH, VoidPtrTy, stringPH->getName() + ".casted", I);
-
-      // Construct pool_strlen().
-      std::vector<const Type *> ParamTy(2, VoidPtrTy); // SmallVector<const Type *, 4>
-      Value *Params[] = {Casted_stringPH, I->getOperand(1)};
-      FunctionType *FT_pool_strlen = FunctionType::get(F_strlen->getReturnType(), ParamTy, false);
-      Constant *F_pool_strlen = M.getOrInsertFunction("pool_strlen", FT_pool_strlen);
-
-      // Create the call instruction for pool_strlen() and insert it before the current instruction.
-      CallInst *CI_pool_strlen = CallInst::Create(F_pool_strlen, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of strlen() with pool_strlen().
-      I->replaceAllUsesWith(CI_pool_strlen);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_strlen;
-
-      // Mark the module as modified and continue to the next strlen() call.
-      modified = true;
-    }
-  }
-
-  return modified;
-}
-
-/**
- * Secures strncpy() by transforming it into pool_strncpy() with correct bounds
- *
- * @param	M	Module from runOnModule() to scan for strncpy()
- * @return	Whether we modified the module
- */
-bool StringTransform::strncpyTransform(Module &M) {
-  // Flag whether we modified the module.
-  bool modified = false;
-
-  // Create needed pointer types.
-  const Type *Int8Ty = IntegerType::getInt8Ty(getGlobalContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  Function *F_strncpy = M.getFunction("strncpy");
-  if (!F_strncpy)
-    return modified;
-
-  // Scan through the module and replace strncpy() with pool_strncpy().
-  for (Value::use_iterator UI = F_strncpy->use_begin(), UE = F_strncpy->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user, so must increment the iterator beforehand.
-
-    if (I) {
-      CallSite CS(I);
-      Function *CalledF = CS.getCalledFunction();
-
-      // Indirect call.
-      if (NULL == CalledF)
-        continue;
-
-      if (F_strncpy != CalledF)
-        continue;
-
-      // Check that the function uses the correct number of arguments.
-      if (CS.arg_size() != 3) {
-        I->dump();
-        assert(CS.arg_size() == 3 && "strncpy() takes 3 arguments!\n");
-        continue;
-      }
-
-      // Check for correct return type (char * == i8 * == VoidPtrTy).
-      if (CalledF->getReturnType() != VoidPtrTy)
-        continue;
-
-      // Get the exact type for size_t.
-      const Type *SizeTy = I->getOperand(3)->getType();
-
-      // Get pool handles for destination and source strings.
-      Function *F = I->getParent()->getParent();
-      PA::FuncInfo *FI = paPass->getFuncInfoOrClone(*F);
-      Value *dstPH = dsnPass->getPoolHandle(I->getOperand(1), F, *FI);
-      Value *srcPH = dsnPass->getPoolHandle(I->getOperand(2), F, *FI);
-
-      if (!dstPH || !srcPH)
-        I->dump();
-      assert(dstPH && "No pool handle for destination pointer!\n");
-      assert(srcPH && "No pool handle for source pointer!\n");
-
-      Value *Casted_dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName() + ".casted", I);
-      Value *Casted_srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName() + ".casted", I);
-
-      // Construct pool_strncpy().
-      std::vector<const Type *> ParamTy(4, VoidPtrTy);
-      ParamTy.push_back(SizeTy);
-      Value *Params[] = {Casted_dstPH, Casted_srcPH, I->getOperand(1), I->getOperand(2), I->getOperand(3)};
-      FunctionType *FT_pool_strncpy = FunctionType::get(F_strncpy->getReturnType(), ParamTy, false);
-      Constant *F_pool_strncpy = M.getOrInsertFunction("pool_strncpy", FT_pool_strncpy);
-
-      // Create the call instruction for pool_strncpy() and insert it before the current instruction.
-      CallInst *CI_pool_strncpy = CallInst::Create(F_pool_strncpy, Params, array_endof(Params), "", I);
-      
-      // Replace all of the uses of strncpy() with pool_strncpy().
-      I->replaceAllUsesWith(CI_pool_strncpy);
-      I->eraseFromParent();
-
-      // Record the transform.
-      ++stat_transform_strncpy;
-
-      // Mark the module as modified and continue to the next strncpy() call.
-      modified = true;
-    }
-  }
-
-  return modified;
-}
-
 
 NAMESPACE_SC_END
