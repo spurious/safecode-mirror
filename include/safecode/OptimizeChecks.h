@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef OPTIMIZECHECKS_H
-#define OPTIMIZECHECKS_H
+#ifndef SAFECODE_OPTIMIZECHECKS_H
+#define SAFECODE_OPTIMIZECHECKS_H
 
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
