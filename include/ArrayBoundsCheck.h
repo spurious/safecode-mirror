@@ -119,6 +119,7 @@ private:
   ArrayBoundsCheckGroup * abcPass;
 };
 
+#if 0
 /// This is a new SMT-based static array bounds checking pass.
 class ArrayBoundsCheckSMT : public ArrayBoundsCheckGroup, public ModulePass {
 public:
@@ -138,6 +139,7 @@ public:
   }
   virtual bool isGEPSafe (GetElementPtrInst * GEP);
 };
+#endif
 
 /// ArrayBoundsCheck - This is the full static array bounds checker originally
 /// developed for SAFECode.  It performs interprocedural analysis to build up
