@@ -183,7 +183,8 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
       // completely filled up.  If so, move it to the Ptr2 list.
       if (__builtin_expect(PS->isFull(), false)) {
         PS->unlinkFromList();
-        PS->addToList((PoolSlab**)&Pool->Ptr2);
+        PoolSlab *PS2 = (PoolSlab*)Pool->Ptr2;
+        PS->addToList(&PS2);
       }     
       return PS->getElementAddress(Element, NodeSize);
     }
@@ -196,7 +197,8 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
         // completely filled up.  If so, move it to the Ptr2 list.
         if (PS->isFull()) {
           PS->unlinkFromList();
-          PS->addToList((PoolSlab**)&Pool->Ptr2);
+          PoolSlab *PS2 = (PoolSlab*)Pool->Ptr2;
+          PS->addToList(&PS2);
         }
         return PS->getElementAddress(Element, NodeSize);
       }
@@ -306,7 +308,8 @@ poolallocarray(BitmapPoolTy* Pool, unsigned Size) {
       //
       if (PS->isFull()) {
         PS->unlinkFromList();
-        PS->addToList((PoolSlab**)&Pool->Ptr2);
+        PoolSlab *PS2 = (PoolSlab*)Pool->Ptr2;
+        PS->addToList(&PS2);
       }
       
       return PS->getElementAddress(Element, Pool->NodeSize);
@@ -404,7 +407,8 @@ __pa_bitmap_poolfree(BitmapPoolTy *Pool, void *Node) {
     //
 
     if (!(PS->isSingleArray)) {
-      PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
+      PoolSlab *PS1 = (PoolSlab*)Pool->Ptr1;
+      PoolSlab **InsertPosPtr = &PS1;
 
       // If the partially full list has an empty node sitting at the front of
       // the list, insert right after it.
@@ -436,7 +440,8 @@ __pa_bitmap_poolfree(BitmapPoolTy *Pool, void *Node) {
  
     // Link our slab onto the head of the list so that allocations will find it
     // efficiently.    
-    PS->addToList((PoolSlab**)&Pool->Ptr1);
+    PoolSlab *PS1 = (PoolSlab*)Pool->Ptr1;
+    PS->addToList(&PS1);
   }
 
   return; 
