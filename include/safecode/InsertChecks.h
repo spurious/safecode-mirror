@@ -68,6 +68,46 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
     Function * PoolCheckUI;
 };
 
+//
+// Pass: AlignmentChecks
+//
+// Description:
+//  This pass inserts alignment checks.  It is only needed when load/store
+//  checks on type-consistent memory objects are elided.
+//
+struct AlignmentChecks : public FunctionPass, InstVisitor<AlignmentChecks> {
+  public:
+    static char ID;
+    AlignmentChecks () : FunctionPass ((intptr_t) &ID) { }
+    const char *getPassName() const { return "Insert Alignment Checks"; }
+    virtual bool runOnFunction(Function &F);
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // Required passes
+      AU.addRequired<TargetData>();
+      AU.addRequired<EQTDDataStructures>();
+
+      // Preserved passes
+      AU.addPreserved<InsertSCIntrinsic>();
+      AU.setPreservesCFG();
+    };
+
+    // Visitor methods
+    void visitLoadInst  (LoadInst  & LI);
+
+  protected:
+    // Pointers to required passes
+    TargetData * TD;
+    EQTDDataStructures * dsaPass;
+
+    // Pointers to load/store run-time check functions
+    Function * PoolCheckAlign;
+    Function * PoolCheckAlignUI;
+
+    // Methods for abstracting away the DSA interface
+    DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
+    bool isTypeKnown (const Value * V, const Function * F);
+};
+
 struct InsertPoolChecks : public FunctionPass {
   public :
     static char ID;
