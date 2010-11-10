@@ -134,7 +134,11 @@ CompleteChecks::makeComplete (Function * Complete, Function * Incomplete) {
         //
         Function * F = CI->getParent()->getParent();
         if (DSNode * N = getDSNodeHandle (CheckPtr, F).getNode()) {
-          if (!(N->isExternalNode() || N->isIncompleteNode())) {
+          if (!(N->isExternalNode() ||
+                N->isIncompleteNode() ||
+                N->isUnknownNode() ||
+                N->isIntToPtrNode() ||
+                N->isPtrToIntNode())) {
             toChange.push_back (CI);
           }
         }
