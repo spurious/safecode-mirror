@@ -22,6 +22,8 @@
 #include "llvm/Type.h"
 #include "llvm/Value.h"
 
+#include <map>
+#include <string>
 #include <utility>
 
 using namespace llvm;
@@ -40,6 +42,10 @@ class GetSourceInfo {
 };
 
 class LocationSourceInfo : public GetSourceInfo {
+  protected:
+    // Cache of file names which already have a global variable for them
+    std::map<std::string, Value *> SourceFileMap;
+
   public:
     LocationSourceInfo (unsigned dbgKindID) : GetSourceInfo (dbgKindID) {}
     virtual std::pair<Value *, Value *> operator() (CallInst * I);

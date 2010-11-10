@@ -128,14 +128,20 @@ LocationSourceInfo::operator() (CallInst * CI) {
   // Convert the source filename and line number information into LLVM values.
   //
   Value * LineNumber = ConstantInt::get (Int32Type, lineno);
-  Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
-  Module * M = CI->getParent()->getParent()->getParent();
-  Value * SourceFile = new GlobalVariable (*M,
-                                           FInit->getType(),
-                                           true,
-                                           GlobalValue::InternalLinkage,
-                                           FInit,
-                                           "sourcefile");
+  Value * SourceFile;
+  if (SourceFileMap.find (filename) != SourceFileMap.end()) {
+    SourceFile = SourceFileMap[filename];
+  } else {
+    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
+    Module * M = CI->getParent()->getParent()->getParent();
+    SourceFile = new GlobalVariable (*M,
+                                     FInit->getType(),
+                                     true,
+                                     GlobalValue::InternalLinkage,
+                                     FInit,
+                                     "sourcefile");
+    SourceFileMap[filename] = SourceFile;
+  }
 
   return std::make_pair (SourceFile, LineNumber);
 }
