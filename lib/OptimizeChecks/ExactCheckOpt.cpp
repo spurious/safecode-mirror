@@ -49,27 +49,44 @@ char ExactCheckOpt::ID = 0;
 //
 bool
 ExactCheckOpt::runOnModule(Module & M) {
-  ExactChecks = 0;
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   ExactCheck2 = intrinsic->getIntrinsic("sc.exactcheck2").F;
 
+  //
+  // Scan through all the intrinsics and process those that perform run-time
+  // checks.
+  //
   InsertSCIntrinsic::intrinsic_const_iterator i = intrinsic->intrinsic_begin();
   InsertSCIntrinsic::intrinsic_const_iterator e = intrinsic->intrinsic_end();
   for (; i != e; ++i) {
+    //
+    // If this intrinsic is a bounds checking intrinsic or a load/store
+    // checking intrinsic, try to optimize uses of it.
+    //
     if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK
                    | InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK)) {
       checkingIntrinsicsToBeRemoved.clear();
+
+      //
+      // Scan through all uses of this run-time checking function and process
+      // each call to it.
+      //
       Function * F = i->F;
       for (Value::use_iterator UI = F->use_begin(), E = F->use_end();
            UI != E;
            ++UI) {
-        CallInst * CI = dyn_cast<CallInst>(*UI);
-        if (CI) {
+        if (CallInst * CI = dyn_cast<CallInst>(*UI)) {
           visitCheckingIntrinsic(CI);
         }
       }
 
-      ExactChecks += checkingIntrinsicsToBeRemoved.size();
+      //
+      // Update statistics if anything has changed.  We don't want to update
+      // the statistics variable if nothing has happened because we don't want
+      // it to appear in the output if it is zero.
+      //
+      if (checkingIntrinsicsToBeRemoved.size())
+        ExactChecks += checkingIntrinsicsToBeRemoved.size();
 
       //
       // Remove checking intrinsics that have been optimized
@@ -91,7 +108,7 @@ ExactCheckOpt::runOnModule(Module & M) {
 //
 // Description:
 //  Attempts to rewrite an extensive check into an efficient, accurate array
-//  bounds check which will not use meta-data information
+//  bounds check which will not use meta-data information.
 //
 // Inputs:
 //  CI - A pointer to the instruction that performs a run-time check.
@@ -105,7 +122,7 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
   //
   // Get the pointer that is checked by this run-time check.
   //
-  Value * CheckPtr = intrinsic->getValuePointer(CI);
+  Value * CheckPtr = intrinsic->getValuePointer(CI)->stripPointerCasts();
 
   //
   // Strip off all casts and GEPs to try to find the source of the pointer.
