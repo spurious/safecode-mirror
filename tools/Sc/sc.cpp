@@ -273,7 +273,9 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
+#if 0
     Passes.add(new ExactCheckOpt());
+#endif
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
 
@@ -312,6 +314,12 @@ int main(int argc, char **argv) {
       Passes.add(new RewriteOOB());
     }
 
+#if 1
+    std::string newerror;
+    raw_fd_ostream Tmpfile ("/tmp/f.bc", newerror);
+    Passes.add (createBitcodeWriterPass(Tmpfile));
+#endif
+
     //
     // Run pool allocation.
     //
@@ -339,11 +347,13 @@ int main(int argc, char **argv) {
     // frees.
     //
     Passes.add (new OptimizeChecks());
+#if 0
     if (DisableDebugInfo) {
       Passes.add (new PoolRegisterElimination());
     } else {
       Passes.add (new DebugPoolRegisterElimination());
     }
+#endif
 
     Passes.add(new UnusedCheckElimination());
 
