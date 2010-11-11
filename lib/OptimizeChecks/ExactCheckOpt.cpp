@@ -125,19 +125,27 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
   Value * CheckPtr = intrinsic->getValuePointer(CI)->stripPointerCasts();
 
   //
-  // Strip off all casts and GEPs to try to find the source of the pointer.
+  // Try to find the source of the pointer.
   //
   Value * BasePtr = intrinsic->findObject (CheckPtr);
   if (!BasePtr) return false;
 
   //
-  // Attempt to get the size of the pointer.  If a size is returned, we know
-  // that the base pointer points to the beginning of an object, and we can do
-  // a run-time check without a lookup.
+  // If the base pointer is an alloca or a global variable, then we can change
+  // this to an exactcheck.  If it is a heap allocation, we cannot; the reason
+  // is that the object may have been freed between the time it was allocated
+  // and the time that we're doing this run-time check.
   //
-  if (Value * Size = intrinsic->getObjectSize(BasePtr)) {
-    rewriteToExactCheck(CI, BasePtr, CheckPtr, Size);
-    return true;
+  if ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr)) {
+    //
+    // Attempt to get the size of the pointer.  If a size is returned, we know
+    // that the base pointer points to the beginning of an object, and we can
+    // do a run-time check without a lookup.
+    //
+    if (Value * Size = intrinsic->getObjectSize(BasePtr)) {
+      rewriteToExactCheck(CI, BasePtr, CheckPtr, Size);
+      return true;
+    }
   }
 
   //
