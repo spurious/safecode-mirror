@@ -314,12 +314,6 @@ int main(int argc, char **argv) {
       Passes.add(new RewriteOOB());
     }
 
-#if 1
-    std::string newerror;
-    raw_fd_ostream Tmpfile ("/tmp/f.bc", newerror);
-    Passes.add (createBitcodeWriterPass(Tmpfile));
-#endif
-
     //
     // Run pool allocation.
     //
