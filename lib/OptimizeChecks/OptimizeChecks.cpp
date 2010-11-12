@@ -174,9 +174,10 @@ OptimizeChecks::processFunction (Function * F) {
   }
 
   //
-  // Update the statistics
+  // Update the statistics.
   //
-  Removed += CallsToDelete.size();
+  if (CallsToDelete.size())
+    Removed += CallsToDelete.size();
 
   //
   // Remove all of the instructions that we found to be unnecessary.
