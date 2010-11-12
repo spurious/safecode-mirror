@@ -48,6 +48,12 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   Function * RegGlobals  = intrinsic->getIntrinsic("sc.register_globals").F;
 //  Function * PoolInit = M.getFunction("poolalloc.init");
 
+  //
+  // Make the global registration function internal.
+  //
+  RegGlobals->setDoesNotThrow();
+  RegGlobals->setLinkage(GlobalValue::InternalLinkage);
+
   // Make the runtime constructor compatible with other ctors
   RuntimeCtor->setDoesNotThrow();
   RuntimeCtor->setLinkage(GlobalValue::InternalLinkage);
@@ -103,8 +109,7 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
 
   //
   // Get the current set of static global constructors and add the new ctor
-  // to the end of the list (the list seems to be initialized in reverse
-  // order).
+  // to the list.
   //
   std::vector<Constant *> CurrentCtors;
   GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
@@ -121,7 +126,16 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
     //
     GVCtor->setName ("removed");
   }
-  CurrentCtors.push_back (RuntimeCtorInit);
+
+  //
+  // The ctor list seems to be initialized in different orders on different
+  // platforms, and the priority settings don't seem to work.  Examine the
+  // module's platform string and take a best guess to the order.
+  //
+  if (M.getTargetTriple().find ("linux") == std::string::npos)
+    CurrentCtors.insert (CurrentCtors.begin(), RuntimeCtorInit);
+  else
+    CurrentCtors.push_back (RuntimeCtorInit);
 
   //
   // Create a new initializer.
