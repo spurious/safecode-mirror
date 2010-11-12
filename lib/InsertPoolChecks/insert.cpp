@@ -563,8 +563,18 @@ InsertPoolChecks::addLoadStoreChecks (Function & F) {
   }
 }
 
+//
+// Method: addGetElementPtrChecks()
+//
+// Description:
+//  This method checks to see if the specified GEP is safe.  If it cannot prove
+//  it safe, it then adds a run-time check for it.
+//
 void
 InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
+  //
+  // Determine if the GEP is safe.  If it is, then don't do anything.
+  //
   if (abcPass->isGEPSafe(GEP))
     return;
 
@@ -573,157 +583,42 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
   //
   Function * F = GEP->getParent()->getParent();
 
-  Instruction * iCurrent = GEP;
+  Instruction *Casted = GEP;
+  if (isa<GetElementPtrInst>(Casted)) {
+    Value * PH = ConstantPointerNull::get (getVoidPtrType());
+    BasicBlock::iterator InsertPt = Casted;
+    ++InsertPt;
+    Casted            = castTo (Casted,
+                                getVoidPtrType(),
+                                (Casted)->getName()+".pc.casted",
+                                InsertPt);
 
-    // We have the GetElementPtr
-    if (!isa<GetElementPtrInst>(*iCurrent)) {
-      //Then this must be a function call
-      //FIXME, get strcpy and others from the backup dir and adjust them for LLVA
-      //Right now I just add memset &llva_memcpy for LLVA
-      //      std::cerr << " function call \n";
-      return;
-    }
-    // Now we need to decide if we need to pass in the alignmnet
-    //for the poolcheck
-    //     if (getDSNodeOffset(GEP->getPointerOperand(), F)) {
-    //       std::cerr << " we don't handle middle of structs yet\n";
-    //assert(!getDSNodeOffset(GEP->getPointerOperand(), F) && " we don't handle middle of structs yet\n");
-    //       ++MissChecks;
-    //       continue;
-    //     }
-    
-    Instruction *Casted = GEP;
-#if 0
-    //
-    // JTC: Disabled.  I'm not sure why we would look up a cloned value when
-    //                 processing an old value.
-    //
-std::cerr << "Parent: " << GEP->getParent()->getParent()->getName() << std::endl;
-std::cerr << "Ins   : " << *GEP << std::endl;
-    if (!FI->ValueMap.empty()) {
-      assert(FI->ValueMap.count(GEP) && "Instruction not in the value map \n");
-      Instruction *temp = dyn_cast<Instruction>(FI->ValueMap[GEP]);
-      assert(temp && " Instruction  not there in the Value map");
-      Casted  = temp;
-    }
-#endif
-    if (isa<GetElementPtrInst>(Casted)) {
-      Value * PH = ConstantPointerNull::get (getVoidPtrType());
-#if 0
-      if (!PH) {
-        Value *PointerOperand = GEPNew->getPointerOperand();
-        if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(PointerOperand)) {
-          if ((cExpr->getOpcode() == Instruction::Trunc) ||
-              (cExpr->getOpcode() == Instruction::ZExt) ||
-              (cExpr->getOpcode() == Instruction::SExt) ||
-              (cExpr->getOpcode() == Instruction::FPToUI) ||
-              (cExpr->getOpcode() == Instruction::FPToSI) ||
-              (cExpr->getOpcode() == Instruction::UIToFP) ||
-              (cExpr->getOpcode() == Instruction::SIToFP) ||
-              (cExpr->getOpcode() == Instruction::FPTrunc) ||
-              (cExpr->getOpcode() == Instruction::FPExt) ||
-              (cExpr->getOpcode() == Instruction::PtrToInt) ||
-              (cExpr->getOpcode() == Instruction::IntToPtr) ||
-              (cExpr->getOpcode() == Instruction::BitCast))
-            PointerOperand = cExpr->getOperand(0);
-        }
-        if (GlobalVariable *GV = dyn_cast<GlobalVariable>(PointerOperand)) {
-          if (const ArrayType *AT = dyn_cast<ArrayType>(GV->getType()->getElementType())) {
-            // We need to insert an actual check.  It could be a select
-            // instruction.
-            // First get the size.
-            // This only works for one or two dimensional arrays.
-            if (GEPNew->getNumOperands() == 2) {
-              Value *secOp = GEPNew->getOperand(1);
-              if (secOp->getType() != Type::Int32Ty) {
-                secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
-                                     secOp->getName()+".ec.casted", Casted);
-              }
+    Value * CastedSrc = castTo (GEP->getPointerOperand(),
+                                getVoidPtrType(),
+                                (Casted)->getName()+".pcsrc.casted",
+                                InsertPt);
 
-              const Type* csiType = Type::Int32Ty;
-              std::vector<Value *> args(1,secOp);
-              args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-              CallInst::Create(ExactCheck,args.begin(), args.end(), "", Casted);
-              DEBUG(std::cerr << "Inserted exact check call Instruction \n");
-              return;
-            } else if (GEPNew->getNumOperands() == 3) {
-              if (ConstantInt *COP = dyn_cast<ConstantInt>(GEPNew->getOperand(1))) {
-                // FIXME: assuming that the first array index is 0
-                assert((COP->getZExtValue() == 0) && "non zero array index\n");
-                Value * secOp = GEPNew->getOperand(2);
-                if (secOp->getType() != Type::Int32Ty) {
-                  secOp = CastInst::CreateSExtOrBitCast(secOp, Type::Int32Ty,
-                                       secOp->getName()+".ec2.casted", Casted);
-                }
-                std::vector<Value *> args(1,secOp);
-                const Type* csiType = Type::Int32Ty;
-                args.push_back(ConstantInt::get(csiType,AT->getNumElements()));
-                CallInst::Create(ExactCheck, args.begin(), args.end(), "", getNextInst(Casted));
-                return;
-              } else {
-                // Handle non constant index two dimensional arrays later
-                abort();
-              }
-            } else {
-              // Handle Multi dimensional cases later
-              DEBUG(std::cerr << "WARNING: Handle multi dimensional globals later\n");
-              GEP->dump();
-            }
-          }
-          DEBUG(std::cerr << " Global variable ok \n");
-        }
+    Value *CastedPH = castTo (PH,
+                              getVoidPtrType(),
+                              "jtcph",
+                              InsertPt);
+    std::vector<Value *> args(1, CastedPH);
+    args.push_back(CastedSrc);
+    args.push_back(Casted);
 
-        //      These must be real unknowns and they will be handled anyway
-        //      std::cerr << " WARNING, DID NOT HANDLE   \n";
-        //      (*iCurrent)->dump();
-        return ;
-      } else {
-#endif
-        {
-        //
-        // Determine if this is a pool belonging to a cloned version of the
-        // function.  If so, do not add a pool check.
-        //
-        if (Instruction * InsPH = dyn_cast<Instruction>(PH)) {
-          if ((InsPH->getParent()->getParent()) !=
-              (Casted->getParent()->getParent()))
-            return;
-        }
+    // Insert it
+    unsigned DSFlags = getDSFlags (GEP, F);
 
-        BasicBlock::iterator InsertPt = Casted;
-        ++InsertPt;
-        Casted            = castTo (Casted,
-                                    getVoidPtrType(),
-                                    (Casted)->getName()+".pc.casted",
-                                    InsertPt);
+    Instruction * CI;
+    if ((!(isTypeKnown (GEP, F))) || (DSFlags & DSNode::UnknownNode))
+      CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
+                            "", InsertPt);
+    else
+      CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
+                            "", InsertPt);
 
-        Value * CastedSrc = castTo (GEP->getPointerOperand(),
-                                    getVoidPtrType(),
-                                    (Casted)->getName()+".pcsrc.casted",
-                                    InsertPt);
-
-        Value *CastedPH = castTo (PH,
-                                  getVoidPtrType(),
-                                  "jtcph",
-                                  InsertPt);
-        std::vector<Value *> args(1, CastedPH);
-        args.push_back(CastedSrc);
-        args.push_back(Casted);
-
-        // Insert it
-        unsigned DSFlags = getDSFlags (GEP, F);
-
-        Instruction * CI;
-        if ((!(isTypeKnown (GEP, F))) || (DSFlags & DSNode::UnknownNode))
-          CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
-                                "", InsertPt);
-        else
-          CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
-                                "", InsertPt);
-
-        DEBUG(std::cerr << "inserted instrcution \n");
-      }
-    }
+    DEBUG(std::cerr << "inserted instrcution \n");
+  }
 }
 
 NAMESPACE_SC_END
