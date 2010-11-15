@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "safecode"
+#define DEBUG_TYPE "opt-safecode"
 
 #include "safecode/SafeLoadStoreOpts.h"
 
@@ -26,7 +26,8 @@ X ("opt-safels", "Remove safe load/store runtime checks");
 
 // Pass Statistics
 namespace {
-  STATISTIC (ChecksRemoved , "Load/Store Checks Removed");
+  STATISTIC (TypeSafeChecksRemoved , "Type-safe Load/Store Checks Removed");
+  STATISTIC (TrivialChecksRemoved ,  "Trivial Load/Store Checks Removed");
 }
 
 //
@@ -104,7 +105,8 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   // Scan through all uses of the complete run-time check and record any checks
   // on type-known pointers.  These can be removed.
   //
-  std::vector <CallInst *> toRemove;
+  std::vector <CallInst *> toRemoveTypeSafe;
+  std::vector <CallInst *> toRemoveObvious;
   Function * LSCheck   = M.getFunction ("sc.lscheck");
   Value::use_iterator UI = LSCheck->use_begin();
   Value::use_iterator  E = LSCheck->use_end();
@@ -114,15 +116,26 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
         //
         // Get the pointer that is checked by this run-time check.
         //
-        Value * CheckPtr = intrinsic.getValuePointer (CI);
+        Value * CheckPtr = intrinsic.getValuePointer (CI)->stripPointerCasts();
 
         //
-        // If the pointer is complete, then change the check.
+        // If it is obvious that the pointer is within a valid object, then
+        // remove the check.
+        //
+        if ((isa<AllocaInst>(CheckPtr)) || isa<GlobalVariable>(CheckPtr)) {
+            toRemoveObvious.push_back (CI);
+            continue;
+        }
+
+        //
+        // If the pointer is complete, then remove the check if it points to
+        // a type-consistent object.
         //
         Function * F = CI->getParent()->getParent();
         if (DSNode * N = getDSNodeHandle (CheckPtr, F).getNode()) {
           if (!(N->isNodeCompletelyFolded())) {
-            toRemove.push_back (CI);
+            toRemoveTypeSafe.push_back (CI);
+            continue;
           }
         }
       }
@@ -134,8 +147,13 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   // this prevents the statistics from being reported if the value is zero.
   //
   bool modified = false;
-  if (toRemove.size()) {
-    ChecksRemoved += toRemove.size();
+  if (toRemoveTypeSafe.size()) {
+    TypeSafeChecksRemoved += toRemoveTypeSafe.size();
+    modified = true;
+  }
+
+  if (toRemoveObvious.size()) {
+    TrivialChecksRemoved += toRemoveObvious.size();
     modified = true;
   }
 
@@ -143,8 +161,12 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   // Now iterate through all of the call sites and transform them to be
   // complete.
   //
-  for (unsigned index = 0; index < toRemove.size(); ++index) {
-    toRemove[index]->eraseFromParent();
+  for (unsigned index = 0; index < toRemoveObvious.size(); ++index) {
+    toRemoveObvious[index]->eraseFromParent();
+  }
+
+  for (unsigned index = 0; index < toRemoveTypeSafe.size(); ++index) {
+    toRemoveTypeSafe[index]->eraseFromParent();
   }
 
   return modified;
