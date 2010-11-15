@@ -249,10 +249,12 @@ int main(int argc, char **argv) {
 
     //
     // Optimize away type-safe load/store checks if we're using automatic pool
-    // allocation.
+    // allocation.  If we optimize away type-safe loads and stores, insert
+    // alignment checks.
     //
     if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
       Passes.add(new OptimizeSafeLoadStore());
+      Passes.add(new AlignmentChecks());
     }
 
     //
