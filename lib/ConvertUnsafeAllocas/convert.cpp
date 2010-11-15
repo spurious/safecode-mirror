@@ -388,7 +388,8 @@ ConvertUnsafeAllocas::TransformCSSAllocasToMallocs (Module & M,
     //
     // Update the statistics.
     //
-    ConvAllocas += Worklist.size();
+    if (Worklist.size())
+      ConvAllocas += Worklist.size();
 
     //
     // Convert everything in the worklist into a malloc instruction.
