@@ -593,10 +593,14 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
                                 (Casted)->getName()+".pc.casted",
                                 InsertPt);
 
-    Value * CastedSrc = castTo (GEP->getPointerOperand(),
-                                getVoidPtrType(),
-                                (Casted)->getName()+".pcsrc.casted",
-                                InsertPt);
+    //
+    // Make this an actual cast instruction; it will make it easier to update
+    // DSA.
+    //
+    Value * CastedSrc = CastInst::CreateZExtOrBitCast (GEP->getPointerOperand(),
+                                                       getVoidPtrType(),
+                                                       (Casted)->getName()+".pcsrc.casted",
+                                                       InsertPt);
 
     Value *CastedPH = castTo (PH,
                               getVoidPtrType(),
@@ -617,7 +621,12 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
       CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
                             "", InsertPt);
 
-    DEBUG(std::cerr << "inserted instrcution \n");
+    //
+    // Update the DSA results.
+    //
+    dsaPass->copyValue (GEP, CI);
+    dsaPass->copyValue (GEP, Casted);
+    dsaPass->copyValue (GEP->getPointerOperand(), CastedSrc);
   }
 }
 

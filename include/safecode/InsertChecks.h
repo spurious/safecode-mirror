@@ -53,6 +53,7 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
 
       // Preserved passes
       AU.addPreserved<InsertSCIntrinsic>();
+      AU.addPreserved<EQTDDataStructures>();
       AU.setPreservesCFG();
     };
 
@@ -120,7 +121,9 @@ struct InsertPoolChecks : public FunctionPass {
       AU.addRequired<TargetData>();
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<EQTDDataStructures>();
+
       AU.addPreserved<InsertSCIntrinsic>();
+      AU.addPreserved<EQTDDataStructures>();
       AU.setPreservesCFG();
     };
 
