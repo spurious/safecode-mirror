@@ -275,9 +275,7 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
-#if 0
     Passes.add(new ExactCheckOpt());
-#endif
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
 
