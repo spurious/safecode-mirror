@@ -767,7 +767,6 @@ poolcheckalign (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigned 
   unsigned char * S;
   unsigned len;
   void * tag;
-  void * S_void;
   int t;
   __sva_rt_lock_t lock;
   if (!pchk_ready || !MP) return;
@@ -786,8 +785,7 @@ poolcheckalign (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigned 
   S = addr;
   len = 0;
   tag = 0;
-  S_void = (void *)S;
-  t = adl_splay_retrieve(&MP->Objs, &S_void, &len, &tag);
+  t = adl_splay_retrieve(&MP->Objs, (void**)&S, &len, &tag);
   __sva_rt_unlock(&lock);
   if (t) {
     if (((addr - S) % size) == offset) {
@@ -802,7 +800,7 @@ poolcheckalign (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigned 
    * Search through the set of function pointers.
    */
   __sva_rt_lock(&lock);
-  t = adl_splay_retrieve(&MP->Functions, &S_void, &len, &tag);
+  t = adl_splay_retrieve(&MP->Functions, (void**)&S, &len, &tag);
   __sva_rt_unlock(&lock);
 
   if (t) {
@@ -838,7 +836,6 @@ poolcheckalign_i (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigne
   unsigned char * S;
   unsigned len;
   void * tag;
-  void * S_void;
   __sva_rt_lock_t lock;
   volatile int t;
   if (!pchk_ready || !MP) return;
@@ -857,8 +854,7 @@ poolcheckalign_i (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigne
   S = addr;
   len = 0;
   tag = 0;
-  S_void = (void *)S;
-  t = adl_splay_retrieve(&MP->Objs, &S_void, &len, &tag);
+  t = adl_splay_retrieve(&MP->Objs, (void**)&S, &len, &tag);
   __sva_rt_unlock(&lock);
 
   if (t) {
@@ -873,7 +869,7 @@ poolcheckalign_i (MetaPoolTy* MP, unsigned char * addr, unsigned offset, unsigne
    * Search through the set of function pointers.
    */
   __sva_rt_lock(&lock);
-  t = adl_splay_retrieve(&MP->Functions, &S_void, &len, &tag);
+  t = adl_splay_retrieve(&MP->Functions, (void**)&S, &len, &tag);
   __sva_rt_unlock(&lock);
 
   if (t) {

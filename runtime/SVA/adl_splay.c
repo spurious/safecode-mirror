@@ -276,13 +276,9 @@ void adl_splay_libfini(void (nodefree)(void*) ) {
 void adl_splay_foreach(void** tree, void (f)(void*, unsigned, void*)) {
   Tree* T = *(Tree**)tree;
   if (T) {
-    void *Tl, *Tr;
-
     f(T->key, (T->end - T->key) + 1, T->tag);
-    Tl = T->left;
-    Tr = T->right;
-    adl_splay_foreach(&Tl, f);
-    adl_splay_foreach(&Tr, f);
+    adl_splay_foreach((void**)(&T->left), f);
+    adl_splay_foreach((void**)(&T->right), f);
   }
 }
 
