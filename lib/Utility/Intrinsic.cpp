@@ -98,7 +98,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
     (vpTy, args<const Type*>::list(vpTy, vpTy, Int32Ty), false);
 
   FunctionType * FuncCheckTy = FunctionType::get
-    (VoidTy, args<const Type*>::list(Int32Ty, vpTy, vpTy), false);
+    (VoidTy, args<const Type*>::list(Int32Ty, vpTy, vpTy), true);
 
   FunctionType * GetActualValTy = FunctionType::get
     (vpTy, args<const Type*>::list(vpTy, vpTy), false);
