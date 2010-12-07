@@ -21,9 +21,14 @@
 
 #include <string>
 
+// Use a macro for the const attribute.  This allows const to be disabled for
+// debugging, allowing a programmer to change logregs during a debugging
+// session.
+#define CONST const
+
 /// It should be always zero in production version 
 /* Set to 1 to log object registrations */
-static /*const*/ __attribute__((unused)) unsigned logregs = 0;
+static CONST __attribute__((unused)) unsigned logregs = 0;
 
 NAMESPACE_SC_BEGIN
 
