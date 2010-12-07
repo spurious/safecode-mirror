@@ -135,7 +135,7 @@ extern "C" {
   void * __sc_dbg_poolstrdup (PPOOL, const char * Node);
   void * __sc_dbg_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
 
-  void poolcheck(PPOOL, void *Node, TAG);
+  void poolcheck(PPOOL, void *Node);
   void poolcheckui(PPOOL, void *Node, TAG);
   void poolcheck_debug (PPOOL, void * Node, TAG, SRC_INFO);
 
