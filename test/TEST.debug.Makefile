@@ -23,7 +23,7 @@ WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
 endif
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(HOME)/src/llvm27/projects/test-suite; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -terminate -check-every-gep-use -rewrite-oob
