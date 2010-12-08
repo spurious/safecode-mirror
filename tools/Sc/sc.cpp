@@ -80,6 +80,11 @@ static cl::opt<bool>
 Force("f", cl::desc("Overwrite output files"));
 
 static cl::opt<bool>
+DisableLSChecks  ("disable-lschecks",
+                  cl::init(false),
+                  cl::desc("Disable Load/Store Checks"));
+
+static cl::opt<bool>
 DisableDebugInfo("disable-debuginfo", cl::init(false),
                  cl::desc("Disable Debugging Info in Run-time Errors"));
 
@@ -236,10 +241,15 @@ int main(int argc, char **argv) {
     // insertion pass because it seems that the PassManager will invalidate the
     // results if they are not consumed immediently.
     //
+    // Note that we must schedule DSA to run before the static GEP checking
+    // pass manually.  If we don't, then PassManager just throws the static
+    // GEP checking pass away.
+    //
+    Passes.add (new EQTDDataStructures());
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
-    Passes.add(new InsertLSChecks());
+    if (!DisableLSChecks) Passes.add(new InsertLSChecks());
 
     //
     // Go ahead and make all of the run-time checks complete.  This tool can

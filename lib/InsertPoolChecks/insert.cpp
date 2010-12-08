@@ -46,10 +46,6 @@ cl::opt<bool> EnableNullChecks  ("enable-nullchecks", cl::Hidden,
                                 cl::desc("Enable Checks on NULL Pools"));
 
 
-cl::opt<bool> DisableLSChecks  ("disable-lschecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Disable Load/Store Checks"));
-
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
@@ -308,7 +304,7 @@ InsertPoolChecks::addPoolChecks(Function &F) {
         addGetElementPtrChecks (GEP);
     }
   }
-  if (!DisableLSChecks)  addLoadStoreChecks(F);
+  addLoadStoreChecks(F);
 }
 
 
