@@ -451,9 +451,11 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			Passes.add(new ArrayBoundsCheckDummy());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_LOCAL:
+#if 0
       if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
         Passes.add(new ArrayBoundsCheckStruct());
       }
+#endif
 			Passes.add(new ArrayBoundsCheckLocal());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
@@ -535,6 +537,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.pool_unregister_debug", "__sc_dbg_poolunregister_debug" },
       {"sc.pool_unregister_stack_debug", "__sc_dbg_poolunregister_stack_debug" },
       {"poolalloc",         "__pa_bitmap_poolalloc"},
+      {"poolfree",          "__pa_bitmap_poolfree"},
 
       {"sc.init_pool_runtime", "pool_init_runtime"},
       {"sc.pool_register_debug", "__sc_dbg_src_poolregister"},
