@@ -151,7 +151,7 @@ CompleteChecks::makeComplete (Function * Complete, Function * Incomplete) {
   // this prevents the statistics from being reported if the value is zero.
   //
   if (toChange.size())
-    CompLSChecks = toChange.size();
+    CompLSChecks += toChange.size();
 
   //
   // Now iterate through all of the call sites and transform them to be
