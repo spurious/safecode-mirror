@@ -26,8 +26,9 @@ using namespace llvm;
 
 
 namespace {
-  STATISTIC (allGEPs ,  "Total Number of GEPs Queried");
-  STATISTIC (safeGEPs , "Number of GEPs Proven Safe Statically");
+  STATISTIC (allGEPs ,    "Total Number of GEPs Queried");
+  STATISTIC (safeGEPs ,   "Number of GEPs Proven Safe Statically");
+  STATISTIC (unsafeGEPs , "Number of GEPs Proven Unsafe Statically");
 }
 
 NAMESPACE_SC_BEGIN
@@ -74,11 +75,15 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   //
   ++allGEPs;
 
+  //
+  // Get the checked pointer and try to find the memory object from which it
+  // originates.  If we can't find the memory object, let some other static
+  // array bounds checking pass have a crack at it.
+  //
   Value * PointerOperand = GEP->getPointerOperand();
-
   Value * objSize = intrinsicPass->getObjectSize(PointerOperand);
   if (!objSize)
-    return false;
+    return abcPass->isGEPSafe(GEP);
 
   //
   // Calculate the:
@@ -113,6 +118,7 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   // declare it unsafe.
   //
   if (SE->getSMaxExpr(offset, zero) == zero) {
+    ++unsafeGEPs;
     return false;
   }
 

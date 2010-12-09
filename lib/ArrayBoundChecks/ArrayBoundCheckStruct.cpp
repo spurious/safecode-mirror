@@ -178,12 +178,17 @@ ArrayBoundsCheckStruct::isGEPSafe (GetElementPtrInst * GEP) {
   Function * F = GEP->getParent()->getParent();
   DSNode * N = getDSNodeHandle (PointerOperand, F).getNode();
   if (N) {
-    if (N->isNodeCompletelyFolded() && (!(N->isIncompleteNode())) &&
-                                       (!(N->isExternalNode()))) {
-      //
-      // The pointer points to a type-known object.  If the indices all index
-      // into structures, then the GEP is safe.
-      //
+    //
+    // If DSA says that the object is type-known but not an array node, then
+    // we know that this is just structure indexing.  We can therefore declare
+    // it safe.
+    //
+    if ((!N->isNodeCompletelyFolded()) &&
+        (!(N->isArrayNode())) &&
+        (!(N->isIncompleteNode())) &&
+        (!(N->isUnknownNode())) &&
+        (!(N->isIntToPtrNode())) &&
+        (!(N->isExternalNode()))) {
       if (indexesStructsOnly (GEP)) {
         ++safeGEPs;
         return true;
