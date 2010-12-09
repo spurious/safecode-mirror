@@ -37,28 +37,9 @@ char InsertPoolChecks::ID = 0;
 static RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
 
 // Options for Enabling/Disabling the Insertion of Various Checks
-cl::opt<bool> EnableIncompleteChecks  ("enable-incompletechecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Enable Checks on Incomplete Nodes"));
-
-cl::opt<bool> EnableNullChecks  ("enable-nullchecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Enable Checks on NULL Pools"));
-
-
 cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
-
-cl::opt<bool> DisableIntrinsicChecks ("disable-intrinchecks", cl::Hidden,
-                                      cl::init(false),
-                                      cl::desc("Disable Intrinsic Checks"));
-
-// Options for where to insert various initialization code
-cl::opt<string> InitFunctionName ("initfunc",
-                                  cl::desc("Specify name of initialization "
-                                           "function"),
-                                  cl::value_desc("function name"));
 
 // Pass Statistics
 namespace {
