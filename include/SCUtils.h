@@ -295,6 +295,149 @@ destroyFunction (Function * F) {
   return;
 }
 
+//
+// Function: escapesToMemory()
+//
+// Description:
+//  Do some simple analysis to see if the value could escape into memory.
+//
+// Return value:
+//  true  - The value could (but won't necessairly) escape into memory.
+//  false - The value cannot escape into memory.
+//
+static inline bool
+escapesToMemory (Value * V) {
+  // Worklist of values to process
+  std::vector<Value *> Worklist;
+  Worklist.push_back (V);
+
+  //
+  // Scan through all uses of the value and see if any of them can escape into
+  // another function or into memory.
+  //
+  while (Worklist.size()) {
+    //
+    // Get the next value off of the worklist.
+    //
+    Value * V = Worklist.back();
+    Worklist.pop_back();
+
+    //
+    // Scan through all uses of the value.
+    //
+    for (Value::use_iterator UI = V->use_begin(); UI != V->use_end(); ++UI) {
+      //
+      // We cannot handle PHI nodes because they might introduce a recurrence
+      // in the def-use chain, and we're not handling such cycles at the
+      // moment.
+      //
+      if (isa<PHINode>(UI)) {
+        return true;
+      }
+
+      //
+      // The pointer escapes if it's stored to memory somewhere.
+      //
+      StoreInst * SI;
+      if ((SI = dyn_cast<StoreInst>(UI)) && (SI->getOperand(0) == V)) {
+        return true;
+      }
+
+      //
+      // For a select instruction, assume that the result can be the value.
+      //
+      if (isa<SelectInst>(UI)) {
+        Worklist.push_back (*UI);
+        continue;
+      }
+
+      //
+      // GEP instructions are okay but need to be added to the worklist.
+      //
+      if (isa<GetElementPtrInst>(UI)) {
+        Worklist.push_back (*UI);
+        continue;
+      }
+
+      //
+      // Cast instructions are okay even if they lose bits.  Some of the bits
+      // will end up in the result.
+      //
+      if (isa<CastInst>(UI)) {
+        Worklist.push_back (*UI);
+        continue;
+      }
+
+      //
+      // Cast constant expressions are okay, too.
+      //
+      if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(UI)) {
+        if (Instruction::isCast (cExpr->getOpcode())) {
+          Worklist.push_back (*UI);
+          continue;
+        } else {
+          return true;
+        }
+      }
+
+      //
+      // Load instructions are okay.
+      //
+      if (isa<LoadInst>(UI)) {
+        continue;
+      }
+
+      //
+      // Call instructions are okay if we understand the semantics of the
+      // called function.  Otherwise, assume they call a function that allows
+      // the pointer to escape into memory.
+      //
+      if (CallInst * CI = dyn_cast<CallInst>(UI)) {
+        if (!(CI->getCalledFunction())) {
+          return true;
+        }
+
+        std::string FuncName = CI->getCalledFunction()->getName();
+        if ((FuncName == "sc.exactcheck2") ||
+            (FuncName == "sc.boundscheck") ||
+            (FuncName == "sc.boundscheckui")) {
+          Worklist.push_back (*UI);
+          continue;
+        } else if ((FuncName == "llvm.memcpy.i32")    || 
+                   (FuncName == "llvm.memcpy.i64")    ||
+                   (FuncName == "llvm.memset.i32")    ||
+                   (FuncName == "llvm.memset.i64")    ||
+                   (FuncName == "llvm.memmove.i32")   ||
+                   (FuncName == "llvm.memmove.i64")   ||
+                   (FuncName == "llva_memcpy")        ||
+                   (FuncName == "llva_memset")        ||
+                   (FuncName == "llva_strncpy")       ||
+                   (FuncName == "llva_invokememcpy")  ||
+                   (FuncName == "llva_invokestrncpy") ||
+                   (FuncName == "llva_invokememset")  ||
+                   (FuncName == "sc.pool_register")  ||
+                   (FuncName == "sc.pool_register_stack")  ||
+                   (FuncName == "sc.pool_register_global")  ||
+                   (FuncName == "memcmp")) {
+          continue;
+        } else {
+          return true;
+        }
+      }
+
+      //
+      // We don't know what this is.  Just assume it can escape to memory.
+      //
+      return true;
+    }
+  }
+
+  //
+  // No use causes the value to escape to memory.
+  //
+  return false;
+}
+
 }
 
 #endif
