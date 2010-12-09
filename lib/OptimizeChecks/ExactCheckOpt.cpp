@@ -65,7 +65,16 @@ ExactCheckOpt::runOnModule(Module & M) {
     //
     if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK
                    | InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK)) {
+      //
+      // Clear the list of calls to intrinsics that must be removed.
+      //
       checkingIntrinsicsToBeRemoved.clear();
+
+      //
+      // Determine if this check is a memory check (i.e., it is a check on an
+      // operation that accesses memory).
+      //
+      bool isMemCheck = i->flag & InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK;
 
       //
       // Scan through all uses of this run-time checking function and process
@@ -76,7 +85,7 @@ ExactCheckOpt::runOnModule(Module & M) {
            UI != E;
            ++UI) {
         if (CallInst * CI = dyn_cast<CallInst>(*UI)) {
-          visitCheckingIntrinsic(CI);
+          visitCheckingIntrinsic(CI, isMemCheck);
         }
       }
 
@@ -111,14 +120,16 @@ ExactCheckOpt::runOnModule(Module & M) {
 //  bounds check which will not use meta-data information.
 //
 // Inputs:
-//  CI - A pointer to the instruction that performs a run-time check.
+//  CI         - A pointer to the instruction that performs a run-time check.
+//  isMemCheck - Flags whether the call is a run-time check on a memory
+//               operation.
 //
 // Return value:
 //  true  - Successfully rewrite the check into an exact check.
 //  false - Cannot perform the optimization.
 //
 bool
-ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
+ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, bool isMemCheck) {
   //
   // Get the pointer that is checked by this run-time check.
   //
@@ -131,12 +142,17 @@ ExactCheckOpt::visitCheckingIntrinsic(CallInst * CI) {
   if (!BasePtr) return false;
 
   //
-  // If the base pointer is an alloca or a global variable, then we can change
-  // this to an exactcheck.  If it is a heap allocation, we cannot; the reason
-  // is that the object may have been freed between the time it was allocated
-  // and the time that we're doing this run-time check.
+  // If the call is to a memory checking function, then we cannot blindly
+  // convert a check that operates on a heap object; the heap object might be
+  // deallocated between the time it was allocated and the time of the check.
+  // Other checks can be converted since they don't try to detect dangling
+  // pointers.
   //
-  if ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr)) {
+  // So, if this is a memory check, make sure that the object cannot be freed
+  // before the check.  Global variables and stack allocations cannot be freed.
+  //
+  if ((!isMemCheck) ||
+      ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr))) {
     //
     // Attempt to get the size of the pointer.  If a size is returned, we know
     // that the base pointer points to the beginning of an object, and we can
