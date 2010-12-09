@@ -351,13 +351,13 @@ int main(int argc, char **argv) {
     // frees.
     //
     Passes.add (new OptimizeChecks());
-#if 0
     if (DisableDebugInfo) {
       Passes.add (new PoolRegisterElimination());
     } else {
+#if 0
       Passes.add (new DebugPoolRegisterElimination());
-    }
 #endif
+    }
 
     Passes.add(new UnusedCheckElimination());
 

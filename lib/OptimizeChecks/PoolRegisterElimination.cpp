@@ -69,25 +69,36 @@ PoolRegisterElimination::findCheckedAliasSets () {
   return;
 }
 
+//
+// Method: findSafeGlobals()
+//
+// Description:
+//  Find global variables that do not escape into memory or external code.
+//
+template<typename insert_iterator>
+void
+PoolRegisterElimination::findSafeGlobals (Module & M, insert_iterator InsertPt) {
+  for (Module::global_iterator GV = M.global_begin();
+       GV != M.global_end();
+       ++GV) {
+    if (!escapesToMemory (GV))
+      InsertPt = GV;
+  }
+
+  return;
+}
+
 bool
 PoolRegisterElimination::runOnModule(Module & M) {
   //
-  // Clear out the set of used alias groups.
+  // Get the set of safe globals.
   //
-  usedSet.clear();
+  findSafeGlobals (M, std::inserter (SafeGlobals, SafeGlobals.begin()));
 
   //
   // Get access to prequisite analysis passes.
   //
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  AA = &getAnalysis<AliasAnalysis>();
-  AST = new AliasSetTracker(*AA);
-
-  //
-  // Find all alias sets that have a pointer that is passed to a run-time
-  // check that does a splay-tree lookup.
-  //
-  findCheckedAliasSets();
 
   //
   // List of registration intrinsics.
@@ -102,11 +113,7 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // pointers are within the argv array.
   //
   const char * registerIntrinsics[] = {
-    "sc.pool_register",
-    "sc.pool_register_stack",
-    "sc.pool_register_global",
-    "sc.pool_unregister",
-    "sc.pool_unregister_stack",
+    "sc.pool_register_global"
   };
 
   //
@@ -121,6 +128,7 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // Deallocate memory and return;
   //
   delete AST;
+  SafeGlobals.clear();
   return true;
 }
 
@@ -237,8 +245,16 @@ PoolRegisterElimination::markUsedAliasSet (const char * name,
 //
 bool
 PoolRegisterElimination::isSafeToRemove (Value * Ptr) {
-  AliasSet * aliasSet = AST->getAliasSetForPointerIfExists(Ptr, 0);
-  return (usedSet.count(aliasSet) == 0);
+  //
+  // We can remove registrations on global variables that don't escape to
+  // memory.
+  //
+  if (GlobalVariable * GV = dyn_cast<GlobalVariable>(Ptr)) {
+    if (SafeGlobals.count (GV))
+      return true;
+  }
+
+  return false;
 }
 
 //
