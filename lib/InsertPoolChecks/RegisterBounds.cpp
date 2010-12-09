@@ -33,7 +33,8 @@ using namespace llvm;
 
 namespace {
   // Statistics
-  STATISTIC (RegisteredGVs, "Number of registered global variables");
+  STATISTIC (RegisteredGVs,    "Number of registered global variables");
+  STATISTIC (RegisteredByVals, "Number of registered byval arguments");
 }
 
 NAMESPACE_SC_BEGIN
@@ -456,6 +457,12 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
       CallInst::Create (StackFree, args.begin(), args.end(), "", Pt);
     }
   }
+
+  //
+  // Update the statistics on the number of registered byval arguments.
+  //  
+  if (registeredArguments.size())
+    RegisteredByVals += registeredArguments.size();
 
   return true;
 }
