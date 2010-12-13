@@ -113,7 +113,9 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // pointers are within the argv array.
   //
   const char * registerIntrinsics[] = {
-    "sc.pool_register_global"
+    "sc.pool_register_global",
+    "sc.pool_register_stack",
+    "sc.pool_unregister_stack"
   };
 
   //
