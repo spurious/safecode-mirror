@@ -125,7 +125,6 @@ struct PoolRegisterElimination : public ModulePass {
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // We need to know about SAFECode intrinsics
     AU.addRequired<InsertSCIntrinsic>();
-    AU.addRequired<AliasAnalysis>();
 
     // We don't modify the control-flow graph
     AU.setPreservesCFG();
@@ -134,30 +133,15 @@ struct PoolRegisterElimination : public ModulePass {
  protected:
   // References to required analysis passes
   InsertSCIntrinsic * intrinsic;
-  AliasAnalysis * AA;
-  AliasSetTracker * AST;
 
   // Set of globals which do not need to be registered
   std::set<GlobalVariable *> SafeGlobals;
 
-  //
-  // Data structure: usedSet
-  //
-  // Description:
-  //  This set contains all AliasSets which are used in run-time checks that
-  //  perform an object lookup.  It conservatively tell us which pointers must
-  //  be registered with the SAFECode run-time.
-  //
-  DenseSet<AliasSet*> usedSet;
-
   // Protected methods
   template<typename insert_iterator>
   void findSafeGlobals (Module & M, insert_iterator InsertPt);
-
-  void markUsedAliasSet(const char * name, DenseSet<AliasSet*> & set);
   void removeUnusedRegistrations (const char * name);
   bool isSafeToRemove (Value * Ptr);
-  void findCheckedAliasSets ();
 };
 
 //
