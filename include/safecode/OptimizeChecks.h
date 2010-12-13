@@ -19,9 +19,7 @@
 #include "safecode/PoolHandles.h"
 
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/Dominators.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 
@@ -126,6 +124,9 @@ struct PoolRegisterElimination : public ModulePass {
     // We need to know about SAFECode intrinsics
     AU.addRequired<InsertSCIntrinsic>();
 
+    // We need DSA to tell us about memory object
+    AU.addRequired<EQTDDataStructures>();
+
     // We don't modify the control-flow graph
     AU.setPreservesCFG();
   }
@@ -133,6 +134,7 @@ struct PoolRegisterElimination : public ModulePass {
  protected:
   // References to required analysis passes
   InsertSCIntrinsic * intrinsic;
+  EQTDDataStructures * dsaPass;
 
   // Set of globals which do not need to be registered
   std::set<GlobalVariable *> SafeGlobals;
@@ -140,6 +142,8 @@ struct PoolRegisterElimination : public ModulePass {
   // Protected methods
   template<typename insert_iterator>
   void findSafeGlobals (Module & M, insert_iterator InsertPt);
+
+  void removeTypeSafeRegistrations (const char * name);
   void removeUnusedRegistrations (const char * name);
   bool isSafeToRemove (Value * Ptr);
 };

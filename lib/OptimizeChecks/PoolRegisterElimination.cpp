@@ -33,6 +33,9 @@ X ("poolreg-elim", "Pool Register Eliminiation");
 namespace {
   STATISTIC (RemovedRegistration,
   "Number of object registrations/deregistrations removed");
+
+  STATISTIC (TypeSafeRegistrations,
+  "Number of type safe object registrations/deregistrations removed");
 }
 
 //
@@ -57,14 +60,15 @@ PoolRegisterElimination::findSafeGlobals (Module & M, insert_iterator InsertPt) 
 bool
 PoolRegisterElimination::runOnModule(Module & M) {
   //
-  // Get the set of safe globals.
-  //
-  findSafeGlobals (M, std::inserter (SafeGlobals, SafeGlobals.begin()));
-
-  //
   // Get access to prequisite analysis passes.
   //
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
+  dsaPass   = &getAnalysis<EQTDDataStructures>();
+
+  //
+  // Get the set of safe globals.
+  //
+  findSafeGlobals (M, std::inserter (SafeGlobals, SafeGlobals.begin()));
 
   //
   // List of registration intrinsics.
@@ -82,6 +86,15 @@ PoolRegisterElimination::runOnModule(Module & M) {
   for (size_t i = 0; i < numberOfIntrinsics; ++i) {
     removeUnusedRegistrations (registerIntrinsics[i]);
   }
+
+  //
+  // Remove registrations for type-safe singleton objects.
+  //
+  removeTypeSafeRegistrations ("sc.pool_register");
+  removeTypeSafeRegistrations ("sc.pool_register_global");
+  removeTypeSafeRegistrations ("sc.pool_register_stack");
+  removeTypeSafeRegistrations ("sc.pool_unregister");
+  removeTypeSafeRegistrations ("sc.pool_unregister_stack");
 
   //
   // Deallocate memory and return;
@@ -182,7 +195,70 @@ PoolRegisterElimination::removeUnusedRegistrations (const char * name) {
   //
   // Update the statistics.
   //
-  RemovedRegistration += toBeRemoved.size();
+  if (toBeRemoved.size())
+    RemovedRegistration += toBeRemoved.size();
+
+  //
+  // Remove the unnecesary registrations.
+  //
+  std::vector<CallInst*>::iterator it, end;
+  for (it = toBeRemoved.begin(), end = toBeRemoved.end(); it != end; ++it) {
+    (*it)->eraseFromParent();
+  }
+}
+
+void
+PoolRegisterElimination::removeTypeSafeRegistrations (const char * name) {
+  //
+  // Scan through all uses of the registration function and see if it can be
+  // safely removed.  If so, schedule it for removal.
+  //
+  std::vector<CallInst*> toBeRemoved;
+  Function * F = intrinsic->getIntrinsic(name).F;
+
+  //
+  // Look for and record all registrations that can be deleted.
+  //
+  for (Value::use_iterator UI=F->use_begin(), UE=F->use_end();
+       UI != UE;
+       ++UI) {
+    //
+    // Get the pointer to the registered object.
+    //
+    CallInst * CI = cast<CallInst>(*UI);
+    Value * Ptr = intrinsic->getValuePointer(CI);
+
+    //
+    // Lookup the DSNode for the value in the function's DSGraph.
+    //
+    DSGraph * TDG = dsaPass->getDSGraph(*(CI->getParent()->getParent()));
+    DSNodeHandle DSH = TDG->getNodeForValue(Ptr);
+    assert ((!(DSH.isNull())) && "No DSNode for Value!\n");
+
+    //
+    // If the DSNode is type-safe and is never used as an array, then there
+    // will never be a need to look it up in a splay tree, so remove its
+    // registration.
+    //
+    DSNode * N = DSH.getNode();
+    if (!(N->isNodeCompletelyFolded() ||
+          N->isArrayNode() ||
+          N->isExternalNode() ||
+          N->isIncompleteNode() ||
+          N->isUnknownNode() ||
+          N->isIntToPtrNode() ||
+          N->isPtrToIntNode())) {
+      toBeRemoved.push_back(CI);
+    }
+  }
+
+  //
+  // Update the statistics.
+  //
+  if (toBeRemoved.size()) {
+    RemovedRegistration += toBeRemoved.size();
+    TypeSafeRegistrations += toBeRemoved.size();
+  }
 
   //
   // Remove the unnecesary registrations.
