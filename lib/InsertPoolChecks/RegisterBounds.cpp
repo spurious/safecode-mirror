@@ -33,8 +33,9 @@ using namespace llvm;
 
 namespace {
   // Statistics
-  STATISTIC (RegisteredGVs,    "Number of registered global variables");
-  STATISTIC (RegisteredByVals, "Number of registered byval arguments");
+  STATISTIC (RegisteredGVs,      "Number of registered global variables");
+  STATISTIC (RegisteredByVals,   "Number of registered byval arguments");
+  STATISTIC (RegisteredHeapObjs, "Number of registered heap objects");
 }
 
 NAMESPACE_SC_BEGIN
@@ -189,8 +190,10 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
   if (allocFunc) {
     for (Value::use_iterator it = allocFunc->use_begin(), 
            end = allocFunc->use_end(); it != end; ++it)
-      if (CallInst * CI = dyn_cast<CallInst>(*it))
+      if (CallInst * CI = dyn_cast<CallInst>(*it)) {
         registerAllocationSite(CI, info);
+        ++RegisteredHeapObjs;
+      }
   }
   
   Function * freeFunc = M->getFunction(info->getFreeCallName());
@@ -359,7 +362,7 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
 
 bool
 RegisterFunctionByvalArguments::runOnModule(Module & M) {
-  init("sc.pool_register");
+  init("sc.pool_register_stack");
 
   //
   // Fetch prerequisite analysis passes.
@@ -370,7 +373,7 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
   //
   // Insert required intrinsics.
   //
-  StackFree = intrinsic->getIntrinsic("sc.pool_unregister").F;  
+  StackFree = intrinsic->getIntrinsic("sc.pool_unregister_stack").F;  
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     //
