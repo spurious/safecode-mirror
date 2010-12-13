@@ -493,3 +493,30 @@ SearchForContainingSlab(BitmapPoolTy *Pool, void *Node, unsigned &TheIndex) {
   TheIndex = Idx;
   return PS;
 }
+
+//
+// Function: __pa_bitmap_poolcheck()
+//
+// Description:
+//  Determine whether the specified pointer is located within the specified
+//  pool and, if so, what its beginning address is.
+//
+void *
+__pa_bitmap_poolcheck (BitmapPoolTy * Pool, void * Node) {
+  //
+  // If there is no pool, do nothing.
+  //
+  if (!Pool)
+    return 0;
+
+  //
+  // Search for the object within the pool.
+  //
+  unsigned TheIndex;
+  if (PoolSlab * PS = SearchForContainingSlab (Pool, Node, TheIndex)) {
+    return PS->getElementAddress(TheIndex, Pool->NodeSize);
+  }
+
+  return 0;
+}
+

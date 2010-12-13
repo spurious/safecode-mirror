@@ -130,6 +130,7 @@ extern "C" {
   void * __pa_bitmap_poolalloc(NAMESPACE_SC::BitmapPoolTy *Pool, unsigned NumBytes);
   void * __pa_bitmap_poolstrdup(NAMESPACE_SC::BitmapPoolTy *Pool, void *Node);
   void __pa_bitmap_poolfree(NAMESPACE_SC::BitmapPoolTy *Pool, void *Node);
+  void * __pa_bitmap_poolcheck(NAMESPACE_SC::BitmapPoolTy *Pool, void *Node);
 }
 
 #endif
