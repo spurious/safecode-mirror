@@ -344,11 +344,12 @@ escapesToMemory (Value * V) {
       }
 
       //
-      // For a select instruction, assume that the result can be the value.
+      // For a select instruction, assume that the pointer escapes.  The reason
+      // is that the exactcheck() optimization can't trace back through a
+      // select.
       //
       if (isa<SelectInst>(UI)) {
-        Worklist.push_back (*UI);
-        continue;
+        return true;
       }
 
       //
