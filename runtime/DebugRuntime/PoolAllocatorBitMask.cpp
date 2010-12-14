@@ -735,6 +735,20 @@ _internal_poolunregister (DebugPoolTy *Pool,
   //
   Pool->Objects.remove (allocaptr);
 
+  //
+  // Eject the pointer from the pool's cache if necessary.
+  //
+  if ((Pool->objectCache[0].lower <= allocaptr) &&
+      (allocaptr <= Pool->objectCache[0].upper))
+    Pool->objectCache[0].lower = Pool->objectCache[0].upper = 0;
+
+  if ((Pool->objectCache[1].lower <= allocaptr) &&
+      (allocaptr <= Pool->objectCache[1].upper))
+    Pool->objectCache[1].lower = Pool->objectCache[1].upper = 0;
+
+  //
+  // Generate some debugging output.
+  //
   if (logregs) {
     fprintf (stderr, "pool_unregister: Done: %p: %s %d\n", allocaptr, SourceFilep, lineno);
     fflush (stderr);

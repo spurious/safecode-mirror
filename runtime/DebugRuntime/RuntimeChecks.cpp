@@ -47,6 +47,25 @@ extern FILE * ReportLog;
 
 using namespace NAMESPACE_SC;
 
+static inline unsigned char
+isInCache (DebugPoolTy * Pool, void * p) {
+  if ((Pool->objectCache[0].lower <= p) && (p <= Pool->objectCache[0].upper))
+    return 0;
+
+  if ((Pool->objectCache[1].lower <= p) && (p <= Pool->objectCache[1].upper))
+    return 1;
+
+  return 2;
+}
+
+static inline void
+updateCache (DebugPoolTy * Pool, void * Start, void * End) {
+  Pool->objectCache[Pool->cacheIndex].lower = Start;
+  Pool->objectCache[Pool->cacheIndex].upper = End;
+  Pool->cacheIndex = (Pool->cacheIndex) ? 0 : 1;
+  return;
+}
+
 //
 // Function: _barebone_poolcheck()
 //
@@ -68,10 +87,19 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   if (!Pool) return false;
 
   //
+  // First check the cache of objects to see if the pointer is in there.
+  //
+  unsigned char index = isInCache (Pool, Node);
+  if (index < 2) {
+    return true;
+  }
+
+  //
   // Look through the splay trees for an object in which the pointer points.
   //
   bool fs = Pool->Objects.find(Node, S, end);
   if ((fs) && (S <= Node) && (Node <= end)) {
+    updateCache (Pool, S, end);
     return true;
   }
 
@@ -80,7 +108,9 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   // itself.
   //
 #if 1
-  if (__pa_bitmap_poolcheck (Pool, Node)) {
+  if (void * start = __pa_bitmap_poolcheck (Pool, Node)) {
+    end = (unsigned char *) start + Pool->NodeSize - 1;
+    updateCache (Pool, start, end);
     return true;
   }
 #endif
@@ -177,11 +207,23 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   if (!Pool) return;
 
   //
-  // Look for the object in the splay of regular objects.
+  // First check the cache of objects to see if the pointer is in there.
   //
   void * S = 0;
   void * end = 0;
-  bool found = Pool->Objects.find(Node, S, end);
+  bool found;
+  unsigned char index = isInCache (Pool, Node);
+  if (index < 2) {
+    S   = Pool->objectCache[index].lower;
+    end = Pool->objectCache[index].upper;
+    found = true;
+  }
+
+  //
+  // Look for the object in the splay of regular objects.
+  //
+  if (!found)
+    found = Pool->Objects.find (Node, S, end);
 
   //
   // If we can't find the object in the splay tree, try to find it in the pool
@@ -268,27 +310,6 @@ poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
         (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
     fflush (stderr);
   }
-  return;
-}
-
-static inline unsigned char
-isInCache (DebugPoolTy * Pool, void * p) {
-#if 0
-  if ((Pool->objectCache[0].lower <= p) && (p <= Pool->objectCache[0].upper))
-    return 0;
-
-  if ((Pool->objectCache[1].lower <= p) && (p <= Pool->objectCache[1].upper))
-    return 1;
-#endif
-
-  return 2;
-}
-
-static inline void
-updateCache (DebugPoolTy * Pool, void * Start, void * End) {
-  Pool->objectCache[Pool->cacheIndex].lower = Start;
-  Pool->objectCache[Pool->cacheIndex].upper = End;
-  Pool->cacheIndex = (Pool->cacheIndex) ? 0 : 1;
   return;
 }
 

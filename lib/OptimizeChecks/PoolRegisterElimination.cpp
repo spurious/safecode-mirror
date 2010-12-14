@@ -94,14 +94,12 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // Remove registrations for type-safe singleton objects.
   //
   removeTypeSafeRegistrations ("sc.pool_register");
-  removeTypeSafeRegistrations ("sc.pool_unregister");
 
   //
   // Remove registrations for singleton objects.  Note that we only do this for
   // heap objects.
   //
   removeSingletonRegistrations ("sc.pool_register");
-  removeSingletonRegistrations ("sc.pool_unregister");
 
   //
   // Deallocate memory and return;
