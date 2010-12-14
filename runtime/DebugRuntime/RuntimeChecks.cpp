@@ -76,6 +76,16 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   }
 
   //
+  // This may be a singleton object, so search for it within the pool slabs
+  // itself.
+  //
+#if 1
+  if (__pa_bitmap_poolcheck (Pool, Node)) {
+    return true;
+  }
+#endif
+
+  //
   // The node is not found or is not within bounds; fail!
   //
   return false;
@@ -174,6 +184,20 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   bool found = Pool->Objects.find(Node, S, end);
 
   //
+  // If we can't find the object in the splay tree, try to find it in the pool
+  // itself.
+  //
+  if (!found) {
+#if 1
+    if (void * start = __pa_bitmap_poolcheck (Pool, Node)) {
+      S = start;
+      end = (unsigned char *)start + Pool->NodeSize - 1;
+      found = true;
+    }
+#endif
+  }
+
+  //
   // Determine whether the alignment of the object is correct.  Note that Node
   // may be pointing to an array of objects, so we need to take the offset of
   // the pointer from the beginning of the object modulo the size of a single
@@ -247,6 +271,27 @@ poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
   return;
 }
 
+static inline unsigned char
+isInCache (DebugPoolTy * Pool, void * p) {
+#if 0
+  if ((Pool->objectCache[0].lower <= p) && (p <= Pool->objectCache[0].upper))
+    return 0;
+
+  if ((Pool->objectCache[1].lower <= p) && (p <= Pool->objectCache[1].upper))
+    return 1;
+#endif
+
+  return 2;
+}
+
+static inline void
+updateCache (DebugPoolTy * Pool, void * Start, void * End) {
+  Pool->objectCache[Pool->cacheIndex].lower = Start;
+  Pool->objectCache[Pool->cacheIndex].upper = End;
+  Pool->cacheIndex = (Pool->cacheIndex) ? 0 : 1;
+  return;
+}
+
 //
 // Function: boundscheck_lookup()
 //
@@ -274,7 +319,36 @@ boundscheck_lookup (DebugPoolTy * Pool, void * & Source, void * & End ) {
   // its bounds.
   //
   if (Pool) {
-    return Pool->Objects.find(Source, Source, End);
+    //
+    // First check the cache of objects to see if the pointer is in there.
+    //
+    unsigned char index = isInCache (Pool, Source);
+    if (index < 2) {
+      Source = Pool->objectCache[index].lower;
+      End    = Pool->objectCache[index].upper;
+      return true;
+    }
+
+    //
+    // Search the splay tree.  If we find the object, add it to the cache.
+    //
+    if (Pool->Objects.find(Source, Source, End)) {
+      updateCache (Pool, Source, End);
+      return true;
+    }
+
+    //
+    // Perhaps we are indexing on a singleton object.  Do a poolcheck to
+    // get the object bounds and recheck the pointer.
+    //
+#if 1
+    if (void * start = __pa_bitmap_poolcheck (Pool, Source)) {
+      Source = start;
+      End = (unsigned char *)start + Pool->NodeSize - 1;
+      updateCache (Pool, Source, End);
+      return true;
+    }
+#endif
   }
 
   //

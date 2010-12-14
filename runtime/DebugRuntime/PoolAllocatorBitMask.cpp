@@ -262,6 +262,11 @@ __sc_dbg_pooldestroy(DebugPoolTy * Pool) {
 //
 void
 __sc_dbg_poolargvregister (int argc, char ** argv) {
+  if (logregs) {
+    fprintf (stderr, "poolargvregister: %p - %p\n", (void *) argv,
+             (void *) (((unsigned char *)(&(argv[argc+1]))) - 1));
+    fflush (stderr);
+  }
   for (int index=0; index < argc; ++index) {
     if (logregs) {
       fprintf (stderr, "poolargvregister: %p %u: %s\n", argv[index],
@@ -315,9 +320,24 @@ _internal_poolregister (DebugPoolTy *Pool,
   // register.
   //
   if (logregs) {
-    fprintf (ReportLog, "poolreg_debug(%d): %p: %p-%p: %d %d %s %d\n", tag,
+    const char * p = 0;
+    switch (allocationType) {
+      case Heap:
+        p = "Heap";
+        break;
+      case Stack:
+        p = "Stack";
+        break;
+      case Global:
+        p = "Global";
+        break;
+      default:
+        break;
+    }
+
+    fprintf (ReportLog, "poolreg_debug(%d): %p: %p-%p: %d %d %s %d: %s\n", tag,
              (void*) Pool, (void*)allocaptr,
-             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFile, lineno);
+             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFile, lineno, p);
     fflush (ReportLog);
   }
 
@@ -347,7 +367,26 @@ _internal_poolregister (DebugPoolTy *Pool,
 void
 __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
                        unsigned NumBytes) {
-  __sc_dbg_src_poolregister (Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
+#if 1
+  //
+  // If this is a singleton object within a type-known pool, don't add it to
+  // the splay tree.
+  //
+  if (Pool && (NumBytes == Pool->NodeSize))
+    return;
+#endif
+
+  //
+  // Use the common registration function.  Mark the allocation as a heap
+  // allocation.
+  //
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, 0,
+                          "<unknown",
+                          0,
+                          Heap);
+
 }
 
 //
@@ -363,6 +402,15 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                            unsigned NumBytes, TAG,
                            const char * SourceFilep,
                            unsigned lineno) {
+#if 1
+  //
+  // If this is a singleton object within a type-known pool, don't add it to
+  // the splay tree.
+  //
+  if (Pool && (NumBytes == Pool->NodeSize))
+    return;
+#endif
+
   //
   // Use the common registration function.  Mark the allocation as a heap
   // allocation.
@@ -1389,6 +1437,13 @@ __sc_dbg_poolstrdup_debug (DebugPoolTy * Pool,
 void *
 __sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
   //
+  // Create a record if necessary.
+  if (logregs) {
+    fprintf (stderr, "poolinit: %p %u\n", (void *) Pool, NodeSize);
+    fflush (stderr);
+  }
+
+  //
   // Call the underlying allocator's poolinit() function to initialze the pool.
   //
   __pa_bitmap_poolinit(Pool, NodeSize);
@@ -1409,6 +1464,15 @@ __sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
   new (&(Pool->Objects)) RangeSplaySet<>();
   new (&(Pool->OOB)) RangeSplayMap<void *>();
   new (&(Pool->DPTree)) RangeSplayMap<PDebugMetaData>();
+
+  //
+  // Initialize the object cache.
+  //
+  Pool->objectCache[0].lower = 0;
+  Pool->objectCache[0].upper = 0;
+  Pool->objectCache[1].lower = 0;
+  Pool->objectCache[1].upper = 0;
+  Pool->cacheIndex = 0;
 
   return Pool;
 }

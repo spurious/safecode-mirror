@@ -62,11 +62,7 @@ __pa_bitmap_poolinit(BitmapPoolTy *Pool, unsigned NodeSize) {
   Pool->StackSlabs = Pool->FreeStackSlabs = 0;
   // For SAFECode, we set FreeablePool to 0 always
   //  Pool->FreeablePool = 0;
-  Pool->AllocadPool = -1;
-  Pool->allocaptr = 0;
   Pool->lastUsed = 0;
-  Pool->prevPage[0] = 0;
-  Pool->prevPage[1] = 0;
   // Initialize the SlabAddressArray to zero
   for (unsigned i = 0; i < BitmapPoolTy::AddrArrSize; ++i) {
     Pool->SlabAddressArray[i] = 0;
@@ -81,7 +77,6 @@ __pa_bitmap_poolinit(BitmapPoolTy *Pool, unsigned NodeSize) {
 void
 __pa_bitmap_pooldestroy(BitmapPoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
-  if (Pool->AllocadPool) return;
 
   if (Pool->NumSlabs > BitmapPoolTy::AddrArrSize) {
     Pool->Slabs->clear();
@@ -129,20 +124,6 @@ void *
 __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
   void *retAddress = NULL;
   assert(Pool && "Null pool pointer passed into poolalloc!\n");
-
-#if 0
-  // Ensure that stack objects and heap objects d not belong to the same pool.
-  if (Pool->AllocadPool != -1) {
-    if (Pool->AllocadPool != 0) {
-    printf(" Did not Handle this case, an alloa and malloc point to");
-    printf("same DSNode, Will happen in stack safety \n");
-    exit(-1);
-    }
-  }
-  else {
-    Pool->AllocadPool = 0;
-  }
-#endif
 
   // FIXME: Is it necessary?
   // Ensure that we're always allocating at least 1 byte.

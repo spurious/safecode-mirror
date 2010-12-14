@@ -46,9 +46,6 @@ struct BitmapPoolTy {
   // Ptr1, Ptr2 - Implementation specified data pointers.
   void *Ptr1, *Ptr2;
 
-  // NodeSize - Keep track of the object size tracked by this pool
-  unsigned short NodeSize;
-
   // FreeablePool - Set to false if the memory from this pool cannot be freed
   // before destroy.
   //
@@ -64,21 +61,17 @@ struct BitmapPoolTy {
   // The number of slabs allocated. Large arrays are not counted
   unsigned NumSlabs;
 
+  // TODO: Not sure for what this value is used.
+  unsigned short lastUsed;
+
+  // NodeSize - Keep track of the object size tracked by this pool
+  unsigned short NodeSize;
+
   // Large arrays. In SAFECode, these are currently not freed or reused. 
   // A better implementation could split them up into single slabs for reuse,
   // upon being freed.
   void *LargeArrays;
   void *FreeLargeArrays;
-
-  void *prevPage[4];
-  unsigned short lastUsed;
-
-  // Interpretation of AllocadPool variable in original SAFECode:
-  //  AllocadPool = -1 : unused so far
-  //  AllocadPool 0    : used only for mallocs
-  //  AllocadPool >0   : used for only allocas indicating the size 
-  short AllocadPool;
-  void *allocaptr;
 };
 
 #if 0

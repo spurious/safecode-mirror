@@ -34,7 +34,7 @@ DebugViolationInfo::print(std::ostream & OS) const {
   //
   // Print the pool handle.
   //
-#if 0
+#if 1
   OS << "= Pool Handle                           :\t" << this->PoolHandle << "\n";
 #endif
 

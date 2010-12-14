@@ -87,6 +87,14 @@ struct DebugPoolTy : public BitmapPoolTy {
 
   // Splay tree used by dangling pointer runtime
   RangeSplayMap<PDebugMetaData> DPTree;
+
+  // Cache of recently found memory objects
+  struct {
+    void * lower;
+    void * upper;
+  } objectCache[2];
+
+  unsigned char cacheIndex;
 };
 
 void * rewrite_ptr (DebugPoolTy * Pool, const void * p, const void * ObjStart,
