@@ -81,8 +81,10 @@ typedef DebugMetaData * PDebugMetaData;
 struct DebugPoolTy : public BitmapPoolTy {
   // Splay tree used for object registration
   RangeSplaySet<> Objects;
+
   // Splay tree used for out of bound objects
   RangeSplayMap<void *> OOB;
+
   // Splay tree used by dangling pointer runtime
   RangeSplayMap<PDebugMetaData> DPTree;
 };
