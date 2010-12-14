@@ -352,7 +352,9 @@ int main(int argc, char **argv) {
     //
     Passes.add (new OptimizeChecks());
     if (DisableDebugInfo) {
-      Passes.add (new PoolRegisterElimination());
+      if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+        Passes.add (new PoolRegisterElimination());
+      }
     } else {
 #if 0
       Passes.add (new DebugPoolRegisterElimination());

@@ -144,6 +144,7 @@ struct PoolRegisterElimination : public ModulePass {
   void findSafeGlobals (Module & M, insert_iterator InsertPt);
 
   void removeTypeSafeRegistrations (const char * name);
+  void removeSingletonRegistrations (const char * name);
   void removeUnusedRegistrations (const char * name);
   bool isSafeToRemove (Value * Ptr);
 };
