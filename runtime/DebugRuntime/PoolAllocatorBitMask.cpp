@@ -548,8 +548,8 @@ __sc_dbg_src_poolregister_global_debug (DebugPoolTy *Pool,
                                         const char * SourceFilep,
                                         unsigned lineno) {
   //
-  // Use the common registration function.  Mark the allocation as a stack
-  // allocation.
+  // Use the common registration function.  Mark the "allocation" as a global
+  // object.
   //
   _internal_poolregister (Pool,
                           allocaptr,
