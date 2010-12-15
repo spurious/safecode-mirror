@@ -41,12 +41,17 @@ cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                                 cl::init(false),
                                 cl::desc("Disable GetElementPtr(GEP) Checks"));
 
+cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
+                                   cl::init(false),
+                                   cl::desc("Disable Struct GEP Checks"));
+
 // Pass Statistics
 namespace {
   STATISTIC (NullChecks ,    "Poolchecks with NULL pool descriptor");
   STATISTIC (FullChecks ,    "Poolchecks with non-NULL pool descriptor");
 
   STATISTIC (PoolChecks ,    "Poolchecks Added");
+  STATISTIC (GEPChecks,      "GEP Checks Added");
   STATISTIC (FuncChecks ,    "Indirect Function Call Checks Added");
   STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
@@ -556,6 +561,13 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
     return;
 
   //
+  // If this only indexes into a structure, ignore it.
+  //
+  if (DisableStructChecks && indexesStructsOnly (GEP)) {
+    return;
+  }
+
+  //
   // Get the function in which the GEP instruction lives.
   //
   Function * F = GEP->getParent()->getParent();
@@ -604,6 +616,11 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
     dsaPass->copyValue (GEP, CI);
     dsaPass->copyValue (GEP, Casted);
     dsaPass->copyValue (GEP->getPointerOperand(), CastedSrc);
+
+    //
+    // Update the statistics.
+    //
+    ++GEPChecks;
   }
 }
 
