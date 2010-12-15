@@ -114,7 +114,6 @@ struct InsertPoolChecks : public FunctionPass {
     static char ID;
     InsertPoolChecks () : FunctionPass ((intptr_t) &ID) { }
     const char *getPassName() const { return "Inserting Pool checks Pass"; }
-    virtual bool doFinalization(Module &M);
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheckGroup>();

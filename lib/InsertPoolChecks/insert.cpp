@@ -47,10 +47,6 @@ cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
 
 // Pass Statistics
 namespace {
-  STATISTIC (NullChecks ,    "Poolchecks with NULL pool descriptor");
-  STATISTIC (FullChecks ,    "Poolchecks with non-NULL pool descriptor");
-
-  STATISTIC (PoolChecks ,    "Poolchecks Added");
   STATISTIC (GEPChecks,      "GEP Checks Added");
   STATISTIC (FuncChecks ,    "Indirect Function Call Checks Added");
   STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
@@ -271,15 +267,6 @@ InsertPoolChecks::runOnFunction(Function &F) {
   else
     addPoolChecks(F);
   return true;
-}
-
-bool
-InsertPoolChecks::doFinalization(Module &M) {
-  //
-	// Update the statistics.
-  //
-	PoolChecks = NullChecks + FullChecks;
-	return true;
 }
 
 void
