@@ -23,11 +23,11 @@ WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 # Various SC options:
 #   SCOPTS: SAFECode options common to all experimental runs
 #
-SCOPTS  := -terminate -check-every-gep-use -rewrite-oob 
-SCOOB   := $(SCOPTS) -disable-debuginfo
-SCDEBUG := $(SCOPTS) 
-SCPA    := $(SCOPTS) -pa=apa -disable-debuginfo
-SCDP    := $(SCOPTS) -dpchecks -disable-debuginfo
+SCOPTS  := -terminate -check-every-gep-use -rewrite-oob -disable-debuginfo
+SCOOB   := $(SCOPTS)
+SCDEBUG := -terminate -check-every-gep-use -rewrite-oob
+SCPA    := $(SCOPTS) -pa=apa
+SCDP    := $(SCOPTS) -dpchecks
 
 # SAFECode run-time libraries
 SC_RT := libsc_dbg_rt libpoolalloc_bitmap
