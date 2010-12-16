@@ -676,7 +676,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.boundscheck_debug",  "bb_boundscheck_debug"},
       {"sc.boundscheckui_debug","bb_boundscheckui_debug"},
       {"sc.exactcheck2_debug",  "bb_exactcheck2_debug"},
-      {"sc.pool_argvregister",  "_sc_bb_poolargvregister"},
+      {"sc.pool_argvregister",  "__sc_bb_poolargvregister"},
 
       {"poolinit",              "__sc_bb_poolinit"},
       {"pooldestroy",           "__sc_bb_pooldestroy"},
