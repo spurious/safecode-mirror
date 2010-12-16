@@ -43,41 +43,61 @@ LARGE_PROBLEM_SIZE_DIRS := \
 #DEBUG_SAFECODE := DEBUG_SAFECODE=1
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-  MultiSource/Benchmarks/Olden \
-  #External/SPEC/CINT2000/186.crafty \
-  #External/Namd \
-  #External/Povray \
-  #External/SPEC/CINT2000 \
-  #External/SPEC/CINT2000/176.gcc \
-  #External/SPEC/CINT2000/175.vpr \
-  #MultiSource/Benchmarks/Olden \
-  #MultiSource/Benchmarks/Olden/bh \
-  #External/SPEC/CINT2000/197.parser \
+  MultiSource/Benchmarks/Olden/bh \
+  #External/SPEC/CINT2000/181.mcf \
   #External/SPEC/CINT2000/254.gap \
   #External/SPEC/CINT2000/300.twolf \
   #External/SPEC/CINT2000 \
+  #External/SPEC/CINT2000/164.gzip \
+  #External/SPEC/CINT2000/175.vpr \
+  #External/SPEC/CINT2000/197.parser \
+  #MultiSource/Benchmarks/Olden \
+  #External/SPEC/CINT2000/186.crafty \
+  #MultiSource/Benchmarks/Olden/mst \
+  #External/SPEC/CINT2000/197.parser \
+  #MultiSource/Benchmarks/Olden/power \
+  #MultiSource/Benchmarks/Olden/bisort \
+  #External/SPEC/CINT2000/253.perlbmk \
+  #External/SPEC/CINT2000/252.eon \
+  #External/SPEC/CINT2000/186.crafty \
+  #External/SPEC/CINT2000/181.mcf \
+  #External/SPEC/CINT2000/164.gzip \
+  #MultiSource/Benchmarks/Olden/em3d \
+  #External/SPEC/CINT2000/255.vortex \
+  #External/SPEC/CINT2000/175.vpr \
+  #External/SPEC/CINT2000/186.crafty \
+  #External/SPEC/CINT2000/254.gap \
+  ## WORKING: \
+  # \
+  #External/SPEC/CINT2000/164.gzip \
+  #External/SPEC/CINT2000/197.parser \
+  ## FULL LIST: \
+  # \
+  #MultiSource/Benchmarks/Olden \
+  #External/SPEC/CINT2000 \
+  #External/SPEC/CINT2000/181.mcf \
+  #MultiSource/Benchmarks/Olden/voronoi \
+  #External/SPEC/CINT2000/176.gcc \
+  #External/Namd \
+  #External/Povray \
+  #External/SPEC/CINT2000/175.vpr \
+  #External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/252.eon \
   #MultiSource/Applications/Burg \
-  #MultiSource/Benchmarks/Olden/bisort \
   #MultiSource/Benchmarks/Olden/health \
-  #MultiSource/Benchmarks/Olden/mst \
   #MultiSource/Benchmarks/Olden/perimeter \
-  #MultiSource/Benchmarks/Olden/power \
   #MultiSource/Benchmarks/Olden/treeadd \
   #MultiSource/Benchmarks/Olden/tsp \
 #  MultiSource/Benchmarks/Olden \
 #  MultiSource/Benchmarks/Olden/em3d \
-#  MultiSource/Benchmarks/Olden/voronoi \
 #   MultiSource/Benchmarks/Olden \
 #   MultiSource/Benchmarks/Ptrdist \
-#   External/SPEC/CINT2000/164.gzip \
 #   SingleSource \
 #   External/SPEC/CINT2000/300.twolf \
 #   SingleSource \
 #   MultiSource \
 #   MultiSource/Benchmarks \
 #   External/SPEC/CINT2000 \
-#   External/SPEC/CINT2000/181.mcf \
 #   External/SPEC/CINT2000/256.bzip2 \
    #External/SPEC/CFP2000/188.ammp \
    #MultiSource/Applications/ghttpd \
@@ -190,9 +210,7 @@ progfull::
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
                $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
-                   report.html report.csv; \
-mkdir -p $(PROFILING_RESULT_DIR)/`basename $$dir`; \
-mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` || true;) \
+                   report.html report.csv;) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir;  \
