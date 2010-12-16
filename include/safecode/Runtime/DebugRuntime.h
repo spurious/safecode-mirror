@@ -136,7 +136,7 @@ extern "C" {
   void __sc_dbg_poolfree(PPOOL, void *Node);
   void __sc_dbg_src_poolfree (PPOOL, void *, TAG, SRC_INFO);
 
-  void * __sc_dbg_poolcalloc (PPOOL, unsigned Number, unsigned NumBytes, TAG);
+  void * __sc_dbg_poolcalloc (PPOOL, unsigned Number, unsigned NumBytes);
   void * __sc_dbg_src_poolcalloc (PPOOL,
                                 unsigned Number, unsigned NumBytes,
                                   TAG, SRC_INFO);
