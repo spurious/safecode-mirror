@@ -98,6 +98,12 @@ EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
 static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
+static cl::opt<bool>
+DisableExactChecks("disable-exactchecks", cl::init(false), cl::desc("Disable exactcheck optimization"));
+
+static cl::opt<bool>
+DisableTypeSafetyOpts("disable-typesafety", cl::init(false), cl::desc("Disable type-safety optimizations"));
+
 enum CheckingRuntimeType {
   RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA, RUNTIME_BB 
 };
@@ -219,8 +225,10 @@ int main(int argc, char **argv) {
     // pool allocation and has problems dealing with cloned functions.
     //
     if (CheckingRuntime != RUNTIME_PA) {
-			Passes.add(new ArrayBoundsCheckLocal());
-      NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
+      if (!DisableTypeSafetyOpts) {
+        Passes.add(new ArrayBoundsCheckLocal());
+        NOT_FOR_SVA(Passes.add(new ConvertUnsafeAllocas()));
+      }
     }
 
     //
@@ -264,8 +272,10 @@ int main(int argc, char **argv) {
     // alignment checks.
     //
     if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
-      Passes.add(new OptimizeSafeLoadStore());
-      Passes.add(new AlignmentChecks());
+      if (!DisableTypeSafetyOpts) {
+        Passes.add(new OptimizeSafeLoadStore());
+        Passes.add(new AlignmentChecks());
+      }
     }
 
     //
@@ -286,7 +296,7 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
-    Passes.add(new ExactCheckOpt());
+    if (!DisableExactChecks) Passes.add(new ExactCheckOpt());
 
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
 
