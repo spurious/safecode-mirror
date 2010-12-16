@@ -55,7 +55,7 @@ endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
-SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
+SC_STATS = $(WATCHDOG) $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 # Pre processing library for DSA
 ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
@@ -234,31 +234,31 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.oob.out-llc): \
 Output/%.oob.out-llc: Output/%.oob
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.scpa.out-llc): \
 Output/%.scpa.out-llc: Output/%.scpa
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.scnots.out-llc): \
 Output/%.scnots.out-llc: Output/%.scnots
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.scnoec.out-llc): \
 Output/%.scnoec.out-llc: Output/%.scnoec
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.out-llc): \
 Output/%.scdebug.out-llc: Output/%.scdebug
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.dp.out-llc): \
 Output/%.dp.out-llc: Output/%.dp
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 else
 
@@ -270,7 +270,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
 	-$(SPEC_SANDBOX) safecode.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/safecode.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/safecode.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -278,7 +278,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.oob.out-llc): \
 Output/%.oob.out-llc: Output/%.oob
 	-$(SPEC_SANDBOX) oob.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/oob.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/oob.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -286,7 +286,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.scpa.out-llc): \
 Output/%.scpa.out-llc: Output/%.scpa
 	-$(SPEC_SANDBOX) scpa.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/scpa.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/scpa.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -294,7 +294,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.scnots.out-llc): \
 Output/%.scnots.out-llc: Output/%.scnots
 	-$(SPEC_SANDBOX) scnots.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/scnots.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/scnots.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -302,7 +302,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.scnoec.out-llc): \
 Output/%.scnoec.out-llc: Output/%.scnoec
 	-$(SPEC_SANDBOX) scnoec.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/scnoec.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/scnoec.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -310,7 +310,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.scdebug.out-llc): \
 Output/%.scdebug.out-llc: Output/%.scdebug
 	-$(SPEC_SANDBOX) scdebug.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/scdebug.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/scdebug.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
@@ -318,7 +318,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.dp.out-llc): \
 Output/%.dp.out-llc: Output/%.dp
 	-$(SPEC_SANDBOX) dp.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  ../../$< $(RUN_OPTIONS)
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
 	-(cd Output/dp.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/dp.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 endif
