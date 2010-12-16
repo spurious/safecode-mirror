@@ -99,7 +99,7 @@ static cl::opt<bool>
 DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
 
 enum CheckingRuntimeType {
-  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA 
+  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA, RUNTIME_BB 
 };
 
 enum CheckingRuntimeType DefaultRuntime = RUNTIME_DEBUG;
@@ -113,7 +113,8 @@ CheckingRuntime("runtime", cl::init(DefaultRuntime),
   clEnumVal(RUNTIME_SINGLETHREAD, "Single Thread runtime (Production version)"),
   clEnumVal(RUNTIME_PARALLEL,     "Parallel Checking runtime (Production version)"),
   clEnumVal(RUNTIME_QUEUE_OP,     "Parallel no-op Checking runtime (For testing queue performance)"),
-  clEnumVal(RUNTIME_SVA,     "Runtime for SVA"),
+  clEnumVal(RUNTIME_SVA,          "Runtime for SVA"),
+  clEnumVal(RUNTIME_BB,           "Runtime for BaggyBounds"),
   clEnumValEnd));
 
 static cl::opt<bool>
@@ -327,7 +328,7 @@ int main(int argc, char **argv) {
     //
     // Run pool allocation.
     //
-	 	addPoolAllocationPass(Passes);
+    addPoolAllocationPass(Passes);
 
 #if 0
     //
@@ -644,6 +645,52 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.pool_unregister", "pchk_drop_obj" },
       {"poolinit",           "__sva_pool_init" },
     };
+  
+  static IntrinsicMappingEntry RuntimeBB[] = 
+    { {"sc.lscheck",         "bb_poolcheck" },
+      {"sc.lscheckui",       "bb_poolcheckui" },
+      {"sc.lscheckalign",    "bb_poolcheckalign" },
+      {"sc.lscheckalignui",  "bb_poolcheckalignui" },
+      {"sc.boundscheck",     "bb_boundscheck" },
+      {"sc.boundscheckui",   "bb_boundscheckui" },
+      {"sc.exactcheck",      "bb_exactcheck" },
+      {"sc.exactcheck2",     "bb_exactcheck2" },
+      {"sc.funccheck",       "__sc_bb_funccheck" },
+      {"sc.get_actual_val",  "bb_pchk_getActualValue" },
+      {"sc.pool_register",   "__sc_bb_poolregister" },
+      {"sc.pool_unregister", "__sc_bb_poolunregister" },
+      {"sc.pool_unregister_stack", "__sc_bb_poolunregister_stack" },
+      {"sc.pool_unregister_debug", "__sc_bb_poolunregister_debug" },
+      {"sc.pool_unregister_stack_debug", "__sc_bb_poolunregister_stack_debug" },
+      {"poolalloc",         "__pa_bb_poolalloc"},
+      {"poolfree",          "__pa_bb_poolfree"},
+
+      {"sc.init_pool_runtime", "bb_pool_init_runtime"},
+      {"sc.pool_register_debug", "__sc_bb_src_poolregister"},
+      {"sc.pool_register_stack_debug", "__sc_bb_src_poolregister_stack"},
+      {"sc.pool_register_stack", "__sc_bb_poolregister_stack"},
+      {"sc.pool_register_global", "__sc_bb_poolregister_global"},
+      {"sc.pool_register_global_debug", "__sc_bb_poolregister_global_debug"},
+      {"sc.lscheck_debug",      "bb_poolcheck_debug"},
+      {"sc.lscheckalign_debug", "bb_poolcheckalign_debug"},
+      {"sc.boundscheck_debug",  "bb_boundscheck_debug"},
+      {"sc.boundscheckui_debug","bb_boundscheckui_debug"},
+      {"sc.exactcheck2_debug",  "bb_exactcheck2_debug"},
+      {"sc.pool_argvregister",  "_sc_bb_poolargvregister"},
+
+      {"poolinit",              "__sc_bb_poolinit"},
+      {"pooldestroy",           "__sc_bb_pooldestroy"},
+      {"poolalloc_debug",       "__sc_bb_src_poolalloc"},
+      {"poolfree_debug",        "__sc_bb_src_poolfree"},
+
+      // These functions register objects in the splay trees
+      {"poolcalloc_debug",      "__sc_bb_src_poolcalloc"},
+      {"poolcalloc",            "__sc_bb_poolcalloc"},
+      {"poolstrdup",            "__sc_bb_poolstrdup"},
+      {"poolstrdup_debug",      "__sc_bb_poolstrdup_debug"},
+      {"poolrealloc",           "__sc_bb_poolrealloc"},
+    };
+
 
   switch (type) {
   case RUNTIME_PA:
@@ -668,6 +715,10 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
 
   case RUNTIME_SVA:
     Passes.add(new LowerSafecodeIntrinsic(RuntimeSVA, RuntimeSVA + sizeof(RuntimeSVA) / sizeof(IntrinsicMappingEntry)));
+    break;
+  
+  case RUNTIME_BB:
+    Passes.add(new LowerSafecodeIntrinsic(RuntimeBB, RuntimeBB + sizeof(RuntimeBB) / sizeof(IntrinsicMappingEntry)));
     break;
 
   default:
