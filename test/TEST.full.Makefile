@@ -12,48 +12,43 @@ endif
 
 CFLAGS := -g -O2 -fno-strict-aliasing
 
-CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
-RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
-GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
-SC      := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+CURDIR   := $(shell cd .; pwd)
+PROGDIR  := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
+RELDIR   := $(subst $(PROGDIR),,$(CURDIR))
+GCCLD     = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
+SC       := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 
 #
 # Various SC options:
 #   SCOPTS: SAFECode options common to all experimental runs
 #
-SCOPTS  := -disable-staticchecks -terminate
-SCOOB   := $(SCOPTS) -rewrite-oob -disable-debuginfo
-SCDEBUG := $(SCOPTS) -rewrite-oob
-SCPA    := $(SCOPTS) -rewrite-oob -pa -disable-debuginfo
-SCDP    := $(SCOPTS) -rewrite-oob -dpchecks -disable-debuginfo
+SCOPTS  := -terminate -check-every-gep-use -rewrite-oob 
+SCOOB   := $(SCOPTS) -disable-debuginfo
+SCDEBUG := $(SCOPTS) 
+SCPA    := $(SCOPTS) -pa=apa -disable-debuginfo
+SCDP    := $(SCOPTS) -dpchecks -disable-debuginfo
+
+# SAFECode run-time libraries
+SC_RT := libsc_dbg_rt libpoolalloc_bitmap
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/addchecks.o
+PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
 
 # Pool allocator runtime library
 PA_RT_O  :=
 PA_RT_BC :=
 
-# Pool System library for interacting with the system
-POOLSYSTEM_RT_O :=
-POOLSYSTEM_RT_BC :=
-
-#Pre runtime of Pool allocator
-PA_PRE_RT_BC :=
+# Pre runtime of Pool allocator
+PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 PA_PRE_RT_O  := 
 
 ifeq ($(ENABLE_LTO),1)
-PA_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc_safe_rt.bca
-POOLSYSTEM_RT_BC := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libUserPoolSystem.bca
+PA_RT_BC := $(addprefix $(PROJECT_DIR)/$(CONFIGURATION)/lib/,$(addsuffix .bca,$(SC_RT)))
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 else
-PA_RT_O  := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc_safe_rt.o
-POOLSYSTEM_RT_O := $(PROJECT_DIR)/$(CONFIGURATION)/lib/UserPoolSystem.o
-
-# TODO: Test whether it works
-#PA_PRE_RT_O := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.o
+PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .a,$(SC_RT)))
 endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
@@ -62,8 +57,9 @@ SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 # Pre processing library for DSA
 ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
+DSA_SO    := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 
-PRE_SC_OPT_FLAGS = -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
+PRE_SC_OPT_FLAGS = -load $(DSA_SO) -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -licm
 
 EXTRA_LOPT_OPTIONS :=
 #-loopsimplify -unroll-threshold 0 
@@ -89,57 +85,57 @@ endif
 $(PROGRAMS_TO_TEST:%=Output/%.presc.bc): \
 Output/%.presc.bc: Output/%.llvm.bc $(LOPT) $(PA_PRE_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@ 2>&1 > $@.out
 
 #
 # Create a SAFECode executable with just the "regular" options
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
-Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOPTS) $< -f -o $@.safecode 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.safecode.ld $@.safecode $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.safecode.ld $@.safecode $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.safecode.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # Create a SAFECode executable with pointer rewriting.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.oob.bc): \
-Output/%.oob.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.oob.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCOOB) $< -f -o $@.oob 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.oob.ld $@.oob $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.oob.ld $@.oob $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.oob.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # Create a SAFECode executable using real pool allocation.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.scpa.bc): \
-Output/%.scpa.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.scpa.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCPA) $< -f -o $@.scpa 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.scpa.ld $@.scpa $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.scpa.ld $@.scpa $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.scpa.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # Create a SAFECode executable with debug information enabled.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.bc): \
-Output/%.scdebug.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.scdebug.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCDEBUG) $< -f -o $@.scdebug 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.scdebug.ld $@.scdebug $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.scdebug.ld $@.scdebug $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.scdebug.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
 # Create a SAFECode executable with dangling pointer detection enabled.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.dp.bc): \
-Output/%.dp.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC) $(POOLSYSTEM_RT_BC)
+Output/%.dp.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-@rm -f $(CURDIR)/$@.info
 	-$(SC_STATS) $(SCDEBUG) $< -f -o $@.dp 2>&1 > $@.out
-	-$(LLVMLDPROG) $(LLVMLDFLAGS) -o $@.dp.ld $@.dp $(PA_RT_BC) $(POOLSYSTEM_RT_BC) 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.dp.ld $@.dp $(PA_RT_BC) 2>&1 > $@.out
 	-$(LOPT) $(OPTZN_PASSES) $@.dp.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
@@ -212,23 +208,23 @@ Output/%.dp: Output/%.dp.cbe.c
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: Output/%.safecode.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.oob): \
 Output/%.oob: Output/%.oob.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.scpa): \
 Output/%.scpa: Output/%.scpa.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug): \
 Output/%.scdebug: Output/%.scdebug.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.dp): \
 Output/%.dp: Output/%.dp.s
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(POOLSYSTEM_RT_O) $(LDFLAGS) -o $@ -lstdc++
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 endif
 
 ##############################################################################
@@ -352,33 +348,34 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
                              Output/%.dp.diff-sc         \
                              Output/%.LOC.txt
 	@echo > $@
+	@echo ">>> ========= " \'$*\' Program >> $@
 	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.out-nat.time >> $@;\
+	  grep "^user" Output/$*.out-nat.time >> $@;\
   fi
 	@-if test -f Output/$*.out-llc; then \
 	  printf "LLVM-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.out-nat.time >> $@;\
+	  grep "^user" Output/$*.out-nat.time >> $@;\
   fi
 	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "SC-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.safecode.out-llc.time >> $@;\
+	  grep "^user" Output/$*.safecode.out-llc.time >> $@;\
   fi
 	@-if test -f Output/$*.oob.diff-llc; then \
 	  printf "OOB-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.oob.out-llc.time >> $@;\
+	  grep "^user" Output/$*.oob.out-llc.time >> $@;\
 	fi
 	@-if test -f Output/$*.scpa.diff-llc; then \
 	  printf "SCPA-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.scpa.out-llc.time >> $@;\
+	  grep "^user" Output/$*.scpa.out-llc.time >> $@;\
 	fi
 	@-if test -f Output/$*.scdebug.diff-llc; then \
 	  printf "SCDEBUG-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.scdebug.out-llc.time >> $@;\
+	  grep "^user" Output/$*.scdebug.out-llc.time >> $@;\
 	fi
 	@-if test -f Output/$*.dp.diff-llc; then \
 	  printf "SCDP-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.dp.out-llc.time >> $@;\
+	  grep "^user" Output/$*.dp.out-llc.time >> $@;\
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
