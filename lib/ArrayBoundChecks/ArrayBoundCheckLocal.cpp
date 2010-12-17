@@ -117,7 +117,7 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   // backwards from the beginning of the object.  We know that this is illegal;
   // declare it unsafe.
   //
-  if (SE->getSMaxExpr(offset, zero) == zero) {
+  if (SE->getSMaxExpr(offset, zero) == zero && offset != zero) {
     ++unsafeGEPs;
     return false;
   }
