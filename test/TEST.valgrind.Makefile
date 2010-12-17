@@ -17,7 +17,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
-SC       := $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
+SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
 VALGRIND = valgrind -q --log-file=vglog
 #VALGRIND = valgrind -q --log-file=vglog --tool=exp-ptrcheck
 

@@ -31,7 +31,7 @@ SCOPTS2 := -pa=apa
 #SCOPTS2 := -pa=multi
 #SCOPTS2 := -dpchecks
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
-SC       := $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a

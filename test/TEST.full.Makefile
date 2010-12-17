@@ -55,7 +55,7 @@ endif
 
 # SC_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
-SC_STATS = $(WATCHDOG) $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
+SC_STATS = $(RUNTOOLSAFELY) $(WATCHDOG) $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 
 # Pre processing library for DSA
 ASSIST_SO := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
