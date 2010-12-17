@@ -443,19 +443,48 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   if ((!(isTypeKnown (V, F))) ||
       (DSFlags & (DSNode::ArrayNode | DSNode::IntToPtrNode))) {
 #else
-  if (1) {
+   {
 #endif
     // I am amazed the check here since the commet says that I is an load/store
     // instruction! 
     if (dyn_cast<CallInst>(I)) {
       // Do not perform function checks on incomplete nodes
-      if (DSFlags & DSNode::IncompleteNode) return;
+      assert (!(DSFlags & DSNode::IncompleteNode)) ;
 
-      // Get the globals list corresponding to the node
+      const DSCallGraph & callgraph = dsaPass->getCallGraph();
+      DSGraph* G = dsaPass->getGlobalsGraph();
+      DSGraph::ScalarMapTy& SM = G->getScalarMap();
+          
       std::vector<const Function *> FuncList;
-      Node->addFullFunctionList(FuncList);
-      std::vector<const Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
+      DSCallGraph::callee_iterator csi = callgraph.callee_begin(I),
+           cse = callgraph.callee_end(I);
+      while(csi != cse) {
+        const Function *F = *csi;
+        DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
+          sccee = callgraph.scc_end(F);
+        for(;sccii != sccee; ++sccii) {
+          DSGraph::ScalarMapTy::const_iterator I = 
+            SM.find(SM.getLeaderForGlobal(*sccii));
+          if (I != SM.end() && !((*sccii)->isDeclaration())) {
+            FuncList.push_back (*sccii);
+          }
+        }
+        ++csi;
+      }
+      const Function *F1 = I->getParent()->getParent();
+      F1 = callgraph.sccLeader(&*F1);
+      DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
+                     sccee = callgraph.scc_end(F1);
+      for(;sccii != sccee; ++sccii) {
+        DSGraph::ScalarMapTy::const_iterator I = 
+          SM.find(SM.getLeaderForGlobal(*sccii));
+        if (I != SM.end() && !((*sccii)->isDeclaration())) {
+          FuncList.push_back (*sccii);
+        }
+      }
+
       unsigned num = FuncList.size();
+      std::vector<const Function *>::iterator flI= FuncList.begin(), flE = FuncList.end();
       if (flI != flE) {
         const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
         Value *NumArg = ConstantInt::get(csiType, num);	
@@ -468,9 +497,8 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
         args.push_back(CastVI);
         for (; flI != flE ; ++flI) {
           Function *func = (Function *)(*flI);
-          CastInst *CastfuncI = 
-            CastInst::CreatePointerCast (func, 
-             getVoidPtrType(), "casted", I);
+          CastInst *CastfuncI = CastInst::CreatePointerCast (func,
+                                        getVoidPtrType(), "casted", I);
           args.push_back(CastfuncI);
         }
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
@@ -544,8 +572,9 @@ InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
   //
   // Determine if the GEP is safe.  If it is, then don't do anything.
   //
-  if (abcPass->isGEPSafe(GEP))
+  if (abcPass->isGEPSafe(GEP)){
     return;
+  }
 
   //
   // If this only indexes into a structure, ignore it.
