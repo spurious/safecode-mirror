@@ -255,6 +255,7 @@ int main(int argc, char **argv) {
     // GEP checking pass away.
     //
     Passes.add (new EQTDDataStructures());
+    //Passes.add (new capsaicin::LocalABC());
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
@@ -666,7 +667,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.exactcheck",      "bb_exactcheck" },
       {"sc.exactcheck2",     "bb_exactcheck2" },
       {"sc.funccheck",       "__sc_bb_funccheck" },
-      {"sc.get_actual_val",  "bb_pchk_getActualValue" },
+      {"sc.get_actual_val",  "pchk_getActualValue" },
       {"sc.pool_register",   "__sc_bb_poolregister" },
       {"sc.pool_unregister", "__sc_bb_poolunregister" },
       {"sc.pool_unregister_stack", "__sc_bb_poolunregister_stack" },
@@ -675,7 +676,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"poolalloc",         "__pa_bb_poolalloc"},
       {"poolfree",          "__pa_bb_poolfree"},
 
-      {"sc.init_pool_runtime", "bb_pool_init_runtime"},
+      {"sc.init_pool_runtime", "pool_init_runtime"},
       {"sc.pool_register_debug", "__sc_bb_src_poolregister"},
       {"sc.pool_register_stack_debug", "__sc_bb_src_poolregister_stack"},
       {"sc.pool_register_stack", "__sc_bb_poolregister_stack"},
