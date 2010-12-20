@@ -255,7 +255,6 @@ int main(int argc, char **argv) {
     // GEP checking pass away.
     //
     Passes.add (new EQTDDataStructures());
-    //Passes.add (new capsaicin::LocalABC());
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
