@@ -585,14 +585,20 @@ __sc_dbg_src_poolregister_global_debug (DebugPoolTy *Pool,
 //
 static inline void
 checkForBadFrees (DebugPoolTy *Pool,
-                          void * allocaptr, allocType Type,
-                          unsigned tag,
-                          const char * SourceFilep,
-                          unsigned lineno) {
+                  void * allocaptr, allocType Type,
+                  unsigned tag,
+                  const char * SourceFilep,
+                  unsigned lineno) {
   //
   // Increment the ID number for this deallocation.
   //
   unsigned freeID = (freeSeqMap[tag] += 1);
+
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (allocaptr == NULL)
+    return;
 
   //
   // Retrieve the debug information about the node.  This will include a
@@ -939,7 +945,7 @@ getProgramCounter (void * context) {
 //
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
-  if (logregs) {
+  if (1) {
     fprintf (stderr, "SAFECode: Fault!\n");
     fflush (stderr);
   }
