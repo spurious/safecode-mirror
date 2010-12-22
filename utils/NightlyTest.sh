@@ -16,6 +16,7 @@ TESTDIRS="MultiSource/Benchmarks/Olden External/SPEC/CINT2000"
 # Save the old logfile.
 #
 if [ -f $LOGFILE ]
+then
   mv $LOGFILE $LOGFILE.old
 fi
 
