@@ -15,6 +15,7 @@
 #include "safecode/SAFECode.h"
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/CompleteChecks.h"
+#include "safecode/BaggyBoundsChecks.h"
 #include "safecode/SafeLoadStoreOpts.h"
 #include "safecode/InsertChecks/RegisterBounds.h"
 #include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
@@ -333,6 +334,9 @@ int main(int argc, char **argv) {
     if (CheckingRuntime == RUNTIME_DEBUG) {
       Passes.add (new OptimizeChecks());
       Passes.add(new RewriteOOB());
+    }
+    if (CheckingRuntime == RUNTIME_BB) {
+      Passes.add(new InsertBaggyBoundsChecks());
     }
 
     //
