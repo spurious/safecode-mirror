@@ -260,7 +260,7 @@ __sc_dbg_pooldestroy(DebugPoolTy * Pool) {
 // Description:
 //  Register all of the argv strings in the external object pool.
 //
-void
+void *
 __sc_dbg_poolargvregister (int argc, char ** argv) {
   if (logregs) {
     fprintf (stderr, "poolargvregister: %p - %p\n", (void *) argv,
@@ -291,7 +291,7 @@ __sc_dbg_poolargvregister (int argc, char ** argv) {
   unsigned char * errnoAdd = (unsigned char *) &errno;
   ExternalObjects.insert(errnoAdd, errnoAdd + sizeof (errno) - 1);
 
-  return;
+  return argv;
 }
 
 //

@@ -110,7 +110,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
     (VoidTy, args<const Type*>::list(vpTy, vpTy), false);
 
   FunctionType * PoolArgRegTy = FunctionType::get
-    (VoidTy, args<const Type*>::list(Int32Ty, PointerType::getUnqual(vpTy)), false);
+    (vpTy, args<const Type*>::list(Int32Ty, PointerType::getUnqual(vpTy)), false);
 
   FunctionType * RegisterGlobalsTy = FunctionType::get
     (VoidTy, args<const Type*>::list(), false);
@@ -211,7 +211,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
 
   addIntrinsic
     ("sc.pool_argvregister",
-     SC_INTRINSIC_REGISTRATION,
+     SC_INTRINSIC_REGISTRATION | SC_INTRINSIC_HAS_VALUE_POINTER,
      PoolArgRegTy, 1);
 
   addIntrinsic
