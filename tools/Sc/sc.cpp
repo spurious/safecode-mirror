@@ -590,6 +590,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"poolstrdup",            "__sc_dbg_poolstrdup"},
       {"poolstrdup_debug",      "__sc_dbg_poolstrdup_debug"},
       {"poolrealloc",           "__sc_dbg_poolrealloc"},
+      {"poolrealloc_debug",     "__sc_dbg_poolrealloc_debug"},
     };
 
 

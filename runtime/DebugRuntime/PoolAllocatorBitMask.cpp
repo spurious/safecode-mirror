@@ -1294,7 +1294,7 @@ __sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
 }
 
 void *
-__sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
+__sc_dbg_poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   //
   // If the object has never been allocated before, allocate it now, create a
   // shadow object (if necessary), and register the object as a heap object.
@@ -1343,7 +1343,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // pool.
   //
   if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
-  __sc_dbg_src_poolregister (Pool, New, NumBytes, 0, "<unknown>", 0);
+  __sc_dbg_poolregister (Pool, New, NumBytes);
 
   //
   // Determine the number of bytes to copy into the new object.
@@ -1363,6 +1363,85 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // new object.
   //
   _internal_poolunregister(Pool, Node, Heap, 0, "Unknown", 0);
+  if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
+  __pa_bitmap_poolfree(Pool, Node);
+  return New;
+}
+
+void *
+__sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
+                            void *Node,
+                            unsigned NumBytes, TAG,
+                            const char * SourceFilep,
+                            unsigned lineno) {
+  //
+  // If the object has never been allocated before, allocate it now, create a
+  // shadow object (if necessary), and register the object as a heap object.
+  //
+  if (Node == 0) {
+    void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
+    if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
+    __sc_dbg_poolregister (Pool, New, NumBytes);
+    return New;
+  }
+
+  //
+  // Reallocate an object to 0 bytes means that we wish to free it.
+  //
+  if (NumBytes == 0) {
+    _internal_poolunregister (Pool, Node, Heap, tag, SourceFilep, lineno);
+    if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
+    __pa_bitmap_poolfree(Pool, Node);
+    return 0;
+  }
+
+  //
+  // Otherwise, we need to change the size of the allocated object.  For now,
+  // we will simply allocate a new object and copy the data from the old object
+  // into the new object.
+  //
+
+  //
+  // Get the bounds of the old object.  If we cannot get the bounds, then
+  // simply fail the allocation.
+  //
+  void * S, * end;
+  if ((!(Pool->Objects.find (Node, S, end))) || (S != Node)) {
+    return 0;
+  }
+
+  //
+  // Allocate a new object.  If we fail, return NULL.
+  //
+  void *New;
+  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
+    return 0;
+
+  //
+  // Create a shadow of the new object (if necessary) and register it with the
+  // pool.
+  //
+  if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
+  __sc_dbg_src_poolregister (Pool, New, NumBytes, tag, SourceFilep, lineno);
+
+  //
+  // Determine the number of bytes to copy into the new object.
+  //
+  ptrdiff_t length = NumBytes;
+  if ((((uintptr_t)(end)) - ((uintptr_t)(S)) + 1) < NumBytes) {
+    length = ((intptr_t)(end)) - ((intptr_t)(S)) + 1;
+  }
+
+  //
+  // Copy the contents of the old object into the new object.
+  //
+  memcpy(New, Node, length);
+
+  //
+  // Invalidate the old object and its bounds and return the pointer to the
+  // new object.
+  //
+  _internal_poolunregister(Pool, Node, Heap, tag, SourceFilep, lineno);
   if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
   __pa_bitmap_poolfree(Pool, Node);
   return New;

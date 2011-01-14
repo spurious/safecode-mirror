@@ -142,6 +142,7 @@ extern "C" {
                                   TAG, SRC_INFO);
 
   void * __sc_dbg_poolrealloc(PPOOL, void *Node, unsigned NumBytes);
+  void * __sc_dbg_poolrealloc_debug(PPOOL, void *Node, unsigned NumBytes, TAG, SRC_INFO);
   void * __sc_dbg_poolstrdup (PPOOL, const char * Node);
   void * __sc_dbg_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
 
