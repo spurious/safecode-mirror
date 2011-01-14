@@ -1343,7 +1343,7 @@ __sc_dbg_poolrealloc(DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // pool.
   //
   if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
-  __sc_dbg_poolregister (Pool, New, NumBytes);
+  __sc_dbg_src_poolregister (Pool, New, NumBytes, 0, "<unknown>", 0);
 
   //
   // Determine the number of bytes to copy into the new object.
