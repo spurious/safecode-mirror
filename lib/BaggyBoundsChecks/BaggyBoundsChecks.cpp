@@ -93,7 +93,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         GV->setAlignment(alignment);
       } 
       else {
-        GV->dump();
         Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
         StructType *newType = StructType::get(getGlobalContext(), GlobalType, newType1, NULL);
         std::vector<Constant *> vals(2);
@@ -108,7 +107,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         GV->replaceAllUsesWith(init);
         GV->setName("");
         GV_new->setName(name);
-        GV_new->dump();
       } 
     }
     
@@ -151,7 +149,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
   // changes for register argv
   Function *ArgvReg = intrinsicPass->getIntrinsic("sc.pool_argvregister").F;  
-  ArgvReg->dump();  
   if (ArgvReg->getNumUses() == 0){
     return true;
   }
@@ -159,11 +156,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   assert (ArgvReg->getNumUses() == 1);
   CallInst *CI = cast<CallInst>(ArgvReg->use_begin()); 
   Value *Argv = intrinsicPass->getValuePointer (CI);
-  Argv->dump();
   BasicBlock::iterator I = CI;
   I++;
   BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
-  BI->dump();
   std::vector<User *> Uses;
   Value::use_iterator UI = Argv->use_begin();
   for (; UI != Argv->use_end(); ++UI) {
