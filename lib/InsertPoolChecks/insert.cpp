@@ -546,15 +546,17 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 //
 // Description:
 //  Scan through all the instructions in the specified function and insert
-//  run-time checks for load, store, and indirect call instructions.
+//  run-time checks for indirect call instructions.
 //
 void
 InsertPoolChecks::addLoadStoreChecks (Function & F) {
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
     if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
-      Value *FunctionOp = CI->getOperand(0);
-      if (!isa<Function>(FunctionOp->stripPointerCasts())) {
-        addLSChecks(FunctionOp, FunctionOp, CI, &F);
+      if (!(isa<InlineAsm>(CI->getCalledValue()))) {
+        Value *FunctionOp = CI->getOperand(0);
+        if (!isa<Function>(FunctionOp->stripPointerCasts())) {
+          addLSChecks(FunctionOp, FunctionOp, CI, &F);
+        }
       }
     } 
   }
