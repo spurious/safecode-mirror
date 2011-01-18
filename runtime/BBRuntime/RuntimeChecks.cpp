@@ -39,7 +39,7 @@ extern uintptr_t InvalidLower;
 
 
 extern FILE * ReportLog;
-extern unsigned char* __baggybounds_size_table1_begin1; 
+extern unsigned char* __baggybounds_size_table_begin; 
 extern unsigned SLOT_SIZE;
 extern unsigned WORD_SIZE;
 extern const unsigned int  logregs;
@@ -61,20 +61,14 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //
   // Check if it is an OOB pointer
   //
-  //void *ObjStart, *ObjEnd;
   uintptr_t val =1 ;
   unsigned char e;
 
-  e = __baggybounds_size_table1_begin1[Source >> SLOT_SIZE];
+  e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   val = (Source^Dest)>>e;
   if(val) {
   
-  //if (isRewritePtr ((void*)Source)) {// If it is OOB ptr, report a violation  
     if(Source & 0xffff800000000000) {
-    /*    void * RealSrc = baggy_pchk_getActualValue(NULL, (void*)Source);
-        Dest = ((intptr_t) RealSrc + (Dest -  Source));
-        getOOBObject ((void*)Source, ObjStart, ObjEnd);
-        Source = (uintptr_t)(ObjStart);*/
 
       Source = Source & 0x7fffffffffff;
       if(Source & 0x8) {
@@ -87,7 +81,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //
   // Look for the bounds in the table
   //
-    e = __baggybounds_size_table1_begin1[Source >> SLOT_SIZE];
+    e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
     if(e == 0) {
       return (void*)Dest;
     }
@@ -99,7 +93,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 
     if(val) {
   //    return rewrite_ptr(NULL, (void*)Source, (void*)Source, (void*)Source, "<unknown", 0); 
-        return (void*)(Dest | 0xffff800000000000);
+        Dest = (Dest | 0xffff800000000000);
     }
   }
   return (void*)Dest;
@@ -122,7 +116,6 @@ baggy_poolcheck_debug (DebugPoolTy *Pool,
   // Check if is an OOB pointer
   //
     if((uintptr_t)Node& 0xffff800000000000) {
-  //if (isRewritePtr (Node) ){// If it is OOB ptr, report a violation  
   
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
@@ -185,17 +178,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, co
 
 void
 bb_poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
-  /*if (logregs) {
-      fprintf (stderr, "PoolCheck :   %p \n",  Node );
-      fflush (stderr);
-  }*/
-  //if (isRewritePtr (Node)) {// If it is OOB ptr, report a violation 
     if((uintptr_t)Node& 0xffff800000000000) {
-    /*if (logregs) {
-      fprintf (stderr, "PoolCheck : Violation(A):  %p \n",  Node );
-      fflush (stderr);
-    }
-    pintf("%p\n", Node);*/
     assert(false);
   }
   return;
@@ -217,10 +200,6 @@ bb_poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
 void * __attribute__((noinline))
 bb_boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const char * SourceFile, unsigned lineno) {
 
- /* if (logregs) {
-    fprintf (stderr, "boundscheck_debug(%d): %d: %p - %p\n", tag, lineno, Source, Dest);
-    fflush (stderr);
-  }*/
   return _barebone_boundscheck((uintptr_t)Source, (uintptr_t)Dest);
 }
 
@@ -245,10 +224,6 @@ bb_boundscheckui_debug (DebugPoolTy * Pool,
                      void * Dest, TAG,
                      const char * SourceFile,
                      unsigned int lineno) {
-  /*if (logregs) {
-    fprintf (stderr, "boundscheck_debug(%d): %s %d: %p - %p\n", tag, SourceFile, lineno, Source, Dest);
-    fflush (stderr);
-  }*/
   return  _barebone_boundscheck((uintptr_t)Source, (uintptr_t)Dest);
 }
 
@@ -316,3 +291,35 @@ bb_pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   
   return (void*)Source;
 }
+
+//
+// Function: funccheck()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.
+//
+// Inputs:
+//  num - The number of function targets in the DSNode.
+//  f   - The function pointer that we are testing.
+//  g   - The first function given in the DSNode.
+//
+void
+__sc_bb_funccheck (unsigned num, void *f, void *g, ...) {
+  va_list ap;
+  unsigned i = 0;
+
+  // Test against the first function in the list
+  if (f == g) return;
+  i++;
+  va_start(ap, g);
+  for ( ; i != num; ++i) {
+    void *h = va_arg(ap, void *);
+    if (f == h) {
+      return;
+    }
+  }
+  abort();
+}
+
+

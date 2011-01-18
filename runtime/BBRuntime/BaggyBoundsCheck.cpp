@@ -40,10 +40,6 @@
 #include <signal.h>
 #include <ucontext.h>
 #include <sys/mman.h>
-#if 0
-#include <sys/ucontext.h>
-#endif
-
 #include <pthread.h>
 
 #define TAG unsigned tag
@@ -69,18 +65,14 @@ using namespace NAMESPACE_SC;
 FILE * ReportLog;
 
 // Configuration for C code; flags that we should stop on the first error
-//unsigned StopOnError = 0;
 unsigned StopOnError;
 
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);
 
-
-
-
 unsigned SLOT_SIZE = 4;
 unsigned WORD_SIZE = 64;
-unsigned char * __baggybounds_size_table1_begin1; 
+unsigned char * __baggybounds_size_table_begin; 
 
 
 //===----------------------------------------------------------------------===//
@@ -89,9 +81,19 @@ unsigned char * __baggybounds_size_table1_begin1;
 //
 //===----------------------------------------------------------------------===//
 
+void *
+__sc_bb_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
+  return Pool;
+}
+
+void 
+__sc_bb_pooldestroy(DebugPoolTy *Pool) {
+  return;
+}
+
 
 //
-// Function: baggy_init_runtime
+// Function: pool_init_runtime
 //
 // Description: 
 //   This function is called to initialize the entire SAFECode run-time. It 
@@ -104,10 +106,6 @@ unsigned char * __baggybounds_size_table1_begin1;
 //  Terminate  - Set to non-zero to have SAFECode terminate when an error 
 //               occurs. 
 //
-void *
-__sc_bb_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
-  return Pool;
-}
 
 void 
 pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
@@ -133,11 +131,6 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   madvise (Addr, invalidsize, MADV_FREE);
   InvalidLower = (uintptr_t) Addr;
   InvalidUpper = (uintptr_t) Addr + invalidsize;
-  /*if (logregs) {
-    fprintf (stderr, "OOB Area: %p - %p\n", (void *) InvalidLower,
-                                            (void *) InvalidUpper);
-    fflush (stderr);
-  }*/
 #endif
   
   //
@@ -169,9 +162,9 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     fflush (stderr);
   }
   // Initialize the baggy bounds table
-  __baggybounds_size_table1_begin1 =(unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, -1, 0);
+  __baggybounds_size_table_begin =(unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, -1, 0);
 
-  if(__baggybounds_size_table1_begin1 == MAP_FAILED) 
+  if(__baggybounds_size_table_begin == MAP_FAILED) 
   {
     fprintf (stderr, "Baggy Bounds Table initialization failed!");
     fflush (stderr);
@@ -180,7 +173,6 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
 
   return;
 }
-
 
 void
 __internal_register(void *allocaptr, unsigned NumBytes) {
@@ -191,33 +183,27 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
     size++;
   }
   size = (size < SLOT_SIZE) ? SLOT_SIZE : size;
-  //printf("registering %p for size %u\n", allocaptr, NumBytes);
   uintptr_t Source1 = Source & ~((1<<size)-1);
   if(Source1 != Source) {
     printf("%p, %p, %u Not aligned\n", (void*)Source, (void*)Source1, NumBytes);
     assert(false);
   }
   Source = Source & ~((1<<size)-1);
-  //printf("registering %p for size %u\n", (void*)Source, NumBytes);
   unsigned long index = Source >> SLOT_SIZE;
   unsigned range = 1 << (size - SLOT_SIZE);
 
-  memset(__baggybounds_size_table1_begin1 + index, size, range);
+  memset(__baggybounds_size_table_begin + index, size, range);
   return;
 }
 
 //
-// Function: poolargvregister()
+// Function: sc_bb_poolargvregister()
 //
 // Description:
 //  Register all of the argv strings in the external object pool.
 //
 void * 
 __sc_bb_poolargvregister(int argc, char **argv) {
-    /*if (logregs) {
-      fprintf (stderr, "poolargvregister:  \n"); 
-      fflush (stderr);
-    }*/
   char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
   for (int index=0; index < argc; ++index) {
     char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL, (strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
@@ -225,14 +211,9 @@ __sc_bb_poolargvregister(int argc, char **argv) {
     
     __internal_register(argv_index_temp, (strlen (argv[index]) + 1)*sizeof(char));
     argv_temp[index]= argv_index_temp;
-    /*if (logregs) {
-      fprintf (stderr, "poolargvregister: %p %u: %s %p \n", argv_index_temp,
-               (unsigned)strlen(argv[index]), argv_index_temp, argv_temp[index]);
-      fflush (stderr);
-    }*/
     
   }
-  argv_temp[argc]=NULL;
+  argv_temp[argc] = NULL;
 
   //
   // Register the actual argv array as well.  Note that the transform can
@@ -247,7 +228,7 @@ __sc_bb_poolargvregister(int argc, char **argv) {
 }
 
 //
-// Function: __baggy_dbg_src_poolregister()
+// Function: __sc_bb_src_poolregister()
 //
 // Description:
 //  This function is externally visible and is called by code to register
@@ -263,18 +244,12 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
   // Print debug information about what object the caller is trying to
   // register.
   //
-  /*if (logregs) {
-    fprintf (ReportLog, "poolreg_debug(%d):  %p-%p: %d %d %s %d\n", tag,
-             (void*)allocaptr,
-             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFilep, lineno);
-    fflush (ReportLog);
-  }*/
   __internal_register(allocaptr, NumBytes);
   return;
 }
 
 //
-// Function: __baggy_dbg_src_poolregister_stack()
+// Function: __sc_bb_src_poolregister_stack()
 //
 // Description:
 //  This function is externally visible and is called by code to register
@@ -286,25 +261,19 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
 				unsigned NumBytes, TAG,
 				const char* SourceFilep, 
 				unsigned lineno) {
-  /*if (logregs) {
-    fprintf (ReportLog, "poolreg_debug_stack(%d):  %p-%p: %d %d %s %d\n", tag,
-              allocaptr,
-             ((char*)(allocaptr)) + NumBytes - 1, NumBytes, tag, SourceFilep, lineno);
-    fflush (ReportLog);
-  }*/
   __internal_register(allocaptr, NumBytes);
   return;
 }
 
 //
-// Function: __baggy_dbg_poolregister_stack()
+// Function: __sc_bb_poolregister_stack()
 //
 // Description:
 //  This function is externally visible and is called by code to register
 //  a stack allocation without debug information.
 //
 void 
-__ssc_bb_poolregister_stack (DebugPoolTy *Pool,
+__sc_bb_poolregister_stack (DebugPoolTy *Pool,
 				void * allocaptr, 
 				unsigned NumBytes) {
   __sc_bb_src_poolregister_stack(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
@@ -312,7 +281,7 @@ __ssc_bb_poolregister_stack (DebugPoolTy *Pool,
 }
 
 //
-// Function: __baggy_dbg_src_poolregister_global()
+// Function: __sc_bb_src_poolregister_global()
 //
 // Description:
 //  This function is externally visible and is called by code to register
@@ -322,12 +291,13 @@ void
 __sc_bb_poolregister_global (DebugPoolTy *Pool,
 				 void *allocaptr, 
 				 unsigned NumBytes) {
-  __sc_bb_src_poolregister_global_debug(Pool, allocaptr, NumBytes, 0 , "<unknown>", 0);
+  __sc_bb_src_poolregister_global_debug(Pool, 
+                                        allocaptr, NumBytes, 0 , "<unknown>", 0);
   return;
 }
 
 //
-// Function: __baggy_dbg_src_poolregister_global_debug()
+// Function: __sc_bb_src_poolregister_global_debug()
 //
 // Description:
 //  This function is externally visible and is called by code to register
@@ -343,7 +313,7 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
 }
 
 //
-// Function: poolregister()
+// Function: __sc_bb_poolregister()
 //
 // Description:
 //  Register the memory starting at the specified pointer of the specified size
@@ -368,13 +338,9 @@ __sc_bb_poolunregister_debug (DebugPoolTy *Pool,
 				TAG,
 				const char* SourceFilep,
 				unsigned lineno) {
-  /*if (logregs) {
-    fprintf (stderr, "pool_unregister: Start: %p: %s %d\n", allocaptr, SourceFilep, lineno);
-    fflush (stderr);
-  }*/
   uintptr_t Source = (uintptr_t)allocaptr;
   unsigned  e;
-  e = __baggybounds_size_table1_begin1[Source >> SLOT_SIZE];
+  e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   if(e == 0 ) {
     return;
   }
@@ -383,7 +349,7 @@ __sc_bb_poolunregister_debug (DebugPoolTy *Pool,
   unsigned long index = base >> SLOT_SIZE;
   unsigned int slots = 1<<(e - SLOT_SIZE);
   
-  memset(__baggybounds_size_table1_begin1 + index, 0, slots);
+  memset(__baggybounds_size_table_begin + index, 0, slots);
 }
 
 void
@@ -397,14 +363,10 @@ __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
 				TAG,
 				const char* SourceFilep,
 				unsigned lineno) {
-  /*if (logregs) {
-    fprintf (stderr, "pool_unregister: Start: %p: %s %d\n", allocaptr, SourceFilep, lineno);
-    fflush (stderr);
-  }*/
   uintptr_t Source = (uintptr_t)allocaptr;
   
   unsigned  e;
-  e = __baggybounds_size_table1_begin1[Source >> SLOT_SIZE];
+  e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   if(e == 0 ) {
     return;
   }
@@ -412,7 +374,7 @@ __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
   uintptr_t base = Source & ~(size -1);
   unsigned long index = base >> SLOT_SIZE;
   unsigned int slots = 1<<(e - SLOT_SIZE);
-  memset(__baggybounds_size_table1_begin1 + index, 0, slots);
+  memset(__baggybounds_size_table_begin + index, 0, slots);
 }
 
 //
@@ -431,18 +393,11 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
   while((unsigned)(1<<size) < NumBytes) {
     size++;
   }
- // unsigned char size = (unsigned char)ceil(log(NumBytes)/log(2)); 
   if(size < SLOT_SIZE) size = SLOT_SIZE;
-  unsigned int alloc = 1<< size;
+  unsigned int alloc = 1 << size;
   void *p;
   posix_memalign(&p, alloc, alloc);
 
-  /*if (logregs) {
-    fprintf (ReportLog, "poolalloc_debug(%d): %p-%p: %d %d %s %d\n", tag,
-              (void*)p,
-             ((char*)(p)) + NumBytes - 1, NumBytes, tag, SourceFilep, lineno);
-    fflush (ReportLog);
-  }*/
   return p;
 }
 
@@ -453,13 +408,12 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool, unsigned Number, unsigned NumBytes, TA
   while((unsigned)(1<<size) < (NumBytes*Number)) {
     size++;
   }
-  //unsigned char size = (unsigned char)ceil(log(NumBytes*Number)/log(2)); 
   if(size < SLOT_SIZE) size = SLOT_SIZE;
   unsigned int alloc = 1<< size;
   void *p;
   posix_memalign(&p, alloc, alloc);
   __sc_bb_src_poolregister(Pool, p, (Number*NumBytes), tag, SourceFilep, lineno);
-  if(p) {
+  if (p){
     bzero(p, Number*NumBytes);
   }
   return p;
@@ -489,7 +443,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   __sc_bb_poolregister(Pool, New, NumBytes);
 
   uintptr_t Source = (uintptr_t)Node; 
-  unsigned  char e = __baggybounds_size_table1_begin1[Source >> SLOT_SIZE];
+  unsigned  char e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   unsigned int size = 1 << e;
   memcpy(New, Node, size);
 
@@ -497,6 +451,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   __sc_bb_poolfree(Pool, Node);
   return New;
 }
+
 void *
 __sc_bb_poolalloc(DebugPoolTy *Pool,
 		      unsigned NumBytes) {
@@ -504,7 +459,7 @@ __sc_bb_poolalloc(DebugPoolTy *Pool,
 }
 
 //
-// Function: poolfree_debug()
+// Function: __sc_bb_src_poolfree()
 //
 // Description:
 //  This function is identical to poolfree() except that it relays source-level
@@ -515,10 +470,6 @@ __sc_bb_src_poolfree (DebugPoolTy *Pool,
 		          void *Node,TAG,
 			  const char* SourceFile, 
 			  unsigned lineno) {
-  /*if (logregs) {
-    fprintf(stderr, "pool_unregister:1387: Node=%p\n", Node);
-    fflush (stderr);
-  }*/
   free(Node);
 }	
 
@@ -572,11 +523,7 @@ getProgramCounter (void * context) {
 //
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
-  /*if (logregs) {
-    fprintf (stderr, "SAFECode: Fault!\n");
-    fflush (stderr);
-  }*/
-
+  
   //
   // Disable the signal handler for now.  If this function does something
   // wrong, we want the bus error to terminate the program.
