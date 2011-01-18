@@ -405,6 +405,7 @@ DebugInstrument::runOnModule (Module &M) {
   // FIXME: Technically it should user intrinsic everywhere..
   transformFunction (M.getFunction ("poolalloc"), LInfo);
   transformFunction (M.getFunction ("poolcalloc"), LInfo);
+  transformFunction (M.getFunction ("poolrealloc"), LInfo);
   transformFunction (M.getFunction ("poolstrdup"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, LInfo);
