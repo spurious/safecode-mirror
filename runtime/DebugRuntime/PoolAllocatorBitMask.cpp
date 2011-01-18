@@ -402,25 +402,19 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
                            unsigned NumBytes, TAG,
                            const char * SourceFilep,
                            unsigned lineno) {
-#if 1
-  //
-  // If this is a singleton object within a type-known pool, don't add it to
-  // the splay tree.
-  //
-  if (Pool && (NumBytes == Pool->NodeSize))
-    return;
-#endif
-
   //
   // Use the common registration function.  Mark the allocation as a heap
-  // allocation.
+  // allocation.  However, only do this if the object is not a singleton object
+  // within a type-known pool.
   //
-  _internal_poolregister (Pool,
-                          allocaptr,
-                          NumBytes, tag,
-                          SourceFilep,
-                          lineno,
-                          Heap);
+  if (!(Pool && (NumBytes == Pool->NodeSize))) {
+    _internal_poolregister (Pool,
+                            allocaptr,
+                            NumBytes, tag,
+                            SourceFilep,
+                            lineno,
+                            Heap);
+  }
 
   //
   // Generate a generation number for this object registration.  We only do
@@ -1381,7 +1375,7 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
   if (Node == 0) {
     void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
     if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
-    __sc_dbg_poolregister (Pool, New, NumBytes);
+    __sc_dbg_src_poolregister (Pool, New, NumBytes, tag, SourceFilep, lineno);
     return New;
   }
 
