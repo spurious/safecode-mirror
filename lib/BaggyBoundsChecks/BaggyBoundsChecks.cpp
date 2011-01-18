@@ -31,6 +31,7 @@ using namespace llvm;
 
 NAMESPACE_SC_BEGIN
 #define SLOT_SIZE 4
+#define SLOT 16
 // Identifier variable for the pass
 char InsertBaggyBoundsChecks::ID = 0;
 
@@ -84,10 +85,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                         
     unsigned char size = (unsigned char)ceil(log(i)/log(2));
     uintptr_t alignment = 1 << size; 
-    /*if(GV->getAlignment() && alignment %(GV->getAlignment())) { 
-     alignment = GV->getAlignment();
-    } */
-    if(alignment < 16) alignment = 16;
+    if(alignment < SLOT) alignment = SLOT;
     if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
       if(i == alignment) {
         GV->setAlignment(alignment);
@@ -121,13 +119,13 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
       unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
       unsigned char size = (unsigned char)ceil(log(i)/log(2)); 
-      if(size < 4) {
-        size = 4;
+      if(size < SLOT_SIZE) {
+        size = SLOT_SIZE;
       }
       if(i == (unsigned)(1<<size)) {
         AI->setAlignment(1<<size);
-      } else if(size == 4) {
-        AI->setAlignment(16);
+      } else if(size == SLOT_SIZE) {
+        AI->setAlignment(SLOT);
       } else {
         BasicBlock::iterator InsertPt1 = AI;
         Instruction * iptI1 = ++InsertPt1;
@@ -142,7 +140,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         AI->replaceAllUsesWith(init);
         AI->removeFromParent(); 
         AI_new->setName(AI->getName());
-        //new AllocaInst(Int8Type->getPointerTo(), ConstantInt::get(Type::getInt32Ty(getGlobalContext()),((1<<size) - i)), "baggy."+AI->getName(), iptI1); 
       } 
     }
   }
