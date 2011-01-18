@@ -61,7 +61,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //
   // Check if it is an OOB pointer
   //
-  uintptr_t val =1 ;
+  uintptr_t val = 1 ;
   unsigned char e;
 
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
@@ -107,7 +107,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 //  pointer points into a valid memory object.
 //
 void
-baggy_poolcheck_debug (DebugPoolTy *Pool,
+bb_poolcheck_debug (DebugPoolTy *Pool,
                  void *Node,
                  TAG,
                  const char * SourceFilep,
@@ -283,7 +283,7 @@ bb_poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
 }
 
 void *
-bb_pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
+pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   uintptr_t Source = (uintptr_t)ptr;
     if(Source & 0xffff800000000000) {
       Source = Source & 0x7fffffffffff;
