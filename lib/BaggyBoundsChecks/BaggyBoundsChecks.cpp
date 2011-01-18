@@ -53,6 +53,8 @@ static RegisterPass<InsertBaggyBoundsChecks> P ("baggy bounds aligning",
 //
 bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
+
+
   // Get prerequisite analysis resuilts.
   TD = &getAnalysis<TargetData>();
   intrinsicPass = &getAnalysis<InsertSCIntrinsic>();
@@ -116,8 +118,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       std::set<Value *>Chain;
       Value * RealOperand = intrinsicPass->getValuePointer (CI);
       Value * PeeledOperand = peelCasts (RealOperand, Chain);
-      if(!isa<AllocaInst>(PeeledOperand))
+      if(!isa<AllocaInst>(PeeledOperand)){
         continue;
+      }
       AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
       unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
       unsigned char size = (unsigned char)ceil(log(i)/log(2)); 
@@ -173,6 +176,39 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     Use->replaceUsesOfWith (Argv, BI);
   }
   
+  // align byval arguments
+
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
+    if (I->isDeclaration()) continue;
+  
+    if (I->hasName()) {
+      std::string Name = I->getName();
+      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
+            || Name.find("baggy.") == 0)
+        continue;
+    }
+    Function &F = cast<Function>(*I);
+    int i =1;
+    for (Function::arg_iterator It = F.arg_begin(), E = F.arg_end(); It != E; ++It, ++i) {
+      if (It->hasByValAttr()) {
+        assert (isa<PointerType>(It->getType()));
+        const PointerType * PT = cast<PointerType>(It->getType());
+        const Type * ET = PT->getElementType();
+        unsigned  AllocSize = TD->getTypeAllocSize(ET);
+        unsigned char size = (unsigned char)ceil(log(AllocSize)/log(2)); 
+        if(size < SLOT_SIZE) 
+          size = SLOT_SIZE;
+        
+	F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1<<size));
+        
+	for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
+          if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+            CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1<<size));
+          }
+        } 
+      }
+    }
+  }
   return true;
 }
 
