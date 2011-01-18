@@ -116,6 +116,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       std::set<Value *>Chain;
       Value * RealOperand = intrinsicPass->getValuePointer (CI);
       Value * PeeledOperand = peelCasts (RealOperand, Chain);
+      if(!isa<AllocaInst>(PeeledOperand))
+        continue;
       AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
       unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
       unsigned char size = (unsigned char)ceil(log(i)/log(2)); 
