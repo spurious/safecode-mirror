@@ -65,23 +65,23 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   val = (Source^Dest)>>e;
-  if(val) {
+  if (val) {
   
-    if(Source & 0xffff800000000000) {
+    if (Source & SET_MASK) {
 
-      Source = Source & 0x7fffffffffff;
-      if(Source & 0x8) {
-        Source +=16;
+      Source = Source & UNSET_MASK;
+      if (Source & 0x8) {
+        Source += 16;
       } else {
-        Source -=16;
+        Source -= 16;
       }
-      Dest = Dest & 0x7fffffffffff;
+      Dest = Dest & UNSET_MASK;
    } 
   //
   // Look for the bounds in the table
   //
     e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
-    if(e == 0) {
+    if (e == 0) {
       return (void*)Dest;
     }
     val = (Source^Dest)>>e;
@@ -90,9 +90,9 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //Set high bit, for OOB pointer 
   //
 
-    if(val) {
+    if (val) {
   //    return rewrite_ptr(NULL, (void*)Source, (void*)Source, (void*)Source, "<unknown", 0); 
-        Dest = (Dest | 0xffff800000000000);
+        Dest = (Dest | SET_MASK);
     }
   }
   return (void*)Dest;
@@ -114,8 +114,7 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-    if((uintptr_t)Node& 0xffff800000000000) {
-  
+  if ((uintptr_t)Node & SET_MASK) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -128,7 +127,6 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
     return;
   }
   return;
-
 }
 
 
@@ -152,15 +150,11 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, co
   //
   // Check if is an OOB pointer
   //
-    if((uintptr_t)Node& 0xffff800000000000) {
+  if ((uintptr_t)Node & SET_MASK) {
 
-  //
-  // The object has not been found.  Provide an error.
-  //
-    /*if (logregs) {
-      fprintf (stderr, "PoolCheck : Violation(A):  %p %d \n",  Node, Offset );
-      fflush (stderr);
-    }*/
+    //
+    // The object has not been found.  Provide an error.
+    //
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -176,7 +170,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, co
 
 void
 bb_poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
-    if((uintptr_t)Node& 0xffff800000000000) {
+    if ((uintptr_t)Node & SET_MASK) {
     assert(false);
   }
   return;
@@ -196,8 +190,11 @@ bb_poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
 //
 // the attribute should be taken once the bug is fixed.
 void * __attribute__((noinline))
-bb_boundscheck_debug (DebugPoolTy * Pool, void * Source, void * Dest, TAG, const char * SourceFile, unsigned lineno) {
-
+bb_boundscheck_debug (DebugPoolTy * Pool, 
+                      void * Source, 
+                      void * Dest, TAG, 
+                      const char * SourceFile, 
+                      unsigned lineno) {
   return _barebone_boundscheck((uintptr_t)Source, (uintptr_t)Dest);
 }
 
@@ -283,9 +280,9 @@ bb_poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
 void *
 pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   uintptr_t Source = (uintptr_t)ptr;
-    if(Source & 0xffff800000000000) {
-      Source = Source & 0x7fffffffffff;
-    }
+  if (Source & SET_MASK) {
+    Source = Source & UNSET_MASK;
+  }
   
   return (void*)Source;
 }

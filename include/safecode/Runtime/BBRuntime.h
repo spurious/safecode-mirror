@@ -92,6 +92,9 @@ NAMESPACE_SC_END
 #define TAG unsigned
 #define SRC_INFO const char *, unsigned int
 
+#define UNSET_MASK 0x7fffffffffff
+#define SET_MASK 0xffff800000000000
+
 extern "C" {
   void pool_init_runtime(unsigned Dangling,
                          unsigned RewriteOOB,

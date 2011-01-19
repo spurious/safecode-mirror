@@ -161,10 +161,12 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     fflush (stderr);
   }
   // Initialize the baggy bounds table
-  __baggybounds_size_table_begin =(unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, -1, 0);
+  __baggybounds_size_table_begin = 
+    (unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), 
+                          PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, 
+                          -1, 0);
 
-  if(__baggybounds_size_table_begin == MAP_FAILED) 
-  {
+  if (__baggybounds_size_table_begin == MAP_FAILED) {
     fprintf (stderr, "Baggy Bounds Table initialization failed!");
     fflush (stderr);
     assert(0 && "Table Init Failed");
@@ -202,15 +204,16 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
 //
 void * 
 __sc_bb_poolargvregister(int argc, char **argv) {
-  char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
+  char ** argv_temp = 
+    (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
+
   for (int index=0; index < argc; ++index) {
     char *argv_index_temp = 
-      (char *)__sc_bb_src_poolalloc(NULL, (strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
+      (char *)__sc_bb_src_poolalloc(NULL,(strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
     
-    __internal_register(argv_index_temp, (strlen (argv[index]) + 1)*sizeof(char));
-    argv_temp[index]= argv_index_temp;
-    
+    __internal_register(argv_index_temp,(strlen (argv[index]) + 1)*sizeof(char));
+    argv_temp[index] = argv_index_temp;
   }
   argv_temp[argc] = NULL;
 
@@ -349,8 +352,9 @@ __sc_bb_poolunregister_debug (DebugPoolTy *Pool,
 }
 
 void
-__sc_bb_poolunregister_stack(DebugPoolTy *Pool, void *allocaptr) {
- __sc_bb_poolunregister_stack_debug(Pool, allocaptr, 0, "<unknown>", 0); 
+__sc_bb_poolunregister_stack(DebugPoolTy *Pool, 
+                             void *allocaptr) {
+  __sc_bb_poolunregister_stack_debug(Pool, allocaptr, 0, "<unknown>", 0); 
 }
 
 void
@@ -382,7 +386,8 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
   while((unsigned)(1<<size) < NumBytes) {
     size++;
   }
-  if(size < SLOT_SIZE) size = SLOT_SIZE;
+  if (size < SLOT_SIZE)
+    size = SLOT_SIZE;
   unsigned int alloc = 1 << size;
   void *p;
   posix_memalign(&p, alloc, alloc);
@@ -391,18 +396,22 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
 }
 
 void * 
-__sc_bb_src_poolcalloc(DebugPoolTy *Pool, unsigned Number, unsigned NumBytes, TAG, const char* SourceFilep, unsigned lineno) {
+__sc_bb_src_poolcalloc(DebugPoolTy *Pool, 
+                       unsigned Number, 
+                       unsigned NumBytes, TAG, 
+                       const char* SourceFilep, 
+                       unsigned lineno) {
 
   unsigned char size= 0;
   while((unsigned)(1<<size) < (NumBytes*Number)) {
     size++;
   }
-  if(size < SLOT_SIZE) size = SLOT_SIZE;
+  if (size < SLOT_SIZE) size = SLOT_SIZE;
   unsigned int alloc = 1<< size;
   void *p;
   posix_memalign(&p, alloc, alloc);
   __sc_bb_src_poolregister(Pool, p, (Number*NumBytes), tag, SourceFilep, lineno);
-  if (p){
+  if (p) {
     bzero(p, Number*NumBytes);
   }
   return p;
@@ -410,24 +419,27 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool, unsigned Number, unsigned NumBytes, TA
 
 void *
 __sc_bb_poolcalloc(DebugPoolTy *Pool,
-		      unsigned Number, unsigned NumBytes, TAG) {
+		      unsigned Number, 
+                      unsigned NumBytes, TAG) {
   return __sc_bb_src_poolcalloc(Pool,Number,  NumBytes, 0, "<unknown>",0); 
 }
 
 void *
 __sc_bb_poolrealloc(DebugPoolTy *Pool,
-		      void *Node, unsigned NumBytes) {
-  if(Node == 0) {
+		      void *Node, 
+                      unsigned NumBytes) {
+  if (Node == 0) {
     void *New = __sc_bb_poolalloc(Pool, NumBytes);
     __sc_bb_poolregister(Pool, New, NumBytes);
     return New;
   }
 
-  if(NumBytes == 0) {
+  if (NumBytes == 0) {
     __sc_bb_poolunregister(Pool, Node);
     __sc_bb_poolfree(Pool, Node);
     return 0;
   }
+
   void *New = __sc_bb_poolalloc(Pool, NumBytes);
   __sc_bb_poolregister(Pool, New, NumBytes);
 
