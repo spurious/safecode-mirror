@@ -272,10 +272,12 @@ int main(int argc, char **argv) {
     // allocation.  If we optimize away type-safe loads and stores, insert
     // alignment checks.
     //
-    if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
-      if (!DisableTypeSafetyOpts) {
-        Passes.add(new OptimizeSafeLoadStore());
-        Passes.add(new AlignmentChecks());
+    if (CheckingRuntime != RUNTIME_BB){
+      if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+        if (!DisableTypeSafetyOpts) {
+          Passes.add(new OptimizeSafeLoadStore());
+          Passes.add(new AlignmentChecks());
+        }
       }
     }
 
@@ -332,11 +334,13 @@ int main(int argc, char **argv) {
     // optimization impossible.
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
-      Passes.add (new OptimizeChecks());
+      Passes.add(new OptimizeChecks());
       Passes.add(new RewriteOOB());
     }
     if (CheckingRuntime == RUNTIME_BB) {
       Passes.add(new InsertBaggyBoundsChecks());
+      Passes.add(new OptimizeChecks());
+      Passes.add(new RewriteOOB());
     }
 
     //
@@ -366,14 +370,16 @@ int main(int argc, char **argv) {
     // frees.
     //
     Passes.add (new OptimizeChecks());
-    if (DisableDebugInfo) {
-      if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
-        Passes.add (new PoolRegisterElimination());
-      }
-    } else {
+    if (CheckingRuntime != RUNTIME_BB) {
+      if (DisableDebugInfo) {
+        if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
+          Passes.add (new PoolRegisterElimination());
+        }
+      } else {
 #if 0
-      Passes.add (new DebugPoolRegisterElimination());
+        Passes.add (new DebugPoolRegisterElimination());
 #endif
+      }
     }
 
     Passes.add(new UnusedCheckElimination());
@@ -742,6 +748,10 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
 }
 
 static inline void addPoolAllocationPass(PassManager & Passes) {
+  if (CheckingRuntime == RUNTIME_BB) {
+    Passes.add(new PoolAllocateSimple(true, true, false));
+    return;
+  }
   switch (SCConfig.getPAType()) {
   case SAFECodeConfiguration::PA_SINGLE:
     Passes.add(new PoolAllocateSimple(true, true, false));
