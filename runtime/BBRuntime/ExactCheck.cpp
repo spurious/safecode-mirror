@@ -116,7 +116,6 @@ exactcheck_check (const void * ObjStart,
                   const char * SourceFile,
                   unsigned int lineno) {
 
-  return const_cast<void*>(Dest);
   /*
    * First, we know that the pointer is out of bounds.  If we indexed off the
    * beginning or end of a valid object, determine if we can rewrite the
@@ -138,7 +137,7 @@ exactcheck_check (const void * ObjStart,
     //
     // Determine if this is a rewrite pointer that is being indexed.
     //
-    if ((logregs) && (((uintptr_t)Dest > (uintptr_t)0xc0000000))) {
+    if(logregs && ((uintptr_t)Dest & 0xffff800000000000)) {
       fprintf (stderr, "Was a rewrite: %p\n", Dest);
       fflush (stderr);
     }
