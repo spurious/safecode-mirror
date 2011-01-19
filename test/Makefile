@@ -194,6 +194,36 @@ progdebug::
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+progbb::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=bb \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) \
+               LARGE_PROBLEM_SIZE=1 \
+               report.html report.csv) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=bb \
+               POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
+               RUNTIMELIMIT=$(RUNTIMELIMIT) $(DEBUG_SAFECODE) \
+               $(LARGESIZE) $(STABLERUN) $(OPTIMIZED) \
+                   report.html report.csv; \
+      ) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir;  \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=bb \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s TEST=bb \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 # Program tests for measuring all the different SAFECode overhead
 progfull::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
