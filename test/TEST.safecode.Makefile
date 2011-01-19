@@ -14,7 +14,7 @@ endif
 CFLAGS := -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SC      := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc

@@ -13,7 +13,7 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 CFLAGS = -g -O2 -fno-strict-aliasing
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog

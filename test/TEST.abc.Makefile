@@ -11,7 +11,7 @@ CFLAGS = -O3 -fno-strict-aliasing
 ABCFLAGS = -include /home/vadve/criswell/Downloads/SAFECode/lib/poolcheck.c -I/home/vadve/criswell/Downloads/SAFECode/include
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD   =  $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 

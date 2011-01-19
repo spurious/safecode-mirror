@@ -379,7 +379,7 @@ progcputrack::
 # Targets for running tests and gathering statistics for arbitrary tests
 ##############################################################################
 
-# test target - Descend into projects/llvm-test and run the TEST.safecode.Makefile
+# test target - Descend into projects/test-suite and run the TEST.safecode.Makefile
 # tests...
 test::
 	(cd $(TEST_OBJDIR)/$(SUBDIR); \
