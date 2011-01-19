@@ -85,8 +85,11 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     const Type * GlobalType = GV->getType()->getElementType();
     unsigned long int i = TD->getTypeAllocSize(GlobalType);
                         
-    unsigned char size = (unsigned char)ceil(log(i)/log(2));
-    uintptr_t alignment = 1 << size; 
+    unsigned char size= 0;
+    while((unsigned)(1<<size) < i) {
+      size++;
+    }
+    uintptr_t alignment = 1 << (size); 
     if(alignment < SLOT) alignment = SLOT;
     if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
       if(i == alignment) {
@@ -123,7 +126,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       }
       AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
       unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
-      unsigned char size = (unsigned char)ceil(log(i)/log(2)); 
+      unsigned char size= 0;
+      while((unsigned)(1<<size) < i) {
+        size++;
+      }
       if(size < SLOT_SIZE) {
         size = SLOT_SIZE;
       }
@@ -195,7 +201,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         const PointerType * PT = cast<PointerType>(It->getType());
         const Type * ET = PT->getElementType();
         unsigned  AllocSize = TD->getTypeAllocSize(ET);
-        unsigned char size = (unsigned char)ceil(log(AllocSize)/log(2)); 
+        unsigned char size= 0;
+        while((unsigned)(1<<size) < AllocSize) {
+          size++;
+        }
         if(size < SLOT_SIZE) 
           size = SLOT_SIZE;
         
