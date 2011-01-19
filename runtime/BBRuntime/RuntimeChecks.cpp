@@ -19,7 +19,6 @@
 
 #include "ConfigData.h"
 #include "DebugReport.h"
-#include "RewritePtr.h"
 
 #include "safecode/Runtime/BBRuntime.h"
 
@@ -153,7 +152,6 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, co
   //
   // Check if is an OOB pointer
   //
-  //if (isRewritePtr (Node)) {// If it is OOB ptr, report a violation 
     if((uintptr_t)Node& 0xffff800000000000) {
 
   //

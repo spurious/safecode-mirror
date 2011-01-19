@@ -124,7 +124,7 @@ exactcheck_check (const void * ObjStart,
    */
   if ((!(ConfigData.StrictIndexing)) ||
       (((char *) Dest) == (((char *)ObjEnd)+1))) {
-    void * ptr = rewrite_ptr (0, Dest, ObjStart, ObjEnd, SourceFile, lineno);
+    void *ptr = (void *)((uintptr_t)Dest | 0xffff800000000000);
     if (logregs) {
       fprintf (ReportLog,
                "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",

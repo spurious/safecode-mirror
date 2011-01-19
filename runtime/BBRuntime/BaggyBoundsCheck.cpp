@@ -91,7 +91,6 @@ __sc_bb_pooldestroy(DebugPoolTy *Pool) {
   return;
 }
 
-
 //
 // Function: pool_init_runtime
 //
@@ -177,7 +176,6 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
 void
 __internal_register(void *allocaptr, unsigned NumBytes) {
   uintptr_t Source = (uintptr_t)allocaptr;
-  //unsigned char size = (unsigned char)ceil(log(NumBytes)/log(2)); 
   unsigned char size= 0;
   while((unsigned)(1<<size) < NumBytes) {
     size++;
@@ -206,7 +204,8 @@ void *
 __sc_bb_poolargvregister(int argc, char **argv) {
   char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
   for (int index=0; index < argc; ++index) {
-    char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL, (strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
+    char *argv_index_temp = 
+      (char *)__sc_bb_src_poolalloc(NULL, (strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
     
     __internal_register(argv_index_temp, (strlen (argv[index]) + 1)*sizeof(char));
@@ -240,10 +239,7 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
 				unsigned NumBytes, TAG,
 				const char* SourceFilep, 
 				unsigned lineno) {
-  //
-  // Print debug information about what object the caller is trying to
-  // register.
-  //
+  
   __internal_register(allocaptr, NumBytes);
   return;
 }
@@ -377,13 +373,6 @@ __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
   memset(__baggybounds_size_table_begin + index, 0, slots);
 }
 
-//
-// Function: poolalloc_debug()
-//
-// Description:
-//  This function is just like poolalloc() except that it associates a source
-//  file and line number with the allocation.
-//
 void *
 __sc_bb_src_poolalloc(DebugPoolTy *Pool,
 			  unsigned NumBytes, TAG, 
@@ -458,13 +447,6 @@ __sc_bb_poolalloc(DebugPoolTy *Pool,
   return __sc_bb_src_poolalloc(Pool, NumBytes, 0, "<unknown>",0); 
 }
 
-//
-// Function: __sc_bb_src_poolfree()
-//
-// Description:
-//  This function is identical to poolfree() except that it relays source-level
-//  debug information to the error reporting routines.
-//
 void
 __sc_bb_src_poolfree (DebugPoolTy *Pool,
 		          void *Node,TAG,
