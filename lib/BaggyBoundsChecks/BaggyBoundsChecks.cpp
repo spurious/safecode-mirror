@@ -15,6 +15,7 @@
 #define DEBUG_TYPE "baggy-bound-checks"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Value.h"
 #include "llvm/Constants.h"
 #include "llvm/InstrTypes.h"
 #include "llvm/Instruction.h"
@@ -70,8 +71,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       // Don't bother to register external global variables
       continue;
     }
+   
     if (GV->getNumUses() == 0) continue;
-    if ((GV->getSection()) == "llvm.metadata") continue;
+    if (GV->getSection() == "llvm.metadata") continue;
+
     std::string name = GV->getName();
     if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
     if (strncmp(name.c_str(), "baggy.", 6) == 0) continue;
@@ -84,32 +87,30 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       
     const Type * GlobalType = GV->getType()->getElementType();
     unsigned long int i = TD->getTypeAllocSize(GlobalType);
-                        
-    unsigned char size= 0;
-    while((unsigned)(1<<size) < i) {
+    unsigned int size= 0;
+    while((unsigned int)(1u<<size) < i) {
       size++;
     }
-    uintptr_t alignment = 1 << (size); 
-    if(alignment < SLOT) alignment = SLOT;
+    if(size < SLOT_SIZE) 
+      size = SLOT_SIZE;
+
+    unsigned int alignment = 1u << (size); 
     if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
-      if(i == alignment) {
-        GV->setAlignment(alignment);
-      } 
-      else {
+      if(i == (unsigned)(1u<<size)) {
+        GV->setAlignment(1u<<size); 
+      } else {
         Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
         StructType *newType = StructType::get(getGlobalContext(), GlobalType, newType1, NULL);
         std::vector<Constant *> vals(2);
         vals[0] = GV->getInitializer();
         vals[1] = Constant::getNullValue(newType1);
         Constant *c = ConstantStruct::get(newType, vals);
-        GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "");
-        GV_new->setAlignment(alignment);
+        GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
+        GV_new->setAlignment(1u<<size);
         Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
         Constant *idx[2] = {Zero, Zero};
         Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
         GV->replaceAllUsesWith(init);
-        GV->setName("");
-        GV_new->setName(name);
       } 
     }
     
@@ -130,20 +131,19 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       while((unsigned)(1<<size) < i) {
         size++;
       }
-      if(size < SLOT_SIZE) {
+      
+      if(size < SLOT_SIZE) 
         size = SLOT_SIZE;
-      }
-      if(i == (unsigned)(1<<size)) {
-        AI->setAlignment(1<<size);
-      } else if(size == SLOT_SIZE) {
-        AI->setAlignment(SLOT);
+      
+      if(i == (unsigned)(1u<<size)) {
+        AI->setAlignment(1u<<size);
       } else {
         BasicBlock::iterator InsertPt1 = AI;
         Instruction * iptI1 = ++InsertPt1;
         Type *newType1 = ArrayType::get(Int8Type, (1<<size)-i);
         StructType *newType = StructType::get(getGlobalContext(), AI->getType()->getElementType(), newType1, NULL);
         AllocaInst * AI_new = new AllocaInst(newType, 0,(1<<size) , "baggy."+AI->getName(), iptI1);
-        AI_new->setAlignment(1<<size);
+        AI_new->setAlignment(1u<<size);
         Value *Zero= ConstantInt::getSigned(Int32Type, 0);
         Value *idx[3]= {Zero, Zero, NULL};
         Instruction *init = GetElementPtrInst::Create(AI_new, idx + 0, idx + 1, Twine(""), iptI1);
@@ -202,17 +202,17 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         const Type * ET = PT->getElementType();
         unsigned  AllocSize = TD->getTypeAllocSize(ET);
         unsigned char size= 0;
-        while((unsigned)(1<<size) < AllocSize) {
+        while((unsigned)(1u<<size) < AllocSize) {
           size++;
         }
         if(size < SLOT_SIZE) 
           size = SLOT_SIZE;
         
-	F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1<<size));
+	F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
         
 	for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
           if (CallInst * CI = dyn_cast<CallInst>(FU)) {
-            CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1<<size));
+            CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
           }
         } 
       }
