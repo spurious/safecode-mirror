@@ -440,13 +440,26 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
     return 0;
   }
 
+  uintptr_t Source = (uintptr_t)Node; 
+  if (Source & SET_MASK) {
+    return 0;
+  }
+  
   void *New = __sc_bb_poolalloc(Pool, NumBytes);
+  if(New == 0)
+    return 0;
   __sc_bb_poolregister(Pool, New, NumBytes);
 
-  uintptr_t Source = (uintptr_t)Node; 
   unsigned  char e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
-  unsigned int size = 1 << e;
-  memcpy(New, Node, size);
+  unsigned int size_old = 1 << e;
+  uintptr_t Source_new = (uintptr_t)New; 
+  unsigned  char e_new = __baggybounds_size_table_begin[Source_new >> SLOT_SIZE];
+  unsigned int size_new = 1 << e_new;
+  
+  if(size_new > size_old)
+    memcpy(New, Node, size_old);
+  else 
+    memcpy(New, Node, size_new);
 
   __sc_bb_poolunregister(Pool, Node);
   __sc_bb_poolfree(Pool, Node);
