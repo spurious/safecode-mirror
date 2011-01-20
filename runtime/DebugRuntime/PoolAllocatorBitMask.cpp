@@ -1491,13 +1491,12 @@ internal_poolstrdup (DebugPoolTy * Pool,
     //
     // Register the size of the newly allocated object with the run-time.
     //
-    _internal_poolregister (Pool,
-                            NewNode,
-                            length,
-                            tag,
-                            SourceFilep,
-                            lineno,
-                            Heap);
+    __sc_dbg_src_poolregister (Pool,
+                               NewNode,
+                               length,
+                               tag,
+                               SourceFilep,
+                               lineno);
   }
 
   return NewNode;
