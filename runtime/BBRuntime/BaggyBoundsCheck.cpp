@@ -395,6 +395,24 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
   return p;
 }
 
+void*
+__sc_bb_poolmemalign(DebugPoolTy *Pool, 
+                     unsigned Alignment, 
+                     unsigned NumBytes) {
+
+  unsigned char size= 0;
+  while((unsigned)(1<<size) < NumBytes) {
+    size++;
+  }
+  if (size < SLOT_SIZE)
+    size = SLOT_SIZE;
+  unsigned int alloc = 1 << size;
+  void *p;
+  //FIXME: match alignment and alloc
+  posix_memalign(&p, alloc, alloc);
+  __sc_bb_poolregister(Pool, p, NumBytes);
+  return p;
+}
 void * 
 __sc_bb_src_poolcalloc(DebugPoolTy *Pool, 
                        unsigned Number, 
@@ -424,6 +442,14 @@ __sc_bb_poolcalloc(DebugPoolTy *Pool,
   return __sc_bb_src_poolcalloc(Pool,Number,  NumBytes, 0, "<unknown>",0); 
 }
 
+void *
+__sc_bb_poolrealloc_debug (DebugPoolTy *Pool,
+                            void *Node,
+                            unsigned NumBytes, TAG,
+                            const char * SourceFilep,
+                            unsigned lineno) {
+  return __sc_bb_poolrealloc(Pool, Node, NumBytes);
+}
 void *
 __sc_bb_poolrealloc(DebugPoolTy *Pool,
 		      void *Node, 

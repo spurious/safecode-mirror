@@ -128,8 +128,10 @@ extern "C" {
                                   TAG, SRC_INFO);
 
   void * __sc_bb_poolrealloc(PPOOL, void *Node, unsigned NumBytes);
+  void * __sc_bb_poolrealloc_debug(PPOOL, void *Node, unsigned NumBytes, TAG, SRC_INFO);
   void * __sc_bb_poolstrdup (PPOOL, const char * Node);
   void * __sc_bb_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
+  void * __sc_bb_poolmemalign(PPOOL, void *Node, unsigned Alignment, unsigned NumBytes);
 
   void bb_poolcheck(PPOOL, void *Node);
   void bb_poolcheckui(PPOOL, void *Node, TAG);
