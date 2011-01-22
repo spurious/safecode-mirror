@@ -142,11 +142,12 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
 //  Offset - The offset, in bytes, that the pointer should be to the beginning
 //           of objects found in the pool.
 //
-// FIXME:
-//  For now, this does nothing, but it should, in fact, do a run-time check.
-//
 void
-bb_poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const char * SourceFile, unsigned lineno) {
+bb_poolcheckalign_debug (DebugPoolTy *Pool, 
+                         void *Node, 
+                         unsigned Offset, TAG, 
+                         const char * SourceFile, 
+                         unsigned lineno) {
   //
   // Check if is an OOB pointer
   //
