@@ -1442,7 +1442,84 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
 }
 
 //
+// Function: internal_poolstrdup()
+//
+// Description:
+//  This is a pool allocated version of the strdup() function call.  It ensures
+//  that the object is properly registered in the correct pool.  This function
+//  contains common code for both the production and debug versions of the
+//  poolstrdup() function.
+//
+// Inputs:
+//  Pool        - The pool in which the new string should reside.
+//  Node        - The string which should be duplicated.
+//
+// Outputs:
+//  length      - The length of the memory object (in bytes) allocated by this
+//                function to hold the new string.
+// Return value:
+//  0 - The duplication failed.
+//  Otherwise, a pointer to the duplicated string is returned.
+//
+static void *
+internal_poolstrdup (DebugPoolTy * Pool,
+                     const char * String,
+                     unsigned & length) {
+  //
+  // First determine the size of the string.  We use pool_strlen() to ensure
+  // that we do this safely.  Remember to increment the length by 1 to handle
+  // the fact that there is space for the string terminator byte.
+  //
+  extern size_t pool_strlen(DebugPoolTy *stringPool, const char *string);
+  length = pool_strlen(Pool, String) + 1;
+
+  //
+  // Now call the pool allocator's strdup() function.
+  //
+  const void * Node = String;
+  void * NewNode = __pa_bitmap_poolstrdup (static_cast<BitmapPoolTy*>(Pool),
+                                           (void *)(Node));
+
+  if (NewNode) {
+    //
+    // Create a shadow copy of the object if dangling pointer detection is
+    // enabled.
+    //
+    if (ConfigData.RemapObjects)
+      NewNode = pool_shadow (NewNode, length);
+  }
+
+  return NewNode;
+}
+
+//
 // Function: poolstrdup()
+//
+// Description:
+//  This is a pool allocated version of the strdup() function call.  It ensures
+//  that the object is properly registered in the correct pool.
+//
+// Inputs:
+//  Pool        - The pool in which the new string should reside.
+//  Node        - The string which should be duplicated.
+//
+// Return value:
+//  0 - The duplication failed.
+//  Otherwise, a pointer to the duplicated string is returned.
+//
+void *
+__sc_dbg_poolstrdup (DebugPoolTy * Pool, const char * Node) {
+  unsigned length = 0;
+  void * NewNode = internal_poolstrdup (Pool, Node, length);
+  if (NewNode) {
+    __sc_dbg_poolregister (Pool, NewNode, length);
+  }
+
+  return NewNode;
+}
+
+//
+// Function: poolstrdup_debug()
 //
 // Description:
 //  This is a pool allocated version of the strdup() function call.  It ensures
@@ -1460,37 +1537,14 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
 //  Otherwise, a pointer to the duplicated string is returned.
 //
 void *
-internal_poolstrdup (DebugPoolTy * Pool,
-                     const char * String,
-                     TAG,
-                     const char * SourceFilep,
-                     unsigned lineno) {
-  //
-  // First determine the size of the string.  We use pool_strlen() to ensure
-  // that we do this safely.  Remember to increment the length by 1 to handle
-  // the fact that there is space for the string terminator byte.
-  //
-  extern size_t pool_strlen(DebugPoolTy *stringPool, const char *string);
-  unsigned length = pool_strlen(Pool, String) + 1;
-
-  //
-  // Now call the pool allocator's strdup() function.
-  //
-  const void * Node = String;
-  void * NewNode = __pa_bitmap_poolstrdup (static_cast<BitmapPoolTy*>(Pool),
-                                           (void *)(Node));
-
+__sc_dbg_poolstrdup_debug (DebugPoolTy * Pool,
+                           const char * Node,
+                           TAG,
+                           const char * SourceFilep,
+                           unsigned lineno) {
+  unsigned length = 0;
+  void * NewNode = internal_poolstrdup (Pool, Node, length);
   if (NewNode) {
-    //
-    // Create a shadow copy of the object if dangling pointer detection is
-    // enabled.
-    //
-    if (ConfigData.RemapObjects)
-      NewNode = pool_shadow (NewNode, length);
-
-    //
-    // Register the size of the newly allocated object with the run-time.
-    //
     __sc_dbg_src_poolregister (Pool,
                                NewNode,
                                length,
@@ -1500,20 +1554,6 @@ internal_poolstrdup (DebugPoolTy * Pool,
   }
 
   return NewNode;
-}
-
-void *
-__sc_dbg_poolstrdup (DebugPoolTy * Pool, const char * Node) {
-  return (internal_poolstrdup (Pool, Node, 0, "<Unknown>", 0));
-}
-
-void *
-__sc_dbg_poolstrdup_debug (DebugPoolTy * Pool,
-                           const char * Node,
-                           TAG,
-                           const char * SourceFilep,
-                           unsigned lineno) {
-  return (internal_poolstrdup (Pool, Node, tag, SourceFilep, lineno));
 }
 
 //
