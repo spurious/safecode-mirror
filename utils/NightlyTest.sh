@@ -66,13 +66,13 @@ done
 #
 echo "Testing SAFECode..."
 cd $LLVMDIR/projects/safecode/test
-make NO_STABLE_NUMBERS=1 NO_LARGE_SIZE=1 -j3 progtest 2>&1 >> $LOGFILE
+make NO_STABLE_NUMBERS=1 NO_LARGE_SIZE=1 -j3 progdebug 2>&1 >> $LOGFILE
 
 #
 # Print out the results.
 #
 for dir in $TESTDIRS
 do
-  cat $TESTSUITE/$dir/report.safecode.txt
+  cat $TESTSUITE/$dir/report.debug.txt
 done
 
