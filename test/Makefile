@@ -43,15 +43,15 @@ LARGE_PROBLEM_SIZE_DIRS := \
 #DEBUG_SAFECODE := DEBUG_SAFECODE=1
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-  MultiSource/Benchmarks/Olden/bh \
+  MultiSource/Benchmarks/Olden \
+  External/SPEC/CINT2000 \
+  #MultiSource/Benchmarks/Olden/bh \
   #External/SPEC/CINT2000/181.mcf \
   #External/SPEC/CINT2000/254.gap \
   #External/SPEC/CINT2000/300.twolf \
-  #External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/164.gzip \
   #External/SPEC/CINT2000/175.vpr \
   #External/SPEC/CINT2000/197.parser \
-  #MultiSource/Benchmarks/Olden \
   #External/SPEC/CINT2000/186.crafty \
   #MultiSource/Benchmarks/Olden/mst \
   #External/SPEC/CINT2000/197.parser \
