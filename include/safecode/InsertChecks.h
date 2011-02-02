@@ -70,6 +70,41 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
 };
 
 //
+// Pass: InsertGEPChecks
+//
+// Description:
+//  This pass inserts checks on GEP instructions.
+//
+struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
+  public:
+    static char ID;
+    InsertGEPChecks () : FunctionPass ((intptr_t) &ID) { }
+    const char *getPassName() const { return "Insert GEP Checks"; }
+    virtual bool runOnFunction(Function &F);
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // Required passes
+      AU.addRequired<TargetData>();
+
+      // Preserved passes
+      AU.addPreserved<InsertSCIntrinsic>();
+      AU.addPreserved<EQTDDataStructures>();
+      AU.addRequired<ArrayBoundsCheckGroup>();
+      AU.setPreservesCFG();
+    };
+
+    // Visitor methods
+    void visitGetElementPtrInst (GetElementPtrInst & GEP);
+
+  protected:
+    // Pointers to required passes
+    TargetData * TD;
+    ArrayBoundsCheckGroup * abcPass;
+
+    // Pointer to GEP run-time check function
+    Function * PoolCheckArrayUI;
+};
+
+//
 // Pass: AlignmentChecks
 //
 // Description:

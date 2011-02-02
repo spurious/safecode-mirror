@@ -86,6 +86,11 @@ DisableLSChecks  ("disable-lschecks",
                   cl::desc("Disable Load/Store Checks"));
 
 static cl::opt<bool>
+DisableGEPChecks ("disable-gepchecks", cl::Hidden,
+                  cl::init(false),
+                  cl::desc("Disable GetElementPtr(GEP) Checks"));
+
+static cl::opt<bool>
 DisableDebugInfo("disable-debuginfo", cl::init(false),
                  cl::desc("Disable Debugging Info in Run-time Errors"));
 
@@ -259,7 +264,8 @@ int main(int argc, char **argv) {
     addStaticGEPCheckingPass(Passes);
 
     Passes.add(new InsertPoolChecks());
-    if (!DisableLSChecks) Passes.add(new InsertLSChecks());
+    if (!DisableLSChecks)  Passes.add(new InsertLSChecks());
+    if (!DisableGEPChecks) Passes.add(new InsertGEPChecks());
 
     //
     // Go ahead and make all of the run-time checks complete.  This tool can

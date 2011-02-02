@@ -37,17 +37,8 @@ char InsertPoolChecks::ID = 0;
 static RegisterPass<InsertPoolChecks> ipcPass ("safecode", "insert runtime checks");
 
 // Options for Enabling/Disabling the Insertion of Various Checks
-cl::opt<bool> DisableGEPChecks ("disable-gepchecks", cl::Hidden,
-                                cl::init(false),
-                                cl::desc("Disable GetElementPtr(GEP) Checks"));
-
-cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
-                                   cl::init(false),
-                                   cl::desc("Disable Struct GEP Checks"));
-
 // Pass Statistics
 namespace {
-  STATISTIC (GEPChecks,      "GEP Checks Added");
   STATISTIC (FuncChecks ,    "Indirect Function Call Checks Added");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
 }
@@ -263,12 +254,6 @@ InsertPoolChecks::runOnFunction(Function &F) {
 
 void
 InsertPoolChecks::addPoolChecks(Function &F) {
-  if (!DisableGEPChecks) {
-    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-      if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&*I))
-        addGetElementPtrChecks (GEP);
-    }
-  }
   addLoadStoreChecks(F);
 }
 
@@ -460,86 +445,6 @@ InsertPoolChecks::addLoadStoreChecks (Function & F) {
         }
       }
     } 
-  }
-}
-
-//
-// Method: addGetElementPtrChecks()
-//
-// Description:
-//  This method checks to see if the specified GEP is safe.  If it cannot prove
-//  it safe, it then adds a run-time check for it.
-//
-void
-InsertPoolChecks::addGetElementPtrChecks (GetElementPtrInst * GEP) {
-  //
-  // Determine if the GEP is safe.  If it is, then don't do anything.
-  //
-  if (abcPass->isGEPSafe(GEP)){
-    return;
-  }
-
-  //
-  // If this only indexes into a structure, ignore it.
-  //
-  if (DisableStructChecks && indexesStructsOnly (GEP)) {
-    return;
-  }
-
-  //
-  // Get the function in which the GEP instruction lives.
-  //
-  Function * F = GEP->getParent()->getParent();
-
-  Instruction *Casted = GEP;
-  if (isa<GetElementPtrInst>(Casted)) {
-    Value * PH = ConstantPointerNull::get (getVoidPtrType());
-    BasicBlock::iterator InsertPt = Casted;
-    ++InsertPt;
-    Casted            = castTo (Casted,
-                                getVoidPtrType(),
-                                (Casted)->getName()+".pc.casted",
-                                InsertPt);
-
-    //
-    // Make this an actual cast instruction; it will make it easier to update
-    // DSA.
-    //
-    Value * CastedSrc = CastInst::CreateZExtOrBitCast (GEP->getPointerOperand(),
-                                                       getVoidPtrType(),
-                                                       (Casted)->getName()+".pcsrc.casted",
-                                                       InsertPt);
-
-    Value *CastedPH = castTo (PH,
-                              getVoidPtrType(),
-                              "jtcph",
-                              InsertPt);
-    std::vector<Value *> args(1, CastedPH);
-    args.push_back(CastedSrc);
-    args.push_back(Casted);
-
-    // Insert it
-    unsigned DSFlags = getDSFlags (GEP, F);
-
-    Instruction * CI;
-    if ((!(isTypeKnown (GEP, F))) || (DSFlags & DSNode::UnknownNode))
-      CI = CallInst::Create(PoolCheckArrayUI, args.begin(), args.end(),
-                            "", InsertPt);
-    else
-      CI = CallInst::Create(PoolCheckArray, args.begin(), args.end(),
-                            "", InsertPt);
-
-    //
-    // Update the DSA results.
-    //
-    dsaPass->copyValue (GEP, CI);
-    dsaPass->copyValue (GEP, Casted);
-    dsaPass->copyValue (GEP->getPointerOperand(), CastedSrc);
-
-    //
-    // Update the statistics.
-    //
-    ++GEPChecks;
   }
 }
 
