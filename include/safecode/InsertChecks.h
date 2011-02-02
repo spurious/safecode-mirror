@@ -134,8 +134,6 @@ struct InsertPoolChecks : public FunctionPass {
 
     Function *PoolCheck;
     Function *PoolCheckUI;
-    Function *PoolCheckAlign;
-    Function *PoolCheckAlignUI;
     Function *PoolCheckArray;
     Function *PoolCheckArrayUI;
     Function *FunctionCheck;
@@ -143,7 +141,6 @@ struct InsertPoolChecks : public FunctionPass {
     void addPoolChecks(Function &F);
     void addGetElementPtrChecks(GetElementPtrInst * GEP);
     void addLoadStoreChecks(Function &F);
-    void insertAlignmentCheck (LoadInst * LI);
     void addLSChecks(Value *Vnew, const Value *V, Instruction *I, Function *F);
 
     // Methods for abstracting the interface to DSA

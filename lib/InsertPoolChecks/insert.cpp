@@ -49,7 +49,6 @@ cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
 namespace {
   STATISTIC (GEPChecks,      "GEP Checks Added");
   STATISTIC (FuncChecks ,    "Indirect Function Call Checks Added");
-  STATISTIC (AlignLSChecks,  "Number of alignment checks on loads/stores");
   STATISTIC (MissedVarArgs , "Vararg functions not processed");
 }
 
@@ -220,13 +219,8 @@ InsertPoolChecks::addCheckProto(Module &M) {
 
   PoolCheck 		= intrinsic->getIntrinsic("sc.lscheck").F;
   PoolCheckUI 		= intrinsic->getIntrinsic("sc.lscheckui").F;
-  PoolCheckAlign 	= intrinsic->getIntrinsic("sc.lscheckalign").F;
-  PoolCheckAlignUI 	= intrinsic->getIntrinsic("sc.lscheckalignui").F;
   PoolCheckArray 	= intrinsic->getIntrinsic("sc.boundscheck").F;
   PoolCheckArrayUI 	= intrinsic->getIntrinsic("sc.boundscheckui").F;
-#if 0
-  ExactCheck		= intrinsic->getIntrinsic("sc.exactcheck").F;
-#endif
   FunctionCheck 	= intrinsic->getIntrinsic("sc.funccheck").F;
 
   //
@@ -234,8 +228,6 @@ InsertPoolChecks::addCheckProto(Module &M) {
   //
   PoolCheck->setOnlyReadsMemory();
   PoolCheckUI->setOnlyReadsMemory();
-  PoolCheckAlign->setOnlyReadsMemory();
-  PoolCheckAlignUI->setOnlyReadsMemory();
 
   // Special cases for var args
 }
@@ -282,86 +274,6 @@ InsertPoolChecks::addPoolChecks(Function &F) {
 
 
 //
-// Method: insertAlignmentCheck()
-//
-// Description:
-//  Insert an alignment check for the specified value.
-//
-void
-InsertPoolChecks::insertAlignmentCheck (LoadInst * LI) {
-  //
-  // Don't do alignment checks on non-pointer values.
-  //
-  if (!(isa<PointerType>(LI->getType())))
-    return;
-
-  //
-  // Get the function in which the load instruction lives.
-  //
-  Function * F = LI->getParent()->getParent();
-
-  //
-  // Get the DSNode for the result of the load instruction.  If it is type
-  // unknown, then no alignment check is needed.
-  //
-  if (!isTypeKnown (LI, F))
-    return;
-
-  //
-  // Get the pool handle for the node.
-  //
-  Value *PH = ConstantPointerNull::get (getVoidPtrType());
-
-  //
-  // If the node is incomplete or unknown, then only perform the check if
-  // checks to incomplete or unknown are allowed.
-  //
-  Constant * CheckAlignment = PoolCheckAlign;
-  if ((getDSFlags (LI, F)) & (DSNode::IncompleteNode | DSNode::UnknownNode)) {
-#if 0
-    if (EnableUnknownChecks) {
-      CheckAlignment = PoolCheckAlignUI;
-    } else {
-      ++MissedIncompleteChecks;
-      return;
-    }
-#else
-    CheckAlignment = PoolCheckAlignUI;
-    return;
-#endif
-  }
-
-  //
-  // A check is needed.  Fetch the alignment of the loaded pointer and insert
-  // an alignment check.
-  //
-  const Type * Int32Type = Type::getInt32Ty(F->getParent()->getContext());
-  Value * Alignment = ConstantInt::get(Int32Type, getOffset (LI, F));
-
-  // Insertion point for this check is *after* the load.
-  BasicBlock::iterator InsertPt = LI;
-  ++InsertPt;
-
-  //
-  // Create instructions to cast the checked pointer and the checked pool
-  // into sbyte pointers.
-  //
-  Value *CastLI  = castTo (LI, getVoidPtrType(), InsertPt);
-  Value *CastPHI = castTo (PH, getVoidPtrType(), InsertPt);
-
-  // Create the call to poolcheckalign
-  std::vector<Value *> args(1, CastPHI);
-  args.push_back(CastLI);
-  args.push_back (Alignment);
-  CallInst::Create (CheckAlignment, args.begin(), args.end(), "", InsertPt);
-
-  // Update the statistics
-  ++AlignLSChecks;
-
-  return;
-}
-
-//
 // Method: addLSChecks()
 //
 // Description:
@@ -393,17 +305,6 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   // If this is the case, we need to perform an alignment check on the result
   // of the load.  Do that here.
   //
-
-  //
-  // Alignment checks are currently disabled because we're doing load/store
-  // checks on all pointers.
-  //
-#if 0
-  if (LoadInst * LI = dyn_cast<LoadInst>(I)) {
-    insertAlignmentCheck (LI);
-  }
-#endif
-
   Value * PH = ConstantPointerNull::get (getVoidPtrType());
   unsigned DSFlags = getDSFlags (V, F);
   DSNode* Node = getDSNode (V, F);
