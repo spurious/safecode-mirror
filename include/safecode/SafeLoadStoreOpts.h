@@ -17,6 +17,7 @@
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
 
+#include "dsa/TypeSafety.h"
 #include "poolalloc/PoolAllocate.h"
 
 #include "llvm/Pass.h"
@@ -50,6 +51,7 @@ struct OptimizeSafeLoadStore : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<EQTDDataStructures>();
+      AU.addRequired<dsa::TypeSafety<EQTDDataStructures> >();
       AU.setPreservesCFG();
     }
 };

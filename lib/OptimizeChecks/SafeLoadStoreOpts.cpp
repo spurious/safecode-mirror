@@ -100,6 +100,7 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   // Get access to prerequisite passes.
   //
   InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
+  dsa::TypeSafety<EQTDDataStructures> & TS = getAnalysis<dsa::TypeSafety<EQTDDataStructures> >();
 
   //
   // Scan through all uses of the complete run-time check and record any checks
@@ -132,11 +133,9 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
         // a type-consistent object.
         //
         Function * F = CI->getParent()->getParent();
-        if (DSNode * N = getDSNodeHandle (CheckPtr, F).getNode()) {
-          if (!(N->isNodeCompletelyFolded())) {
-            toRemoveTypeSafe.push_back (CI);
-            continue;
-          }
+        if (TS.isTypeSafe (CheckPtr, F)) {
+          toRemoveTypeSafe.push_back (CI);
+          continue;
         }
       }
     }
