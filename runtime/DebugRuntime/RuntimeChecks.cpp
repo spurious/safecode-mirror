@@ -211,7 +211,7 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
   //
   void * S = 0;
   void * end = 0;
-  bool found;
+  bool found = false;
   unsigned char index = isInCache (Pool, Node);
   if (index < 2) {
     S   = Pool->objectCache[index].lower;
