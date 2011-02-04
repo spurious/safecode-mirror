@@ -28,7 +28,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 SCOPTS  := -terminate -check-every-gep-use -rewrite-oob
-SCOPTS2 := -pa=apa
+SCOPTS2 := -poolalloc-force-simple-pool-init -pa=apa
 #SCOPTS2 := -pa=multi
 #SCOPTS2 := -dpchecks
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
