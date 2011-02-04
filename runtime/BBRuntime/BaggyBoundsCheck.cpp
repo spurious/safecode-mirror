@@ -52,8 +52,8 @@ struct ConfigData ConfigData;
 
 // Invalid address range
 #if !defined(__linux__)
-extern uintptr_t InvalidUpper;
-extern uintptr_t InvalidLower;
+uintptr_t InvalidUpper;
+uintptr_t InvalidLower;
 #endif
 
 
