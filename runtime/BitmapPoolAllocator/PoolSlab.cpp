@@ -26,7 +26,7 @@ PoolSlab::create(BitmapPoolTy *Pool) {
     Pool->NodeSize*getSlabSize(Pool);
   assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
   PoolSlab *PS = (PoolSlab*)AllocatePage();
-
+  assert(PS && "Allocating a page failed!");
   PS->NumNodesInSlab = NodesPerSlab;
   PS->isSingleArray = 0;  // Not a single array!
   PS->FirstUnused = 0;    // Nothing allocated.

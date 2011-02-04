@@ -367,11 +367,14 @@ _internal_poolregister (DebugPoolTy *Pool,
 void
 __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
                        unsigned NumBytes) {
-#if 1
+#if 0
   //
   // If this is a singleton object within a type-known pool, don't add it to
   // the splay tree.
   //
+  // FIXME: disabling because the code that does poolcheck for singleton
+  // objects, uses SearchForContainingSlab, which assumes it is being called
+  // from a poolfree, and does not handle pointers to the middle of an object.
   if (Pool && (NumBytes == Pool->NodeSize))
     return;
 #endif
@@ -407,14 +410,21 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
   // allocation.  However, only do this if the object is not a singleton object
   // within a type-known pool.
   //
-  if (!(Pool && (NumBytes == Pool->NodeSize))) {
+
+  // FIXME: disabling because the code that does poolcheck for singleton
+  // objects, uses SearchForContainingSlab, which assumes it is being called
+  // from a poolfree, and does not handle pointers to the middle of an object.
+#if 0
+  if (Pool && (NumBytes == Pool->NodeSize)) {
+    return
+  }
+#endif
     _internal_poolregister (Pool,
                             allocaptr,
                             NumBytes, tag,
                             SourceFilep,
                             lineno,
                             Heap);
-  }
 
   //
   // Generate a generation number for this object registration.  We only do
