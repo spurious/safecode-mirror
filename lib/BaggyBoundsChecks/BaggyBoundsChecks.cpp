@@ -10,6 +10,10 @@
 // This pass aligns globals and stack allocated values to the correct power to 
 // two boundary.
 //
+// FIXME: Alignment for Global Variables in LLVM 2.7 is a 16 bit field, and thus 
+// setting alignments larger than 2^16 fails. Have hacked it to work, by changing 
+// the alignment field to 32 bit in LLVM_SRC/include/llvm/GlobalValue.h.
+// Should work fine on LLVM 2.8. 
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "baggy-bound-checks"
@@ -183,6 +187,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   }
   
   // align byval arguments
+  // FIXME: Not sure if we need to add padding to byval arguments too, to ensure that
+  // no other object gets overwritten if we do go out of exact bounds.
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     if (I->isDeclaration()) continue;
