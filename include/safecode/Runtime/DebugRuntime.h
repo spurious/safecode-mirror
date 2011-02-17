@@ -163,8 +163,8 @@ extern "C" {
   void * pool_memcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
   void * pool_memmove(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
   void * pool_memset(PPOOL sPool, void *s, int c, size_t n);
-  char * pool_strcpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src);
-  char * pool_strcpy_debug(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, TAG, SRC_INFO);
+  char * pool_strcpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, const unsigned char complete);
+  char * pool_strcpy_debug(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, const unsigned char complete, TAG, SRC_INFO);
   size_t pool_strlen(PPOOL stringPool, const char *string);
   char * pool_strncpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, size_t n);
 

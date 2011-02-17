@@ -71,7 +71,7 @@ static size_t strncpy_asm(char *dst, const char *src, size_t size) {
   );
 #else
   strncpy(dst, src, size);
-  copied = strnlen(dst, size);
+  copied = strnlen(dst, size - 1);
 #endif
 
   return copied;
@@ -461,7 +461,7 @@ void *pool_memset(DebugPoolTy *stringPool, void *string, int c, size_t n) {
   return memset(string, c, stop);
 }
 
-char *pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src, TAG, SRC_INFO) {
+char *pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src, const unsigned char complete, TAG, SRC_INFO) {
   size_t copied = 0, dstSize = 0, srcSize = 0, stop = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
 
@@ -545,9 +545,18 @@ char *pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, c
   stop = std::min(dstSize, srcSize);
 
   // Copy the source string to the destination buffer and record the number of bytes copied (including \0).
+#if 0
   copied = strncpy_asm(dst, src, stop);
+#endif
+  strncpy(dst, src, stop);
+  copied = strnlen(dst, stop - 1);
 
+std::cout << "dst: " << dstSize << ", src: " << srcSize << ", stop: " << stop << ", copied: " << copied << "\n";
+
+#if 0
   if (dst[copied - 1]) {
+#endif
+  if (dst[copied] != 0) {
     std::cout << "Copy violated destination bounds!\n";
 
     WriteOOBViolation v;
@@ -578,8 +587,8 @@ char *pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, c
  * @param   src      Source string pointer
  * @return  Destination string pointer
  */
-char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src) {
-  return pool_strcpy_debug(dstPool, srcPool, dst, src, 0, "<Unknown>", 0);
+char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src, const unsigned char complete) {
+  return pool_strcpy_debug(dstPool, srcPool, dst, src, complete, 0, "<Unknown>", 0);
 }
 
 /**
