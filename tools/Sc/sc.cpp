@@ -91,27 +91,43 @@ DisableGEPChecks ("disable-gepchecks", cl::Hidden,
                   cl::desc("Disable GetElementPtr(GEP) Checks"));
 
 static cl::opt<bool>
-DisableDebugInfo("disable-debuginfo", cl::init(false),
+DisableDebugInfo("disable-debuginfo",
+                 cl::init(false),
                  cl::desc("Disable Debugging Info in Run-time Errors"));
 
 static cl::opt<bool>
-DisableCStdLib("disable-cstdlib", cl::init(true), cl::desc("Disable transformations that secure C standard library calls"));
+DisableCStdLib("disable-cstdlib",
+               cl::init(true),
+               cl::desc("Disable transformations that secure C standard library calls"));
 
 static cl::opt<bool>
-EnableFastCallChecks("enable-fastcallchecks", cl::init(false),
+EnableFastCallChecks("enable-fastcallchecks",
+                     cl::init(false),
                      cl::desc("Enable fast indirect call checks"));
 
 static cl::opt<bool>
-DisableMonotonicLoopOpt("disable-monotonic-loop-opt", cl::init(false), cl::desc("Disable optimization for checking monotonic loops"));
+DisableMonotonicLoopOpt("disable-monotonic-loop-opt", 
+                        cl::init(false),
+                        cl::desc("Disable optimization for checking monotonic loops"));
 
 static cl::opt<bool>
-DisableExactChecks("disable-exactchecks", cl::init(false), cl::desc("Disable exactcheck optimization"));
+DisableExactChecks("disable-exactchecks",
+                   cl::init(false),
+                   cl::desc("Disable exactcheck optimization"));
 
 static cl::opt<bool>
-DisableTypeSafetyOpts("disable-typesafety", cl::init(false), cl::desc("Disable type-safety optimizations"));
+DisableTypeSafetyOpts("disable-typesafety",
+                      cl::init(false),
+                      cl::desc("Disable type-safety optimizations"));
 
 enum CheckingRuntimeType {
-  RUNTIME_PA, RUNTIME_DEBUG, RUNTIME_SINGLETHREAD, RUNTIME_PARALLEL, RUNTIME_QUEUE_OP, RUNTIME_SVA, RUNTIME_BB 
+  RUNTIME_PA,
+  RUNTIME_DEBUG,
+  RUNTIME_SINGLETHREAD,
+  RUNTIME_PARALLEL,
+  RUNTIME_QUEUE_OP,
+  RUNTIME_SVA,
+  RUNTIME_BB
 };
 
 enum CheckingRuntimeType DefaultRuntime = RUNTIME_DEBUG;
@@ -315,7 +331,9 @@ int main(int argc, char **argv) {
 #endif
 
     if (!DisableCStdLib) {
-      NOT_FOR_SVA(Passes.add(new StringTransform()));
+      if (CheckingRuntime == RUNTIME_DEBUG) {
+        NOT_FOR_SVA(Passes.add(new StringTransform()));
+      }
     }
 
     if (!DisableMonotonicLoopOpt)
