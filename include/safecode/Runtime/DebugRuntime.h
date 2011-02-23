@@ -165,7 +165,8 @@ extern "C" {
   void * pool_memset(PPOOL sPool, void *s, int c, size_t n);
   char * pool_strcpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, const unsigned char complete);
   char * pool_strcpy_debug(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, const unsigned char complete, TAG, SRC_INFO);
-  size_t pool_strlen(PPOOL stringPool, const char *string);
+  size_t pool_strlen(PPOOL stringPool, const char *string, const unsigned char complete);
+  size_t pool_strlen_debug(PPOOL stringPool, const char *string, const unsigned char complete, TAG, SRC_INFO);
   char * pool_strncpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, size_t n);
 
 #ifdef _GNU_SOURCE

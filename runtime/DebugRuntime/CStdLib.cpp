@@ -598,7 +598,7 @@ char *pool_strcpy(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const c
  * @param   string      String pointer
  * @return  Length of the string
  */
-size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
+size_t pool_strlen_debug(DebugPoolTy *stringPool, const char *string, const unsigned char complete, TAG, SRC_INFO) {
   size_t len = 0, maxlen = 0;
   void *stringBegin = (char *)string, *stringEnd = NULL;
 
@@ -615,8 +615,8 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
     v.faultPtr = stringBegin,
     v.dbgMetaData = NULL,
     v.PoolHandle = stringPool,
-    v.SourceFile = __FILE__,
-    v.lineNo = __LINE__,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo,
     v.objStart = stringBegin,
     v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
 
@@ -636,8 +636,8 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
     v.faultPtr = stringBegin,
     v.dbgMetaData = NULL,
     v.PoolHandle = stringPool,
-    v.SourceFile = __FILE__,
-    v.lineNo = __LINE__,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo,
     v.objStart = stringBegin,
     v.objLen = (unsigned)((char *)stringEnd - (char *)stringBegin) + 1;
 
@@ -645,6 +645,17 @@ size_t pool_strlen(DebugPoolTy *stringPool, const char *string) {
   }
 
   return len;
+}
+
+/**
+ * Secure runtime wrapper function to replace strlen()
+ *
+ * @param   stringPool  Pool handle for the string
+ * @param   string      String pointer
+ * @return  Length of the string
+ */
+size_t pool_strlen(DebugPoolTy *stringPool, const char *string, const unsigned char complete) {
+  return pool_strlen_debug(stringPool, string, complete, 0, "<Unknown>", 0);
 }
 
 /**

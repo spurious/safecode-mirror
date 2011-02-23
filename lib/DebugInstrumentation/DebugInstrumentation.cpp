@@ -420,6 +420,7 @@ DebugInstrument::runOnModule (Module &M) {
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"), LInfo);
+  transformFunction(M.getFunction("pool_strlen"), LInfo);
 
   return true;
 }

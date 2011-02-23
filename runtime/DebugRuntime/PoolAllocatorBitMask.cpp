@@ -1480,8 +1480,8 @@ internal_poolstrdup (DebugPoolTy * Pool,
   // that we do this safely.  Remember to increment the length by 1 to handle
   // the fact that there is space for the string terminator byte.
   //
-  extern size_t pool_strlen(DebugPoolTy *stringPool, const char *string);
-  length = pool_strlen(Pool, String) + 1;
+  extern size_t pool_strlen(DebugPoolTy *stringPool, const char *string, const unsigned char complete);
+  length = pool_strlen(Pool, String, 0) + 1;
 
   //
   // Now call the pool allocator's strdup() function.
