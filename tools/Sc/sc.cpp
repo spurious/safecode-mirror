@@ -277,11 +277,13 @@ int main(int argc, char **argv) {
     // GEP checking pass away.
     //
     Passes.add (new EQTDDataStructures());
-    addStaticGEPCheckingPass(Passes);
-
     Passes.add(new InsertPoolChecks());
+
     if (!DisableLSChecks)  Passes.add(new InsertLSChecks());
-    if (!DisableGEPChecks) Passes.add(new InsertGEPChecks());
+    if (!DisableGEPChecks) {
+      addStaticGEPCheckingPass(Passes);
+      Passes.add(new InsertGEPChecks());
+    }
 
     //
     // Go ahead and make all of the run-time checks complete.  This tool can
