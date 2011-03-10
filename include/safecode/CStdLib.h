@@ -27,6 +27,7 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Target/TargetData.h"
 
 #include "safecode/PoolHandles.h"
 #include "safecode/SAFECode.h"
@@ -50,6 +51,7 @@ private:
 
   // Private variables
   EQTDDataStructures *dsaPass;
+  TargetData *tdata;
 
 public:
   static char ID;
@@ -59,6 +61,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // Require DSA
     AU.addRequired<EQTDDataStructures>();
+    AU.addRequired<TargetData>();
 
     // No modification of control flow graph
     AU.setPreservesCFG();

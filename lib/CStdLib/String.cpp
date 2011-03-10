@@ -25,7 +25,6 @@ STATISTIC(stat_transform_memcpy, "Total memcpy() calls transformed");
 STATISTIC(stat_transform_memmove, "Total memmove() calls transformed");
 STATISTIC(stat_transform_mempcpy, "Total mempcpy() calls transformed");
 STATISTIC(stat_transform_memset, "Total memset() calls transformed");
-STATISTIC(stat_transform_strcat, "Total strcat() calls transformed");
 #endif
 STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
 #if 0
@@ -33,8 +32,15 @@ STATISTIC(stat_transform_strlcat, "Total strlcat() calls transformed");
 STATISTIC(stat_transform_strlcpy, "Total strlcpy() calls transformed");
 #endif
 STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
-#if 0
+
+STATISTIC(stat_transform_strchr,  "Total strchr() calls transformed");
+STATISTIC(stat_transform_strrchr, "Total strrchr() calls transformed");
+STATISTIC(stat_transform_strcat,  "Total strcat() calls transformed");
 STATISTIC(stat_transform_strncat, "Total strncat() calls transformed");
+STATISTIC(stat_transform_strstr,  "Total strstr() calls transformed");
+STATISTIC(stat_transform_strpbrk, "Total strpbrk() calls transformed");
+
+#if 0
 STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
 STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_wcscpy, "Total wcscpy() calls transformed");
@@ -57,16 +63,27 @@ bool StringTransform::runOnModule(Module &M) {
   // Flags whether we modified the module.
   bool modified = false;
 
+  tdata = &getAnalysis<TargetData>();
+
   dsaPass = &getAnalysis<EQTDDataStructures>();
   assert(dsaPass && "Must run DSA Pass first!");
 
   // Create needed pointer types (char * == i8 * == VoidPtrTy).
-  const Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
-  const Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  const Type *Int8Ty  = IntegerType::getInt8Ty(M.getContext());
   PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
+  // Determine the size of size_t for functions that return this result.
+  const Type *SizeTTy = tdata->getIntPtrType(M.getContext());
 
-  modified |= transform(M, "strcpy", 2, 2, VoidPtrTy, stat_transform_strcpy);
-  modified |= transform(M, "strlen", 1, 1, Int32Ty, stat_transform_strlen);
+  modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, stat_transform_strcpy);
+  //modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
+  modified |= transform(M, "strlen",  1, 1, SizeTTy, stat_transform_strlen);
+
+  modified |= transform(M, "strchr",  2, 1, VoidPtrTy, stat_transform_strchr);
+  modified |= transform(M, "strrchr", 2, 1, VoidPtrTy, stat_transform_strrchr);
+  modified |= transform(M, "strcat",  2, 2, VoidPtrTy, stat_transform_strcat);
+  modified |= transform(M, "strncat", 3, 2, VoidPtrTy, stat_transform_strncat);
+  modified |= transform(M, "strstr",  2, 2, VoidPtrTy, stat_transform_strstr);
+  modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, stat_transform_strpbrk);
 
 #if 0
   modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);

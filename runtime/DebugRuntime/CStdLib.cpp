@@ -22,6 +22,48 @@
 #define TAG unsigned tag
 #define SRC_INFO const char *SourceFile, unsigned lineNo
 
+// Default versions of arguments to debug functions
+#define DEFAULT_TAG 0
+#define DEFAULT_SRC_INFO "<Unknown>", 0
+#define SRC_INFO_ARGS SourceFile, lineNo
+
+// Various violation types
+#define OOB_VIOLATION(fault_ptr, handle, start, len) \
+    OutOfBoundsViolation v;    \
+    v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS; \
+    v.faultPC     = __builtin_return_address(0); \
+    v.faultPtr    = fault_ptr;  \
+    v.SourceFile  = SourceFile; \
+    v.lineNo      = lineNo;     \
+    v.PoolHandle  = handle;     \
+    v.objStart    = start;      \
+    v.objLen      = len;        \
+    v.dbgMetaData = NULL;       \
+    ReportMemoryViolation(&v);
+
+#define WRITE_VIOLATION(fault_ptr, handle, dst_sz, src_sz) \
+    WriteOOBViolation v; \
+    v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS,\
+    v.faultPC = __builtin_return_address(0), \
+    v.faultPtr = fault_ptr, \
+    v.SourceFile = SourceFile, \
+    v.lineNo =     lineNo, \
+    v.PoolHandle = handle, \
+    v.dstSize =    dst_sz, \
+    v.srcSize =    src_sz, \
+    v.dbgMetaData = NULL; \
+    ReportMemoryViolation(&v);
+
+#define LOAD_STORE_VIOLATION(fault_ptr, handle) \
+    DebugViolationInfo v; \
+    v.faultPC = __builtin_return_address(0), \
+    v.faultPtr = fault_ptr, \
+    v.dbgMetaData = NULL, \
+    v.PoolHandle = handle, \
+    v.SourceFile = SourceFile, \
+    v.lineNo = lineNo; \
+    ReportMemoryViolation(&v);
+
 using namespace NAMESPACE_SC;
 
 extern "C" {
@@ -75,6 +117,28 @@ static size_t strncpy_asm(char *dst, const char *src, size_t size) {
 #endif
 
   return copied;
+}
+
+/**
+ * Check for string termination.
+ *
+ * @param start  The start of the string
+ * @param end    The end of the object. String is not scanned farther than here.
+ * @param p      Reference to size object. Filled with the length of the string if
+ *               string is terminated, otherwised filled with the size of the object.
+ * @return       Whether the string is terminated within bounds.
+ *
+ * Note that start and end should be valid boundaries for a valid object.
+ */
+static bool isTerminated(void *start, void *end, size_t &p)
+{
+  size_t max = 1 + ((char *)end - (char *)start), len;
+  len = strnlen((char *)start, max);
+  p = len;
+  if (len == max)
+    return false;
+  else
+    return true;
 }
 
 /**
@@ -841,4 +905,452 @@ size_t pool_strnlen(DebugPoolTy *stringPool, const char *string, size_t maxlen) 
   }
 
   return len;
+}
+
+/**
+ * Check if object bounds are valid. Report any errors.
+ *
+ * @param handle The pool handle this object comes from.
+ * @param start  Start of object
+ * @param end    End of object
+ */
+static inline void doOOBCheck(DebugPoolTy *handle, const void *start, const void *end, SRC_INFO)
+{
+  if (end < start)
+  {
+    std::cout << "Pointer out of bounds!\n";
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = start,
+    v.dbgMetaData = NULL,
+    v.PoolHandle = handle,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineNo,
+    v.objStart = start,
+    v.objLen = ((char*)end - (char *)start) + 1;
+    ReportMemoryViolation(&v);
+  }
+}
+
+/**
+ * Secure runtime wrapper function to replace strchr()
+ *
+ * @param   sp     Pool handle for string
+ * @param   s      String pointer
+ * @param   c      Character to find
+ * @return  Pointer to first instance of c in s or NULL
+ */
+
+char *pool_strchr(DebugPoolTy *sp,
+                  const char *s,
+                  int c,
+                  unsigned char complete)
+{
+  return pool_strchr_debug(sp, s, c, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+/**
+ * Secure runtime wrapper function to replace strchr()
+ *
+ * @param   sPool  Pool handle for string
+ * @param   s      String pointer
+ * @param   c      Character to find
+ * @return  Pointer to first instance of c in s or NULL
+ */
+char *pool_strchr_debug(DebugPoolTy *sPool,
+                        const char *s,
+                        int c,
+                        unsigned char complete,
+                        TAG,
+                        SRC_INFO)
+{
+  void *objStart = (void *) s, *objEnd;
+  size_t len;
+
+  // Ensure string and pool are non-null.
+  assert(sPool && s && "Null pool handles!");
+
+  // Find string in pool.
+  if (!pool_find(sPool, objStart, objEnd)) {
+    std::cout << "String not found in pool!\n";
+    LOAD_STORE_VIOLATION(objStart, sPool)
+  }
+
+  // Check if string is out of bounds.
+  doOOBCheck(sPool, objStart, objEnd, SRC_INFO_ARGS);
+
+  // Check if string is terminated.
+  if (!isTerminated(objStart, objEnd, len)) {
+    std::cout << "String not terminated within bounds\n";
+    OOB_VIOLATION(s, sPool, s, len);
+  }
+
+  return strchr(s, c);
+}
+
+/**
+ * Secure runtime wrapper function to replace strrchr()
+ *
+ * @param   sPool  Pool handle for string
+ * @param   s      String pointer
+ * @param   c      Character to find
+ * @return  Pointer to last instance of c in s or NULL
+ */
+char *pool_strrchr(DebugPoolTy *sPool,
+                   const char *s,
+                   int c,
+                   const unsigned char complete)
+{
+  return pool_strrchr_debug(sPool, s, c, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+
+/**
+ * Secure runtime wrapper function to replace strrchr()
+ *
+ * @param   sPool  Pool handle for string
+ * @param   s      String pointer
+ * @param   c      Character to find
+ * @return  Pointer to last instance of c in s or NULL
+ */
+char *pool_strrchr_debug(DebugPoolTy *sPool,
+                         const char *s,
+                         int c,
+                         const unsigned char complete,
+                         TAG,
+                         SRC_INFO)
+{
+  void *objStart = (void *) s, *objEnd;
+  size_t len;
+
+  // Ensure string and pool are non-null.
+  assert(sPool && s && "Null pool handles!");
+
+  // Find string in pool.
+  if (!pool_find(sPool, objStart, objEnd)) {
+    std::cout << "String not found in pool!\n";
+    LOAD_STORE_VIOLATION(objStart, sPool)
+  }
+
+  // Check if string is out of bounds.
+  doOOBCheck(sPool, objStart, objEnd, SRC_INFO_ARGS);
+
+  // Check if string is terminated.
+  if (!isTerminated(objStart, objEnd, len)) {
+    std::cout << "String not terminated within bounds\n";
+    OOB_VIOLATION(s, sPool, s, len);
+  }
+
+  return strrchr(s, c);
+}
+
+char *pool_strstr(DebugPoolTy *s1Pool,
+                  DebugPoolTy *s2Pool,
+                  const char *s1,
+                  const char *s2,
+                  unsigned char complete)
+{
+  return pool_strstr_debug(s1Pool, s2Pool, s1, s2, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+char *pool_strstr_debug(DebugPoolTy *s1Pool,
+                        DebugPoolTy *s2Pool,
+                        const char *s1,
+                        const char *s2,
+                        unsigned char complete,
+                        TAG,
+                        SRC_INFO)
+{
+  void *s1Begin = (void *) s1, *s1End;
+  void *s2Begin = (void *) s2, *s2End;
+  size_t s1Len, s2Len;
+
+  // Ensure non-null arguments.
+  assert(s1Pool && s1 && s2Pool && s2 && "Null pool parameters!");
+
+  // Find strings in the pool.
+  if (!pool_find(s1Pool, s1Begin, s1End)) {
+    std::cout << "String not found in pool!\n";
+    LOAD_STORE_VIOLATION(s1Begin, s1Pool)
+  }
+  if (!pool_find(s2Pool, s2Begin, s2End)) {
+    std::cout << "String not found pool!\n";
+    LOAD_STORE_VIOLATION(s2Begin, s2Pool)
+  }
+
+  // Check if strings are out of bounds.
+  doOOBCheck(s1Pool, s1Begin, s1End, SRC_INFO_ARGS);
+  doOOBCheck(s2Pool, s2Begin, s2End, SRC_INFO_ARGS);
+
+  // Check if both strings are terminated.
+  if (!isTerminated(s1Begin, s1End, s1Len)) {
+    std::cout << "String not terminated within bounds!\n";
+    OOB_VIOLATION(s1Begin, s1Pool, s1Begin, s1Len)
+  }
+  if (!isTerminated(s2Begin, s2End, s2Len)) {
+    std::cout << "String not terminated within bounds!\n";
+    OOB_VIOLATION(s2Begin, s2Pool, s2Begin, s2Len)
+  }
+
+  return strstr(s1, s2);
+}
+
+/**
+ * Secure runtime wrapper function to replace strcat()
+ *
+ * @param  dp    Pool handle for destination string
+ * @param  sp    Pool handle for source string
+ * @param  d     Destination string pointer
+ * @param  s     Source string pointer
+ * @return       Destination string pointer
+ */
+char *pool_strcat(DebugPoolTy *dp,
+                  DebugPoolTy *sp,
+                  char *d,
+                  const char *s,
+                  const unsigned char c)
+{
+  return pool_strcat_debug(dp, sp, d, s, c,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+/**
+ * Secure runtime wrapper function to replace strcat()
+ *
+ * @param  dstPool  Pool handle for destination string
+ * @param  srcPool  Pool handle for source string
+ * @param  dst      Destination string pointer
+ * @param  src      Source string pointer
+ * @return          Destination string pointer
+ */
+char *pool_strcat_debug(DebugPoolTy *dstPool,
+                        DebugPoolTy *srcPool,
+                        char *dst,
+                        const char *src,
+                        const unsigned char complete,
+                        TAG,
+                        SRC_INFO)
+{
+  size_t srcLen, dstLen, maxLen, catLen;
+  void *dstBegin = (void *) dst, *dstEnd = NULL;
+  void *srcBegin = (void *) src, *srcEnd = NULL;
+  char *dstNulPosition;
+
+  // Ensure non-null pool and string arguments.
+  assert(dstPool && dst && srcPool && src && "Null pool parameters!");
+
+  // Find the strings in the pool.
+  if (!pool_find(dstPool, dstBegin, dstEnd)) {
+    std::cout << "Destination string not found in pool\n";
+    LOAD_STORE_VIOLATION(dstBegin, dstPool)
+  }
+  if (!pool_find(srcPool, srcBegin, srcEnd)) {
+    std::cout << "Source string not found in pool!\n";
+    LOAD_STORE_VIOLATION(srcBegin, srcPool)
+  }
+
+  // Check if the strings are out of bounds.
+  doOOBCheck(dstPool, dstBegin, dstEnd, SRC_INFO_ARGS);
+  doOOBCheck(srcPool, srcBegin, srcEnd, SRC_INFO_ARGS);
+
+  // Check if both src and dst are terminated.
+  if (!isTerminated(dstBegin, dstEnd, dstLen)) {
+    std::cout << "Destination not terminated within bounds\n";
+    OOB_VIOLATION(dstBegin, dstPool, dstBegin, dstLen)
+  }
+  if (!isTerminated(srcBegin, srcEnd, srcLen)) {
+    std::cout << "Source not terminated within bounds\n";
+    OOB_VIOLATION(srcBegin, srcPool, srcBegin, srcLen)
+  }
+
+  // maxLen is the maximum length string dst can hold without going out of bounds
+  maxLen  = (char *) dstEnd - (char *) dstBegin;
+  // catLen is the length of the string resulting from concatenation.
+  catLen  = srcLen + dstLen;
+
+  // Check if the concatenation writes out of bounds.
+  if (catLen > maxLen) {
+    std::cout << "Concatenation violated destination bounds!\n";
+    WRITE_VIOLATION(dstBegin, dstPool, maxLen + 1, catLen + 1)
+  }
+
+  // Append at the end of dst so strcat doesn't have to scan dst again.
+  dstNulPosition = &dst[dstLen];
+  strcat(dstNulPosition, src);
+
+  // strcat returns the destination string.
+  return dst;
+}
+
+/**
+ * Secure runtime wrapper function to replace strncat()
+ *
+ * @param  dstPool  Pool handle for destination string
+ * @param  srcPool  Pool handle for source string
+ * @param  dst      Destination string pointer
+ * @param  src      Source string pointer
+ * @param  n        Number of characters to copy over
+ * @return          Destination string pointer
+ */
+char *pool_strncat(DebugPoolTy *dstPool,
+                   DebugPoolTy *srcPool,
+                   char *dst,
+                   const char *src,
+                   size_t n,
+                   const unsigned char complete)
+{
+  return pool_strncat_debug(dstPool, srcPool, dst, src, n, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+/**
+ * Secure runtime wrapper function to replace strncat()
+ *
+ * @param  dstPool  Pool handle for destination string
+ * @param  srcPool  Pool handle for source string
+ * @param  dst      Destination string pointer
+ * @param  src      Source string pointer
+ * @param  n        Number of characters to copy over
+ * @return          Destination string pointer
+ */
+char *pool_strncat_debug(DebugPoolTy *dstPool,
+                         DebugPoolTy *srcPool,
+                         char *dst,
+                         const char *src,
+                         size_t n,
+                         const unsigned char complete,
+                         TAG,
+                         SRC_INFO)
+{
+  void *dstBegin = (void *) dst, *dstEnd;
+  void *srcBegin = (void *) src, *srcEnd;
+  size_t dstLen, srcLen, maxLen, catLen, srcAmt;
+  char *dstNulPosition;
+
+  // Ensure non-null arguments.
+  assert(dstPool && dst && srcPool && src && "Null pool parameters!");
+
+  // Retrieve destination and source strings from pool.
+  if (!pool_find(dstPool, dstBegin, dstEnd)) {
+    std::cout << "Destination string not found in pool!\n";  
+    LOAD_STORE_VIOLATION(dstBegin, dstPool)
+  }
+  if (!pool_find(srcPool, srcBegin, srcEnd)) {
+    std::cout << "Source string not found in pool!\n";  
+    LOAD_STORE_VIOLATION(srcBegin, srcPool)
+  }
+
+  // Check if strings are in bounds.
+  doOOBCheck(dstPool, dstBegin, dstEnd, SRC_INFO_ARGS);
+  doOOBCheck(srcPool, srcBegin, srcEnd, SRC_INFO_ARGS);
+
+  // Check if dst is nul terminated.
+  if (!isTerminated(dstBegin, dstEnd, dstLen)) {
+    std::cout << "String not terminated within bounds\n";
+    OOB_VIOLATION(dst, dstPool, dstBegin, dstLen)
+  }
+
+  // According to POSIX, src doesn't have to be nul-terminated.
+  // If it isn't, ensure strncat that doesn't read beyond the bounds of src.
+  if (!isTerminated(srcBegin, srcEnd, srcLen) && srcLen < n) {
+    std::cout << "Source object too small\n";
+    OOB_VIOLATION(src, srcPool, srcBegin, srcLen)
+  }
+
+  // Determine the amount of characters to be copied over from src.
+  // This is either n or the length of src, whichever is smaller.
+  srcAmt = std::min(srcLen, n);
+
+  // maxLen is the maximum length string dst can hold without overflowing.
+  maxLen = (char *) dstEnd - (char *) dstBegin;
+  // catLen is the length of the string resulting from the concatenation.
+  catLen = srcAmt + dstLen;
+
+  // Check if the copy operation would go beyong the bounds of dst.
+  if (catLen > maxLen) {
+    std::cout << "Concatenation violated destination bounds!\n";
+    WRITE_VIOLATION(dst, dstPool, 1+maxLen, 1+catLen)
+  }
+
+  // Start concatenation the end of dst so strncat() doesn't have to scan dst
+  // all over again.
+  dstNulPosition = &dst[dstLen];
+  strncat(dstNulPosition, src, srcAmt);
+
+  // strncat() the returns destination string.
+  return dst;
+}
+
+/**
+ * Secure runtime wrapper function to replace strpbrk()
+ *
+ * @param   sPool  Pool handle for source string
+ * @param   aPool  Pool handle for accept string
+ * @param   s      String pointer
+ * @param   a      Pointer to string of characters to find
+ * @return  Pointer to first instance in s of some character in s, or NULL
+ */
+char *pool_strpbrk(DebugPoolTy *sp,
+                   DebugPoolTy *ap,
+                   const char *s,
+                   const char *a,
+                   const unsigned char complete)
+{
+  return pool_strpbrk_debug(sp, ap, s, a, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
+}
+
+/**
+ * Secure runtime wrapper function to replace strpbrk()
+ *
+ * @param   sPool  Pool handle for source string
+ * @param   aPool  Pool handle for accept string
+ * @param   s      String pointer
+ * @param   a      Pointer to string of characters to find
+ * @return  Pointer to first instance in s of some character in s, or NULL
+ */
+char *pool_strpbrk_debug(DebugPoolTy *sPool,
+                         DebugPoolTy *aPool,
+                         const char *s,
+                         const char *a,
+                         const unsigned char complete,
+                         TAG,
+                         SRC_INFO)
+{
+  void *sBegin = (void *) s, *sEnd;
+  void *aBegin = (void *) a, *aEnd;
+  size_t sLen, aLen;
+
+  // Ensure non-null arguments.
+  assert(sPool && s && aPool && a && "Null pool parameters!");
+
+  // Retrieve strings from pool.
+  if (!pool_find(sPool, sBegin, sEnd)) {
+    std::cout << "String not found in pool!\n";
+    LOAD_STORE_VIOLATION(sBegin, sPool)
+  }
+  if (!pool_find(aPool, aBegin, aEnd)) {
+    std::cout << "String not found pool!\n";
+    LOAD_STORE_VIOLATION(aBegin, aPool)
+  }
+
+  // Check if strings fall in bounds.
+  doOOBCheck(sPool, sBegin, sEnd, SRC_INFO_ARGS);
+  doOOBCheck(aPool, aBegin, aEnd, SRC_INFO_ARGS);
+
+  // Check if strings are terminated.
+  if (!isTerminated(sBegin, sEnd, sLen)) {
+    std::cout << "String not terminated within bounds!\n";
+    OOB_VIOLATION(sBegin, sPool, sBegin, sLen)
+  }
+  if (!isTerminated(aBegin, aEnd, aLen)) {
+    std::cout << "String not terminated within bounds!\n";
+    OOB_VIOLATION(aBegin, aPool, aBegin, aLen)
+  }
+
+  return strpbrk(s, a);
 }

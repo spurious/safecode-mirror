@@ -168,6 +168,21 @@ extern "C" {
   size_t pool_strlen(PPOOL stringPool, const char *string, const unsigned char complete);
   size_t pool_strlen_debug(PPOOL stringPool, const char *string, const unsigned char complete, TAG, SRC_INFO);
   char * pool_strncpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, size_t n);
+  char * pool_strchr(PPOOL sPool, const char *s, int c, const unsigned char complete);
+  char * pool_strchr_debug(PPOOL sPool, const char *s, int c, const unsigned char complete, TAG, SRC_INFO);
+  char * pool_strrchr(PPOOL sPool, const char *s, int c, const unsigned char complete);
+  char * pool_strrchr_debug(PPOOL sPool, const char *s, int c, const unsigned char complete, TAG, SRC_INFO);
+  char * pool_strstr(PPOOL s1Pool, PPOOL s2Pool, const char *s1, const char *s2, const unsigned char complete);
+  char * pool_strstr_debug(PPOOL s1Pool, PPOOL s2Pool, const char *s1, const char *s2,
+                           const unsigned char complete, TAG, SRC_INFO);
+  char * pool_strcat(PPOOL dstPool, PPOOL srcPool, char *d, const char *s, const unsigned char complete);
+  char * pool_strcat_debug(PPOOL dstPool, PPOOL srcPool, char *d, const char *s, const unsigned char complete, TAG, SRC_INFO);
+  char * pool_strncat(PPOOL dstPool, PPOOL srcPool, char *d, const char *s, size_t n, const unsigned char complete);
+  char * pool_strncat_debug(PPOOL dstPool, PPOOL srcPool, char *d, const char *s, size_t n,
+                            const unsigned char complete, TAG, SRC_INFO);
+  char * pool_strpbrk(PPOOL sPool, PPOOL aPool, const char *s, const char *a, const unsigned char complete);
+  char * pool_strpbrk_debug(PPOOL sPool, PPOOL aPool, const char *s, const char *a,
+                            const unsigned char complete, TAG, SRC_INFO);
 
 #ifdef _GNU_SOURCE
   void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);

@@ -419,8 +419,14 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (intrinsic.getIntrinsic("sc.pool_unregister_stack").F, LInfo);
 
   // CStdLib
-  transformFunction(M.getFunction("pool_strcpy"), LInfo);
-  transformFunction(M.getFunction("pool_strlen"), LInfo);
+  transformFunction(M.getFunction("pool_strcpy"),  LInfo);
+  transformFunction(M.getFunction("pool_strlen"),  LInfo);
+  transformFunction(M.getFunction("pool_strchr"),  LInfo);
+  transformFunction(M.getFunction("pool_strrchr"), LInfo);
+  transformFunction(M.getFunction("pool_strncat"), LInfo);
+  transformFunction(M.getFunction("pool_strcat"),  LInfo);
+  transformFunction(M.getFunction("pool_strstr"),  LInfo);
+  transformFunction(M.getFunction("pool_strpbrk"),  LInfo);
 
   return true;
 }
