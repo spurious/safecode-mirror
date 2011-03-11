@@ -572,7 +572,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // Get the address causing the fault.
   //
   void * faultAddr = info->si_addr; 
-  PDebugMetaData debugmetadataptr;
+  PDebugMetaData debugmetadataptr = 0;
 
   //
   // If the faulting pointer is within the zero page or the reserved memory
