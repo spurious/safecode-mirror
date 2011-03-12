@@ -39,6 +39,7 @@ cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
 // Pass Statistics
 namespace {
   STATISTIC (GEPChecks, "Bounds Checks Added");
+  STATISTIC (SafeGEP,   "GEPs proven safe by SAFECode");
 }
 
 //
@@ -54,6 +55,7 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   // Determine if the GEP is safe.  If it is, then don't do anything.
   //
   if (abcPass->isGEPSafe(&GEP)) {
+    ++SafeGEP;
     return;
   }
 
