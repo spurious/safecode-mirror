@@ -1178,9 +1178,9 @@ char *pool_strcat_debug(DebugPoolTy *dstPool,
     WRITE_VIOLATION(dstBegin, dstPool, maxLen + 1, catLen + 1)
   }
 
-  // Append at the end of dst so strcat doesn't have to scan dst again.
+  // Append at the end of dst so concatenation doesn't have to scan dst again.
   dstNulPosition = &dst[dstLen];
-  strcat(dstNulPosition, src);
+  strncat(dstNulPosition, src, srcLen);
 
   // strcat returns the destination string.
   return dst;
