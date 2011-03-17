@@ -18,6 +18,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream> // Debug
+#include <stdint.h>
 
 #define TAG unsigned tag
 #define SRC_INFO const char *SourceFile, unsigned lineNo

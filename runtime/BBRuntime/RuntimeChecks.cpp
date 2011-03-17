@@ -25,6 +25,7 @@
 #include <map>
 #include <cstdarg>
 #include <cassert>
+#include <stdint.h>
 
 #define TAG unsigned tag
 
