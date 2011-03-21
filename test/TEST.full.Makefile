@@ -29,6 +29,8 @@ SCDEBUG := -terminate -check-every-gep-use -rewrite-oob
 SCPA    := $(SCOPTS) -poolalloc-force-simple-pool-init -pa=apa
 SCNOEC  := $(SCOPTS) -poolalloc-force-simple-pool-init -pa=apa -disable-exactchecks
 SCNOTS  := $(SCOPTS) -poolalloc-force-simple-pool-init -pa=apa -disable-typesafety
+SCNOLS  := $(SCOPTS) -poolalloc-force-simple-pool-init -pa=apa -disable-lschecks
+SCNOGEP := $(SCOPTS) -poolalloc-force-simple-pool-init -pa=apa -disable-gepchecks
 SCDP    := $(SCOPTS) -dpchecks
 
 # SAFECode run-time libraries
@@ -141,6 +143,26 @@ Output/%.scnoec.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
 	-$(LOPT) $(OPTZN_PASSES) $@.scpa.ld.bc -o $@ -f 2>&1    >> $@.out
 
 #
+# Create a SAFECode executable with APA but no load/store checks
+#
+$(PROGRAMS_TO_TEST:%=Output/%.scnols.bc): \
+Output/%.scnols.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
+	-@rm -f $(CURDIR)/$@.info
+	-$(SC_STATS) $(SCNOLS) $< -f -o $@.scpa 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.scpa.ld $@.scpa $(PA_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.scpa.ld.bc -o $@ -f 2>&1    >> $@.out
+
+#
+# Create a SAFECode executable with APA but no GEP checks
+#
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep.bc): \
+Output/%.scnogep.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
+	-@rm -f $(CURDIR)/$@.info
+	-$(SC_STATS) $(SCNOGEP) $< -f -o $@.scpa 2>&1 > $@.out
+	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.scpa.ld $@.scpa $(PA_RT_BC) 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $@.scpa.ld.bc -o $@ -f 2>&1    >> $@.out
+
+#
 # Create a SAFECode executable with debug information enabled.
 #
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.bc): \
@@ -183,6 +205,14 @@ $(PROGRAMS_TO_TEST:%=Output/%.scnoec.s): \
 Output/%.scnoec.s: Output/%.scnoec.bc $(LLC)
 	-$(LLC) $(LLCFLAGS) -f $< -o $@
 
+$(PROGRAMS_TO_TEST:%=Output/%.scnols.s): \
+Output/%.scnols.s: Output/%.scnols.bc $(LLC)
+	-$(LLC) $(LLCFLAGS) -f $< -o $@
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep.s): \
+Output/%.scnogep.s: Output/%.scnogep.bc $(LLC)
+	-$(LLC) $(LLCFLAGS) -f $< -o $@
+
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.s): \
 Output/%.scdebug.s: Output/%.scdebug.bc $(LLC)
 	-$(LLC) $(LLCFLAGS) -f $< -o $@
@@ -212,6 +242,14 @@ Output/%.scnots: Output/%.scnots.s
 
 $(PROGRAMS_TO_TEST:%=Output/%.scnoec): \
 Output/%.scnoec: Output/%.scnoec.s
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnols): \
+Output/%.scnols: Output/%.scnols.s
+	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep): \
+Output/%.scnogep: Output/%.scnogep.s
 	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ -lstdc++
 
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug): \
@@ -250,6 +288,14 @@ Output/%.scnots.out-llc: Output/%.scnots
 
 $(PROGRAMS_TO_TEST:%=Output/%.scnoec.out-llc): \
 Output/%.scnoec.out-llc: Output/%.scnoec
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnols.out-llc): \
+Output/%.scnols.out-llc: Output/%.scnols
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep.out-llc): \
+Output/%.scnogep.out-llc: Output/%.scnogep
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.out-llc): \
@@ -306,6 +352,22 @@ Output/%.scnoec.out-llc: Output/%.scnoec
 	-(cd Output/scnoec.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/scnoec.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
+$(PROGRAMS_TO_TEST:%=Output/%.scnols.out-llc): \
+Output/%.scnols.out-llc: Output/%.scnols
+	-$(SPEC_SANDBOX) scnols.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
+	-(cd Output/scnols.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/scnols.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep.out-llc): \
+Output/%.scnogep.out-llc: Output/%.scnogep
+	-$(SPEC_SANDBOX) scnogep.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
+	-(cd Output/scnogep.cbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/scnogep.cbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.out-llc): \
 Output/%.scdebug.out-llc: Output/%.scdebug
 	-$(SPEC_SANDBOX) scdebug.cbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -350,6 +412,16 @@ Output/%.scnoec.diff-sc: Output/%.out-nat Output/%.scnoec.out-llc
 	@cp Output/$*.out-nat Output/$*.scnoec.out-nat
 	-$(DIFFPROG) llc $*.scnoec $(HIDEDIFF)
 
+$(PROGRAMS_TO_TEST:%=Output/%.scnols.diff-sc): \
+Output/%.scnols.diff-sc: Output/%.out-nat Output/%.scnols.out-llc
+	@cp Output/$*.out-nat Output/$*.scnols.out-nat
+	-$(DIFFPROG) llc $*.scnols $(HIDEDIFF)
+
+$(PROGRAMS_TO_TEST:%=Output/%.scnogep.diff-sc): \
+Output/%.scnogep.diff-sc: Output/%.out-nat Output/%.scnogep.out-llc
+	@cp Output/$*.out-nat Output/$*.scnogep.out-nat
+	-$(DIFFPROG) llc $*.scnogep $(HIDEDIFF)
+
 $(PROGRAMS_TO_TEST:%=Output/%.scdebug.diff-sc): \
 Output/%.scdebug.diff-sc: Output/%.out-nat Output/%.scdebug.out-llc
 	@cp Output/$*.out-nat Output/$*.scdebug.out-nat
@@ -379,6 +451,8 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
                              Output/%.scpa.diff-sc         \
                              Output/%.scnots.diff-sc         \
                              Output/%.scnoec.diff-sc         \
+                             Output/%.scnols.diff-sc         \
+                             Output/%.scnogep.diff-sc         \
                              Output/%.LOC.txt
 	@echo > $@
 	@echo ">>> ========= " \'$*\' Program >> $@
@@ -409,6 +483,14 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	@-if test -f Output/$*.scnoec.diff-llc; then \
 	  printf "SCNOEC-RUN-TIME: " >> $@;\
 	  grep "^user" Output/$*.scnoec.out-llc.time >> $@;\
+	fi
+	@-if test -f Output/$*.scnols.diff-llc; then \
+	  printf "SCNOLS-RUN-TIME: " >> $@;\
+	  grep "^user" Output/$*.scnols.out-llc.time >> $@;\
+	fi
+	@-if test -f Output/$*.scnogep.diff-llc; then \
+	  printf "SCNOGEP-RUN-TIME: " >> $@;\
+	  grep "^user" Output/$*.scnogep.out-llc.time >> $@;\
 	fi
 	@-if test -f Output/$*.scdebug.diff-llc; then \
 	  printf "SCDEBUG-RUN-TIME: " >> $@;\
