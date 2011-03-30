@@ -11,6 +11,5 @@ int main()
 {
   char buf[10] = "afg";
   strcat(&buf[2], buf);
-  printf("%s\n", buf);
   return 0;
 }

@@ -7,12 +7,10 @@
  * items to be copied do not overlap. */
 
 #include <string.h>
-#include <stdio.h>
 
 int main()
 {
   char string[20] = "a string:";
   strncat(&string[1], string, 1);
-  printf("%s\n", string);
   return 0;
 }
