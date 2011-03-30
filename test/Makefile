@@ -441,3 +441,38 @@ cputrack::
                    report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+##===----------------------------------------------------------------------===##
+# Lit tests
+##===----------------------------------------------------------------------===##
+
+.PHONY: lit litclean
+
+ifeq ($(ENABLE_OPTIMIZED),1)
+CONFIGURATION := Release
+else
+CONFIGURATION := Debug
+endif
+
+# Path to SAFECode libraries
+SC_LIB  := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib
+SC_BIN  := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/bin/sc
+
+SETPATH = \
+	PATH=$(PROJ_OBJ_ROOT)/test/cstdlib:$(PATH)
+
+TESTSUITE=$(PROJ_OBJ_ROOT)/test/cstdlib
+
+# Run the lit tests for cstdlib
+lit: cstdlib/test.sh
+	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE)
+	@rmdir $(TESTSUITE)/Output
+
+cstdlib/test.sh: cstdlib/test.sh.in
+	@echo Creating test script...
+	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
+       -e 's#@SC@#$(SC_BIN)#g' \
+       -e 's#@LLC@#$(LLC)#g' \
+       -e 's#@SC_LIB@#$(SC_LIB)#g' < $< > $@
+
+litclean:
+	rm -f cstdlib/test.sh

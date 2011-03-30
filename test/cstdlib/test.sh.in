@@ -1,0 +1,41 @@
+#!/bin/sh
+
+prefix=${1%%.c}
+bcfile=${prefix}.bc
+scobj=${prefix}.sc.bc
+scasm=${prefix}.sc.s
+scfile=${prefix}.sc
+
+llvmgcc=@LLVMGCC@
+sc=@SC@
+llc=@LLC@
+sc_lib=@SC_LIB@
+
+# Remove previous temporary files, if any.
+rm -f $bcfile $scobj $scasm $scfile
+
+# Create bitcode file.
+$llvmgcc -c -emit-llvm -o $bcfile $1
+
+# Run SAFECode with CStdLib passes on bitcode.
+$sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile
+
+# Compile native assembly file from processed bitcode.
+$llc -o $scasm $scobj
+
+# Build and link test.
+$llvmgcc -o $scfile -L$sc_lib -lCStdLib -lsc_dbg_rt -lpoolalloc_bitmap $scasm
+
+# Run test and check results.
+error_count=$($scfile 2>&1 | grep -c SAFECode)
+
+# Clean up.
+rm -f $bcfile $scobj $scasm $scfile
+
+# Exit with error if any SAFECode output was encountered.
+if [ $error_count -gt 0 ]
+then
+  exit 1
+else
+  exit 0
+fi
