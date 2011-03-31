@@ -942,10 +942,10 @@ static inline void doOOBCheck(DebugPoolTy *handle, const void *start, const void
  * @return  Pointer to first instance of c in s or NULL
  */
 
-char *pool_strchr(DebugPoolTy *sp,
-                  const char *s,
-                  int c,
-                  unsigned char complete)
+const char *pool_strchr(DebugPoolTy *sp,
+                        const char *s,
+                        int c,
+                        unsigned char complete)
 {
   return pool_strchr_debug(sp, s, c, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
@@ -959,12 +959,12 @@ char *pool_strchr(DebugPoolTy *sp,
  * @param   c      Character to find
  * @return  Pointer to first instance of c in s or NULL
  */
-char *pool_strchr_debug(DebugPoolTy *sPool,
-                        const char *s,
-                        int c,
-                        unsigned char complete,
-                        TAG,
-                        SRC_INFO)
+const char *pool_strchr_debug(DebugPoolTy *sPool,
+                              const char *s,
+                              int c,
+                              unsigned char complete,
+                              TAG,
+                              SRC_INFO)
 {
   void *objStart = (void *) s, *objEnd;
   size_t len;
@@ -998,10 +998,10 @@ char *pool_strchr_debug(DebugPoolTy *sPool,
  * @param   c      Character to find
  * @return  Pointer to last instance of c in s or NULL
  */
-char *pool_strrchr(DebugPoolTy *sPool,
-                   const char *s,
-                   int c,
-                   const unsigned char complete)
+const char *pool_strrchr(DebugPoolTy *sPool,
+                         const char *s,
+                         int c,
+                         const unsigned char complete)
 {
   return pool_strrchr_debug(sPool, s, c, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
@@ -1016,12 +1016,12 @@ char *pool_strrchr(DebugPoolTy *sPool,
  * @param   c      Character to find
  * @return  Pointer to last instance of c in s or NULL
  */
-char *pool_strrchr_debug(DebugPoolTy *sPool,
-                         const char *s,
-                         int c,
-                         const unsigned char complete,
-                         TAG,
-                         SRC_INFO)
+const char *pool_strrchr_debug(DebugPoolTy *sPool,
+                               const char *s,
+                               int c,
+                               const unsigned char complete,
+                               TAG,
+                               SRC_INFO)
 {
   void *objStart = (void *) s, *objEnd;
   size_t len;
@@ -1047,23 +1047,23 @@ char *pool_strrchr_debug(DebugPoolTy *sPool,
   return strrchr(s, c);
 }
 
-char *pool_strstr(DebugPoolTy *s1Pool,
-                  DebugPoolTy *s2Pool,
-                  const char *s1,
-                  const char *s2,
-                  unsigned char complete)
+const char *pool_strstr(DebugPoolTy *s1Pool,
+                        DebugPoolTy *s2Pool,
+                        const char *s1,
+                        const char *s2,
+                        unsigned char complete)
 {
   return pool_strstr_debug(s1Pool, s2Pool, s1, s2, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
 
-char *pool_strstr_debug(DebugPoolTy *s1Pool,
-                        DebugPoolTy *s2Pool,
-                        const char *s1,
-                        const char *s2,
-                        unsigned char complete,
-                        TAG,
-                        SRC_INFO)
+const char *pool_strstr_debug(DebugPoolTy *s1Pool,
+                              DebugPoolTy *s2Pool,
+                              const char *s1,
+                              const char *s2,
+                              unsigned char complete,
+                              TAG,
+                              SRC_INFO)
 {
   void *s1Begin = (void *) s1, *s1End;
   void *s2Begin = (void *) s2, *s2End;
@@ -1294,11 +1294,11 @@ char *pool_strncat_debug(DebugPoolTy *dstPool,
  * @param   a      Pointer to string of characters to find
  * @return  Pointer to first instance in s of some character in s, or NULL
  */
-char *pool_strpbrk(DebugPoolTy *sp,
-                   DebugPoolTy *ap,
-                   const char *s,
-                   const char *a,
-                   const unsigned char complete)
+const char *pool_strpbrk(DebugPoolTy *sp,
+                         DebugPoolTy *ap,
+                         const char *s,
+                         const char *a,
+                         const unsigned char complete)
 {
   return pool_strpbrk_debug(sp, ap, s, a, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
@@ -1313,13 +1313,13 @@ char *pool_strpbrk(DebugPoolTy *sp,
  * @param   a      Pointer to string of characters to find
  * @return  Pointer to first instance in s of some character in s, or NULL
  */
-char *pool_strpbrk_debug(DebugPoolTy *sPool,
-                         DebugPoolTy *aPool,
-                         const char *s,
-                         const char *a,
-                         const unsigned char complete,
-                         TAG,
-                         SRC_INFO)
+const char *pool_strpbrk_debug(DebugPoolTy *sPool,
+                               DebugPoolTy *aPool,
+                               const char *s,
+                               const char *a,
+                               const unsigned char complete,
+                               TAG,
+                               SRC_INFO)
 {
   void *sBegin = (void *) s, *sEnd;
   void *aBegin = (void *) a, *aEnd;
