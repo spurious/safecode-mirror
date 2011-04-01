@@ -55,22 +55,21 @@ make -s -j3 >> $LOGFILE
 # Clean out the old test files.
 #
 echo "Cleaning out old test files..."
-for dir in $TESTDIRS
-do
-  cd $TESTSUITE/$dir
-  make clean >> $LOGFILE
-done
+cd $TESTSUITE
+make -k clean >> $LOGFILE
 
 #
 # Run the automatic pool allocation tests.
 #
 echo "Testing SAFECode..."
 cd $LLVMDIR/projects/safecode/test
-make NO_STABLE_NUMBERS=1 NO_LARGE_SIZE=1 -j3 progdebug 2>&1 >> $LOGFILE
+make -k lit 2>&1 | tee -a $LOGFILE
+make NO_STABLE_NUMBERS=1 NO_LARGE_SIZE=1 -k -j3 progdebug 2>&1 >> $LOGFILE
 
 #
 # Print out the results.
 #
+echo "Logfile is in $LOGFILE"
 for dir in $TESTDIRS
 do
   cat $TESTSUITE/$dir/report.debug.txt
