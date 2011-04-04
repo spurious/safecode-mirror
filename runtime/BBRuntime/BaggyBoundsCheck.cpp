@@ -391,7 +391,7 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
     size = SLOT_SIZE;
   unsigned int alloc = 1 << size;
   void *p;
-  posix_memalign(&p, alloc, alloc);
+  assert(!posix_memalign(&p, alloc, alloc));
 
   return p;
 }
@@ -410,7 +410,7 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
   unsigned int alloc = 1 << size;
   void *p;
   //FIXME: match alignment and alloc
-  posix_memalign(&p, alloc, alloc);
+  assert(!posix_memalign(&p, alloc, alloc));
   __sc_bb_poolregister(Pool, p, NumBytes);
   return p;
 }
@@ -428,7 +428,7 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool,
   if (size < SLOT_SIZE) size = SLOT_SIZE;
   unsigned int alloc = 1<< size;
   void *p;
-  posix_memalign(&p, alloc, alloc);
+  assert(!posix_memalign(&p, alloc, alloc));
   __sc_bb_src_poolregister(Pool, p, (Number*NumBytes), tag, SourceFilep, lineno);
   if (p) {
     bzero(p, Number*NumBytes);

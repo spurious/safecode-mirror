@@ -427,6 +427,12 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction(M.getFunction("pool_strcat"),  LInfo);
   transformFunction(M.getFunction("pool_strstr"),  LInfo);
   transformFunction(M.getFunction("pool_strpbrk"),  LInfo);
+  
+  transformFunction(M.getFunction("pool_strcmp"),  LInfo);
+  transformFunction(M.getFunction("pool_memcpy"),  LInfo);
+  transformFunction(M.getFunction("pool_mempcpy"),  LInfo);
+  transformFunction(M.getFunction("pool_memmove"),  LInfo);
+  transformFunction(M.getFunction("pool_memset"),  LInfo);
 
   return true;
 }

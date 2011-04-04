@@ -26,12 +26,15 @@ STATISTIC(stat_transform_memmove, "Total memmove() calls transformed");
 STATISTIC(stat_transform_mempcpy, "Total mempcpy() calls transformed");
 STATISTIC(stat_transform_memset, "Total memset() calls transformed");
 #endif
+STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
+
 STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
 #if 0
 STATISTIC(stat_transform_strlcat, "Total strlcat() calls transformed");
 STATISTIC(stat_transform_strlcpy, "Total strlcpy() calls transformed");
 #endif
 STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
+STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 
 STATISTIC(stat_transform_strchr,  "Total strchr() calls transformed");
 STATISTIC(stat_transform_strrchr, "Total strrchr() calls transformed");
@@ -40,9 +43,8 @@ STATISTIC(stat_transform_strncat, "Total strncat() calls transformed");
 STATISTIC(stat_transform_strstr,  "Total strstr() calls transformed");
 STATISTIC(stat_transform_strpbrk, "Total strpbrk() calls transformed");
 
+STATISTIC(stat_transform_strcmp, "Total strcmp() calls transformed");
 #if 0
-STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
-STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_wcscpy, "Total wcscpy() calls transformed");
 STATISTIC(stat_transform_wmemcpy, "Total wmemcpy() calls transformed");
 STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
@@ -73,10 +75,13 @@ bool StringTransform::runOnModule(Module &M) {
   PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
   // Determine the size of size_t for functions that return this result.
   const Type *SizeTTy = tdata->getIntPtrType(M.getContext());
+  // Determine the size of int for functions like strcmp, strncmp and etc..
+  const Type *Int32ty = IntegerType::getInt32Ty(M.getContext());
 
   modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, stat_transform_strcpy);
-  //modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
+  modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
   modified |= transform(M, "strlen",  1, 1, SizeTTy, stat_transform_strlen);
+  modified |= transform(M, "strnlen", 2, 1, SizeTTy, stat_transform_strnlen);
 
   modified |= transform(M, "strchr",  2, 1, VoidPtrTy, stat_transform_strchr);
   modified |= transform(M, "strrchr", 2, 1, VoidPtrTy, stat_transform_strrchr);
@@ -84,14 +89,15 @@ bool StringTransform::runOnModule(Module &M) {
   modified |= transform(M, "strncat", 3, 2, VoidPtrTy, stat_transform_strncat);
   modified |= transform(M, "strstr",  2, 2, VoidPtrTy, stat_transform_strstr);
   modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, stat_transform_strpbrk);
+  modified |= transform(M, "strcmp", 2, 2, Int32ty, stat_transform_strcmp);
 
 #if 0
   modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);
   modified |= transform(M, "memmove", 3, 2, VoidPtrTy, stat_transform_memmove);
   modified |= transform(M, "mempcpy", 3, 2, VoidPtrTy, stat_transform_mempcpy);
   modified |= transform(M, "memset", 3, 1, VoidPtrTy, stat_transform_memset);
-  modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
 #endif
+
 
   return modified;
 }
