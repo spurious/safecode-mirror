@@ -45,24 +45,28 @@ LARGE_PROBLEM_SIZE_DIRS := \
 NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden \
   External/SPEC/CINT2000 \
+  #MultiSource/Benchmarks/Olden/bisort \
+  #External/SPEC/CINT2000/197.parser \
+  #External/SPEC/CINT2000/164.gzip \
+  #External/SPEC/CINT2000/256.bzip2 \
+  #External/Povray \
+  #MultiSource/Benchmarks/Olden/tsp \
+  #SingleSource/Benchmarks \
   #MultiSource/Benchmarks/Olden/bh \
+  #MultiSource/Benchmarks/Olden/em3d \
   #External/SPEC/CINT2000/181.mcf \
   #External/SPEC/CINT2000/254.gap \
   #External/SPEC/CINT2000/300.twolf \
-  #External/SPEC/CINT2000/164.gzip \
   #External/SPEC/CINT2000/175.vpr \
-  #External/SPEC/CINT2000/197.parser \
   #External/SPEC/CINT2000/186.crafty \
   #MultiSource/Benchmarks/Olden/mst \
   #External/SPEC/CINT2000/197.parser \
   #MultiSource/Benchmarks/Olden/power \
-  #MultiSource/Benchmarks/Olden/bisort \
   #External/SPEC/CINT2000/253.perlbmk \
   #External/SPEC/CINT2000/252.eon \
   #External/SPEC/CINT2000/186.crafty \
   #External/SPEC/CINT2000/181.mcf \
   #External/SPEC/CINT2000/164.gzip \
-  #MultiSource/Benchmarks/Olden/em3d \
   #External/SPEC/CINT2000/255.vortex \
   #External/SPEC/CINT2000/175.vpr \
   #External/SPEC/CINT2000/186.crafty \
@@ -79,7 +83,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
   #MultiSource/Benchmarks/Olden/voronoi \
   #External/SPEC/CINT2000/176.gcc \
   #External/Namd \
-  #External/Povray \
   #External/SPEC/CINT2000/175.vpr \
   #External/SPEC/CINT2000 \
   #External/SPEC/CINT2000/252.eon \
@@ -87,7 +90,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
   #MultiSource/Benchmarks/Olden/health \
   #MultiSource/Benchmarks/Olden/perimeter \
   #MultiSource/Benchmarks/Olden/treeadd \
-  #MultiSource/Benchmarks/Olden/tsp \
 #  MultiSource/Benchmarks/Olden \
 #  MultiSource/Benchmarks/Olden/em3d \
 #   MultiSource/Benchmarks/Olden \
@@ -98,7 +100,6 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 #   MultiSource \
 #   MultiSource/Benchmarks \
 #   External/SPEC/CINT2000 \
-#   External/SPEC/CINT2000/256.bzip2 \
    #External/SPEC/CFP2000/188.ammp \
    #MultiSource/Applications/ghttpd \
    #MultiSource/Benchmarks/Olden/bh \
@@ -460,15 +461,16 @@ SC_BIN  := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/bin/sc
 SETPATH = \
 	PATH=$(PROJ_OBJ_ROOT)/test/cstdlib:$(PATH)
 
-TESTSUITE=$(PROJ_OBJ_ROOT)/test/cstdlib
+TESTSUITE=$(PROJ_SRC_ROOT)/test/cstdlib
 
 # Run the lit tests for cstdlib
 lit: cstdlib/test.sh
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE)
 	@rmdir $(TESTSUITE)/Output
 
-cstdlib/test.sh: cstdlib/test.sh.in
+cstdlib/test.sh: $(PROJ_SRC_ROOT)/test/cstdlib/test.sh.in
 	@echo Creating test script...
+	@mkdir cstdlib
 	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
        -e 's#@SC@#$(SC_BIN)#g' \
        -e 's#@LLC@#$(LLC)#g' \
