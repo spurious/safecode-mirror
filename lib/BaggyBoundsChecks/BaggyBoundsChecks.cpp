@@ -189,6 +189,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   // align byval arguments
   // FIXME: Not sure if we need to add padding to byval arguments too, to ensure that
   // no other object gets overwritten if we do go out of exact bounds.
+  // Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
+
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     if (I->isDeclaration()) continue;
