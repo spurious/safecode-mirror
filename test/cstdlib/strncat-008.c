@@ -1,5 +1,5 @@
 /*
- * RUN: sh test.sh %s
+ * RUN: test.sh %s
  */
 
 /* strncat() where the source array does not overlap with the destination

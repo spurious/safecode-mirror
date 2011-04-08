@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 
 prefix=${1%%.c}
 bcfile=${prefix}.bc
@@ -18,7 +18,7 @@ rm -f $bcfile $scobj $scasm $scfile
 $llvmgcc -c -emit-llvm -o $bcfile $1
 
 # Run SAFECode with CStdLib passes on bitcode.
-$sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile
+$sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile 2>&1
 
 # Compile native assembly file from processed bitcode.
 $llc -o $scasm $scobj

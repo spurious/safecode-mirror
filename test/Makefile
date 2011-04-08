@@ -470,11 +470,12 @@ lit: cstdlib/test.sh
 
 cstdlib/test.sh: $(PROJ_SRC_ROOT)/test/cstdlib/test.sh.in
 	@echo Creating test script...
-	@mkdir cstdlib
+	@mkdir -p cstdlib
 	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
        -e 's#@SC@#$(SC_BIN)#g' \
        -e 's#@LLC@#$(LLC)#g' \
        -e 's#@SC_LIB@#$(SC_LIB)#g' < $< > $@
+	chmod +x $@
 
 litclean:
-	rm -f cstdlib/test.sh
+	-rm -f cstdlib/test.sh
