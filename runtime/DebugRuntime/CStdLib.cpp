@@ -869,6 +869,7 @@ void *pool_mempcpy(DebugPoolTy *dstPool,
  * @param   n        Maximum number of bytes to copy
  * @return  Byte following the last written byte
  */
+#if !defined(__APPLE__)
 void *pool_mempcpy_debug(DebugPoolTy *dstPool, 
                         DebugPoolTy *srcPool, 
                         void *dst, 
@@ -913,6 +914,7 @@ void *pool_mempcpy_debug(DebugPoolTy *dstPool,
  
   return  mempcpy(dst, src, n);
 }
+#endif
 
 /**
  * Secure runtime wrapper function to replace memset()
