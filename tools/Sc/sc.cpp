@@ -624,6 +624,16 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"pool_strpbrk_debug",    "pool_strpbrk_debug"},
       {"pool_strrchr_debug",    "pool_strrchr_debug"},
       {"pool_strstr_debug",     "pool_strstr_debug"},
+      {"pool_strcmp_debug",     "pool_strcmp_debug"},
+      {"pool_strncmp_debug",     "pool_strncmp_debug"},
+      {"pool_memcmp_debug",     "pool_memcmp_debug"},
+      {"pool_strcasecmp_debug",     "pool_strcasecmp_debug"},
+      {"pool_strncasecmp_debug",     "pool_strncasecmp_debug"},
+      {"pool_strspn_debug",     "pool_strspn_debug"},
+      {"pool_strcspn_debug",     "pool_strcspn_debug"},
+      {"pool_strncpy_debug",     "pool_strncpy_debug"},
+      {"pool_memccpy_debug",     "pool_memccpy_debug"},
+      {"pool_memchr_debug",     "pool_memchr_debug"},
 
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},

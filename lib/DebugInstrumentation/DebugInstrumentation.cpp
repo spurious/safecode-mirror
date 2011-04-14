@@ -420,6 +420,7 @@ DebugInstrument::runOnModule (Module &M) {
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
+  transformFunction(M.getFunction("pool_strncpy"),  LInfo);
   transformFunction(M.getFunction("pool_strlen"),  LInfo);
   transformFunction(M.getFunction("pool_strchr"),  LInfo);
   transformFunction(M.getFunction("pool_strrchr"), LInfo);
@@ -429,10 +430,23 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction(M.getFunction("pool_strpbrk"),  LInfo);
   
   transformFunction(M.getFunction("pool_strcmp"),  LInfo);
+  transformFunction(M.getFunction("pool_strncmp"),  LInfo);
+  transformFunction(M.getFunction("pool_memcmp"),  LInfo);
+
+  transformFunction(M.getFunction("pool_strcasecmp"),  LInfo);
+  transformFunction(M.getFunction("pool_strncasecmp"),  LInfo);
+
+  transformFunction(M.getFunction("pool_strspn"),  LInfo);
+  transformFunction(M.getFunction("pool_strcspn"),  LInfo);
+
+  transformFunction(M.getFunction("pool_memccpy"),  LInfo);
+  transformFunction(M.getFunction("pool_memchr"),  LInfo);
+#if 0
   transformFunction(M.getFunction("pool_memcpy"),  LInfo);
   transformFunction(M.getFunction("pool_mempcpy"),  LInfo);
   transformFunction(M.getFunction("pool_memmove"),  LInfo);
   transformFunction(M.getFunction("pool_memset"),  LInfo);
+#endif
 
   return true;
 }

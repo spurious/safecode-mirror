@@ -160,12 +160,12 @@ extern "C" {
   void * boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
   // CStdLib
-  void * pool_memcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
-  void * pool_memcpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, TAG, SRC_INFO);
-  void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
-  void * pool_mempcpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, TAG, SRC_INFO);
-  void * pool_memmove(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
-  void * pool_memmove_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, TAG, SRC_INFO);
+  void * pool_memcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete);
+  void * pool_memcpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete, TAG, SRC_INFO);
+  void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete);
+  void * pool_mempcpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete, TAG, SRC_INFO);
+  void * pool_memmove(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete);
+  void * pool_memmove_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete, TAG, SRC_INFO);
   void * pool_memset(PPOOL sPool, void *s, int c, size_t n, const unsigned char complete);
   void * pool_memset_debug(PPOOL sPool, void *s, int c, size_t n, const unsigned char complete, TAG, SRC_INFO);
 
@@ -195,11 +195,28 @@ extern "C" {
   char * pool_strpbrk_debug(PPOOL sPool, PPOOL aPool, const char *s, const char *a,
                             const unsigned char complete, TAG, SRC_INFO);
   
-  int    pool_strcmp(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2);
-  int    pool_strcmp_debug(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2, TAG, SRC_INFO);
+  int    pool_strcmp(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2, const unsigned char complete);
+  int    pool_strcmp_debug(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2, const unsigned char complete, TAG, SRC_INFO);
+  int    pool_strncmp(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,size_t num,const unsigned char complete);
+  int    pool_strncmp_debug(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,size_t num,const unsigned char complete, TAG, SRC_INFO);
+  int    pool_strcasecmp(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2, const unsigned char complete);
+  int    pool_strcasecmp_debug(PPOOL str1Pool, PPOOL str2Pool, const char *str1, const char *str2, const unsigned char complete, TAG, SRC_INFO);
+  int    pool_strncasecmp(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,size_t num,const unsigned char complete);
+  int    pool_strncasecmp_debug(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,size_t num,const unsigned char complete, TAG, SRC_INFO);
+  int    pool_memcmp(PPOOL s1p,PPOOL s2p,const void *s1, const void *s2,size_t num,const unsigned char complete);
+  int    pool_memcmp_debug(PPOOL s1p,PPOOL s2p,const void *s1, const void *s2,size_t num,const unsigned char complete, TAG, SRC_INFO);
+  int    pool_strspn(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,const unsigned char complete);
+  int    pool_strspn_debug(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,const unsigned char complete, TAG, SRC_INFO);
+  int    pool_strcspn(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,const unsigned char complete);
+  int    pool_strcspn_debug(PPOOL s1p,PPOOL s2p,const char *s1, const char *s2,const unsigned char complete, TAG, SRC_INFO);
+
+  void * pool_memccpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, char c, size_t n, const unsigned char complete);
+  void * pool_memccpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, char c, size_t n, const unsigned char complete, TAG, SRC_INFO);
+  void * pool_memchr(PPOOL sPool, void *s, int c, size_t n, const unsigned char complete);
+  void * pool_memchr_debug(PPOOL sPool, void *s, int c, size_t n, const unsigned char complete, TAG, SRC_INFO);
 
 #ifdef _GNU_SOURCE
-  void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
+  void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const unsigned char complete);
 #endif
 
   // Exact checks
