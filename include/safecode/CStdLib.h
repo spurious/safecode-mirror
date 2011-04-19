@@ -15,8 +15,6 @@
 #ifndef CSTDLIB_H
 #define CSTDLIB_H
 
-#include "dsa/DSSupport.h"
-
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
@@ -25,11 +23,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/Passes.h"
+#include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Target/TargetData.h"
 
-#include "safecode/PoolHandles.h"
 #include "safecode/SAFECode.h"
 
 #include <vector>
@@ -46,11 +44,7 @@ private:
   // Private methods
   bool transform(Module &M, const StringRef FunctionName, const unsigned argc, const unsigned pool_argc, const Type *ReturnTy, Statistic &statistic);
 
-  // DSA
-  unsigned getDSFlags(const Value *V, const Function *F);
-
   // Private variables
-  EQTDDataStructures *dsaPass;
   TargetData *tdata;
 
 public:
@@ -59,8 +53,7 @@ public:
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    // Require DSA
-    AU.addRequired<EQTDDataStructures>();
+    // Require TargetData
     AU.addRequired<TargetData>();
 
     // No modification of control flow graph

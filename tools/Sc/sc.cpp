@@ -254,6 +254,15 @@ int main(int argc, char **argv) {
     }
 
     //
+    // Transform C Standard Library function calls.
+    //
+    if (!DisableCStdLib) {
+      if (CheckingRuntime == RUNTIME_DEBUG) {
+        NOT_FOR_SVA(Passes.add(new StringTransform()));
+      }
+    }
+
+    //
     // Ensure that all type-safe stack allocations are initialized.
     //
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
@@ -331,12 +340,6 @@ int main(int argc, char **argv) {
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 #endif
-
-    if (!DisableCStdLib) {
-      if (CheckingRuntime == RUNTIME_DEBUG) {
-        NOT_FOR_SVA(Passes.add(new StringTransform()));
-      }
-    }
 
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());
