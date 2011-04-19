@@ -61,8 +61,8 @@ ST("string_transform", "Secure C standard string library calls");
 /**
  * Entry point for the LLVM pass that transforms C standard string library calls
  *
- * @param	M	Module to scan
- * @return	Whether we modified the module
+ * @param M Module to scan
+ * @return  Whether we modified the module
  */
 bool
 StringTransform::runOnModule(Module &M) {
@@ -131,7 +131,7 @@ StringTransform::runOnModule(Module &M) {
  *                    [non-string arguments], uint8_t complete);
  *
  *
- * @param	M	             Module from runOnModule() to scan for functions to
+ * @param M              Module from runOnModule() to scan for functions to
  *                       transform
  * @param FunctionName   The name of the library function to transform.
  * @param argc           The total number of arguments to the function.
@@ -140,7 +140,7 @@ StringTransform::runOnModule(Module &M) {
  *                       required to be at most 8).
  * @param ReturnTy       The return type of the calls to transform.
  * @param statistic      A reference to the relevant transform statistic.
- * @return	             Returns true if any calls were transformed, and
+ * @return               Returns true if any calls were transformed, and
  *                       false if no changes were made.
  */
 bool
