@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* strstr() on unterminated superstring. */
@@ -15,7 +14,7 @@ int main()
   char *s1 = malloc(100);
   memset(m, 'm', 100);
   strcpy(s1, "meow");
-  printf("%p\n", strstr(m, s1));
+  strstr(m, s1);
   free(s1);
   return 0;
 }

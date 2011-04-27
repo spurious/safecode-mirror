@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* Concatenation destination and source overlap. */

@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* strpbrk() on an unterminated set of characters to search for. */
@@ -11,6 +10,6 @@
 int main()
 {
   char set[] = { 'a', 'b', 'c' };
-  printf("%p\n", strpbrk("string", set));
+  strpbrk("string", set);
   return 0;
 }

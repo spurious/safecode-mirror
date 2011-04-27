@@ -1,9 +1,9 @@
 /*
- * RUN: test.sh %s
- * XPASS: *
+ * RUN: test.sh -e -t %t %s
  */
 
-/* strcat() with nothing copied although strings overlap. Should pass. */
+/* strcat() with nothing copied although strings overlap. */
+
 #include <string.h>
 
 int main()

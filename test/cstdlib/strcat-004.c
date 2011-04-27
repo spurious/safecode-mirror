@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* Concatenate onto destination buffer that is too short. */

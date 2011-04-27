@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* Call strchr() on an unterminated tail. */
@@ -11,6 +10,6 @@
 int main()
 {
   char string[6] = "\00012345";
-  printf("%p\n", strchr(&string[1], '5'));
+  strchr(&string[1], '5');
   return 0;
 }

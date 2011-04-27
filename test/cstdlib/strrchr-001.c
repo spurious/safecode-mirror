@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* strrchr() with an unterminated string searching for a character not
@@ -13,6 +12,6 @@ int main()
 {
   char a[1000];
   memset(a, 'a', 1000);
-  printf("%p\n", strrchr(a, 'a'));
+  strrchr(a, 'a');
   return 0;
 }

@@ -1,41 +1,119 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
-prefix=${1%%.c}
-bcfile=${prefix}.bc
-scobj=${prefix}.sc.bc
-scasm=${prefix}.sc.s
-scfile=${prefix}.sc
+expect_error=1
+
+usage()
+{
+  echo 'usage: test.sh [args] file.c'
+  echo 'arguments:'
+  echo '   -t dir    directory to use for testing'
+  echo '   -p        expect no safecode errors from the test case'
+  echo '   -e        expect a safecode error from the test case'
+}
+
+# Process the arguments.
+while getopts hept: option
+  do
+    case $option in
+      e) expect_error=1;;
+      p) expect_error=0;;
+      t) testdir=$OPTARG;;
+      h) usage
+         exit 1;;
+      \?) exit 1;;
+    esac
+  done
+
+# Get the file argument.
+shift $((OPTIND-1))
+
+if [ $# -lt 1 ]
+then
+  usage
+  exit 1
+fi
+
+filename=$1
+# Directory to use for temporary files.
+testdir=${testdir:-$(dirname $filename)}
+filebase=$(basename $filename)
+prefix=${filebase%%.c}
+# Bitcode object
+bcfile=$testdir/${prefix}.bc
+# Bitcode with SAFECode transformations
+scobj=$testdir/${prefix}.sc.bc
+# Compiled version of SAFECode transformations
+scasm=$testdir/${prefix}.sc.s
+# Final executable
+scfile=$testdir/${prefix}.sc
+# Executable output
+scout=$testdir/${prefix}.output
 
 llvmgcc=@LLVMGCC@
 sc=@SC@
 llc=@LLC@
 sc_lib=@SC_LIB@
 
-# Remove previous temporary files, if any.
-rm -f $bcfile $scobj $scasm $scfile
+# Clean up all temporary files the script made.
+cleanup()
+{
+  rm -f $bcfile $scobj $scasm $scfile $scout
+  if [ $testdir != '.' ]
+  then
+    rmdir --ignore-fail-on-non-empty $testdir
+  fi
+}
 
-# Create bitcode file.
-$llvmgcc -c -emit-llvm -o $bcfile $1
+# Prepare the testing directory.
+setupdir()
+{
+  # Add temporary directory.
+  mkdir -p $testdir
+  # Remove previous temporary files, if any.
+  rm -f $bcfile $scobj $scasm $scfile $scout
+}
 
-# Run SAFECode with CStdLib passes on bitcode.
-$sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile 2>&1
-
-# Compile native assembly file from processed bitcode.
-$llc -o $scasm $scobj
-
-# Build and link test.
-$llvmgcc -o $scfile -L$sc_lib -lCStdLib -lsc_dbg_rt -lpoolalloc_bitmap $scasm
+# Compile the test.
+compile()
+{
+  # Create bitcode file.
+  $llvmgcc -c -emit-llvm -o $bcfile $filename
+  # Run SAFECode with CStdLib passes on bitcode.
+  $sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile 2>&1
+  # Compile native assembly file from processed bitcode.
+  $llc -o $scasm $scobj
+  # Build and link test.
+  $llvmgcc -o $scfile $scasm \
+                      $sc_lib/libCStdLib.a \
+                      $sc_lib/libsc_dbg_rt.a \
+                      $sc_lib/libpoolalloc_bitmap.a \
+                      -lstdc++
+}
 
 # Run test and check results.
-error_count=$($scfile 2>&1 | grep -c SAFECode)
+runtest()
+{
+  set +e  # Don't exit immediately on failure of below commands.
+  $scfile >& $scout
+  # Ensure the test ran successfully.
+  if [ $? -ne 0 ]
+  then
+    cleanup
+    exit 1
+  fi
+  error_count=$(grep -c SAFECode $scout)
+  set -e
+  cleanup
+  # Exit with a value depending on whether SAFECode output was encountered
+  # and if we expected an error.
+  if [ $error_count -gt 0 ]
+  then
+    exit $((!expect_error))
+  else
+    exit $((expect_error))
+  fi
+}
 
-# Clean up.
-rm -f $bcfile $scobj $scasm $scfile
-
-# Exit with error if any SAFECode output was encountered.
-if [ $error_count -gt 0 ]
-then
-  exit 1
-else
-  exit 0
-fi
+setupdir
+compile
+runtest

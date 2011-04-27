@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* strstr() with an unterminated substring. */
@@ -13,6 +12,6 @@ int main()
   char substring[] = { 'a', 'b', 'c' };
   char string[] = "abcdefg";
 
-  printf("%p\n", strstr(string, substring));
+  strstr(string, substring);
   return 0;
 }

@@ -1,6 +1,5 @@
 /*
- * RUN: test.sh %s
- * XFAIL: *
+ * RUN: test.sh -e -t %t %s
  */
 
 /* strrchr() on an unterminated string, with the character being searched
@@ -13,6 +12,6 @@ int main()
 {
   char a[1000];
   memset(a, 'a', 1000);
-  printf("%p\n", strrchr(a, 'b'));
+  strrchr(a, 'b');
   return 0;
 }
