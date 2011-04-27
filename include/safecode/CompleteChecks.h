@@ -57,6 +57,7 @@ struct CompleteChecks : public ModulePass {
     // Protected methods
     DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
     void makeComplete (Function * Complete, Function * Incomplete);
+    void makeCStdLibCallsComplete(Function *, unsigned);
 };
 
 NAMESPACE_SC_END
