@@ -32,7 +32,8 @@ struct ViolationInfo {
     FAULT_LOAD_STORE,
     FAULT_ALIGN,
     FAULT_WRITE_OUT_OF_BOUNDS,
-    FAULT_UNINIT
+    FAULT_UNINIT,
+    FAULT_CSTDLIB
   };
 
   /// Type of violation

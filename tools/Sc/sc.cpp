@@ -621,6 +621,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
 
       {"pool_strcat_debug",     "pool_strcat_debug"},
       {"pool_strcpy_debug",     "pool_strcpy_debug"},
+      {"pool_stpcpy_debug",     "pool_stpcpy_debug"},
       {"pool_strchr_debug",     "pool_strchr_debug"},
       {"pool_strlen_debug",     "pool_strlen_debug"},
       {"pool_strncat_debug",    "pool_strncat_debug"},

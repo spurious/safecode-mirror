@@ -51,6 +51,12 @@ struct WriteOOBViolation : public DebugViolationInfo {
   WriteOOBViolation() : copied(-1), srcSize(-1) {}
 };
 
+struct CStdLibViolation : public DebugViolationInfo {
+  const char *function;
+  virtual void print (std::ostream & OS) const;
+  CStdLibViolation() : function(0) {}
+};
+
 NAMESPACE_SC_END
 
 #endif

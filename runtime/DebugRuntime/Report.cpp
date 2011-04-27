@@ -75,6 +75,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "Uninitialized/NULL Pointer Error";
       break;
 
+    case FAULT_CSTDLIB:
+      typestring = "C Library Undefined Behavior";
+      break;
+
     default:
       typestring = "Unknown Error";
       break;

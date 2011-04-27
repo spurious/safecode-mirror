@@ -35,6 +35,7 @@ STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
 
 STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
 STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
+STATISTIC(stat_transform_stpcpy, "Total stpcpy() calls transformed");
 STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
 STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_strchr,  "Total strchr() calls transformed");
@@ -80,26 +81,27 @@ StringTransform::runOnModule(Module &M) {
   const Type *Int32ty = IntegerType::getInt32Ty(M.getContext());
 
   modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, stat_transform_strcpy);
+  modified |= transform(M, "stpcpy",  2, 2, VoidPtrTy, stat_transform_stpcpy);
   modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
-  modified |= transform(M, "strlen",  1, 1, SizeTTy, stat_transform_strlen);
-  modified |= transform(M, "strnlen", 2, 1, SizeTTy, stat_transform_strnlen);
+  modified |= transform(M, "strlen",  1, 1, SizeTTy,   stat_transform_strlen);
+  modified |= transform(M, "strnlen", 2, 1, SizeTTy,   stat_transform_strnlen);
   modified |= transform(M, "strchr",  2, 1, VoidPtrTy, stat_transform_strchr);
   modified |= transform(M, "strrchr", 2, 1, VoidPtrTy, stat_transform_strrchr);
   modified |= transform(M, "strcat",  2, 2, VoidPtrTy, stat_transform_strcat);
   modified |= transform(M, "strncat", 3, 2, VoidPtrTy, stat_transform_strncat);
   modified |= transform(M, "strstr",  2, 2, VoidPtrTy, stat_transform_strstr);
   modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, stat_transform_strpbrk);
-  modified |= transform(M, "strcmp",  2, 2, Int32ty, stat_transform_strcmp);
-  modified |= transform(M, "strncmp", 3, 2, Int32ty, stat_transform_strncmp);
-  modified |= transform(M, "memcmp",  3, 2, Int32ty, stat_transform_memcmp);
+  modified |= transform(M, "strcmp",  2, 2, Int32ty,   stat_transform_strcmp);
+  modified |= transform(M, "strncmp", 3, 2, Int32ty,   stat_transform_strncmp);
+  modified |= transform(M, "memcmp",  3, 2, Int32ty,   stat_transform_memcmp);
   modified |= transform(M, "strcasecmp",  2, 2, Int32ty,
     stat_transform_strcasecmp);
   modified |= transform(M, "strncasecmp", 3, 2, Int32ty,
     stat_transform_strncasecmp);
-  modified |= transform(M, "strcspn",  2, 2, SizeTTy, stat_transform_strcspn);
-  modified |= transform(M, "strspn",  2, 2, SizeTTy, stat_transform_strspn);
+  modified |= transform(M, "strcspn",  2, 2, SizeTTy,  stat_transform_strcspn);
+  modified |= transform(M, "strspn",  2, 2, SizeTTy,   stat_transform_strspn);
   modified |= transform(M, "memccpy", 4, 2, VoidPtrTy, stat_transform_memccpy);
-  modified |= transform(M, "memchr", 3, 1, VoidPtrTy, stat_transform_memchr);
+  modified |= transform(M, "memchr", 3, 1, VoidPtrTy,  stat_transform_memchr);
 
 #if 0
   modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);

@@ -104,6 +104,23 @@ WriteOOBViolation::print(std::ostream & OS) const {
 }
 
 void
+CStdLibViolation::print(std::ostream & OS) const {
+  //
+  // Print out the regular error information.
+  //
+  DebugViolationInfo::print(OS);
+
+  //
+  // Print the name of the the library function in which the error occurred.
+  //
+  if (function != 0) {
+    OS << "= Library function                      :\t"
+       << function << "\n";
+  }
+
+}
+
+void
 DebugMetaData::print(std::ostream & OS) const {
   //
   // Only print the cononical address when debugging SAFECode itself.

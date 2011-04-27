@@ -441,6 +441,7 @@ DebugInstrument::runOnModule (Module &M) {
 
   transformFunction(M.getFunction("pool_memccpy"),  LInfo);
   transformFunction(M.getFunction("pool_memchr"),  LInfo);
+  transformFunction(M.getFunction("pool_stpcpy"),  LInfo);
 #if 0
   transformFunction(M.getFunction("pool_memcpy"),  LInfo);
   transformFunction(M.getFunction("pool_mempcpy"),  LInfo);
