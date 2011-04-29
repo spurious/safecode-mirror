@@ -25,7 +25,7 @@
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
 #include "llvm/Support/InstIterator.h"
-
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "safecode/BaggyBoundsChecks.h"
 #include "SCUtils.h"
 
@@ -43,7 +43,7 @@ char InsertBaggyBoundsChecks::ID = 0;
 // Statistics
 
 // Register the pass
-static RegisterPass<InsertBaggyBoundsChecks> P ("baggy bounds aligning", 
+static RegisterPass<InsertBaggyBoundsChecks> P("baggy bounds aligning", 
                                                "Baggy Bounds Transform");
 
 //
@@ -75,7 +75,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       // Don't bother to register external global variables
       continue;
     }
-   
+
     if (GV->getNumUses() == 0) continue;
     if (GV->getSection() == "llvm.metadata") continue;
 
@@ -88,36 +88,37 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       // Linking fails when registering objects in section exitcall.exit
       if (GV->getSection() == ".exitcall.exit") continue;
     }
-      
+
     const Type * GlobalType = GV->getType()->getElementType();
     unsigned long int i = TD->getTypeAllocSize(GlobalType);
     unsigned int size= 0;
     while((unsigned int)(1u<<size) < i) {
       size++;
     }
-    if(size < SLOT_SIZE) 
+    if(size < SLOT_SIZE) {
       size = SLOT_SIZE;
+    }
 
     unsigned int alignment = 1u << (size); 
     if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
-      if(i == (unsigned)(1u<<size)) {
-        GV->setAlignment(1u<<size); 
-      } else {
-        Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
-        StructType *newType = StructType::get(getGlobalContext(), GlobalType, newType1, NULL);
-        std::vector<Constant *> vals(2);
-        vals[0] = GV->getInitializer();
-        vals[1] = Constant::getNullValue(newType1);
-        Constant *c = ConstantStruct::get(newType, vals);
-        GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
-        GV_new->setAlignment(1u<<size);
-        Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
-        Constant *idx[2] = {Zero, Zero};
-        Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
-        GV->replaceAllUsesWith(init);
-      } 
-    }
-    
+    if(i == (unsigned)(1u<<size)) {
+      GV->setAlignment(1u<<size); 
+    } else {
+      Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
+      StructType *newType = StructType::get(getGlobalContext(), GlobalType, newType1, NULL);
+      std::vector<Constant *> vals(2);
+      vals[0] = GV->getInitializer();
+      vals[1] = Constant::getNullValue(newType1);
+      Constant *c = ConstantStruct::get(newType, vals);
+      GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
+      GV_new->setAlignment(1u<<size);
+      Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
+      Constant *idx[2] = {Zero, Zero};
+      Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
+      GV->replaceAllUsesWith(init);
+    } 
+  }
+
   //align allocas
   Function *F = intrinsicPass->getIntrinsic("sc.pool_register_stack").F;  
   for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
@@ -125,20 +126,21 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     if (CallInst * CI = dyn_cast<CallInst>(FU)) {
       std::set<Value *>Chain;
       Value * RealOperand = intrinsicPass->getValuePointer (CI);
-      Value * PeeledOperand = peelCasts (RealOperand, Chain);
+      Value * PeeledOperand = peelCasts(RealOperand, Chain);
       if(!isa<AllocaInst>(PeeledOperand)){
         continue;
       }
       AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
       unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
-      unsigned char size= 0;
+      unsigned char size = 0;
       while((unsigned)(1<<size) < i) {
         size++;
       }
-      
-      if(size < SLOT_SIZE) 
+
+      if(size < SLOT_SIZE) {
         size = SLOT_SIZE;
-      
+      }
+
       if(i == (unsigned)(1u<<size)) {
         AI->setAlignment(1u<<size);
       } else {
@@ -149,7 +151,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         AllocaInst * AI_new = new AllocaInst(newType, 0,(1<<size) , "baggy."+AI->getName(), iptI1);
         AI_new->setAlignment(1u<<size);
         Value *Zero= ConstantInt::getSigned(Int32Type, 0);
-        Value *idx[3]= {Zero, Zero, NULL};
+        Value *idx[3] = {Zero, Zero, NULL};
         Instruction *init = GetElementPtrInst::Create(AI_new, idx + 0, idx + 1, Twine(""), iptI1);
         init = GetElementPtrInst::Create(init, idx + 0, idx + 2, Twine(""), iptI1);
         AI->replaceAllUsesWith(init);
@@ -161,48 +163,45 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
   // changes for register argv
   Function *ArgvReg = intrinsicPass->getIntrinsic("sc.pool_argvregister").F;  
-  if (ArgvReg->getNumUses() == 0){
-    return true;
+  if (!ArgvReg->use_empty()) {
+    assert (isa<PointerType>(ArgvReg->getReturnType()));
+    assert (ArgvReg->getNumUses() == 1);
+    CallInst *CI = cast<CallInst>(ArgvReg->use_begin()); 
+    Value *Argv = intrinsicPass->getValuePointer (CI);
+    BasicBlock::iterator I = CI;
+    I++;
+    BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
+    std::vector<User *> Uses;
+    Value::use_iterator UI = Argv->use_begin();
+    for (; UI != Argv->use_end(); ++UI) {
+      if (Instruction * Use = dyn_cast<Instruction>(UI))
+        if (CI != Use) {
+          Uses.push_back (*UI);
+        }
+    }
+
+    while (Uses.size()) {
+      User *Use = Uses.back();
+      Uses.pop_back();
+      Use->replaceUsesOfWith (Argv, BI);
+    }
   }
-  assert (isa<PointerType>(ArgvReg->getReturnType()));
-  assert (ArgvReg->getNumUses() == 1);
-  CallInst *CI = cast<CallInst>(ArgvReg->use_begin()); 
-  Value *Argv = intrinsicPass->getValuePointer (CI);
-  BasicBlock::iterator I = CI;
-  I++;
-  BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
-  std::vector<User *> Uses;
-  Value::use_iterator UI = Argv->use_begin();
-  for (; UI != Argv->use_end(); ++UI) {
-    if (Instruction * Use = dyn_cast<Instruction>(UI))
-      if (CI != Use) {
-        Uses.push_back (*UI);
-      }
-  }
-  
-  while (Uses.size()) {
-    User * Use = Uses.back();
-    Uses.pop_back();
-    Use->replaceUsesOfWith (Argv, BI);
-  }
-  
+
   // align byval arguments
-  // FIXME: Not sure if we need to add padding to byval arguments too, to ensure that
-  // no other object gets overwritten if we do go out of exact bounds.
-  // Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
+  //FIXME Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
 
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     if (I->isDeclaration()) continue;
-  
+
     if (I->hasName()) {
       std::string Name = I->getName();
       if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
-            || Name.find("baggy.") == 0)
+          || Name.find("baggy.") == 0)
         continue;
     }
     Function &F = cast<Function>(*I);
-    int i =1;
+    unsigned int i = 1;
     for (Function::arg_iterator It = F.arg_begin(), E = F.arg_end(); It != E; ++It, ++i) {
       if (It->hasByValAttr()) {
         assert (isa<PointerType>(It->getType()));
@@ -213,16 +212,94 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         while((unsigned)(1u<<size) < AllocSize) {
           size++;
         }
-        if(size < SLOT_SIZE) 
+        if(size < SLOT_SIZE) {
           size = SLOT_SIZE;
-        
-	F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-        
-	for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
-          if (CallInst * CI = dyn_cast<CallInst>(FU)) {
-            CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+        }
+
+        unsigned int alignment = 1u << size;
+        if(AllocSize == alignment) {
+          F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+          for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
+            if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+              if (CI->getCalledFunction() == &F) {
+                CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+              }
+            }
+          } 
+        } else {
+          Type *newType1 = ArrayType::get(Int8Type, (alignment)-AllocSize);
+          StructType *newSType = StructType::get(getGlobalContext(), ET, newType1, NULL);
+
+          const FunctionType *FTy = F.getFunctionType();
+          // Construct the new Function Type
+          // Appends the struct Type at the beginning
+          std::vector<const Type*>TP;
+          for(unsigned c = 0; c < FTy->getNumParams();c++) {
+            if(c == (i-1))
+              TP.push_back(newSType->getPointerTo());
+            else 
+              TP.push_back(FTy->getParamType(c));
           }
-        } 
+          //return type is same as that of original instruction
+          const FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
+          Function *NewF = Function::Create(NewFTy,
+                                            GlobalValue::InternalLinkage,
+                                            F.getNameStr() + ".TEST",
+                                            &M);
+
+
+          NewF->copyAttributesFrom(&F);
+          NewF->setAttributes(NewF->getAttributes()
+                              .addAttr(0, F.getAttributes()
+                                       .getRetAttributes()));
+          NewF->setAttributes(NewF->getAttributes()
+                              .addAttr(~0, F.getAttributes()
+                                       .getFnAttributes()));
+
+          Function::arg_iterator NI = NewF->arg_begin();
+
+          DenseMap<const Value*, Value*> ValueMap;
+
+          for (Function::arg_iterator II = F.arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
+            ValueMap[II] = NI;
+            NI->setName(II->getName());
+          }
+          // Perform the cloning.
+          SmallVector<ReturnInst*,100> Returns;
+          CloneFunctionInto(NewF, &F, ValueMap, Returns);
+          NewF->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+          
+          // Change uses.
+          for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ) {
+            if (CallInst * CI = dyn_cast<CallInst>(FU++)) {
+              if (CI->getCalledFunction() == &F) {
+                Function *Caller = CI->getParent()->getParent();
+                Instruction *InsertPoint;
+                for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+                AllocaInst *AINew = new AllocaInst(newSType, "", InsertPoint);
+                LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
+                Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
+                Value *Idx[] = { zero, zero };
+                GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,Idx ,Idx+2,  "", CI);
+                new StoreInst(LINew, GEPNew, CI);
+                SmallVector<Value*, 8> Args;
+                for(unsigned j =1;j<CI->getNumOperands();j++) {
+                  if(j == i) 
+                    Args.push_back(AINew);
+                  else 
+                    Args.push_back(CI->getOperand(j));
+                }
+                CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+                CallI->setAttributes(CI->getAttributes());
+                CallI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+                CallI->setCallingConv(CI->getCallingConv());
+                CI->replaceAllUsesWith(CallI);
+                CI->eraseFromParent();
+              }
+            }
+          } 
+        }
+
       }
     }
   }
