@@ -407,13 +407,16 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
   }
   if (size < SLOT_SIZE)
     size = SLOT_SIZE;
+  if (size < Alignment)
+    size = Alignment;
   unsigned int alloc = 1 << size;
   void *p;
-  //FIXME: match alignment and alloc
+  
   assert(!posix_memalign(&p, alloc, alloc));
   __sc_bb_poolregister(Pool, p, NumBytes);
   return p;
 }
+
 void * 
 __sc_bb_src_poolcalloc(DebugPoolTy *Pool, 
                        unsigned Number, 

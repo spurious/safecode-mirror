@@ -146,7 +146,7 @@ extern "C" {
   void * __sc_dbg_poolrealloc_debug(PPOOL, void *Node, unsigned NumBytes, TAG, SRC_INFO);
   void * __sc_dbg_poolstrdup (PPOOL, const char * Node);
   void * __sc_dbg_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
-  void * __sc_dbg_poolmemalign(PPOOL, void *Node, unsigned Alignment, unsigned NumBytes);
+  void * __sc_dbg_poolmemalign(PPOOL, unsigned Alignment, unsigned NumBytes);
 
   void poolcheck(PPOOL, void *Node);
   void poolcheckui(PPOOL, void *Node, TAG);
