@@ -92,7 +92,6 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //
 
     if (val) {
-  //    return rewrite_ptr(NULL, (void*)Source, (void*)Source, (void*)Source, "<unknown", 0); 
         Dest = (Dest | SET_MASK);
     }
   }
