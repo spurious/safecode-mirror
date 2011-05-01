@@ -204,6 +204,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     unsigned int i = 1;
     for (Function::arg_iterator It = F.arg_begin(), E = F.arg_end(); It != E; ++It, ++i) {
       if (It->hasByValAttr()) {
+        if(It->use_empty())
+          continue;
         assert (isa<PointerType>(It->getType()));
         const PointerType * PT = cast<PointerType>(It->getType());
         const Type * ET = PT->getElementType();
@@ -234,11 +236,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           // Construct the new Function Type
           // Appends the struct Type at the beginning
           std::vector<const Type*>TP;
+          TP.push_back(newSType->getPointerTo());
           for(unsigned c = 0; c < FTy->getNumParams();c++) {
-            if(c == (i-1))
-              TP.push_back(newSType->getPointerTo());
-            else 
-              TP.push_back(FTy->getParamType(c));
+            TP.push_back(FTy->getParamType(c));
           }
           //return type is same as that of original instruction
           const FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
@@ -248,7 +248,41 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                                             &M);
 
 
-          NewF->copyAttributesFrom(&F);
+          Function::arg_iterator NII = NewF->arg_begin();
+          NII->setName("Baggy");
+          ++NII;
+
+          DenseMap<const Value*, Value*> ValueMap;
+
+          for (Function::arg_iterator II = F.arg_begin(); NII != NewF->arg_end(); ++II, ++NII) {
+            ValueMap[II] = NII;
+            NII->setName(II->getName());
+          }
+          // Perform the cloning.
+          SmallVector<ReturnInst*,100> Returns;
+          CloneFunctionInto(NewF, &F, ValueMap, Returns);
+          std::vector<Value*> fargs;
+          for(Function::arg_iterator ai = NewF->arg_begin(),
+              ae= NewF->arg_end(); ai != ae; ++ai) {
+            fargs.push_back(ai);
+          }
+          
+          NII = NewF->arg_begin();
+
+          Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
+          Value *Idx[] = { zero, zero };
+          Instruction *InsertPoint;
+          for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+
+          GetElementPtrInst *GEPI = GetElementPtrInst::Create(cast<Value>(NII) , Idx, Idx + 2 , "", InsertPoint);
+
+          fargs.at(i)->uncheckedReplaceAllUsesWith(GEPI);
+          Function::const_arg_iterator I = F.arg_begin(),E = F.arg_end();
+          for (Function::const_arg_iterator I = F.arg_begin(), 
+               E = F.arg_end(); I != E; ++I) {
+            NewF->getAttributes().addAttr(I->getArgNo() + 1,  F.getAttributes().getParamAttributes(I->getArgNo() + 1));
+          }
+
           NewF->setAttributes(NewF->getAttributes()
                               .addAttr(0, F.getAttributes()
                                        .getRetAttributes()));
@@ -256,19 +290,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                               .addAttr(~0, F.getAttributes()
                                        .getFnAttributes()));
 
-          Function::arg_iterator NI = NewF->arg_begin();
+          NewF->addAttribute(1, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+          NewF->addAttribute(1, F.getAttributes().getParamAttributes(i));
 
-          DenseMap<const Value*, Value*> ValueMap;
-
-          for (Function::arg_iterator II = F.arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
-            ValueMap[II] = NI;
-            NI->setName(II->getName());
-          }
-          // Perform the cloning.
-          SmallVector<ReturnInst*,100> Returns;
-          CloneFunctionInto(NewF, &F, ValueMap, Returns);
-          NewF->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-          
           // Change uses.
           for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ) {
             if (CallInst * CI = dyn_cast<CallInst>(FU++)) {
@@ -278,20 +302,15 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                 for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
                 AllocaInst *AINew = new AllocaInst(newSType, "", InsertPoint);
                 LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
-                Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
-                Value *Idx[] = { zero, zero };
                 GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,Idx ,Idx+2,  "", CI);
                 new StoreInst(LINew, GEPNew, CI);
                 SmallVector<Value*, 8> Args;
+                Args.push_back(AINew);
                 for(unsigned j =1;j<CI->getNumOperands();j++) {
-                  if(j == i) 
-                    Args.push_back(AINew);
-                  else 
-                    Args.push_back(CI->getOperand(j));
+                  Args.push_back(CI->getOperand(j));
                 }
                 CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
-                CallI->setAttributes(CI->getAttributes());
-                CallI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
+                CallI->addAttribute(1, llvm::Attribute::constructAlignmentFromInt(1u<<size));
                 CallI->setCallingConv(CI->getCallingConv());
                 CI->replaceAllUsesWith(CallI);
                 CI->eraseFromParent();
