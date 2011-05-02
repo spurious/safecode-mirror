@@ -421,28 +421,29 @@ DebugInstrument::runOnModule (Module &M) {
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_strncpy"),  LInfo);
+  transformFunction(M.getFunction("pool_strncpy"), LInfo);
   transformFunction(M.getFunction("pool_strlen"),  LInfo);
   transformFunction(M.getFunction("pool_strchr"),  LInfo);
   transformFunction(M.getFunction("pool_strrchr"), LInfo);
   transformFunction(M.getFunction("pool_strncat"), LInfo);
   transformFunction(M.getFunction("pool_strcat"),  LInfo);
   transformFunction(M.getFunction("pool_strstr"),  LInfo);
-  transformFunction(M.getFunction("pool_strpbrk"),  LInfo);
-  
+  transformFunction(M.getFunction("pool_strpbrk"), LInfo);
   transformFunction(M.getFunction("pool_strcmp"),  LInfo);
-  transformFunction(M.getFunction("pool_strncmp"),  LInfo);
+  transformFunction(M.getFunction("pool_strncmp"), LInfo);
   transformFunction(M.getFunction("pool_memcmp"),  LInfo);
-
+  transformFunction(M.getFunction("pool_strspn"),  LInfo);
+  transformFunction(M.getFunction("pool_strcspn"), LInfo);
+  transformFunction(M.getFunction("pool_memccpy"), LInfo);
+  transformFunction(M.getFunction("pool_memchr"),  LInfo);
+  transformFunction(M.getFunction("pool_stpcpy"),  LInfo);
+  transformFunction(M.getFunction("pool_bcmp"),    LInfo);
+  transformFunction(M.getFunction("pool_bcopy"),   LInfo);
+  transformFunction(M.getFunction("pool_index"),   LInfo);
+  transformFunction(M.getFunction("pool_rindex"),  LInfo);
   transformFunction(M.getFunction("pool_strcasecmp"),  LInfo);
   transformFunction(M.getFunction("pool_strncasecmp"),  LInfo);
 
-  transformFunction(M.getFunction("pool_strspn"),  LInfo);
-  transformFunction(M.getFunction("pool_strcspn"),  LInfo);
-
-  transformFunction(M.getFunction("pool_memccpy"),  LInfo);
-  transformFunction(M.getFunction("pool_memchr"),  LInfo);
-  transformFunction(M.getFunction("pool_stpcpy"),  LInfo);
 #if 0
   transformFunction(M.getFunction("pool_memcpy"),  LInfo);
   transformFunction(M.getFunction("pool_mempcpy"),  LInfo);

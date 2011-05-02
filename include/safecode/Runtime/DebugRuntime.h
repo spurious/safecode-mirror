@@ -218,6 +218,16 @@ extern "C" {
   void * pool_memccpy_debug(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, char c, size_t n, const uint8_t complete, TAG, SRC_INFO);
   void * pool_memchr(PPOOL sPool, void *s, int c, size_t n, const uint8_t complete);
   void * pool_memchr_debug(PPOOL sPool, void *s, int c, size_t n, const uint8_t complete, TAG, SRC_INFO);
+  int    pool_bcmp(PPOOL aPool, PPOOL bPool, const void *a, const void *b, size_t n, const uint8_t complete);
+  int    pool_bcmp_debug(PPOOL aPool, PPOOL bPool, const void *a, const void *b, size_t n, const uint8_t complete, TAG, SRC_INFO);
+  void   pool_bcopy(PPOOL aPool, PPOOL bPool, const void *a, void *b, size_t n, const uint8_t complete);
+  void   pool_bcopy_debug(PPOOL aPool, PPOOL bPool, const void *a, void *b, size_t n, const uint8_t complete, TAG, SRC_INFO);
+  void   pool_bzero(PPOOL sPool, void *s, size_t n, const uint8_t complete);
+  void   pool_bzero_debug(PPOOL sPool, void *s, size_t n, const uint8_t complete, TAG, SRC_INFO);
+  char * pool_index(PPOOL sPool, const char *s, int c, const uint8_t complete);
+  char * pool_index_debug(PPOOL sPool, const char *s, int c, const uint8_t complete, TAG, SRC_INFO);
+  char * pool_rindex(PPOOL sPool, const char *s, int c, const uint8_t complete);
+  char * pool_rindex_debug(PPOOL sPool, const char *s, int c, const uint8_t complete, TAG, SRC_INFO);
 
 #ifdef _GNU_SOURCE
   void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const uint8_t complete);

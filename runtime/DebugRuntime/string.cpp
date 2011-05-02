@@ -1,4 +1,4 @@
-//===------- CStdLib.cpp - CStdLib transform pass runtime functions -------===//
+//===------- string.cpp - CStdLib Runtime functions for <string.h> --------===//
 // 
 //                          The SAFECode Compiler
 //
@@ -7,329 +7,160 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// This file provides all external functions included by the CStdLib pass.
+// This file provides CStdLib runtime wrapper versions of functions found in
+// <string.h>.
 //
 //===----------------------------------------------------------------------===//
 
-#include "DebugReport.h"
-#include "PoolAllocator.h"
 
-#include <algorithm>
-#include <cassert>
-#include <cstring>
-#include <iostream> // Debug
+#include "CStdLib.h"
 
-#define TAG unsigned tag
-#define SRC_INFO const char *SourceFile, unsigned lineNo
+//
+// The following functions have CStdLib wrapper versions in this file:
+//  - stpcpy
+//  - strchr
+//  - strrchr
+//  - strstr
+//  - strcat
+//  - strncat
+//  - strpbrk
+//  - strcmp
+//  - memcpy
+//  - memmove
+//  - mempcpy
+//  - memset
+//  - strcpy
+//  - strlen
+//  - strncpy
+//  - strnlen
+//  - strncmp
+//  - memcmp
+//  - strspn
+//  - strcspn
+//  - memchr
+//  - memccpy
+//
 
-// Default versions of arguments to debug functions
-#define DEFAULT_TAG 0
-#define DEFAULT_SRC_INFO "<Unknown>", 0
-#define SRC_INFO_ARGS SourceFile, lineNo
 
-using namespace NAMESPACE_SC;
-
-// Various violation types
-static inline void
-OOB_VIOLATION(const void *fault_ptr,
-              DebugPoolTy *handle,
-              const void *start,
-              size_t len,
-              SRC_INFO) {
-  OutOfBoundsViolation v;
-  v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
-  v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = fault_ptr;
-  v.SourceFile  = SourceFile;
-  v.lineNo      = lineNo;
-  v.PoolHandle  = handle;
-  v.objStart    = start;
-  v.objLen      = len;
-  v.dbgMetaData = NULL;
-  ReportMemoryViolation(&v);
-}
-
-static inline void
-WRITE_VIOLATION(const void *fault_ptr,
-                DebugPoolTy *handle,
-                size_t dst_sz,
-                size_t src_sz,
-                SRC_INFO) {
-  WriteOOBViolation v;
-  v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
-  v.faultPC = __builtin_return_address(0); 
-  v.faultPtr = fault_ptr;
-  v.SourceFile = SourceFile;
-  v.lineNo =     lineNo;
-  v.PoolHandle = handle;
-  v.dstSize =    dst_sz;
-  v.srcSize =    src_sz;
-  v.dbgMetaData = NULL;
-  ReportMemoryViolation(&v);
-}
-
-static inline void
-LOAD_STORE_VIOLATION(const void *fault_ptr,
-                     DebugPoolTy *handle,
-                     SRC_INFO) {
-  DebugViolationInfo v;
-  v.faultPC = __builtin_return_address(0);
-  v.faultPtr = fault_ptr;
-  v.dbgMetaData = NULL;
-  v.PoolHandle = handle;
-  v.SourceFile = SourceFile;
-  v.lineNo = lineNo;
-  ReportMemoryViolation(&v);
-}
-
-static inline void
-C_LIBRARY_VIOLATION(const void *fault_ptr,
-                    DebugPoolTy *handle,
-                    const char *function,
-                    SRC_INFO) {
-  CStdLibViolation v;
-  v.type = ViolationInfo::FAULT_CSTDLIB;
-  v.faultPC = __builtin_return_address(0);
-  v.faultPtr = fault_ptr;
-  v.SourceFile = SourceFile;
-  v.lineNo     = lineNo;
-  v.PoolHandle = handle;
-  v.function   = function;
-  v.dbgMetaData = NULL;
-  ReportMemoryViolation(&v);
+/*
+ * pool_stpcpy()
+ *
+ * This is the non-debug version of pool_stpcpy_debug().
+ *
+ */
+char *
+pool_stpcpy(DebugPoolTy *dstPool,
+            DebugPoolTy *srcPool,
+            char *dst,
+            const char *src,
+            const uint8_t complete) {
+  return pool_stpcpy_debug(dstPool, srcPool, dst, src, complete,
+    DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
 
 
-extern "C" {
-  size_t strnlen(const char *s, size_t maxlen) {
-    size_t i;
-    for (i = 0; i < maxlen && s[i]; ++i)
-      ;
-    return i;
+/**
+ * Secure runtime wrapper function to replace stpcpy()
+ *
+ * Copies the string src to dst and returns a pointer
+ * to the nul terminator of dst.
+ * 
+ * Attempts to verify the following:
+ *  - src is nul terminated within memory object bounds
+ *  - src and dst do not overlap
+ *  - dst is long enough to hold src.
+ *
+ * @param   dstPool    Pool handle for destination string's pool
+ * @param   srcPool    Pool handle for destination string's pool
+ * @param   dst        Pointer to destination of copy operation
+ * @param   src        Pointer to string to copy
+ * @param   complete   Completeness bitwise vector
+ * @param   TAG        Tag information for debug
+ * @param   SRC_INFO   Source and line number information
+ * @return             Returns a pointer to the nul-terminator of dst.
+ *
+ */
+char *
+pool_stpcpy_debug(DebugPoolTy *dstPool,
+                  DebugPoolTy *srcPool,
+                  char *dst,
+                  const char *src,
+                  const uint8_t complete,
+                  TAG,
+                  SRC_INFO) {
+  void *dstBegin, *dstEnd, *srcBegin, *srcEnd;
+  size_t srcLen;
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound, srcFound;
+
+  // Find the destination and source strings in their pools.
+  if (!(dstFound = pool_find(dstPool, dst, dstBegin, dstEnd))
+        && dstComplete) {
+    std::cout << "Could not find destination object in pool!\n";
+    LOAD_STORE_VIOLATION(dst, dstPool, SRC_INFO_ARGS);
+  }
+  if (!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+        && srcComplete) {
+    std::cout << "Could not find source object in pool\n";
+    LOAD_STORE_VIOLATION(src, srcPool, SRC_INFO_ARGS);
   }
 
-  size_t strnlen_opt(const char *s, size_t maxlen) {
-    const char *end = (const char *)memchr(s, '\0', maxlen);
-    return (end ? ((size_t) (end - s)) : maxlen);
-  }
-}
-
-/**
- * Optimized inline assembly implementation of strncpy that returns the number
- * of characters copied (including \0)
- *
- * @param   dst      Destination string pointer
- * @param   src      Source string pointer
- * @param   size     Number of characters to copy
- * @return  Number of characters copied (including \0)
- */
-static size_t strncpy_asm(char *dst, const char *src, size_t size) {
-  long copied;
-
-/*#if defined(i386) || defined(__i386__) || defined(__x86__)
-  __asm__ __volatile__(
-    "0: xorl      %%ecx, %%ecx      \n"
-    "   cmpl      %%edi, %%ecx      \n"
-    "   adcl      $0, %%ecx         \n"
-    "   decl      %%edi             \n"
-    "   testl     %%ecx, %%ecx      \n"
-    "   je        1f                \n"
-    "   movsbl    (%%edx), %%ecx    \n"
-    "   movb      %%cl, (%%eax)     \n"
-    "   incl      %%eax             \n"
-    "   incl      %%edx             \n"
-    "   testl     %%ecx, %%ecx      \n"
-    "   jne       0b                \n"
-    "1: subl      %%esi, %%eax      \n"
-    : "=a"(copied)
-    : "a"(dst), "S"(dst), "d"(src), "D"(size)
-    : "%ecx", "memory"
-  );
-#else*/
-  strncpy(dst, src, size);
-  copied = strnlen(dst, size - 1);
-//#endif
-
-  return copied;
-}
-
-/**
- * Check for string termination.
- *
- * @param start  This is a pointer to the start of the string.
- * @param end    The end of the object. String is not scanned farther than here.
- * @param p      Reference to size object. Filled with the length of the string if
- *               string is terminated, otherwised filled with the size of the object.
- * @return       Returns true if the string is terminated within bounds (ie., 
- *               if the nul terminator occurs between string and end, inclusive).
- *               Returns false if no nul terminator was found.
- *
- * Note that start and end should be valid boundaries for a valid object.
- */
-static bool
-isTerminated(const char *start, void *end, size_t &p) {
-  size_t max = 1 + ((char *)end - (char *)start), len;
-  len = strnlen((char *)start, max);
-  p = len;
-  if (len == max)
-    return false;
-  else
-    return true;
-}
-
-/**
- * Check for object overlap.
- *
- * @param ptr1Start  The start of the first memory object
- * @param ptr1End    The end of the first memory object or the bound that writing
- *                   operation actually touch.
- * @param ptr2Start  The start of the second memory object
- * @param ptr2End    The end of the second memory object or the bound that writing
- *                   operation actually touch.
- *
- * @return           Whether these 2 memory object overlaps
- */
-static bool
-isOverlapped(const void* ptr1Start, 
-                         const void* ptr1End, 
-                         const void* ptr2Start, 
-                         const void* ptr2End){
-  if( ((long int)ptr1Start>(long int)ptr2End && (long int)ptr1End>(long int)ptr2Start) || 
-      ((long int)ptr1Start<(long int)ptr2End && (long int)ptr1End<(long int)ptr2Start)  )
-    return false;
-  return true;
-}
-
-/**
- * Searches inside the given pool for the memory object associated with the
- * the given address. If the memory object is found, it sets the poolBegin
- * and poolEnd pointers to point to the first and last valid positions of
- * the memory object, and returns true. If the memory object is not found in
- * the pool, or the pool is NULL, it attemps to find the object in the external
- * objects pool. When the object is not found in either pool, the function
- * returns false.
- *
- * @param   pool       The pool handle which is expected to contain the object.
- * @param   address    The address for which the bounding object is sought.
- * @param   poolBegin  Reference to a pointer to set to the beginning of
- *                     the memory object.
- * @param   poolEnd    Reference to a pointer to set to the last valid address
- *                     the memory object.
- * @return  Returns true if the object was found, false otherwise.
- */
-static bool
-pool_find(DebugPoolTy *pool, void *address, void *&poolBegin, void *&poolEnd) {
-  // Retrieve memory area's bounds from pool handle.
-  if ((pool && pool->Objects.find(address, poolBegin, poolEnd)) || 
-      ExternalObjects.find(address, poolBegin, poolEnd))
-    return true;
-
-  return false;
-}
-
-/* Macros for determining the completeness of pointer arguments using the
-   completeness bitwise vector. */
-#define ARG1_COMPLETE(c) ((bool) (c & 0x1))
-#define ARG2_COMPLETE(c) ((bool) (c & 0x2))
-
-/**
- * This function attempts to verify that given string pointer points to
- * a valid string that is terminated within its memory object's boundaries.
- * For strings that are marked complete, if the string is discovered to be
- * not in its pool, or unterminated within memory object boundaries,
- * the function reports a violation and returns false.
- * For strings not marked complete, the function attempts to do the same
- * checks as for complete pointers, except that it assumes the string was
- * valid if the string's memory object is not found in the pool.
- *
- * The function returns true if no memory violations were discovered, and
- * false when there was a violation.
- *
- * @param   string     The pointer to the string to be checked.
- * @param   pool       The pool that should be searched for the memory object
- *                     that contains the string.
- * @param   complete   This is a boolean value which is true if the string
- *                     pointer was reported complete by DSA, and false if not.
- *                     If the string is incomplete, no errors are reported
- *                     if it does not exist in the pool and is non-NULL.
- * @param   function   The name of the C library function for debug reporting
- *                     purposes.
- * @param   SRC_INFO   Source and line info debug information.
- * @return             Returns true if no violations were discoverd, and false
- *                     if the pointer does not point to a valid string and a 
- *                     memory violation was reported.
- *                     Note that if the function returns true, the pointer may
- *                     still not point to a valid string if the pointer was
- *                     incomplete.
- *
- */
-static inline bool
-validStringCheck(const char *string,
-                 DebugPoolTy *pool,
-                 bool complete,
-                 const char *function,
-                 SRC_INFO) {
-  void *objStart, *objEnd;
-  size_t len;
-
-  // Check if the string is NULL. If it is, report this as an error.
-  if (string == NULL) {
-    std::cout << "String pointer is NULL!\n";
-    C_LIBRARY_VIOLATION(string, pool, function, DEFAULT_SRC_INFO);
-    return false;
+  // Check if source is terminated.
+  if (srcFound && !isTerminated(src, srcEnd, srcLen)) {
+    std::cout << "Source string not terminated within bounds!\n";
+    C_LIBRARY_VIOLATION(src, srcPool, "stpcpy", SRC_INFO_ARGS);
   }
 
-  // Retrieve the string from the pool. If no string is found and the pointer
-  // is not complete, return true. Otherwise report an error and return false.
-  if (!pool_find(pool, (void *)string, objStart, objEnd)) {
-    if (complete) {
-      std::cout << "String not found in pool!\n";
-      LOAD_STORE_VIOLATION(string, pool, SRC_INFO_ARGS);
-      return false;
+  // The remainder of the checks require both objects to be found.
+  if (dstFound && srcFound) {
+    // Check for overlap of objects.
+    if (isOverlapped(dst, &dst[srcLen], src, &src[srcLen])) {
+      std::cout << "Copying overlapping strings has undefined behavior!\n";
+      C_LIBRARY_VIOLATION(dst, dstPool, "stpcpy", SRC_INFO_ARGS);
     }
-    else
-      return true;
+    // dstLen is the maximum length string that dst can hold.
+    size_t dstLen = (char *) dstEnd - dst;
+    // Check for overflow of dst.
+    if (srcLen > dstLen) {
+      std::cout << "Destination object too short to hold string!\n";
+      WRITE_VIOLATION(dst, dstPool, dstLen, srcLen, SRC_INFO_ARGS);
+    }
   }
 
-  // Do a termination check.
-  if (!isTerminated(string, objEnd, len)) {
-    std::cout << "String is not terminated within object bounds!\n";
-    C_LIBRARY_VIOLATION(string, pool, function, SRC_INFO_ARGS);
-    return false;
-  }
-
-  return true;
+  return stpcpy(dst, src);
 }
 
 
-/**
- * Secure runtime wrapper function to replace strchr()
+/*
+ * pool_strchr()
  *
- * Ensures the following:
- *  - string argument points to a valid string
- *
- * @param   sp     Pool handle for string
- * @param   s      String pointer
- * @param   c      Character to find
- * @return  Pointer to first instance of c in s, or NULL if not found.
+ * This is the non-debug version of pool_strchr_debug().
  *
  */
-
 char *
 pool_strchr(DebugPoolTy *sp, const char *s, int c, const uint8_t complete) {
   return pool_strchr_debug(sp, s, c, complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
 
+
 /**
- * Secure runtime wrapper function to replace strchr()
+ * Secure runtime wrapper function to replace strchr(), debug version
+ *
+ * Returns pointer to the first instance of the given character in the string, or
+ * NULL if not found.
+ *
+ * Ensures the following:
+ *  - string argument points to a valid string
  *
  * @param   sPool     Pool handle for string
  * @param   s         String pointer
  * @param   c         Character to find
  * @param   complete  Completeness bitwise vector
- * @param   TAG       
- * @param   SRC_INFO
+ * @param   TAG       Tag information for debug
+ * @param   SRC_INFO  Source and line number information
  * @return  Pointer to first instance of c in s or NULL
+ *
  */
 char *
 pool_strchr_debug(DebugPoolTy *sPool,
@@ -342,13 +173,12 @@ pool_strchr_debug(DebugPoolTy *sPool,
   return strchr((char*)s, c);
 }
 
-/**
- * Secure runtime wrapper function to replace strrchr()
+
+/*
+ * pool_strrchr()
  *
- * @param   sPool  Pool handle for string
- * @param   s      String pointer
- * @param   c      Character to find
- * @return  Pointer to last instance of c in s or NULL
+ * This is the non-debug version of pool_strchr_debug().
+ *
  */
 char *
 pool_strrchr(DebugPoolTy *sPool,
@@ -379,6 +209,13 @@ pool_strrchr_debug(DebugPoolTy *sPool,
   return strrchr((char*)s, c);
 }
 
+
+/*
+ * pool_strstr()
+ *
+ * This is the non-debug version of pool_strstr_debug().
+ *
+ */
 char *
 pool_strstr(DebugPoolTy *s1Pool,
             DebugPoolTy *s2Pool,
@@ -389,6 +226,27 @@ pool_strstr(DebugPoolTy *s1Pool,
     DEFAULT_SRC_INFO);
 }
 
+
+/**
+ * Secure runtime wrapper function to replace strstr(), debug version
+ *
+ * Searches for the first occurence of the substring s2 in s1.
+ * Returns a pointer to the discovered substring, or NULL if not found.
+ *
+ * Attempts to verify that s1 and s2 are valid strings terminated within
+ * their memory objects' boundaries.
+ *
+ * @param   s1Pool    Pool handle for s1
+ * @param   s2Pool    Pool handle for s2
+ * @param   s1        Pointer to string to be searched
+ * @param   s2        Pointer to substring to search for
+ * @param   complete  Completeness bitwise vector
+ * @param   TAG       Tag information for debug
+ * @param   SRC_INFO  Source and line number information for debug
+ * @retrun            Returns a pointer to the first instance of s2 in s1,
+ *                    or NULL if none exists.
+ *
+ */
 char *
 pool_strstr_debug(DebugPoolTy *s1Pool,
                   DebugPoolTy *s2Pool,
@@ -404,21 +262,12 @@ pool_strstr_debug(DebugPoolTy *s1Pool,
   return strstr((char*)s1, s2);
 }
 
-/**
- * Secure runtime wrapper function to replace strcat()
+
+/*
+ * pool_strcat()
  *
- * Concatenates the source string to the end of the destination string.
- * Checks for the following:
- *  - string termination  : destination, source strings
- *  - out of bounds write : destination string
+ * This is the non-debug version of pool_strcat_debug().
  *
- * @param  dp    Pool handle for destination string
- * @param  sp    Pool handle for source string
- * @param  d     Pointer to the destination string
- * @param  s     Pointer to the source string
- * @param  c     Bitwise vector holding completeness information
- *               for source and destination strings
- * @return       This returns the pointer to the destination string.
  */
 char *
 pool_strcat(DebugPoolTy *dp,
@@ -428,6 +277,7 @@ pool_strcat(DebugPoolTy *dp,
             const unsigned char c) {
   return pool_strcat_debug(dp, sp, d, s, c, DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
+
 
 /**
  * Secure runtime wrapper function to replace strcat(), debug version
@@ -447,6 +297,7 @@ pool_strcat(DebugPoolTy *dp,
  * @param  TAG   Tag information for debug
  * @param  SRC_INFO Source and line number information.
  * @return       This returns the pointer to the destination string.
+ *
  */
 char *
 pool_strcat_debug(DebugPoolTy *dstPool,
@@ -465,17 +316,7 @@ pool_strcat_debug(DebugPoolTy *dstPool,
   const bool srcComplete = ARG1_COMPLETE(complete);
   const bool dstComplete = ARG2_COMPLETE(complete);
 
-  // Ensure non-null pool and string arguments.
-  if (dst == 0) {
-    std::cout << "Destination string pointer is NULL\n";
-    C_LIBRARY_VIOLATION(dst, dstPool, "strcat", SRC_INFO_ARGS);
-  }
-  if (src == 0) {
-    std::cout << "Source string pointer is NULL\n";
-    C_LIBRARY_VIOLATION(src, srcPool, "strcat", SRC_INFO_ARGS);
-  }
-
-  // Find the strings in the pool.
+  // Find the strings' memory objects in the pool.
   if (!(srcObjFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd)) &&
       srcComplete) {
     std::cout << "Destination string not found in pool\n";
@@ -530,26 +371,12 @@ pool_strcat_debug(DebugPoolTy *dstPool,
     return strcat(dst, src);
 }
 
-/**
- * Secure runtime wrapper function to replace strncat()
+
+/*
+ * pool_strncat()
  *
- * Appends at most n characters of src onto the end of the string dst
- * and then adds a nul terminator.
+ * This is the non-debug version of pool_strncat_debug().
  *
- * Checks for the following:
- *  - dst is terminated
- *  - dst has enough space to hold the whole concatention
- *  - src and dst do not overlap
- *  - if src is unterminated, the first n characters of src fall within
- *    the boundaries of src.
- *
- * @param  dstPool  Pool handle for destination string
- * @param  srcPool  Pool handle for source string
- * @param  dst      Destination string pointer
- * @param  src      Source string pointer
- * @param  n        Number of characters to copy over
- * @param  complete Completeness bitwise vector
- * @return          Destination string pointer
  */
 char *
 pool_strncat(DebugPoolTy *dstPool,
@@ -562,6 +389,7 @@ pool_strncat(DebugPoolTy *dstPool,
   return pool_strncat_debug(dstPool, srcPool, dst, src, n, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
+
 
 /**
  * Secure runtime wrapper function to replace strncat()
@@ -586,6 +414,7 @@ pool_strncat(DebugPoolTy *dstPool,
  * @param  TAG      Tag debug information
  * @param  SRC_INFO Source and line number information
  * @return          Destination string pointer
+ *
  */
 char *
 pool_strncat_debug(DebugPoolTy *dstPool,
@@ -595,8 +424,7 @@ pool_strncat_debug(DebugPoolTy *dstPool,
                    size_t n,
                    const uint8_t complete,
                    TAG,
-                   SRC_INFO)
-{
+                   SRC_INFO) {
   void *dstBegin, *dstEnd;
   void *srcBegin, *srcEnd;
   size_t dstLen, srcLen, maxLen, catLen, srcAmt;
@@ -606,23 +434,13 @@ pool_strncat_debug(DebugPoolTy *dstPool,
   const bool srcComplete = ARG1_COMPLETE(complete);
   const bool dstComplete = ARG2_COMPLETE(complete);
  
-  // Ensure non-null pool and string arguments.
-  if (dst == 0) {
-    std::cout << "Destination string pointer is NULL\n";
-    C_LIBRARY_VIOLATION(dst, dstPool, "strcat", SRC_INFO_ARGS);
-  }
-  if (src == 0) {
-    std::cout << "Source string pointer is NULL\n";
-    C_LIBRARY_VIOLATION(src, srcPool, "strcat", SRC_INFO_ARGS);
-  }
-
-  // Retrieve destination and source strings from pool.
-  if (!(dstObjFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd)) &&
+  // Retrieve destination and source string memory objects from pool.
+  if (!(dstObjFound = pool_find(dstPool, (void *) dst, dstBegin, dstEnd)) &&
       dstComplete) {
     std::cout << "Destination string not found in pool!\n";  
     LOAD_STORE_VIOLATION(dstBegin, dstPool, SRC_INFO_ARGS);
   }
-  if (!(srcObjFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd)) &&
+  if (!(srcObjFound = pool_find(srcPool, (void *) src, srcBegin, srcEnd)) &&
       srcComplete) {
     std::cout << "Source string not found in pool!\n";  
     LOAD_STORE_VIOLATION(srcBegin, srcPool, SRC_INFO_ARGS);
@@ -680,28 +498,32 @@ pool_strncat_debug(DebugPoolTy *dstPool,
     return strncat(dst, src, n);
 }
 
-/**
- * Secure runtime wrapper function to replace strpbrk()
+
+/*
+ * pool_strpbrk()
  *
- * @param   sPool  Pool handle for source string
- * @param   aPool  Pool handle for accept string
- * @param   s      String pointer
- * @param   a      Pointer to string of characters to find
- * @return  Pointer to first instance in s of some character in s, or NULL
+ * This is the non-debug version of pool_strpbrk_debug().
+ *
  */
 char *
 pool_strpbrk(DebugPoolTy *sp,
              DebugPoolTy *ap,
              const char *s,
              const char *a,
-             const uint8_t complete)
-{
+             const uint8_t complete) {
   return pool_strpbrk_debug(sp, ap, s, a, complete,
     DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
 
+
 /**
  * Secure runtime wrapper function to replace strpbrk()
+ *
+ * Searches for the first instance in s of any character in a, and returns a
+ * pointer to that instance, or returns NULL if no instance was found.
+ *
+ * Attempts to verify that both s and a are valid strings terminated within
+ * their memory objects' boundaries.
  *
  * @param   sPool  Pool handle for source string
  * @param   aPool  Pool handle for accept string
@@ -716,8 +538,7 @@ pool_strpbrk_debug(DebugPoolTy *sPool,
                    const char *a,
                    const uint8_t complete,
                    TAG,
-                   SRC_INFO)
-{
+                   SRC_INFO) {
   validStringCheck(s, sPool, ARG1_COMPLETE(complete), "strpbrk",
     DEFAULT_SRC_INFO);
   validStringCheck(a, aPool, ARG2_COMPLETE(complete), "strpbrk",
@@ -725,15 +546,7 @@ pool_strpbrk_debug(DebugPoolTy *sPool,
   return strpbrk((char*)s, a);
 }
 
-/**
- * Secure runtime wrapper function to replace strcmp()
- *
- * @param   str1Pool Pool handle for str1
- * @param   str2Pool Pool handle for str2
- * @param   str1     c string to be compared
- * @param   str2     c string to be compared
- * @return  position of first different character, or 0 it they are the same
- */
+
 int
 pool_strcmp(DebugPoolTy *s1p,
             DebugPoolTy *s2p, 
@@ -742,6 +555,8 @@ pool_strcmp(DebugPoolTy *s1p,
             const uint8_t complete){
   return pool_strcmp_debug(s1p,s2p,s1,s2,complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
+
+
 /**
  * Secure runtime wrapper function to replace strcmp()
  *
@@ -749,7 +564,7 @@ pool_strcmp(DebugPoolTy *s1p,
  * @param   str2Pool Pool handle for str2
  * @param   str1     c string to be compared
  * @param   str2     c string to be compared
- * @return  position of first different character, or 0 it they are the same
+ * @return  
  */
 int
 pool_strcmp_debug(DebugPoolTy *str1Pool,
@@ -786,6 +601,7 @@ pool_strcmp_debug(DebugPoolTy *str1Pool,
 
   return strcmp(str1, str2);
 }
+
 
 /**
  * Secure runtime wrapper function to replace memcpy()
@@ -862,6 +678,7 @@ pool_memcpy_debug(DebugPoolTy *dstPool,
   return dst;
 }
 
+
 /**
  * Secure runtime wrapper function to replace memmove()
  *
@@ -931,6 +748,7 @@ pool_memmove_debug(DebugPoolTy *dstPool,
 
   return dst;
 }
+
 
 /**
  * Secure runtime wrapper function to replace mempcpy()
@@ -1008,6 +826,7 @@ pool_mempcpy_debug(DebugPoolTy *dstPool,
 }
 #endif
 
+
 /**
  * Secure runtime wrapper function to replace memset()
  *
@@ -1025,6 +844,8 @@ void *pool_memset(DebugPoolTy *stringPool,
   return pool_memset_debug(stringPool, string, c, n,complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
 
 }
+
+
 /**
  * Secure runtime wrapper function to replace memset()
  *
@@ -1061,6 +882,7 @@ pool_memset_debug(DebugPoolTy *stringPool,
   return memset(string, c, n);
 }
 
+
 /**
  * Secure runtime wrapper function to replace strcpy()
  *
@@ -1078,6 +900,7 @@ pool_strcpy(DebugPoolTy *dstPool,
             const uint8_t complete) {
   return pool_strcpy_debug(dstPool, srcPool, dst, src, complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
 }
+
 
 /**
  * Secure runtime wrapper function to replace strcpy()
@@ -1137,107 +960,6 @@ pool_strcpy_debug(DebugPoolTy *dstPool,
   return dst;
 }
 
-
-/**
- * Secure runtime wrapper function to replace stpcpy()
- *
- * Copies the string src to dst and returns a pointer
- * to the nul terminator of dst.
- * 
- * Attempts to verify the following:
- *  - src is nul terminated
- *  - src and dst do not overlap
- *  - dst is long enough to hold src.
- *
- * @param   dstPool    Pool handle for destination string's pool
- * @param   srcPool    Pool handle for destination string's pool
- * @param   dst        Pointer to destination of copy operation
- * @param   src        Pointer to string to copy
- * @param   complete   Completeness bitwise vector
- * @return             Returns a pointer to the nul-terminator of dst.
- *
- */
-char *
-pool_stpcpy(DebugPoolTy *dstPool,
-            DebugPoolTy *srcPool,
-            char *dst,
-            const char *src,
-            const uint8_t complete) {
-  return pool_stpcpy_debug(dstPool, srcPool, dst, src, complete,
-    DEFAULT_TAG, DEFAULT_SRC_INFO);
-}
-
-/**
- * Secure runtime wrapper function to replace stpcpy()
- *
- * Copies the string src to dst and returns a pointer
- * to the nul terminator of dst.
- * 
- * Attempts to verify the following:
- *  - src is nul terminated within memory object bounds
- *  - src and dst do not overlap
- *  - dst is long enough to hold src.
- *
- * @param   dstPool    Pool handle for destination string's pool
- * @param   srcPool    Pool handle for destination string's pool
- * @param   dst        Pointer to destination of copy operation
- * @param   src        Pointer to string to copy
- * @param   complete   Completeness bitwise vector
- * @param   TAG        Tag information for debug
- * @param   SRC_INFO   Source and line number information
- * @return             Returns a pointer to the nul-terminator of dst.
- *
- */
-char *
-pool_stpcpy_debug(DebugPoolTy *dstPool,
-                  DebugPoolTy *srcPool,
-                  char *dst,
-                  const char *src,
-                  const uint8_t complete,
-                  TAG,
-                  SRC_INFO) {
-  void *dstBegin, *dstEnd, *srcBegin, *srcEnd;
-  size_t srcLen;
-  const bool dstComplete = ARG1_COMPLETE(complete);
-  const bool srcComplete = ARG2_COMPLETE(complete);
-  bool dstFound, srcFound;
-
-  // Find the destination and source strings in their pools.
-  if (!(dstFound = pool_find(dstPool, dst, dstBegin, dstEnd))
-        && dstComplete) {
-    std::cout << "Could not find destination object in pool!\n";
-    LOAD_STORE_VIOLATION(dst, dstPool, SRC_INFO_ARGS);
-  }
-  if (!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
-        && srcComplete) {
-    std::cout << "Could not find source object in pool\n";
-    LOAD_STORE_VIOLATION(src, srcPool, SRC_INFO_ARGS);
-  }
-
-  // Check if source is terminated.
-  if (srcFound && !isTerminated(src, srcEnd, srcLen)) {
-    std::cout << "Source string not terminated within bounds!\n";
-    C_LIBRARY_VIOLATION(src, srcPool, "stpcpy", SRC_INFO_ARGS);
-  }
-
-  // The remainder of the checks require both objects to be found.
-  if (dstFound && srcFound) {
-    // Check for overlap of objects.
-    if (isOverlapped(dst, &dst[srcLen], src, &src[srcLen])) {
-      std::cout << "Overlapping objects have undefined behavior!\n";
-      C_LIBRARY_VIOLATION(dst, dstPool, "stpcpy", SRC_INFO_ARGS);
-    }
-    // dstLen is the maximum length string that dst can hold.
-    size_t dstLen = (char *) dstEnd - dst;
-    // Check for overflow of dst.
-    if (srcLen > dstLen) {
-      std::cout << "Destination object too short to hold string!\n";
-      WRITE_VIOLATION(dst, dstPool, dstLen, srcLen, SRC_INFO_ARGS);
-    }
-  }
-
-  return stpcpy(dst, src);
-}
 
 /**
  * Secure runtime wrapper function to replace strlen()
@@ -1564,138 +1286,6 @@ pool_memcmp_debug(DebugPoolTy *str1Pool,
   }
 
   return memcmp(str1, str2,num);
-}
-
-/**
- * Secure runtime wrapper function to replace strncasecmp()
- *
- * @param   str1Pool Pool handle for string1
- * @param   str2Pool Pool handle for string2
- * @param   num      Maximum number of chars to compare
- * @param   str1     string1 to be compared
- * @param   str2     string2 to be compared
- * @return  position of first different character, or 0 it they are the same
- */
-int
-pool_strncasecmp(DebugPoolTy *s1p,
-                 DebugPoolTy *s2p, 
-                 const char *s1, 
-                 const char *s2,
-                 size_t num,
-                 const uint8_t complete){
-
-  return pool_strncasecmp_debug(s1p,s2p,s1,s2,num,complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
-}
-
-/**
- * Secure runtime wrapper function to replace strncasecmp()
- *
- * @param   str1Pool Pool handle for string1
- * @param   str2Pool Pool handle for string2
- * @param   num      Maximum number of chars to compare
- * @param   str1     string1 to be compared
- * @param   str2     string2 to be compared
- * @return  position of first different character, or 0 it they are the same
- */
-int
-pool_strncasecmp_debug(DebugPoolTy *str1Pool,
-                       DebugPoolTy *str2Pool, 
-                       const char *str1, 
-                       const char *str2,
-                       size_t num,
-                       const uint8_t complete,
-                       TAG,
-                       SRC_INFO) {
-  size_t str1Size = 0, str2Size = 0;
-  void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
-
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
-
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
-    std::cout << "String 1 not found in pool!\n";
-    LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
-  }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
-    std::cout << "String 2 not found in pool!\n";
-    LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
-  }
-
-  str1Size = (char*) str1End - str1+1;
-  str2Size = (char*) str2End - str2+1;  
-
-  if (str1Size<num) {
-    std::cout << "Possible read out of bound in string1!\n";
-    OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
-  }
-  if (str2Size<num) {
-    std::cout << "Possible read out of bound in string2!\n";
-    OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
-  }
-
-  return strncasecmp(str1, str2,num);
-}
-
-/**
- * Secure runtime wrapper function to replace strcasecmp()
- *
- * @param   str1Pool Pool handle for str1
- * @param   str2Pool Pool handle for str2
- * @param   str1     c string to be compared
- * @param   str2     c string to be compared
- * @return  position of first different character, or 0 it they are the same
- */
-int
-pool_strcasecmp(DebugPoolTy *s1p,
-                DebugPoolTy *s2p, 
-                const char *s1, 
-                const char *s2,
-                const uint8_t complete){
-
-  return pool_strcasecmp_debug(s1p,s2p,s1,s2,complete, DEFAULT_TAG, DEFAULT_SRC_INFO);
-}
-/**
- * Secure runtime wrapper function to replace strcasecmp()
- *
- * @param   str1Pool Pool handle for str1
- * @param   str2Pool Pool handle for str2
- * @param   str1     c string to be compared
- * @param   str2     c string to be compared
- * @return  position of first different character, or 0 it they are the same
- */
-int
-pool_strcasecmp_debug(DebugPoolTy *str1Pool,
-                      DebugPoolTy *str2Pool, 
-                      const char *str1, 
-                      const char *str2,
-                      const uint8_t complete,
-                      TAG,
-                      SRC_INFO) {
-
-  size_t str1Size = 0, str2Size = 0;
-  void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
-
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
-
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
-    std::cout << "String 1 not found in pool!\n";
-    LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
-  }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
-    std::cout << "String 2 not found in pool!\n";
-    LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
-  }
-
-  // Check if strings are terminated.
-  if (!isTerminated(str1, str1End, str1Size)) {
-    std::cout << "String 1 not terminated within bounds!\n";
-    OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
-  }
-  if (!isTerminated(str2, str2End, str2Size)) {
-    std::cout << "String 2 not terminated within bounds!\n";
-    OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
-  }
-
-  return strcasecmp(str1, str2);
 }
 
 /**

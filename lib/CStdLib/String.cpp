@@ -34,9 +34,9 @@ STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
 #endif
 
 STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
-STATISTIC(stat_transform_strcpy, "Total strcpy() calls transformed");
-STATISTIC(stat_transform_stpcpy, "Total stpcpy() calls transformed");
-STATISTIC(stat_transform_strlen, "Total strlen() calls transformed");
+STATISTIC(stat_transform_strcpy,  "Total strcpy() calls transformed");
+STATISTIC(stat_transform_stpcpy,  "Total stpcpy() calls transformed");
+STATISTIC(stat_transform_strlen,  "Total strlen() calls transformed");
 STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
 STATISTIC(stat_transform_strchr,  "Total strchr() calls transformed");
 STATISTIC(stat_transform_strrchr, "Total strrchr() calls transformed");
@@ -47,12 +47,16 @@ STATISTIC(stat_transform_strpbrk, "Total strpbrk() calls transformed");
 STATISTIC(stat_transform_strcmp,  "Total strcmp() calls transformed");
 STATISTIC(stat_transform_strncmp, "Total strncmp() calls transformed");
 STATISTIC(stat_transform_memcmp,  "Total memcmp() calls transformed");
+STATISTIC(stat_transform_strspn,  "Total strspn() calls transformed");
+STATISTIC(stat_transform_strcspn, "Total strcspn() calls transformed");
+STATISTIC(stat_transform_memccpy, "Total memccpy() calls transformed");
+STATISTIC(stat_transform_memchr,  "Total memchr() calls transformed");
+STATISTIC(stat_transform_bcmp,    "Total bcmp() calls transformed");
+STATISTIC(stat_transform_bcopy,   "Total bcopy() calls transformed");
+STATISTIC(stat_transform_index,   "Total index() calls transformed");
+STATISTIC(stat_transform_rindex,  "Total rindex() calls transformed");
 STATISTIC(stat_transform_strcasecmp,  "Total strcasecmp() calls transformed");
 STATISTIC(stat_transform_strncasecmp, "Total strncasecmp() calls transformed");
-STATISTIC(stat_transform_strspn,  "Total strspn() calls transformed");
-STATISTIC(stat_transform_strcspn,  "Total strcspn() calls transformed");
-STATISTIC(stat_transform_memccpy, "Total memccpy() calls transformed");
-STATISTIC(stat_transform_memchr, "Total memchr() calls transformed");
 
 
 static RegisterPass<StringTransform>
@@ -75,10 +79,10 @@ StringTransform::runOnModule(Module &M) {
   // Create needed pointer types (char * == i8 * == VoidPtrTy).
   const Type *Int8Ty  = IntegerType::getInt8Ty(M.getContext());
   PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-  // Determine the size of size_t for functions that return this result.
+  // Determine the type of size_t for functions that return this result.
   const Type *SizeTTy = tdata->getIntPtrType(M.getContext());
-  // Determine the size of int for functions like strcmp, strncmp and etc..
-  const Type *Int32ty = IntegerType::getInt32Ty(M.getContext());
+  const Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  const Type *VoidTy  = Type::getVoidTy(M.getContext());
 
   modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, stat_transform_strcpy);
   modified |= transform(M, "stpcpy",  2, 2, VoidPtrTy, stat_transform_stpcpy);
@@ -91,17 +95,21 @@ StringTransform::runOnModule(Module &M) {
   modified |= transform(M, "strncat", 3, 2, VoidPtrTy, stat_transform_strncat);
   modified |= transform(M, "strstr",  2, 2, VoidPtrTy, stat_transform_strstr);
   modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, stat_transform_strpbrk);
-  modified |= transform(M, "strcmp",  2, 2, Int32ty,   stat_transform_strcmp);
-  modified |= transform(M, "strncmp", 3, 2, Int32ty,   stat_transform_strncmp);
-  modified |= transform(M, "memcmp",  3, 2, Int32ty,   stat_transform_memcmp);
-  modified |= transform(M, "strcasecmp",  2, 2, Int32ty,
-    stat_transform_strcasecmp);
-  modified |= transform(M, "strncasecmp", 3, 2, Int32ty,
-    stat_transform_strncasecmp);
-  modified |= transform(M, "strcspn",  2, 2, SizeTTy,  stat_transform_strcspn);
+  modified |= transform(M, "strcmp",  2, 2, Int32Ty,   stat_transform_strcmp);
+  modified |= transform(M, "strncmp", 3, 2, Int32Ty,   stat_transform_strncmp);
+  modified |= transform(M, "memcmp",  3, 2, Int32Ty,   stat_transform_memcmp);
+  modified |= transform(M, "strcspn", 2, 2, SizeTTy,   stat_transform_strcspn);
   modified |= transform(M, "strspn",  2, 2, SizeTTy,   stat_transform_strspn);
   modified |= transform(M, "memccpy", 4, 2, VoidPtrTy, stat_transform_memccpy);
-  modified |= transform(M, "memchr", 3, 1, VoidPtrTy,  stat_transform_memchr);
+  modified |= transform(M, "memchr",  3, 1, VoidPtrTy, stat_transform_memchr);
+  modified |= transform(M, "bcmp",    3, 2, Int32Ty,   stat_transform_bcmp);
+  modified |= transform(M, "bcopy",   3, 2, VoidTy,    stat_transform_bcopy);
+  modified |= transform(M, "index",   2, 1, VoidPtrTy, stat_transform_index);
+  modified |= transform(M, "rindex",  2, 1, VoidPtrTy, stat_transform_rindex);
+  modified |= transform(M, "strcasecmp",  2, 2, Int32Ty,
+    stat_transform_strcasecmp);
+  modified |= transform(M, "strncasecmp", 3, 2, Int32Ty,
+    stat_transform_strncasecmp);
 
 #if 0
   modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);
@@ -116,7 +124,7 @@ StringTransform::runOnModule(Module &M) {
 
 /**
  * Secures C standard string library calls by transforming them into
- * their corresponding runtime checks.
+ * their corresponding runtime wrapper functions.
  *
  * In particular, after a call of
  *
@@ -172,7 +180,7 @@ StringTransform::transform(Module &M,
     if (!I)
       continue;
 
-    unsigned char complete = 0;
+    uint8_t complete = 0;
     CallSite CS(I);
     Function *CalledF = CS.getCalledFunction();
 
