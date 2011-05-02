@@ -16,7 +16,7 @@
 #include "ConfigData.h"
 
 #include "safecode/Config/config.h"
-#include "safecode/Runtime/BitmapAllocator.h"
+#include "safecode/Runtime/BBRuntime.h"
 
 #include <stdint.h>
 
@@ -124,7 +124,7 @@ exactcheck_check (const void * ObjStart,
    */
   if ((!(ConfigData.StrictIndexing)) ||
       (((char *) Dest) == (((char *)ObjEnd)+1))) {
-    void *ptr = (void *)((uintptr_t)Dest | 0xffff800000000000);
+    void *ptr = (void *)((uintptr_t)Dest | SET_MASK);
     if (logregs) {
       fprintf (ReportLog,
                "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
@@ -137,7 +137,7 @@ exactcheck_check (const void * ObjStart,
     //
     // Determine if this is a rewrite pointer that is being indexed.
     //
-    if(logregs && ((uintptr_t)Dest & 0xffff800000000000)) {
+    if (logregs && ((uintptr_t)Dest & SET_MASK)) {
       fprintf (stderr, "Was a rewrite: %p\n", Dest);
       fflush (stderr);
     }

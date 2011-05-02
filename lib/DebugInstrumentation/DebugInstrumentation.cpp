@@ -409,6 +409,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("poolstrdup"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheckui").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.lscheckalign").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.boundscheck").F, LInfo);
   transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, LInfo);

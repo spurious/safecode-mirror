@@ -149,8 +149,9 @@ extern "C" {
   void * __sc_dbg_poolmemalign(PPOOL, unsigned Alignment, unsigned NumBytes);
 
   void poolcheck(PPOOL, void *Node);
-  void poolcheckui(PPOOL, void *Node, TAG);
+  void poolcheckui(PPOOL, void *Node);
   void poolcheck_debug (PPOOL, void * Node, TAG, SRC_INFO);
+  void poolcheckui_debug (PPOOL, void * Node, TAG, SRC_INFO);
 
   void poolcheckalign(PPOOL, void *Node, unsigned Offset);
   void poolcheckalign_debug (PPOOL, void *Node, unsigned Offset, TAG, SRC_INFO);

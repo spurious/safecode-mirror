@@ -282,7 +282,12 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
 }
 
 void
-poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
+poolcheckui_debug (DebugPoolTy *Pool,
+                 void *Node,
+                 TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+
   if (_barebone_poolcheck (Pool, Node))
     return;
 
@@ -794,6 +799,11 @@ __sc_dbg_funccheck (unsigned num, void *f, void *g, ...) {
 void
 poolcheck (DebugPoolTy *Pool, void *Node) {
   poolcheck_debug(Pool, Node, 0, NULL, 0);
+}
+
+void
+poolcheckui (DebugPoolTy *Pool, void *Node) {
+  poolcheckui_debug(Pool, Node, 0, NULL, 0);
 }
 
 //

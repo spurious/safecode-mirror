@@ -134,8 +134,9 @@ extern "C" {
   void * __sc_bb_poolmemalign(PPOOL, unsigned Alignment, unsigned NumBytes);
 
   void bb_poolcheck(PPOOL, void *Node);
-  void bb_poolcheckui(PPOOL, void *Node, TAG);
+  void bb_poolcheckui(PPOOL, void *Node);
   void bb_poolcheck_debug (PPOOL, void * Node, TAG, SRC_INFO);
+  void bb_poolcheckui_debug(PPOOL, void *Node, TAG, SRC_INFO);
 
   void bb_poolcheckalign(PPOOL, void *Node, unsigned Offset);
   void bb_poolcheckalign_debug (PPOOL, void *Node, unsigned Offset, TAG, SRC_INFO);

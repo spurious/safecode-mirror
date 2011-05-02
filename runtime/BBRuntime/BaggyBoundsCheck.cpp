@@ -51,13 +51,6 @@ NAMESPACE_SC_BEGIN
 
 struct ConfigData ConfigData;
 
-// Invalid address range
-#if !defined(__linux__)
-uintptr_t InvalidUpper;
-uintptr_t InvalidLower;
-#endif
-
-
 NAMESPACE_SC_END
 
 using namespace NAMESPACE_SC;
@@ -119,19 +112,6 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Allocate a range of memory for rewrite pointers.
   //
-#if !defined(__linux__)
-  const unsigned invalidsize = 1 * 1024 * 1024 * 1024;
-  void * Addr = mmap (0, invalidsize, 0, MAP_SHARED | MAP_ANON, -1, 0);
-  if (Addr == MAP_FAILED) {
-     perror ("mmap:");
-     fflush (stdout);
-     fflush (stderr);
-     assert(0 && "valloc failed\n");
-  }
-  madvise (Addr, invalidsize, MADV_FREE);
-  InvalidLower = (uintptr_t) Addr;
-  InvalidUpper = (uintptr_t) Addr + invalidsize;
-#endif
   
   //
   // Leave initialization of the Report logfile to the reporting routines.
@@ -161,7 +141,10 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
+  
+  
   // Initialize the baggy bounds table
+  __baggybounds_size_table_begin = NULL;
   __baggybounds_size_table_begin = 
     (unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), 
                           PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, 
@@ -558,6 +541,7 @@ getProgramCounter (void * context) {
 // Description:
 //  This is the signal handler that catches bad memory references.
 //
+
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
   
@@ -578,29 +562,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   void * faultAddr = info->si_addr; 
   PDebugMetaData debugmetadataptr = 0;
 
-  //
-  // If the faulting pointer is within the zero page or the reserved memory
-  // region for uninitialized variables, then report an error.
-  //
-#if defined(__linux__)
-  const unsigned lowerUninit = 0xc0000000u;
-  const unsigned upperUninit = 0xffffffffu;
-#else
-  unsigned lowerUninit = 0x00000000u;
-  unsigned upperUninit = 0x00000fffu;
-#endif
-  if ((lowerUninit <= (uintptr_t)(faultAddr)) &&
-      ((uintptr_t)(faultAddr) <= upperUninit)) {
-    DebugViolationInfo v;
-    v.type = ViolationInfo::FAULT_UNINIT,
-      v.faultPC = (const void*) program_counter,
-      v.faultPtr = faultAddr,
-      v.dbgMetaData = 0;
 
-    ReportMemoryViolation(&v);
-    return;
-  }
-
+  printf("error ptr:%p\n", faultAddr);
   //
   // Attempt to look up dangling pointer information for the faulting pointer.
   //
@@ -609,7 +572,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // If there is no dangling pointer information for the faulting pointer,
   // perhaps it is an Out of Bounds Rewrite Pointer.  Check for that now.
   //
-/*  if (0 == fs) {
+  /*if (0 == fs) {
     void * start = faultAddr;
     void * tag = 0;
     void * end;

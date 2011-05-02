@@ -29,13 +29,6 @@
 
 #define TAG unsigned tag
 
-#if defined(__linux__)
-static const uintptr_t InvalidUpper = 0xffff700000000000;
-static const uintptr_t InvalidLower = 0xffff800000000000;
-#else
-extern uintptr_t InvalidUpper;
-extern uintptr_t InvalidLower;
-#endif
 
 
 extern FILE * ReportLog;
@@ -129,6 +122,29 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
   return;
 }
 
+void
+bb_poolcheckui_debug (DebugPoolTy *Pool,
+                 void *Node,
+                 TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+  //
+  // Check if is an OOB pointer
+  //
+  if ((uintptr_t)Node & SET_MASK) {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = Node,
+    v.SourceFile = SourceFilep,
+    v.lineNo = lineno;
+
+    ReportMemoryViolation(&v);
+    assert(false);
+    return;
+  }
+  return;
+}
 
 //
 // Function: poolcheckalign_debug()
@@ -170,11 +186,8 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
 }
 
 void
-bb_poolcheckui (DebugPoolTy *Pool, void *Node, TAG) {
-    if ((uintptr_t)Node & SET_MASK) {
-    assert(false);
-  }
-  return;
+bb_poolcheckui (DebugPoolTy *Pool, void *Node) {
+  return bb_poolcheckui_debug(Pool, Node, 0, NULL, 0);
 }
 
 
