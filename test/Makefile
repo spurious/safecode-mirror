@@ -474,7 +474,8 @@ cstdlib/test.sh: $(PROJ_SRC_ROOT)/test/cstdlib/test.sh.in
 	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
        -e 's#@SC@#$(SC_BIN)#g' \
        -e 's#@LLC@#$(LLC)#g' \
-       -e 's#@SC_LIB@#$(SC_LIB)#g' < $< > $@
+       -e 's#@SC_LIB@#$(SC_LIB)#g' \
+       -e 's#@LLVMAS@#$(LLVMAS)#g' < $< > $@
 	chmod +x $@
 
 litclean:
