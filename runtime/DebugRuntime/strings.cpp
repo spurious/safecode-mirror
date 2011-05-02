@@ -16,8 +16,6 @@
 #include "CStdLib.h"
 
 
-NAMESPACE_SC_BEGIN
-
 /*
  * pool_bcmp()
  *
@@ -443,5 +441,3 @@ pool_strncasecmp_debug(DebugPoolTy *str1Pool,
                    "strncasecmp", SRC_INFO_ARGS);
   return strncasecmp(str1, str2, n);
 }
-
-NAMESPACE_SC_END

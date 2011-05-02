@@ -27,7 +27,7 @@
 #define DEFAULT_SRC_INFO "<Unknown>", 0
 #define SRC_INFO_ARGS SourceFile, lineNo
 
-NAMESPACE_SC_BEGIN
+using namespace NAMESPACE_SC;
 
 namespace {
 
@@ -223,6 +223,10 @@ namespace {
    */
   inline bool
   pool_find(DebugPoolTy *pool, void *address, void *&poolBegin, void *&poolEnd) {
+
+    if (address == NULL)
+      return false;
+
     // Retrieve memory area's bounds from pool handle.
     if ((pool && pool->Objects.find(address, poolBegin, poolEnd)) || 
         ExternalObjects.find(address, poolBegin, poolEnd))
@@ -306,7 +310,5 @@ namespace {
   }
 
 }
-
-NAMESPACE_SC_END
 
 #endif // _CSTDLIB_H

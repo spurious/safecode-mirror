@@ -15,8 +15,6 @@
 
 #include "CStdLib.h"
 
-NAMESPACE_SC_BEGIN
-
 //
 // The following functions have CStdLib wrapper versions in this file:
 //  - stpcpy
@@ -1567,5 +1565,3 @@ pool_memccpy_debug(DebugPoolTy *dstPool,
 
   return dst;
 }
-
-NAMESPACE_SC_END
