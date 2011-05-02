@@ -27,7 +27,7 @@
 #define DEFAULT_SRC_INFO "<Unknown>", 0
 #define SRC_INFO_ARGS SourceFile, lineNo
 
-using namespace NAMESPACE_SC;
+NAMESPACE_SC_BEGIN
 
 namespace {
 
@@ -279,7 +279,7 @@ namespace {
     // Check if the string is NULL. If it is, report this as an error.
     if (string == NULL) {
       std::cout << "String pointer is NULL!\n";
-      C_LIBRARY_VIOLATION(string, pool, function, DEFAULT_SRC_INFO);
+      C_LIBRARY_VIOLATION(string, pool, function, SRC_INFO_ARGS);
       return false;
     }
 
@@ -306,5 +306,7 @@ namespace {
   }
 
 }
+
+NAMESPACE_SC_END
 
 #endif // _CSTDLIB_H

@@ -15,10 +15,8 @@
 
 #include "CStdLib.h"
 
-#include <iostream>
 
-using namespace std;
-
+NAMESPACE_SC_BEGIN
 
 /*
  * pool_bcmp()
@@ -80,12 +78,8 @@ pool_bcmp_debug(DebugPoolTy *aPool,
   if (!(aFound = pool_find(aPool, (void *) a, aStart, aEnd)) && aComplete)
     LOAD_STORE_VIOLATION(a, aPool, SRC_INFO_ARGS);
 
-  cout << "found a" << endl;
-
   if (!(bFound = pool_find(bPool, (void *) b, bStart, bEnd)) && bComplete)
     LOAD_STORE_VIOLATION(b, bPool, SRC_INFO_ARGS);
-
-  cout << "found b" << endl;
 
   // Determine if both pointers can be read safely up to n bytes into their
   // target without going out of bounds of the memory object.
@@ -93,13 +87,9 @@ pool_bcmp_debug(DebugPoolTy *aPool,
   if (aFound && n > aBytes)
     OOB_VIOLATION(a, aPool, a, n, SRC_INFO_ARGS);
 
-  cout << "not oob a" << endl;
-
   size_t bBytes = 1 + (char *) bEnd - (char *) b;
   if (bFound && n > bBytes)
     OOB_VIOLATION(b, bPool, b, n, SRC_INFO_ARGS);
-
-  cout << "not oob b" << endl;
 
   return bcmp(a, b, n);
 }
@@ -453,3 +443,5 @@ pool_strncasecmp_debug(DebugPoolTy *str1Pool,
                    "strncasecmp", SRC_INFO_ARGS);
   return strncasecmp(str1, str2, n);
 }
+
+NAMESPACE_SC_END
