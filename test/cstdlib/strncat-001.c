@@ -1,8 +1,6 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
-/* Destination string too short for strncat(). */
+/* This is an example of a destination string too short for strncat(). */
 
 #include <string.h>
 

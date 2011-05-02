@@ -33,11 +33,24 @@ then
   exit 1
 fi
 
+llvmgcc=@LLVMGCC@
+sc=@SC@
+llc=@LLC@
+sc_lib=@SC_LIB@
+llvmas=@LLVMAS@
+
 filename=$1
 # Directory to use for temporary files.
 testdir=${testdir:-$(dirname $filename)}
 filebase=$(basename $filename)
-prefix=${filebase%%.c}
+case $filebase in
+  *.ll) prefix=${filebase%%.ll}
+        filetype=ll;;
+   *.c) prefix=${filebase%%.c}
+        filetype=c;;
+     *) echo "unknown file type"
+        exit 1;;
+esac
 # Bitcode object
 bcfile=$testdir/${prefix}.bc
 # Bitcode with SAFECode transformations
@@ -49,10 +62,6 @@ scfile=$testdir/${prefix}.sc
 # Executable output
 scout=$testdir/${prefix}.output
 
-llvmgcc=@LLVMGCC@
-sc=@SC@
-llc=@LLC@
-sc_lib=@SC_LIB@
 
 # Clean up all temporary files the script made.
 cleanup()
@@ -73,18 +82,20 @@ setupdir()
   rm -f $bcfile $scobj $scasm $scfile $scout
 }
 
-# Compile the test.
+# Compile the bitcode of the test.
 compile()
 {
-  # Create bitcode file.
-  $llvmgcc -c -emit-llvm -o $bcfile $filename
+  # Compile input file to bitcode.
+  case $filetype in
+     c) $llvmgcc -c -emit-llvm -o $bcfile $filename;;
+    ll) $llvmas $filename -o $bcfile;;
+  esac
   # Run SAFECode with CStdLib passes on bitcode.
   $sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile 2>&1
   # Compile native assembly file from processed bitcode.
   $llc -o $scasm $scobj
   # Build and link test.
   $llvmgcc -o $scfile $scasm \
-                      $sc_lib/libCStdLib.a \
                       $sc_lib/libsc_dbg_rt.a \
                       $sc_lib/libpoolalloc_bitmap.a \
                       -lstdc++
@@ -93,7 +104,8 @@ compile()
 # Run test and check results.
 runtest()
 {
-  set +e  # Don't exit immediately on failure of below commands.
+  # Don't exit immediately on failure of below commands.
+  set +e
   $scfile >& $scout
   # Ensure the test ran successfully.
   if [ $? -ne 0 ]

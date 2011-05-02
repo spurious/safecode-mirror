@@ -1,11 +1,8 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
 /* strstr() on unterminated superstring. */
 
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 int main()

@@ -1,11 +1,8 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
 /* strpbrk() searching on an unterminated string. */
 
 #include <string.h>
-#include <stdio.h>
 
 int main()
 {

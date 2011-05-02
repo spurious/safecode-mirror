@@ -1,6 +1,4 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
 /* strcat() with nothing copied although strings overlap. */
 

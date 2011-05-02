@@ -1,6 +1,4 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
 /* Concatenation onto unterminated destination string. */
 

@@ -1,8 +1,6 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
-/* Destination string written to out of bounds. */
+/* The destination string is written to out of bounds. */
 
 #include <string.h>
 

@@ -1,10 +1,7 @@
-/*
- * RUN: test.sh -e -t %t %s
- */
+/* RUN: test.sh -e -t %t %s */
 
 /* strpbrk() on an unterminated set of characters to search for. */
 
-#include <stdio.h>
 #include <string.h>
 
 int main()
