@@ -563,7 +563,6 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   PDebugMetaData debugmetadataptr = 0;
 
 
-  printf("error ptr:%p\n", faultAddr);
   //
   // Attempt to look up dangling pointer information for the faulting pointer.
   //
