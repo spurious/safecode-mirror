@@ -28,8 +28,8 @@ DebugViolationInfo::print(std::ostream & OS) const {
   // Print the source filename and line number.
   //
   OS << "= Fault PC Source                       :\t"
-     << (this->SourceFile ? this->SourceFile : "<unknown>")
-     << ":" << std::dec << this->lineNo << "\n";
+    << (this->SourceFile ? this->SourceFile : "<unknown>")
+    << ":" << std::dec << this->lineNo << "\n";
 
   //
   // Print the pool handle.
@@ -57,9 +57,9 @@ OutOfBoundsViolation::print(std::ostream & OS) const {
   // Print information on the start and end locations of the object.
   //
   OS << "= Object start                          :\t" 
-     << std::showbase << std::hex << this->objStart << "\n"
-     << "= Object length                         :\t"
-     << this->objLen << "\n";
+    << std::showbase << std::hex << this->objStart << "\n"
+    << "= Object length                         :\t"
+    << this->objLen << "\n";
 }
 
 void
@@ -73,7 +73,7 @@ AlignmentViolation::print(std::ostream & OS) const {
   // Print information on the alignment requirements for the object.
   //
   OS << "= Alignment                             :\t" 
-     << std::showbase << std::hex << this->alignment << "\n";
+    << std::showbase << std::hex << this->alignment << "\n";
 }
 
 void
@@ -88,18 +88,18 @@ WriteOOBViolation::print(std::ostream & OS) const {
   //
   if (-1 != this->srcSize) {
     OS << std::dec
-       << "= Source size (in bytes)                :\t" 
-       << this->srcSize << "\n";
+      << "= Source size (in bytes)                :\t" 
+                                                    << this->srcSize << "\n";
   }
 
   OS << std::dec
-     << "= Destination size (in bytes)           :\t"
-     << this->dstSize << "\n";
+    << "= Destination size (in bytes)           :\t"
+                                                  << this->dstSize << "\n";
 
   if (-1 != this->copied) {
     OS << std::dec
-       << "= Number of bytes copied                :\t"
-       << this->copied << "\n";
+      << "= Number of bytes copied                :\t"
+      << this->copied << "\n";
   }
 }
 
@@ -112,21 +112,21 @@ DebugMetaData::print(std::ostream & OS) const {
   //
 #if 0
   OS << "= Canonical object address              :\t" << std::hex
-     << this->canonAddr << "\n";
+    << this->canonAddr << "\n";
 #endif
 
   //
   // Print object allocation information if available.
   //
   OS << "=\n"
-     << "= Object allocated at PC                :\t" << std::hex
-     << this->allocPC << "\n"
-     << "= Allocated in Source File              :\t"
-     << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
-     << ":" << std::dec << this->lineno << "\n";
+    << "= Object allocated at PC                :\t" << std::hex
+    << this->allocPC << "\n"
+    << "= Allocated in Source File              :\t"
+    << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
+    << ":" << std::dec << this->lineno << "\n";
   if (this->allocID) {
     OS << "= Object allocation sequence number     :\t" << std::dec
-       << this->allocID << "\n";
+      << this->allocID << "\n";
   }
 
   //
@@ -134,13 +134,13 @@ DebugMetaData::print(std::ostream & OS) const {
   //
   if (this->freeID) {
     OS << "=\n"
-       << "= Object freed at PC                    :\t" << std::hex
-       << this->freePC << "\n";
+      << "= Object freed at PC                    :\t" << std::hex
+      << this->freePC << "\n";
     OS << "= Freed in Source File                  :\t"
-       << (this->FreeSourceFile ? (char *) this->FreeSourceFile : "<unknown>")
-       << ":" << std::dec << this->Freelineno << "\n";
+      << (this->FreeSourceFile ? (char *) this->FreeSourceFile : "<unknown>")
+      << ":" << std::dec << this->Freelineno << "\n";
     OS << "= Object free sequence number           :\t" << std::dec
-       << this->freeID << "\n";
+      << this->freeID << "\n";
   }
 
   OS << std::flush;
