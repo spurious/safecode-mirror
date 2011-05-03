@@ -52,6 +52,10 @@ class LocationSourceInfo : public GetSourceInfo {
 };
 
 class VariableSourceInfo : public GetSourceInfo {
+  protected:
+    // Cache of file names which already have a global variable for them
+    std::map<std::string, Value *> SourceFileMap;
+
   public:
     VariableSourceInfo (unsigned dbgKindID) : GetSourceInfo (dbgKindID) {}
     virtual std::pair<Value *, Value *> operator() (CallInst * I);

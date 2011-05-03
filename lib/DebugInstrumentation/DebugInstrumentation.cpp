@@ -25,6 +25,7 @@
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
+#include "llvm/Metadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/ADT/VectorExtras.h"
@@ -174,62 +175,52 @@ VariableSourceInfo::operator() (CallInst * CI) {
   // Create a default line number and source file information for the call.
   //
   LineNumber = ConstantInt::get (Int32Type, 0);
-  Constant * FInit = ConstantArray::get (getGlobalContext(), "<unknown>");
+  std::string filename = "<unknown>";
   Module * M = CI->getParent()->getParent()->getParent();
-  SourceFile = new GlobalVariable (*M,
-                                   FInit->getType(),
-                                   true,
-                                   GlobalValue::InternalLinkage,
-                                   FInit,
-                                   "srcfile");
 
-  //
-  // FIXME:
-  //  This code is currently unused, but I believe that is because it didn't
-  //  work very well under LLVM 2.6.  If we update this code to the LLVM 2.7
-  //  API, it might work better and might be worth re-enabling for poolregister
-  //  operations.
-  //
-#if 0
   //
   // Get the value for which we want debug information.
   //
   Value * V = CI->getOperand(2)->stripPointerCasts();
-
+  
   //
   // Try to get information about where in the program the value was allocated.
   //
-  std::string filename;
   if (GlobalVariable * GV = dyn_cast<GlobalVariable>(V)) {
-    if (Value * GVDesc = findDbgGlobalDeclare (GV)) {
-      DIGlobalVariable Var(cast<GlobalVariable>(GVDesc));
-      //Var.getDisplayName(DisplayName);
-      LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
-      Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
-      SourceFile = new GlobalVariable (*M,
-                                       FInit->getType(),
-                                       true,
-                                       GlobalValue::InternalLinkage,
-                                       FInit,
-                                       "srcfile");
+    NamedMDNode *NMD = M->getNamedMetadata("llvm.dbg.gv");
+    if (NMD) {
+      for (unsigned i = 0, e = NMD->getNumOperands(); i != e; ++i) {
+        DIDescriptor DIG(cast<MDNode>(NMD->getOperand(i)));
+        if (!DIG.isGlobalVariable())
+          continue;
+        if (DIGlobalVariable(NMD->getOperand(i)).getGlobal() == GV) {
+          DIGlobalVariable Var(NMD->getOperand(i));
+          LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
+          filename = Var.getCompileUnit().getDirectory().str() + Var.getCompileUnit().getFilename().str();
+        }
+      }
     }
   } else {
-    if (const DbgDeclareInst *DDI = findDbgDeclare(V)) {
-      DIVariable Var (cast<GlobalVariable>(DDI->getVariable()));
-      LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
-      Var.getCompileUnit().getFilename(filename);
-      Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
-      SourceFile = new GlobalVariable (*M,
-                                       FInit->getType(),
-                                       true,
-                                       GlobalValue::InternalLinkage,
-                                       FInit,
-                                       "srcfile");
-    }
+    if (Instruction *I = dyn_cast<Instruction>(V))
+      if (MDNode *Dbg = I->getMetadata(dbgKind)) {
+        DILocation Loc (Dbg);
+        filename = Loc.getDirectory().str() + Loc.getFilename().str();
+        LineNumber = ConstantInt::get (Int32Type, Loc.getLineNumber());
+      }
   }
-#endif
-
+  if (SourceFileMap.find (filename) != SourceFileMap.end()) {
+    SourceFile = SourceFileMap[filename];
+  } else {
+    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
+    Module * M = CI->getParent()->getParent()->getParent();
+    SourceFile = new GlobalVariable (*M,
+                                     FInit->getType(),
+                                     true,
+                                     GlobalValue::InternalLinkage,
+                                     FInit,
+                                     "sourcefile");
+    SourceFileMap[filename] = SourceFile;
+  }
   return std::make_pair (SourceFile, LineNumber);
 }
 
@@ -408,16 +399,16 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("poolrealloc"), LInfo);
   transformFunction (M.getFunction ("poolstrdup"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheckui").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheckalign").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.boundscheck").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.exactcheck2").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_register").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_register_stack").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister").F, LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister_stack").F, LInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheckui").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.lscheckalign").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.boundscheck").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.exactcheck2").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_register").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_register_stack").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister").F, VInfo);
+  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister_stack").F, VInfo);
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
@@ -429,6 +420,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction(M.getFunction("pool_strcat"),  LInfo);
   transformFunction(M.getFunction("pool_strstr"),  LInfo);
   transformFunction(M.getFunction("pool_strpbrk"), LInfo);
+
   transformFunction(M.getFunction("pool_strcmp"),  LInfo);
   transformFunction(M.getFunction("pool_strncmp"), LInfo);
   transformFunction(M.getFunction("pool_memcmp"),  LInfo);
@@ -442,12 +434,12 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction(M.getFunction("pool_index"),   LInfo);
   transformFunction(M.getFunction("pool_rindex"),  LInfo);
   transformFunction(M.getFunction("pool_strcasecmp"),  LInfo);
-  transformFunction(M.getFunction("pool_strncasecmp"),  LInfo);
+  transformFunction(M.getFunction("pool_strncasecmp"), LInfo);
 
 #if 0
   transformFunction(M.getFunction("pool_memcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_mempcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_memmove"),  LInfo);
+  transformFunction(M.getFunction("pool_mempcpy"), LInfo);
+  transformFunction(M.getFunction("pool_memmove"), LInfo);
   transformFunction(M.getFunction("pool_memset"),  LInfo);
 #endif
 
