@@ -45,6 +45,7 @@ LARGE_PROBLEM_SIZE_DIRS := \
 NORMAL_PROBLEM_SIZE_DIRS := \
   MultiSource/Benchmarks/Olden \
   External/SPEC/CINT2000 \
+  External/SPEC/CINT2006 \
   #MultiSource/Benchmarks/Olden/bisort \
   #External/SPEC/CINT2000/197.parser \
   #External/SPEC/CINT2000/164.gzip \
