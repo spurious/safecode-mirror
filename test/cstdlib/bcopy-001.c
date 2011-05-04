@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* bcopy() with a too small source. */
+// bcopy() with a too small source.
 
 #include <strings.h>
 

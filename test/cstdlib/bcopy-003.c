@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* bcopy() with the destination object being too small to hold the data. */
+// bcopy() with the destination object being too small to hold the data.
 
 #include <strings.h>
 #include <stdint.h>

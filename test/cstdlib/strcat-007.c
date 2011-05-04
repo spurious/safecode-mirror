@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Concatenate onto a destination that is too short by one. */
+// Concatenate onto a destination that is too short by one.
 
 #include <string.h>
 

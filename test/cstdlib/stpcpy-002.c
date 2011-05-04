@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* stpcpy() with an unterminated source string. */
+// stpcpy() with an unterminated source string.
 
 #define _GNU_SOURCE
 #include <string.h>

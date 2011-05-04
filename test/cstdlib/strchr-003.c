@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Call strchr() on an unterminated tail. */
+// Call strchr() on an unterminated tail.
 
 #include <string.h>
 

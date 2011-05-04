@@ -1,6 +1,6 @@
-/* RUN: test.sh -p -t %t %s */
+// RUN: test.sh -p -t %t %s
 
-/* This is an example of the correct usage of bcmp(). */
+// This is an example of the correct usage of bcmp().
 
 #include <assert.h>
 #include <strings.h>

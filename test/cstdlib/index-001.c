@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Call index() on an unterminated string, and the character
- * to find is inside the string. */
+// Call index() on an unterminated string, and the character
+// to find is inside the string.
 
 #include <strings.h>
 

@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strrchr() with an unterminated string searching for a character not
- * that is found in the string. */
+// strrchr() with an unterminated string searching for a character not
+// that is found in the string.
 
 #include <string.h>
 

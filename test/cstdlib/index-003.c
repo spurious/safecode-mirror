@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Call index() on an unterminated tail. */
+// Call index() on an unterminated tail.
 
 #include <strings.h>
 

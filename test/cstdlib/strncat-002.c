@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strncat() reads out of bounds from the source string. */
+// strncat() reads out of bounds from the source string.
 
 #include <string.h>
 

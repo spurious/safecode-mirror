@@ -1,8 +1,8 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strncat() when the source array overlaps with the destination string
- * starting after the destination string, and nul is one of the n
- * characters to concatenate. */
+// strncat() when the source array overlaps with the destination string
+// starting after the destination string, and nul is one of the n
+// characters to concatenate.
 
 #include <string.h>
 

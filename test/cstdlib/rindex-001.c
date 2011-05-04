@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* rindex() with an unterminated string searching for a character not
- * that is found in the string. */
+// rindex() with an unterminated string searching for a character not
+// that is found in the string.
 
 #include <strings.h>
 

@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strncat() when the source array contains the whole destination string. */
+// strncat() when the source array contains the whole destination string.
 
 #include <string.h>
 

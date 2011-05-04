@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strpbrk() on an unterminated set of characters to search for. */
+// strpbrk() on an unterminated set of characters to search for.
 
 #include <string.h>
 

@@ -1,6 +1,6 @@
-/* RUN: test.sh -p -t %t %s */
+// RUN: test.sh -p -t %t %s
 
-/* Example of the correct use of bcopy(). */
+// Example of the correct use of bcopy().
 
 #include <assert.h>
 #include <stdlib.h>

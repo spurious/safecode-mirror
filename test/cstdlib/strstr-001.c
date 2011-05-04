@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* strstr() on unterminated superstring. */
+// strstr() on unterminated superstring.
 
 #include <string.h>
 #include <stdlib.h>

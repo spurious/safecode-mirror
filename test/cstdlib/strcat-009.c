@@ -1,6 +1,6 @@
-/* RUN: test.sh -p -t %t %s */
+// RUN: test.sh -p -t %t %s
 
-/* This is an example of a valid invocation of strcat(). */
+// This is an example of a valid invocation of strcat().
 
 #include <string.h>
 #include <assert.h>

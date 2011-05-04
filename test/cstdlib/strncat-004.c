@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* This is a concatenation onto an unterminated destination string. */
+// This is a concatenation onto an unterminated destination string.
 
 #include <string.h>
 

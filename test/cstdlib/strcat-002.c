@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Try concatenating from an unterminated source string. This should
- * fail. */
+// Try concatenating from an unterminated source string. This should
+// fail.
 
 #include <stdlib.h>
 #include <string.h>

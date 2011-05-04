@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* stpcpy() with destination buffer too short for source string.
- * SAFECode should complain. */
+// stpcpy() with destination buffer too short for source string.
+// SAFECode should complain.
 
 #define _GNU_SOURCE
 #include <string.h>

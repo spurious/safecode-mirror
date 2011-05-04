@@ -1,6 +1,6 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Concatenation destination and source overlap. */
+// Concatenation destination and source overlap.
 
 #include <string.h>
 

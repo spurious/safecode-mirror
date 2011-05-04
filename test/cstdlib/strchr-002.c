@@ -1,7 +1,7 @@
-/* RUN: test.sh -e -t %t %s */
+// RUN: test.sh -e -t %t %s
 
-/* Call strchr() on an unterminated string, and the character to find
- * is not inside the string. */
+// Call strchr() on an unterminated string, and the character to find
+// is not inside the string.
 
 #include <string.h>
 
