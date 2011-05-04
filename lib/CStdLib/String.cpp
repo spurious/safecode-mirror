@@ -12,6 +12,102 @@
 //
 //===----------------------------------------------------------------------===//
 
+
+//
+// The CStdLib Transformations
+//
+// The following files contain all modifications relevant to this functionality:
+//
+// In SAFECode:
+//
+//   include/runtime/DebugRuntime/CStdlib.h:
+//     This file contains helper functions for the runtime wrapper functions.
+//
+//   include/runtime/DebugRuntime/string.cpp:
+//   include/runtime/DebugRuntime/strings.cpp:
+//     These are the locations for the implementations of the runtime wrapper
+//     functions. string.cpp holds functions from string.h; strings.cpp holds
+//     functions which are from strings.h.
+//
+//   include/safecode/CStdLib.h:
+//   lib/CStdLib/String.cpp:
+//     This is the StringTransform pass which replaces CStdLib function calls
+//     with calls to runtime wrapper functions.
+//
+//   include/safecode/CompleteChecks.h:
+//   lib/InsertPoolChecks/CompleteChecks.cpp:
+//     The CompleteChecks::makeCStdLibCallsComplete() method fills in the
+//     bitwise completeness vectors for the transformed library function
+//     calls.
+//
+//   lib/DebugInstrumentation/DebugInstrumentation.cpp:
+//     This contains information on adding debugging instrumentation to the
+//     runtime function calls.
+//  
+//   tools/Sc/sc.cpp:
+//     This invokes the StringTransform and other passes, and contains a
+//     table for lowering the intrinsic names.
+//
+//   test/Makefile:
+//   test/cstdlib/*:
+//     Test suite specifically for CStdLib functions.
+//
+// In poolalloc:
+//
+//   include/dsa/CStdLib.h:
+//     This header contains a table with pool argument count information for
+//     the runtime wrapper functions.
+//
+//   include/PoolAlloc/PoolAllocate.h:
+//   lib/PoolAllocate/PoolAllocate.cpp:
+//     The PoolAllocate class includes a function used to access the information
+//     in the CStdLib pool argument count table.
+//
+//   lib/PoolAllocate/TransformFunctionBody.cpp:
+//     This pass inserts the pools into the runtime functions during Automatic
+//     Pool Allocation.
+//
+//   lib/PoolAllocate/PASimple.cpp:
+//     This pass inserts the pools into the runtime functions during Simple
+//     Pool Allocation.
+//
+//   lib/DSA/StdLibPass.cpp:
+//     This file contains a table with entries to allow DSA to recognize the
+//     runtime wrapper functions.
+//
+
+
+//
+// To add a new function to the CStdLib checks, the following modifications are
+// necessary:
+// 
+// In SAFECode:
+//
+//   - Add the pool_* prototype of the function to
+//     include/safecode/Runtime/DebugRuntime.h.
+//
+//   - Implement the pool_* version of the function in the relevant file in
+//     runtime/DebugRuntime.
+//
+//   - Add the pool_* function to the RuntimeDebug table in tools/Sc/sc.cpp.
+//
+//   - Add debug instrumentation information to
+//     lib/DebugInstrumentation/DebugInstrumentation.cpp.
+//
+//   - Update the StringTransform pass to transform calls of the library
+//     function into its pool_* version in lib/CStdLib/String.cpp.
+//
+// In poolalloc:
+//
+//   - Add an entry for the pool_* version of the function containing the
+//     number of initial pool arguments to the structure in
+//     include/dsa/CStdLib.h.
+//
+//   - Add an entry to lib/DSA/StdLibPass for the pool_* version of the
+//     function to allow DSA to recognize it.
+//
+
+
 #include "safecode/CStdLib.h"
 
 NAMESPACE_SC_BEGIN
@@ -117,7 +213,6 @@ StringTransform::runOnModule(Module &M) {
   modified |= transform(M, "mempcpy", 3, 2, VoidPtrTy, stat_transform_mempcpy);
   modified |= transform(M, "memset", 3, 1, VoidPtrTy, stat_transform_memset);
 #endif
-
 
   return modified;
 }
