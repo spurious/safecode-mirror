@@ -25,23 +25,22 @@
 #include "safecode/Runtime/BBRuntime.h"
 
 #include <cstring>
+#include <cassert>
+#include <cstdio>
+#include <cstdarg>
 
 // This must be defined for Snow Leopard to get the ucontext definitions
 #if defined(__APPLE__)
 #define _XOPEN_SOURCE 1
 #endif
 
-#include <assert.h>
 #include <stdlib.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <signal.h>
 #include <ucontext.h>
 #include <sys/mman.h>
-#include <pthread.h>
 
 #define TAG unsigned tag
 
@@ -170,7 +169,7 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
   uintptr_t Source1 = Source & ~((1<<size)-1);
   if(Source1 != Source) {
     printf("%p, %p, %u Not aligned\n", (void*)Source, (void*)Source1, NumBytes);
-    assert(false);
+    assert(0 && "Memory objects not aligned");
   }
   Source = Source & ~((1<<size)-1);
   unsigned long index = Source >> SLOT_SIZE;
@@ -374,7 +373,7 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
     size = SLOT_SIZE;
   unsigned int alloc = 1 << size;
   void *p;
-  assert(!posix_memalign(&p, alloc, alloc));
+  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
 
   return p;
 }
@@ -395,7 +394,7 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
   unsigned int alloc = 1 << size;
   void *p;
   
-  assert(!posix_memalign(&p, alloc, alloc));
+  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
   __sc_bb_poolregister(Pool, p, NumBytes);
   return p;
 }
@@ -414,7 +413,7 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool,
   if (size < SLOT_SIZE) size = SLOT_SIZE;
   unsigned int alloc = 1<< size;
   void *p;
-  assert(!posix_memalign(&p, alloc, alloc));
+  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
   __sc_bb_src_poolregister(Pool, p, (Number*NumBytes), tag, SourceFilep, lineno);
   if (p) {
     bzero(p, Number*NumBytes);

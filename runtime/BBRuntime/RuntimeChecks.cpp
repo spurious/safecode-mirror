@@ -24,7 +24,6 @@
 
 #include <map>
 #include <cstdarg>
-#include <cassert>
 #include <stdint.h>
 
 #define TAG unsigned tag
@@ -116,7 +115,6 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
     v.lineNo = lineno;
 
     ReportMemoryViolation(&v);
-    assert(false);
     return;
   }
   return;
@@ -140,7 +138,6 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
     v.lineNo = lineno;
 
     ReportMemoryViolation(&v);
-    assert(false);
     return;
   }
   return;
@@ -180,7 +177,6 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
     v.lineNo = lineno;
 
     ReportMemoryViolation(&v);
-    assert(false);
   }
   return;
 }
