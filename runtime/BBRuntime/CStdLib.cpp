@@ -26,7 +26,7 @@
 extern unsigned char* __baggybounds_size_table_begin; 
 extern unsigned SLOT_SIZE;
 extern unsigned WORD_SIZE;
-extern const unsigned int  logregs;
+extern const unsigned int logregs;
 
 // Default versions of arguments to debug functions
 #define DEFAULT_TAG 0

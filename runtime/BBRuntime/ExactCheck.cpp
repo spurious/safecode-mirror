@@ -125,22 +125,8 @@ exactcheck_check (const void * ObjStart,
   if ((!(ConfigData.StrictIndexing)) ||
       (((char *) Dest) == (((char *)ObjEnd)+1))) {
     void *ptr = (void *)((uintptr_t)Dest | SET_MASK);
-    if (logregs) {
-      fprintf (ReportLog,
-               "exactcheck: rewrite(1): %p %p %p at pc=%p to %p: %s %d\n",
-               ObjStart, ObjEnd, Dest, (void*)__builtin_return_address(0), ptr,
-               SourceFile, lineno);
-      fflush (ReportLog);
-    }
     return ptr;
   } else {
-    //
-    // Determine if this is a rewrite pointer that is being indexed.
-    //
-    if (logregs && ((uintptr_t)Dest & SET_MASK)) {
-      fprintf (stderr, "Was a rewrite: %p\n", Dest);
-      fflush (stderr);
-    }
 
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,

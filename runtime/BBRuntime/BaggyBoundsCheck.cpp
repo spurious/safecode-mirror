@@ -111,7 +111,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Allocate a range of memory for rewrite pointers.
   //
-  
+
   //
   // Leave initialization of the Report logfile to the reporting routines.
   // The libc stdio functions may have not been initialized by this point, so
@@ -124,7 +124,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   /*if (ConfigData.TrackExternalMallocs) {
     installAllocHooks();
-  } */ 
+    } */ 
   //
   // Initialize the signal handlers for catching errors.
   //
@@ -140,8 +140,8 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     fprintf (stderr, "sigaction installer failed!");
     fflush (stderr);
   }
-  
-  
+
+
   // Initialize the baggy bounds table
   __baggybounds_size_table_begin = NULL;
   __baggybounds_size_table_begin = 
@@ -194,7 +194,7 @@ __sc_bb_poolargvregister(int argc, char **argv) {
     char *argv_index_temp = 
       (char *)__sc_bb_src_poolalloc(NULL,(strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
-    
+
     __internal_register(argv_index_temp,(strlen (argv[index]) + 1)*sizeof(char));
     argv_temp[index] = argv_index_temp;
   }
@@ -208,7 +208,7 @@ __sc_bb_poolargvregister(int argc, char **argv) {
   // Note that the argv array is supposed to end with a NULL pointer element.
   //
   __internal_register(argv_temp, sizeof(char*)*(argc+1) );
-  
+
   return (void*)argv_temp;
 }
 
@@ -221,11 +221,11 @@ __sc_bb_poolargvregister(int argc, char **argv) {
 //
 void 
 __sc_bb_src_poolregister (DebugPoolTy *Pool,
-				void * allocaptr, 
-				unsigned NumBytes, TAG,
-				const char* SourceFilep, 
-				unsigned lineno) {
-  
+                          void * allocaptr, 
+                          unsigned NumBytes, TAG,
+                          const char* SourceFilep, 
+                          unsigned lineno) {
+
   __internal_register(allocaptr, NumBytes);
   return;
 }
@@ -239,10 +239,10 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
 //
 void 
 __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
-				void * allocaptr, 
-				unsigned NumBytes, TAG,
-				const char* SourceFilep, 
-				unsigned lineno) {
+                                void * allocaptr, 
+                                unsigned NumBytes, TAG,
+                                const char* SourceFilep, 
+                                unsigned lineno) {
   __internal_register(allocaptr, NumBytes);
   return;
 }
@@ -256,8 +256,8 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
 //
 void 
 __sc_bb_poolregister_stack (DebugPoolTy *Pool,
-				void * allocaptr, 
-				unsigned NumBytes) {
+                            void * allocaptr, 
+                            unsigned NumBytes) {
   __sc_bb_src_poolregister_stack(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
   return;
 }
@@ -271,8 +271,8 @@ __sc_bb_poolregister_stack (DebugPoolTy *Pool,
 //
 void 
 __sc_bb_poolregister_global (DebugPoolTy *Pool,
-				 void *allocaptr, 
-				 unsigned NumBytes) {
+                             void *allocaptr, 
+                             unsigned NumBytes) {
   __sc_bb_src_poolregister_global_debug(Pool, 
                                         allocaptr, NumBytes, 0 , "<unknown>", 0);
   return;
@@ -287,10 +287,10 @@ __sc_bb_poolregister_global (DebugPoolTy *Pool,
 //
 void 
 __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
-				 	   void *allocaptr, 
-					   unsigned NumBytes,TAG, 
-					   const char *SourceFilep,
-					   unsigned lineno) {
+                                       void *allocaptr, 
+                                       unsigned NumBytes,TAG, 
+                                       const char *SourceFilep,
+                                       unsigned lineno) {
   __internal_register(allocaptr, NumBytes);
 }
 
@@ -304,9 +304,9 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
 //
 void 
 __sc_bb_poolregister(DebugPoolTy *Pool, 
-			 void *allocaptr, 
-			 unsigned NumBytes) {
-   __sc_bb_src_poolregister(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
+                     void *allocaptr, 
+                     unsigned NumBytes) {
+  __sc_bb_src_poolregister(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
 }
 
 void
@@ -316,10 +316,10 @@ __sc_bb_poolunregister(DebugPoolTy *Pool, void *allocaptr) {
 
 void
 __sc_bb_poolunregister_debug (DebugPoolTy *Pool, 
-				void *allocaptr,
-				TAG,
-				const char* SourceFilep,
-				unsigned lineno) {
+                              void *allocaptr,
+                              TAG,
+                              const char* SourceFilep,
+                              unsigned lineno) {
   uintptr_t Source = (uintptr_t)allocaptr;
   unsigned  e;
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
@@ -330,7 +330,7 @@ __sc_bb_poolunregister_debug (DebugPoolTy *Pool,
   uintptr_t base = Source & ~(size -1);
   unsigned long index = base >> SLOT_SIZE;
   unsigned int slots = 1<<(e - SLOT_SIZE);
-  
+
   memset(__baggybounds_size_table_begin + index, 0, slots);
 }
 
@@ -342,12 +342,12 @@ __sc_bb_poolunregister_stack(DebugPoolTy *Pool,
 
 void
 __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool, 
-				void *allocaptr,
-				TAG,
-				const char* SourceFilep,
-				unsigned lineno) {
+                                    void *allocaptr,
+                                    TAG,
+                                    const char* SourceFilep,
+                                    unsigned lineno) {
   uintptr_t Source = (uintptr_t)allocaptr;
-  
+
   unsigned  e;
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   if(e == 0 ) {
@@ -362,9 +362,9 @@ __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
 
 void *
 __sc_bb_src_poolalloc(DebugPoolTy *Pool,
-			  unsigned NumBytes, TAG, 
-			  const char * SourceFilep,
-			  unsigned lineno) {
+                      unsigned NumBytes, TAG, 
+                      const char * SourceFilep,
+                      unsigned lineno) {
   unsigned char size= 0;
   while((unsigned)(1<<size) < NumBytes) {
     size++;
@@ -393,7 +393,7 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
     size = Alignment;
   unsigned int alloc = 1 << size;
   void *p;
-  
+
   assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
   __sc_bb_poolregister(Pool, p, NumBytes);
   return p;
@@ -423,23 +423,23 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool,
 
 void *
 __sc_bb_poolcalloc(DebugPoolTy *Pool,
-		      unsigned Number, 
-                      unsigned NumBytes, TAG) {
+                   unsigned Number, 
+                   unsigned NumBytes, TAG) {
   return __sc_bb_src_poolcalloc(Pool,Number,  NumBytes, 0, "<unknown>",0); 
 }
 
 void *
 __sc_bb_poolrealloc_debug (DebugPoolTy *Pool,
-                            void *Node,
-                            unsigned NumBytes, TAG,
-                            const char * SourceFilep,
-                            unsigned lineno) {
+                           void *Node,
+                           unsigned NumBytes, TAG,
+                           const char * SourceFilep,
+                           unsigned lineno) {
   return __sc_bb_poolrealloc(Pool, Node, NumBytes);
 }
 void *
 __sc_bb_poolrealloc(DebugPoolTy *Pool,
-		      void *Node, 
-                      unsigned NumBytes) {
+                    void *Node, 
+                    unsigned NumBytes) {
   if (Node == 0) {
     void *New = __sc_bb_poolalloc(Pool, NumBytes);
     __sc_bb_poolregister(Pool, New, NumBytes);
@@ -456,7 +456,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   if (Source & SET_MASK) {
     return 0;
   }
-  
+
   void *New = __sc_bb_poolalloc(Pool, NumBytes);
   if(New == 0)
     return 0;
@@ -467,7 +467,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   uintptr_t Source_new = (uintptr_t)New; 
   unsigned  char e_new = __baggybounds_size_table_begin[Source_new >> SLOT_SIZE];
   unsigned int size_new = 1 << e_new;
-  
+
   if(size_new > size_old)
     memcpy(New, Node, size_old);
   else 
@@ -480,21 +480,21 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
 
 void *
 __sc_bb_poolalloc(DebugPoolTy *Pool,
-		      unsigned NumBytes) {
+                  unsigned NumBytes) {
   return __sc_bb_src_poolalloc(Pool, NumBytes, 0, "<unknown>",0); 
 }
 
 void
 __sc_bb_src_poolfree (DebugPoolTy *Pool,
-		          void *Node,TAG,
-			  const char* SourceFile, 
-			  unsigned lineno) {
+                      void *Node,TAG,
+                      const char* SourceFile, 
+                      unsigned lineno) {
   free(Node);
 }	
 
 void
 __sc_bb_poolfree (DebugPoolTy *Pool,
-		      void *Node) {
+                  void *Node) {
   __sc_bb_src_poolfree(Pool, Node, 0, "<unknown>", 0); 
 }
 
@@ -515,23 +515,23 @@ __sc_bb_poolfree (DebugPoolTy *Pool,
 //       returned.
 //
 static unsigned
-getProgramCounter (void * context) {
+  getProgramCounter (void * context) {
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
-  // Cast parameters to the desired type
-  ucontext_t * mycontext = (ucontext_t *) context;
-  return (mycontext->uc_mcontext->__ss.__eip);
+    // Cast parameters to the desired type
+    ucontext_t * mycontext = (ucontext_t *) context;
+    return (mycontext->uc_mcontext->__ss.__eip);
 #endif
 #endif
 
 #if defined(__linux__)
-  // Cast parameters to the desired type
-  ucontext_t * mycontext = (ucontext_t *) context;
-  return (mycontext->uc_mcontext.gregs[14]);
+    // Cast parameters to the desired type
+    ucontext_t * mycontext = (ucontext_t *) context;
+    return (mycontext->uc_mcontext.gregs[14]);
 #endif
 
-  return 0;
-}
+    return 0;
+  }
 
 //
 //
@@ -543,7 +543,7 @@ getProgramCounter (void * context) {
 
 static void
 bus_error_handler (int sig, siginfo_t * info, void * context) {
-  
+
   //
   // Disable the signal handler for now.  If this function does something
   // wrong, we want the bus error to terminate the program.
@@ -559,85 +559,19 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   // Get the address causing the fault.
   //
   void * faultAddr = info->si_addr; 
-  PDebugMetaData debugmetadataptr = 0;
-
 
   //
-  // Attempt to look up dangling pointer information for the faulting pointer.
+  // This is not a dangling pointer, uninitialized pointer, or a rewrite
+  // pointer.  This is some load/store that has obviously gone wrong (even
+  // if we consider the possibility of incompletenes).  Report it as a
+  // load/store error.
   //
-
-  //
-  // If there is no dangling pointer information for the faulting pointer,
-  // perhaps it is an Out of Bounds Rewrite Pointer.  Check for that now.
-  //
-  /*if (0 == fs) {
-    void * start = faultAddr;
-    void * tag = 0;
-    void * end;
-    if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
-      char * Filename = (char *)(RewriteSourcefile[faultAddr]);
-      unsigned lineno = RewriteLineno[faultAddr];
-
-      //
-      // Get the bounds of the original object.
-      //
-      getOOBObject (faultAddr, start, end);
-      OutOfBoundsViolation v;
-      v.type = ViolationInfo::FAULT_LOAD_STORE,
-        v.faultPC = (const void*)program_counter,
-        v.faultPtr = tag,
-        v.dbgMetaData = NULL,
-        v.SourceFile = Filename,
-        v.lineNo = lineno,
-        v.objStart = start,
-        // FIXME: Make sure there is no off by one error in the line below
-        v.objLen = (char *)(end) - (char *)(start);
-
-      ReportMemoryViolation(&v);
-    } else {
-      //
-      // This is not a dangling pointer, uninitialized pointer, or a rewrite
-      // pointer.  This is some load/store that has obviously gone wrong (even
-      // if we consider the possibility of incompletenes).  Report it as a
-      // load/store error.
-      //
-      DebugViolationInfo v;
-      v.type = ViolationInfo::FAULT_LOAD_STORE,
-        v.faultPC = (const void*)program_counter,
-        v.faultPtr = faultAddr,
-        v.SourceFile = 0,
-        v.lineNo = 0;
-
-      ReportMemoryViolation(&v);
-    }
-
-    //
-    // Reinstall the signal handler for subsequent faults
-    //
-    struct sigaction sa;
-    sa.sa_sigaction = bus_error_handler;
-    sa.sa_flags = SA_SIGINFO;
-    if (sigaction(SIGBUS, &sa, NULL) == -1)
-      printf("sigaction installer failed!");
-    if (sigaction(SIGSEGV, &sa, NULL) == -1)
-      printf("sigaction installer failed!");
-
-    return;
-  }*/
- 
-  // FIXME: Correct the semantics for calculating NumPPage 
- 
-  // This is necessary so that the program continues execution,
-  //  especially in debugging mode 
-  
-  //void* S = info->si_addr;
-  // printing reports
-
   DebugViolationInfo v;
-    v.type = ViolationInfo::FAULT_DANGLING_PTR,
-      v.faultPC = (const void*) program_counter,
+  v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = (const void*)program_counter,
     v.faultPtr = faultAddr,
-    v.dbgMetaData = debugmetadataptr;
+    v.SourceFile = 0,
+    v.lineNo = 0;
 
   ReportMemoryViolation(&v);
 
@@ -651,7 +585,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     printf("sigaction installer failed!");
   if (sigaction(SIGSEGV, &sa, NULL) == -1)
     printf("sigaction installer failed!");
-  
+
   return;
 
 }
