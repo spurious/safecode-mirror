@@ -433,6 +433,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction(M.getFunction("pool_bcopy"),   LInfo);
   transformFunction(M.getFunction("pool_index"),   LInfo);
   transformFunction(M.getFunction("pool_rindex"),  LInfo);
+  transformFunction(M.getFunction("pool_strcasestr"),  LInfo);
   transformFunction(M.getFunction("pool_strcasecmp"),  LInfo);
   transformFunction(M.getFunction("pool_strncasecmp"), LInfo);
 

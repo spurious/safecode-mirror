@@ -37,16 +37,15 @@
 //   include/safecode/CompleteChecks.h:
 //   lib/InsertPoolChecks/CompleteChecks.cpp:
 //     The CompleteChecks::makeCStdLibCallsComplete() method fills in the
-//     bitwise completeness vectors for the transformed library function
-//     calls.
+//     bitwise completeness vectors for the transformed runtime function calls.
 //
 //   lib/DebugInstrumentation/DebugInstrumentation.cpp:
 //     This contains information on adding debugging instrumentation to the
 //     runtime function calls.
 //  
 //   tools/Sc/sc.cpp:
-//     This invokes the StringTransform and other passes, and contains a
-//     table for lowering the intrinsic names.
+//     This sets up the StringTransform and other passes, and contains a table
+//     for lowering the intrinsic names.
 //
 //   test/Makefile:
 //   test/cstdlib/*:
@@ -103,7 +102,7 @@
 //     number of initial pool arguments to the structure in
 //     include/dsa/CStdLib.h.
 //
-//   - Add an entry to lib/DSA/StdLibPass for the pool_* version of the
+//   - Add an entry to lib/DSA/StdLibPass.cpp for the pool_* version of the
 //     function to allow DSA to recognize it.
 //
 
@@ -151,6 +150,7 @@ STATISTIC(stat_transform_bcmp,    "Total bcmp() calls transformed");
 STATISTIC(stat_transform_bcopy,   "Total bcopy() calls transformed");
 STATISTIC(stat_transform_index,   "Total index() calls transformed");
 STATISTIC(stat_transform_rindex,  "Total rindex() calls transformed");
+STATISTIC(stat_transform_strcasestr,  "Total strcasestr() calls transformed");
 STATISTIC(stat_transform_strcasecmp,  "Total strcasecmp() calls transformed");
 STATISTIC(stat_transform_strncasecmp, "Total strncasecmp() calls transformed");
 
@@ -202,6 +202,8 @@ StringTransform::runOnModule(Module &M) {
   modified |= transform(M, "bcopy",   3, 2, VoidTy,    stat_transform_bcopy);
   modified |= transform(M, "index",   2, 1, VoidPtrTy, stat_transform_index);
   modified |= transform(M, "rindex",  2, 1, VoidPtrTy, stat_transform_rindex);
+  modified |= transform(M, "strcasestr",  2, 2, VoidPtrTy,
+    stat_transform_strcasestr);
   modified |= transform(M, "strcasecmp",  2, 2, Int32Ty,
     stat_transform_strcasecmp);
   modified |= transform(M, "strncasecmp", 3, 2, Int32Ty,

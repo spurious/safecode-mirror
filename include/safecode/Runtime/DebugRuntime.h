@@ -228,6 +228,8 @@ extern "C" {
   char * pool_index_debug(PPOOL sPool, const char *s, int c, const uint8_t complete, TAG, SRC_INFO);
   char * pool_rindex(PPOOL sPool, const char *s, int c, const uint8_t complete);
   char * pool_rindex_debug(PPOOL sPool, const char *s, int c, const uint8_t complete, TAG, SRC_INFO);
+  char * pool_strcasestr(PPOOL s1Pool, PPOOL s2Pool, const char *s1, const char *s2, const uint8_t complete);
+  char * pool_strcasestr_debug(PPOOL s1Pool, PPOOL s2Pool, const char *s1, const char *s2, const uint8_t complete, TAG, SRC_INFO);
 
 #ifdef _GNU_SOURCE
   void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const uint8_t complete);

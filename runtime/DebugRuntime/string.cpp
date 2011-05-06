@@ -21,6 +21,7 @@
 //  - strchr
 //  - strrchr
 //  - strstr
+//  - strcasestr
 //  - strcat
 //  - strncat
 //  - strpbrk
@@ -260,6 +261,60 @@ pool_strstr_debug(DebugPoolTy *s1Pool,
   validStringCheck(s2, s2Pool, ARG2_COMPLETE(complete), "strstr",
     SRC_INFO_ARGS);
   return strstr((char*)s1, s2);
+}
+
+
+/*
+ * pool_strcasestr()
+ *
+ * This is the non-debug version of pool_strcasestr_debug().
+ *
+ */
+char *
+pool_strcasestr(DebugPoolTy *s1Pool,
+                DebugPoolTy *s2Pool,
+                const char *s1,
+                const char *s2,
+                const uint8_t complete) {
+  return pool_strcasestr_debug(s1Pool, s2Pool, s1, s2, complete, DEFAULT_TAG,
+    DEFAULT_SRC_INFO);
+}
+
+
+/**
+ * Secure runtime wrapper function to replace strcasestr(), debug version
+ *
+ * Searches for the first occurence of the substring s2 in s1, case
+ * insensitively.
+ * Returns a pointer to the discovered substring, or NULL if not found.
+ *
+ * Attempts to verify that s1 and s2 are valid strings terminated within
+ * their memory objects' boundaries.
+ *
+ * @param   s1Pool    Pool handle for s1
+ * @param   s2Pool    Pool handle for s2
+ * @param   s1        Pointer to string to be searched
+ * @param   s2        Pointer to substring to search for
+ * @param   complete  Completeness bitwise vector
+ * @param   TAG       Tag information for debug
+ * @param   SRC_INFO  Source and line number information for debug
+ * @retrun            Returns a pointer to the first instance of s2 in s1,
+ *                    disregarding case, or NULL if none exists.
+ *
+ */
+char *
+pool_strcasestr_debug(DebugPoolTy *s1Pool,
+                      DebugPoolTy *s2Pool,
+                      const char *s1,
+                      const char *s2,
+                      const uint8_t complete,
+                      TAG,
+                      SRC_INFO) {
+  validStringCheck(s1, s1Pool, ARG1_COMPLETE(complete), "strcasestr",
+    SRC_INFO_ARGS);
+  validStringCheck(s2, s2Pool, ARG2_COMPLETE(complete), "strcasestr",
+    SRC_INFO_ARGS);
+  return strcasestr((char*)s1, s2);
 }
 
 
