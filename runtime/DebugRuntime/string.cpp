@@ -804,7 +804,7 @@ pool_memmove_debug(DebugPoolTy *dstPool,
   return dst;
 }
 
-
+#if !defined(__APPLE__)
 /**
  * Secure runtime wrapper function to replace mempcpy()
  *
@@ -836,7 +836,6 @@ pool_mempcpy(DebugPoolTy *dstPool,
  * @param   n        Maximum number of bytes to copy
  * @return  Byte following the last written byte
  */
-#if !defined(__APPLE__)
 void *
 pool_mempcpy_debug(DebugPoolTy *dstPool, 
                    DebugPoolTy *srcPool, 
