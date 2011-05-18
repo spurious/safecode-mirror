@@ -89,8 +89,8 @@ pool_stpcpy_debug(DebugPoolTy *dstPool,
                   const uint8_t complete,
                   TAG,
                   SRC_INFO) {
-  void *dstBegin, *dstEnd, *srcBegin, *srcEnd;
-  size_t srcLen;
+  void *dstBegin = NULL, *dstEnd = NULL, *srcBegin = NULL, *srcEnd = NULL;
+  size_t srcLen = 0;
   const bool dstComplete = ARG1_COMPLETE(complete);
   const bool srcComplete = ARG2_COMPLETE(complete);
   bool dstFound, srcFound;
@@ -362,9 +362,9 @@ pool_strcat_debug(DebugPoolTy *dstPool,
                   const uint8_t complete,
                   TAG,
                   SRC_INFO) {
-  size_t srcLen, dstLen, maxLen, catLen;
-  void *dstBegin, *dstEnd;
-  void *srcBegin, *srcEnd;
+  size_t srcLen = 0, dstLen = 0, maxLen, catLen;
+  void *dstBegin = NULL, *dstEnd = NULL;
+  void *srcBegin = NULL, *srcEnd = NULL;
   char *dstNulPosition;
   bool terminated = true;
   bool srcObjFound, dstObjFound;
@@ -480,9 +480,9 @@ pool_strncat_debug(DebugPoolTy *dstPool,
                    const uint8_t complete,
                    TAG,
                    SRC_INFO) {
-  void *dstBegin, *dstEnd;
-  void *srcBegin, *srcEnd;
-  size_t dstLen, srcLen, maxLen, catLen, srcAmt;
+  void *dstBegin = NULL, *dstEnd = NULL;
+  void *srcBegin = NULL, *srcEnd = NULL;
+  size_t dstLen = 0, srcLen = 0, maxLen, catLen, srcAmt;
   char *dstNulPosition;
   bool dst_terminated = true;
   bool srcObjFound, dstObjFound;

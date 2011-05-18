@@ -66,8 +66,8 @@ pool_bcmp_debug(DebugPoolTy *aPool,
                 TAG,
                 SRC_INFO)
 {
-  void *aStart, *aEnd;
-  void *bStart, *bEnd;
+  void *aStart = NULL, *aEnd = NULL;
+  void *bStart = NULL, *bEnd = NULL;
   const bool aComplete = ARG1_COMPLETE(complete);
   const bool bComplete = ARG2_COMPLETE(complete);
   bool aFound, bFound;
@@ -142,8 +142,8 @@ pool_bcopy_debug(DebugPoolTy *s1Pool,
                  TAG,
                  SRC_INFO)
 {
-  void *s1Start, *s1End;
-  void *s2Start, *s2End;
+  void *s1Start = NULL, *s1End = NULL;
+  void *s2Start = NULL, *s2End = NULL;
   const bool s1Complete = ARG1_COMPLETE(complete);
   const bool s2Complete = ARG2_COMPLETE(complete);
   bool s1Found, s2Found;
@@ -211,7 +211,7 @@ pool_bzero_debug(DebugPoolTy *sPool,
                  TAG,
                  SRC_INFO)
 {
-  void *sStart, *sEnd;
+  void *sStart = NULL, *sEnd = NULL;
   const bool sComplete = ARG1_COMPLETE(complete);
   bool sFound;
 
@@ -273,7 +273,7 @@ pool_index_debug(DebugPoolTy *sPool,
                  SRC_INFO)
 {
   validStringCheck(s, sPool, ARG1_COMPLETE(complete), "index", SRC_INFO_ARGS);
-  return index(s, c);
+  return index((char *)s, c);
 }
 
 
@@ -321,7 +321,7 @@ pool_rindex_debug(DebugPoolTy *sPool,
                  SRC_INFO)
 {
   validStringCheck(s, sPool, ARG1_COMPLETE(complete), "rindex", SRC_INFO_ARGS);
-  return rindex(s, c);
+  return rindex((char *)s, c);
 }
 
 
