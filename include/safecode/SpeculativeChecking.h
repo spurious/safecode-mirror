@@ -18,6 +18,7 @@
 #define PAR_CHECKING_ENABLE_INDIRECTCALL_OPT
 
 using namespace llvm;
+using dsa::CallTargetFinder;
 
 NAMESPACE_SC_BEGIN
   struct DSNodePass;
@@ -37,7 +38,7 @@ NAMESPACE_SC_BEGIN
     virtual bool runOnBasicBlock(BasicBlock & BB);
     virtual bool runOnModule(Module & M);
     virtual void getAnalysisUsage(AnalysisUsage & AU) const {
-      AU.addRequired<CallTargetFinder>();
+      AU.addRequired<CallTargetFinder<EQTDDataStructures> >();
       AU.setPreservesAll();
     }
 
@@ -50,7 +51,7 @@ NAMESPACE_SC_BEGIN
     std::set<CallSite> CallSafetySet;
     bool isSafeCallSite(CallSite CS) const;
     bool isSafeIndirectCall(CallSite CS) const;
-    CallTargetFinder * CTF;
+    CallTargetFinder<EQTDDataStructures> * CTF;
   };
 
   struct SpeculativeCheckingInsertSyncPoints : public BasicBlockPass {

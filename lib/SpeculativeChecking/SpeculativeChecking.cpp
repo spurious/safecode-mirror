@@ -269,7 +269,7 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
 
   bool
   ParCheckingCallAnalysis::runOnBasicBlock(BasicBlock & BB) {
-    CTF = &getAnalysis<CallTargetFinder>();
+    CTF = &getAnalysis<CallTargetFinder<EQTDDataStructures> >();
 
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       CallSite CS(CallSite::get(I));
