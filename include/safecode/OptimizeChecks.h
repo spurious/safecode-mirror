@@ -23,6 +23,8 @@
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 
+#include "dsa/TypeSafety.h"
+
 using namespace llvm;
 
 namespace llvm {
@@ -127,6 +129,8 @@ struct PoolRegisterElimination : public ModulePass {
     // We need DSA to tell us about memory object
     AU.addRequired<EQTDDataStructures>();
 
+    // We need Typesafety pass to tell us about typesafety
+    AU.addRequired<dsa::TypeSafety<EQTDDataStructures> >();
     // We don't modify the control-flow graph
     AU.setPreservesCFG();
   }
@@ -135,6 +139,7 @@ struct PoolRegisterElimination : public ModulePass {
   // References to required analysis passes
   InsertSCIntrinsic * intrinsic;
   EQTDDataStructures * dsaPass;
+  dsa::TypeSafety<EQTDDataStructures> *TS;
 
   // Set of globals which do not need to be registered
   std::set<GlobalVariable *> SafeGlobals;

@@ -67,6 +67,7 @@ PoolRegisterElimination::runOnModule(Module & M) {
   //
   intrinsic = &getAnalysis<InsertSCIntrinsic>();
   dsaPass   = &getAnalysis<EQTDDataStructures>();
+  TS = &getAnalysis<dsa::TypeSafety<EQTDDataStructures> >();
 
   //
   // Get the set of safe globals.
@@ -234,25 +235,12 @@ PoolRegisterElimination::removeTypeSafeRegistrations (const char * name) {
     Value * Ptr = intrinsic->getValuePointer(CI);
 
     //
-    // Lookup the DSNode for the value in the function's DSGraph.
-    //
-    DSGraph * TDG = dsaPass->getDSGraph(*(CI->getParent()->getParent()));
-    DSNodeHandle DSH = TDG->getNodeForValue(Ptr);
-    assert ((!(DSH.isNull())) && "No DSNode for Value!\n");
-
-    //
     // If the DSNode is type-safe and is never used as an array, then there
     // will never be a need to look it up in a splay tree, so remove its
     // registration.
     //
-    DSNode * N = DSH.getNode();
-    if (!(N->isNodeCompletelyFolded() ||
-          N->isArrayNode() ||
-          N->isExternalNode() ||
-          N->isIncompleteNode() ||
-          N->isUnknownNode() ||
-          N->isIntToPtrNode() ||
-          N->isPtrToIntNode())) {
+    // FIXME : Use TypeSafety Pass
+    if(TS->isTypeSafe(Ptr, F) ){
       toBeRemoved.push_back(CI);
     }
   }
