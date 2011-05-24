@@ -36,8 +36,6 @@ NAMESPACE_SC_BEGIN
 //  the first byte of a global variable).
 //
 struct OptimizeSafeLoadStore : public ModulePass {
-  protected:
-    DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
 
   public:
     static char ID;
