@@ -230,6 +230,10 @@ InsertPoolChecks::runOnFunction(Function &F) {
   //  This is incorrect; a function pass should *never* modify anything outside
   //  of the function on which it is given.  This should be done in the pass's
   //  doInitialization() method.
+  //  
+  //  addCheckProto cannot be called from the doInitialization() method as 
+  //  it needs the SCIntrinsic Pass, which is not initialized yet.
+  //  See http://llvm.org/bugs/show_bug.cgi?id=1715
   //
   static bool uninitialized = true;
   if (uninitialized) {
