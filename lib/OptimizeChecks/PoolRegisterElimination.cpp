@@ -233,14 +233,20 @@ PoolRegisterElimination::removeTypeSafeRegistrations (const char * name) {
     //
     CallInst * CI = cast<CallInst>(*UI);
     Value * Ptr = intrinsic->getValuePointer(CI);
+    // Lookup the DSNode for the value in the function's DSGraph.
+    //
+    DSGraph * TDG = dsaPass->getDSGraph(*(CI->getParent()->getParent()));
+    DSNodeHandle DSH = TDG->getNodeForValue(Ptr);
+    assert ((!(DSH.isNull())) && "No DSNode for Value!\n");
 
     //
     // If the DSNode is type-safe and is never used as an array, then there
     // will never be a need to look it up in a splay tree, so remove its
     // registration.
     //
-    // FIXME : Use TypeSafety Pass
-    if(TS->isTypeSafe(Ptr, F) ){
+    DSNode * N = DSH.getNode();
+    if(!N->isArrayNode() && 
+       TS->isTypeSafe(Ptr, F)){
       toBeRemoved.push_back(CI);
     }
   }
