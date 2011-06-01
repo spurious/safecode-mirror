@@ -17,8 +17,8 @@
 #include "llvm/BasicBlock.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
-#include "llvm/LLVMContext.h"
 #include "llvm/Function.h"
+#include "llvm/Module.h"
 
 #include <vector>
 #include <set>
@@ -47,17 +47,20 @@ bool isCheckingCall(const std::string & functionName);
 //  A pointer to an LLVM type for the void pointer.
 //
 // Notes:
-//  This function cannot be used in a multi-threaded program because it uses
-//  the LLVM Global Context.
-//
 //  Many, many passes create an LLVM void pointer type, and the code for it
 //  takes up most of the 80 columns available in a line.  This function should
 //  be easily inlined by the compiler and ease readability of the code (as well
 //  as centralize changes when LLVM's Type API is changed).
 //
 static inline
-PointerType * getVoidPtrType(void) {
-  const Type * Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+PointerType * getVoidPtrType(Module & M) {
+  const Type * Int8Type  = IntegerType::getInt8Ty (M.getContext());
+  return PointerType::getUnqual(Int8Type);
+}
+
+static inline
+PointerType * getVoidPtrType(LLVMContext & Context) {
+  const Type * Int8Type  = IntegerType::getInt8Ty (Context);
   return PointerType::getUnqual(Int8Type);
 }
 
