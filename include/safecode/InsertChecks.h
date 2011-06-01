@@ -36,40 +36,6 @@ extern bool isSVAEnabled();
 NAMESPACE_SC_BEGIN
 
 //
-// Pass: InsertLSChecks
-//
-// Description:
-//  This pass inserts checks on load and store instructions.
-//
-struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
-  public:
-    static char ID;
-    InsertLSChecks () : FunctionPass ((intptr_t) &ID) { }
-    const char *getPassName() const { return "Insert Load/Store Checks"; }
-    virtual bool runOnFunction(Function &F);
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // Required passes
-      AU.addRequired<TargetData>();
-
-      // Preserved passes
-      AU.addPreserved<InsertSCIntrinsic>();
-      AU.addPreserved<EQTDDataStructures>();
-      AU.setPreservesCFG();
-    };
-
-    // Visitor methods
-    void visitLoadInst  (LoadInst  & LI);
-    void visitStoreInst (StoreInst & SI);
-
-  protected:
-    // Pointers to required passes
-    TargetData * TD;
-
-    // Pointer to load/store run-time check function
-    Function * PoolCheckUI;
-};
-
-//
 // Pass: InsertGEPChecks
 //
 // Description:

@@ -43,6 +43,7 @@
 
 #include "poolalloc/PoolAllocate.h"
 #include "safecode/InsertChecks.h"
+#include "safecode/LoadStoreChecks.h"
 #if 0
 #include "IndirectCallChecks.h"
 #endif

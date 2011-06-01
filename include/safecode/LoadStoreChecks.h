@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _SAFECODE_INSERT_CHECKS_H_
-#define _SAFECODE_INSERT_CHECKS_H_
+#ifndef _SAFECODE_LOADSTORECHECKS_H_
+#define _SAFECODE_LOADSTORECHECKS_H_
 
 #include "safecode/SAFECode.h"
 
