@@ -69,11 +69,11 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   //
   // Get the function in which the GEP instruction lives.
   //
-  Value * PH = ConstantPointerNull::get (getVoidPtrType());
+  Value * PH = ConstantPointerNull::get (getVoidPtrType(GEP.getContext()));
   BasicBlock::iterator InsertPt = &GEP;
   ++InsertPt;
   Instruction * ResultPtr = castTo (&GEP,
-                                    getVoidPtrType(),
+                                    getVoidPtrType(GEP.getContext()),
                                     GEP.getName() + ".cast",
                                     InsertPt);
 
@@ -82,7 +82,7 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   // DSA.
   //
   Value * SrcPtr = castTo (GEP.getPointerOperand(),
-                           getVoidPtrType(),
+                           getVoidPtrType(GEP.getContext()),
                            GEP.getName()+".cast",
                            InsertPt);
 
