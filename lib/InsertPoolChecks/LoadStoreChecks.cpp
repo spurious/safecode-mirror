@@ -15,7 +15,7 @@
 #define DEBUG_TYPE "safecode"
 
 #include "safecode/SAFECode.h"
-#include "safecode/InsertChecks.h"
+#include "safecode/LoadStoreChecks.h"
 #include "SCUtils.h"
 
 #include "llvm/ADT/Statistic.h"
