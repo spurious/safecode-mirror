@@ -268,7 +268,7 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   Value *PH = 0;
   if ((isa<Argument>(peeledOp)) || (isa<Instruction>(peeledOp))) {
-    PH = ConstantPointerNull::get (getVoidPtrType());
+    PH = ConstantPointerNull::get (getVoidPtrType(peeledOp->getContext()));
   } else if (isa<Constant>(peeledOp) || isa<AllocaInst>(peeledOp)) {
     //
     // FIXME:
@@ -294,7 +294,7 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Insert the call to getActualValue()
   //
-  const Type * VoidPtrType = getVoidPtrType();
+  const Type * VoidPtrType = getVoidPtrType(peeledOp->getContext());
   Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
   Value * OpVptr = castTo (op,
                            VoidPtrType,

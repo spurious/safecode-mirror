@@ -126,7 +126,7 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
 
   bool
   SpeculativeCheckingInsertSyncPoints::doInitialization(Module & M) {
-    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
+    const Type * VoidType  = Type::getVoidTy(M.getContext());
     sFuncWaitForSyncToken = Function::Create
       (FunctionType::get
        (VoidType, std::vector<const Type*>(), false),
@@ -218,9 +218,9 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
   static Constant * funcStoreCheck;
 
   bool SpeculativeCheckStoreCheckPass::doInitialization(Module & M) {
-    const Type * VoidType  = Type::getVoidTy(getGlobalContext());
+    const Type * VoidType  = Type::getVoidTy(M.getContext());
     std::vector<const Type *> args;
-    args.push_back(getVoidPtrType());
+    args.push_back(getVoidPtrType(M));
     FunctionType * funcStoreCheckTy = FunctionType::get(VoidType, args, false);
     funcStoreCheck = M.getOrInsertFunction("__sc_par_store_check", funcStoreCheckTy);
     return true;
@@ -231,7 +231,7 @@ char SpeculativeCheckingInsertSyncPoints::ID = 0;
     bool changed = false;    
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       if (StoreInst * SI = dyn_cast<StoreInst>(I)) {
-        Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), getVoidPtrType(), "", SI);
+        Instruction * CastedPointer = CastInst::CreatePointerCast(SI->getPointerOperand(), getVoidPtrType(BB.getContext()), "", SI);
   
         CallInst::Create(funcStoreCheck, CastedPointer, "", SI);
         changed = true;

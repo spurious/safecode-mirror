@@ -76,19 +76,15 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
   //
   // Get the pool into which the global should be registered.
   //
-  Value * PH = ConstantPointerNull::get (getVoidPtrType());
-  if (PH) {  
-    const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
-    const Type * GlobalType = GV->getType()->getElementType();
-    Value * AllocSize = ConstantInt::get 
-      (csiType, TD->getTypeAllocSize(GlobalType));
-    RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
+  Value * PH = ConstantPointerNull::get (getVoidPtrType(GV->getContext()));
+  const Type* csiType = IntegerType::getInt32Ty(GV->getContext());
+  const Type * GlobalType = GV->getType()->getElementType();
+  Value * AllocSize = ConstantInt::get 
+    (csiType, TD->getTypeAllocSize(GlobalType));
+  RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
 
-    // Update statistics
-    ++RegisteredGVs;
-  } else {
-    llvm::errs() << "Warning: Missing DSNode for global" << *GV << "\n";
-  }
+  // Update statistics
+  ++RegisteredGVs;
 }
 
 bool
@@ -234,16 +230,14 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   //
   // Get the pool handle for the node.
   //
-  Value * PH = ConstantPointerNull::get (getVoidPtrType());
-  assert (PH && "Pool handle is missing!");
+  LLVMContext & Context = AllocSite->getContext();
+  Value * PH = ConstantPointerNull::get (getVoidPtrType (Context));
 
   BasicBlock::iterator InsertPt = AllocSite;
   ++InsertPt;
 
-  const Type* csiType = IntegerType::getInt32Ty(getGlobalContext());
   Value * AllocSize = info->getAllocSize(AllocSite);
   if (!AllocSize->getType()->isIntegerTy(32)) {
-    LLVMContext & Context = csiType->getContext();
     AllocSize = CastInst::CreateIntegerCast (AllocSize,
                                              Type::getInt32Ty(Context),
                                              false,
@@ -273,19 +267,20 @@ RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
   //
   // Get the pool handle for the freed pointer.
   //
-  Value * PH = ConstantPointerNull::get (getVoidPtrType());
+  LLVMContext & Context = FreeSite->getContext();
+  Value * PH = ConstantPointerNull::get (getVoidPtrType(Context));
 
   //
   // Cast the pointer being unregistered and the pool handle into void pointer
   // types.
   //
   Value * Casted = castTo (ptr,
-                           getVoidPtrType(),
+                           getVoidPtrType(Context),
                            ptr->getName()+".casted",
                            FreeSite);
 
   Value * PHCasted = castTo (PH,
-                             getVoidPtrType(), 
+                             getVoidPtrType(Context), 
                              PH->getName()+".casted",
                              FreeSite);
 
@@ -346,11 +341,11 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
   }
   Instruction *GVCasted = 
     CastInst::CreatePointerCast
-    (val, getVoidPtrType(), 
+    (val, getVoidPtrType(PH->getContext()), 
      val->getName()+".casted", InsertBefore);
   Instruction * PHCasted = 
     CastInst::CreatePointerCast
-    (PH, getVoidPtrType(), 
+    (PH, getVoidPtrType(PH->getContext()), 
      PH->getName()+".casted", InsertBefore);
   std::vector<Value *> args;
   args.push_back (PHCasted);
@@ -418,14 +413,15 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
   //
   typedef SmallVector<std::pair<Value*, Argument *>, 4> RegisteredArgTy;
   RegisteredArgTy registeredArguments;
+  LLVMContext & Context = F.getContext();
   for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
     if (I->hasByValAttr()) {
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
       const Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get
-        (IntegerType::getInt32Ty(getGlobalContext()), TD->getTypeAllocSize(ET));
-      Value * PH = ConstantPointerNull::get (getVoidPtrType());
+        (IntegerType::getInt32Ty(Context), TD->getTypeAllocSize(ET));
+      Value * PH = ConstantPointerNull::get (getVoidPtrType(Context));
       Instruction * InsertBefore = &(F.getEntryBlock().front());
       RegisterVariableIntoPool(PH, &*I, AllocSize, InsertBefore);
       registeredArguments.push_back(std::make_pair<Value*, Argument*>(PH, &*I));
@@ -453,8 +449,8 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
          I != E; ++I) {
       SmallVector<Value *, 2> args;
       Instruction * Pt = &((*BI)->back());
-      Value *CastPH  = castTo (I->first, getVoidPtrType(), Pt);
-      Value *CastV = castTo (I->second, getVoidPtrType(), Pt);
+      Value *CastPH  = castTo (I->first, getVoidPtrType(Context), Pt);
+      Value *CastV = castTo (I->second, getVoidPtrType(Context), Pt);
       args.push_back (CastPH);
       args.push_back (CastV);
       CallInst::Create (StackFree, args.begin(), args.end(), "", Pt);

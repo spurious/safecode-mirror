@@ -73,7 +73,7 @@ RegisterStackObjPass::insertPoolFrees
   std::vector<Value *> PHList;
 
   // The infamous void pointer type
-  PointerType * VoidPtrTy = getVoidPtrType();
+  PointerType * VoidPtrTy = getVoidPtrType(*Context);
 
   //
   // Create alloca instructions for every registered alloca.  These will hold
@@ -407,7 +407,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   //
   // Insert a call to register the object.
   //
-  PointerType * VoidPtrTy = getVoidPtrType();
+  PointerType * VoidPtrTy = getVoidPtrType(AI->getContext());
   Instruction *Casted = castTo (AI, VoidPtrTy, AI->getName()+".casted", iptI);
   Value * CastedPH    = ConstantPointerNull::get (VoidPtrTy);
   std::vector<Value *> args;

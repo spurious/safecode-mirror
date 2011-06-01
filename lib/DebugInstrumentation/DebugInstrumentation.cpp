@@ -24,6 +24,7 @@
 #include "llvm/Constants.h"
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Instructions.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Module.h"
 #include "llvm/Metadata.h"
 #include "llvm/Support/CommandLine.h"
@@ -133,7 +134,7 @@ LocationSourceInfo::operator() (CallInst * CI) {
   if (SourceFileMap.find (filename) != SourceFileMap.end()) {
     SourceFile = SourceFileMap[filename];
   } else {
-    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
+    Constant * FInit = ConstantArray::get (CI->getContext(), filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),
@@ -211,7 +212,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
   if (SourceFileMap.find (filename) != SourceFileMap.end()) {
     SourceFile = SourceFileMap[filename];
   } else {
-    Constant * FInit = ConstantArray::get (getGlobalContext(), filename);
+    Constant * FInit = ConstantArray::get (CI->getContext(), filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),
@@ -275,7 +276,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     Function * DebugFunc = dyn_cast<Function>(FDebug);
     assert (DebugFunc);
 
-    LLVMContext & Context = getGlobalContext();
+    LLVMContext & Context = F->getContext();
     BasicBlock * entryBB=BasicBlock::Create (Context, "entry", DebugFunc);
     const Type * VoidTy = Type::getVoidTy(Context);
     if (DebugFunc->getReturnType() == VoidTy) {
@@ -373,19 +374,19 @@ DebugInstrument::runOnModule (Module &M) {
   InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
 
   // Create the void pointer type
-  VoidPtrTy = getVoidPtrType();
+  VoidPtrTy = getVoidPtrType(M);
 
   //
   // Create needed LLVM types.
   //
-  VoidType  = Type::getVoidTy(getGlobalContext());
-  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  VoidType  = Type::getVoidTy(M.getContext());
+  Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
 
   //
   // Get the ID number for debug metadata.
   //
-  unsigned dbgKind = getGlobalContext().getMDKindID("dbg");
+  unsigned dbgKind = M.getContext().getMDKindID("dbg");
 
   //
   // Transform allocations, load/store checks, and bounds checks.

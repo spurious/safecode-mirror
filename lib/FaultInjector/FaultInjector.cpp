@@ -20,6 +20,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/IntrinsicInst.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
@@ -218,7 +219,7 @@ printSourceInfo (std::string errorType, Instruction * I) {
   std::string fname = I->getParent()->getParent()->getNameStr();
   std::string funcname = fname;
   uint64_t lineno = 0;
-  unsigned dbgKind = getGlobalContext().getMDKindID("dbg");
+  unsigned dbgKind = I->getContext().getMDKindID("dbg");
   if (MDNode *Dbg = I->getMetadata(dbgKind)) {
     DILocation Loc (Dbg);
     fname = Loc.getDirectory().str() + Loc.getFilename().str();
@@ -232,10 +233,10 @@ printSourceInfo (std::string errorType, Instruction * I) {
 
 static inline Function *
 createFreeFunction (Module & M) {
-  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  const Type * VoidType = Type::getVoidTy(M.getContext());
   return (Function *) M.getOrInsertFunction ("free",
                                              VoidType,
-                                             getVoidPtrType(),
+                                             getVoidPtrType(M),
                                              NULL);
 }
 
@@ -704,7 +705,7 @@ FaultInjector::insertUninitializedUse (Function & F) {
         Indices.push_back (ConstantInt::get (Int32Type, 0));
         if (typeContainsPointer (AI->getAllocatedType(),
                                  Indices,
-                                 &getGlobalContext())) {
+                                 &(F.getContext()))) {
           // Skip if we should not insert a fault.
           if (!doFault()) continue;
           WorkList.insert(std::make_pair (AI, Indices));
@@ -794,7 +795,7 @@ FaultInjector::runOnModule(Module &M) {
   //
   // Create needed LLVM types.
   //
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
 
   // Get analysis results from DSA.
   TDPass = &getAnalysis<TDDataStructures>();

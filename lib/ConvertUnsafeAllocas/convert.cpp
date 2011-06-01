@@ -81,14 +81,14 @@ ConvertUnsafeAllocas::createProtos (Module & M) {
   std::string malloc_name = "malloc";
   std::string free_name   = "free";
 #endif
-  std::vector<const Type *> Arg(1, IntegerType::getInt32Ty(getGlobalContext()));
-  FunctionType *kmallocTy = FunctionType::get(getVoidPtrType(), Arg, false);
+  std::vector<const Type *> Arg(1, IntegerType::getInt32Ty(M.getContext()));
+  FunctionType *kmallocTy = FunctionType::get(getVoidPtrType(M), Arg, false);
   kmalloc = M.getOrInsertFunction(malloc_name, kmallocTy);
 
   //
   // Get the corresponding heap deallocation function.
   //
-  std::vector<const Type *> FreeArgs(1, getVoidPtrType());
+  std::vector<const Type *> FreeArgs(1, getVoidPtrType(M));
   FunctionType *kfreeTy = FunctionType::get(VoidType, FreeArgs, false);
   kfree = M.getOrInsertFunction(free_name, kfreeTy);
 
@@ -748,7 +748,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   // Get references to the additional functions used for pool allocating stack
   // allocations.
   //
-  Type * VoidPtrTy = getVoidPtrType();
+  Type * VoidPtrTy = getVoidPtrType(M);
   std::vector<const Type *> Arg;
   Arg.push_back (PointerType::getUnqual(paPass->getPoolType(&getGlobalContext())));
   Arg.push_back (Int32Type);

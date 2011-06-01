@@ -294,7 +294,7 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
   // If this is the case, we need to perform an alignment check on the result
   // of the load.  Do that here.
   //
-  Value * PH = ConstantPointerNull::get (getVoidPtrType());
+  Value * PH = ConstantPointerNull::get (getVoidPtrType(F->getContext()));
   unsigned DSFlags = getDSFlags (V, F);
   DSNode* Node = getDSNode (V, F);
   assert (Node && "No DSNode for checked pointer!\n");
@@ -381,14 +381,14 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
                
         CastInst *CastVI = 
           CastInst::CreatePointerCast (Vnew, 
-           getVoidPtrType(), "casted", I);
+           getVoidPtrType(Vnew->getContext()), "casted", I);
 
         std::vector<Value *> args(1, NumArg);
         args.push_back(CastVI);
         for (; flI != flE ; ++flI) {
           Function *func = (Function *)(*flI);
           CastInst *CastfuncI = CastInst::CreatePointerCast (func,
-                                        getVoidPtrType(), "casted", I);
+                                        getVoidPtrType(func->getContext()), "casted", I);
           args.push_back(CastfuncI);
         }
         CallInst::Create(FunctionCheck, args.begin(), args.end(), "", I);
@@ -417,10 +417,10 @@ InsertPoolChecks::addLSChecks (Value *Vnew,
 
       CastInst *CastVI = 
         CastInst::CreatePointerCast (Vnew, 
-               getVoidPtrType(), "casted", I);
+               getVoidPtrType(Vnew->getContext()), "casted", I);
       CastInst *CastPHI = 
         CastInst::CreatePointerCast (PH, 
-               getVoidPtrType(), "casted", I);
+               getVoidPtrType(PH->getContext()), "casted", I);
       std::vector<Value *> args(1,CastPHI);
       args.push_back(CastVI);
 

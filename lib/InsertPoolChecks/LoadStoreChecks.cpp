@@ -46,8 +46,9 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
   // The second argument is the pointer to check.
   //
   std::vector<Value *> args;
-  args.push_back (ConstantPointerNull::get (getVoidPtrType()));
-  args.push_back (castTo (LI.getPointerOperand(), getVoidPtrType(), &LI));
+  LLVMContext & Context = LI.getContext();
+  args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
+  args.push_back(castTo (LI.getPointerOperand(), getVoidPtrType(Context), &LI));
 
   //
   // Create the call to the run-time check.  Place it *before* the load
@@ -76,8 +77,9 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
   // The second argument is the pointer to check.
   //
   std::vector<Value *> args;
-  args.push_back (ConstantPointerNull::get (getVoidPtrType()));
-  args.push_back (castTo (SI.getPointerOperand(), getVoidPtrType(), &SI));
+  LLVMContext & Context = SI.getContext();
+  args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
+  args.push_back(castTo (SI.getPointerOperand(), getVoidPtrType(Context), &SI));
 
   //
   // Create the call to the run-time check.  Place it *before* the store

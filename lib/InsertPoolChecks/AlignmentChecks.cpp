@@ -153,7 +153,7 @@ AlignmentChecks::visitLoadInst (LoadInst & LI) {
   //
   // Get the pool handle for the node.
   //
-  Value *PH = ConstantPointerNull::get (getVoidPtrType());
+  Value *PH = ConstantPointerNull::get (getVoidPtrType(LI.getContext()));
 
   //
   // If the node is incomplete or unknown, then only perform the check if
@@ -182,8 +182,8 @@ AlignmentChecks::visitLoadInst (LoadInst & LI) {
   // Create instructions to cast the checked pointer and the checked pool
   // into sbyte pointers.
   //
-  Value *CastLI  = castTo (&LI, getVoidPtrType(), InsertPt);
-  Value *CastPHI = castTo (PH, getVoidPtrType(), InsertPt);
+  Value *CastLI  = castTo (&LI, getVoidPtrType(LI.getContext()), InsertPt);
+  Value *CastPHI = castTo (PH, getVoidPtrType(LI.getContext()), InsertPt);
 
   // Create the call to poolcheckalign
   std::vector<Value *> args(1, CastPHI);

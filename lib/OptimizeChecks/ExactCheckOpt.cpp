@@ -185,8 +185,8 @@ void
 ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                                    Value * ResultPointer, Value * Bounds) {
   // The LLVM type for a void *
-  const Type *VoidPtrType = getVoidPtrType(); 
-  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  const Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
+  const Type * Int32Type = IntegerType::getInt32Ty(CI->getContext());
 
   //
   // For readability, make sure that both the base pointer and the result
