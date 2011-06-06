@@ -26,6 +26,11 @@ NAMESPACE_SC_BEGIN
 
 AllocatorInfo::~AllocatorInfo() {}
 
+char AllocatorInfoPass::ID = 0;
+
+static RegisterPass<AllocatorInfoPass>
+X ("allocinfo", "Allocator Information Pass");
+
 Value *
 SimpleAllocatorInfo::getAllocSize(Value * AllocSite) const {
   CallInst * CI = dyn_cast<CallInst>(AllocSite);

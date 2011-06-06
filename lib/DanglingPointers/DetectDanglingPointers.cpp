@@ -83,9 +83,10 @@ DetectDanglingPointers::processFrees (Module & M,
   // protections so that reads and writes to the object will cause a hardware
   // fault.
   //
+  AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
   std::vector<std::pair<CallInst *, Value *> > Worklist;
-  SAFECodeConfiguration::AllocatorInfoListTy::iterator i;
-  for (i = SCConfig.alloc_begin(); i != SCConfig.alloc_end(); ++i) {
+  AllocatorInfoPass::AllocatorInfoListTy::iterator i;
+  for (i = AIP.alloc_begin(); i != AIP.alloc_end(); ++i) {
     // Get the allocator information structure
     AllocatorInfo * info = *i;
 
@@ -189,8 +190,9 @@ DetectDanglingPointers::runOnModule (Module & M) {
   // add a call after it to remap the object to a shadow object.  Then, replace
   // all uses of the original pointer with the shadow pointer.
   //
-  SAFECodeConfiguration::AllocatorInfoListTy::iterator i;
-  for (i = SCConfig.alloc_begin(); i != SCConfig.alloc_end(); ++i) {
+  AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
+  AllocatorInfoPass::AllocatorInfoListTy::iterator i;
+  for (i = AIP.alloc_begin(); i != AIP.alloc_end(); ++i) {
     // Get the allocator information structure
     AllocatorInfo * info = *i;
 

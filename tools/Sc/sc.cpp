@@ -226,6 +226,16 @@ int main(int argc, char **argv) {
     Passes.add(new TargetData(M.get()));
 
     //
+    // Create a new allocator information pass and schedule it for execution.
+    //
+    AllocatorInfoPass * AllocInfo = new AllocatorInfoPass ();
+    if (SCConfig.svaEnabled()) {
+      AllocInfo->addAllocator (&AllocatorVMalloc);
+      AllocInfo->addAllocator (&AllocatorKMalloc);
+      AllocInfo->addAllocator (&AllocatorBootmem);
+    }
+
+    //
     // Merge constants.  We do this here because merging constants *after*
     // running SAFECode may cause incorrect registration of global objects
     // (e.g., two global object registrations may register the same object

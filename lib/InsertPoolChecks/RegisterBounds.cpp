@@ -23,10 +23,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 
-#if 0
-#include <tr1/functional>
-#endif
-
 #include <functional>
 
 using namespace llvm;
@@ -206,21 +202,11 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   init("sc.pool_register");
 
   PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
-#if 0
-  // Unfortunaly, our machines only have gcc3, which does not support
-  // TR1..
-  std::for_each
-    (SCConfig.alloc_begin(), SCConfig.alloc_end(),
-     std::tr1::bind
-     (&RegisterCustomizedAllocation::proceedAllocator,
-      this, &M, std::tr1::placeholders::_1));
-#else
-  for (SAFECodeConfiguration::alloc_iterator it = SCConfig.alloc_begin(),
-      end = SCConfig.alloc_end(); it != end; ++it) {
+  AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
+  for (AllocatorInfoPass::alloc_iterator it = AIP.alloc_begin(),
+      end = AIP.alloc_end(); it != end; ++it) {
     proceedAllocator(&M, *it);
   }
-
-#endif
 
   return true;
 }

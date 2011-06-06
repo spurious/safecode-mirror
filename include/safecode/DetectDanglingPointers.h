@@ -21,6 +21,7 @@
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
+#include "safecode/Support/AllocatorInfo.h"
 
 #include <set>
 
@@ -58,6 +59,7 @@ struct DetectDanglingPointers : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // This pass gives us information on the various run-time checks
       AU.addRequired<InsertSCIntrinsic>();
+      AU.addRequired<AllocatorInfoPass>();
     }
 };
 

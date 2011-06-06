@@ -18,6 +18,7 @@
 #include "safecode/SAFECode.h"
 #include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
+#include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
@@ -122,6 +123,7 @@ public:
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequired<InsertSCIntrinsic>();
+    AU.addRequired<AllocatorInfoPass>();
     AU.setPreservesAll();
   }
 
