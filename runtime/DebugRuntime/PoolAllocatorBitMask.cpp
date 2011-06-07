@@ -389,7 +389,7 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
                           "<unknown",
                           0,
                           Heap);
-
+  return;
 }
 
 //
@@ -419,12 +419,12 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
     return
   }
 #endif
-    _internal_poolregister (Pool,
-                            allocaptr,
-                            NumBytes, tag,
-                            SourceFilep,
-                            lineno,
-                            Heap);
+  _internal_poolregister (Pool,
+                          allocaptr,
+                          NumBytes, tag,
+                          SourceFilep,
+                          lineno,
+                          Heap);
 
   //
   // Generate a generation number for this object registration.  We only do
