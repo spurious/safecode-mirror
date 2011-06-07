@@ -618,6 +618,9 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.pool_register_stack", "__sc_dbg_poolregister_stack"},
       {"sc.pool_register_global", "__sc_dbg_poolregister_global"},
       {"sc.pool_register_global_debug", "__sc_dbg_poolregister_global_debug"},
+      {"sc.pool_reregister", "__sc_dbg_poolreregister"},
+      {"sc.pool_reregister_debug", "__sc_dbg_src_poolreregister"},
+
       {"sc.lscheck_debug",      "poolcheck_debug"},
       {"sc.lscheckui_debug",    "poolcheckui_debug"},
       {"sc.lscheckalign_debug", "poolcheckalign_debug"},

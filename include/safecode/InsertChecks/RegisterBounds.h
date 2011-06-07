@@ -128,10 +128,13 @@ public:
   }
 
 private:
+  Function * PoolReregisterFunc;
   Function * PoolUnregisterFunc;
   void registerAllocationSite(llvm::CallInst * AllocSite, AllocatorInfo * info);
+  void registerReallocationSite(llvm::CallInst * AllocSite, ReAllocatorInfo * info);
   void registerFreeSite(llvm::CallInst * FreeSite, AllocatorInfo * info);
   void proceedAllocator(llvm::Module * M, AllocatorInfo * info);
+  void proceedReallocator(llvm::Module * M, ReAllocatorInfo * info);
 };
 
 // Pass to register byval arguments

@@ -197,15 +197,52 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
   }
 }
 
+void
+RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * info) {
+  Function * allocFunc = M->getFunction(info->getAllocCallName());
+  if (allocFunc) {
+    for (Value::use_iterator it = allocFunc->use_begin(), 
+           end = allocFunc->use_end(); it != end; ++it)
+      if (CallInst * CI = dyn_cast<CallInst>(*it)) {
+        registerReallocationSite(CI, info);
+        ++RegisteredHeapObjs;
+      }
+  }
+  
+  Function * freeFunc = M->getFunction(info->getFreeCallName());
+  if (freeFunc) {
+    for (Value::use_iterator it = freeFunc->use_begin(),
+           end = freeFunc->use_end(); it != end; ++it)
+      if (CallInst * CI = dyn_cast<CallInst>(*it))
+        registerFreeSite(CI, info);
+  }
+}
+
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
   init("sc.pool_register");
 
+  //
+  // Get the functions for reregistering and deregistering memory objects.
+  //
+  const Type * Int32Type = IntegerType::getInt32Ty (M.getContext());
+  PoolReregisterFunc = (Function *) M.getOrInsertFunction ("sc.pool_reregister",
+                                                           Type::getVoidTy (M.getContext()),
+                                                           getVoidPtrType (M),
+                                                           getVoidPtrType (M),
+                                                           getVoidPtrType (M),
+                                                           Int32Type,
+                                                           NULL);
   PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
   AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
   for (AllocatorInfoPass::alloc_iterator it = AIP.alloc_begin(),
       end = AIP.alloc_end(); it != end; ++it) {
     proceedAllocator(&M, *it);
+  }
+
+  for (AllocatorInfoPass::realloc_iterator it = AIP.realloc_begin(),
+      end = AIP.realloc_end(); it != end; ++it) {
+    proceedReallocator(&M, *it);
   }
 
   return true;
@@ -231,6 +268,57 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
                                              InsertPt);
   }
   RegisterVariableIntoPool (PH, AllocSite, AllocSize, InsertPt);
+}
+
+void
+RegisterCustomizedAllocation::registerReallocationSite(CallInst * AllocSite, ReAllocatorInfo * info) {
+  //
+  // Get the pool handle for the node.
+  //
+  LLVMContext & Context = AllocSite->getContext();
+  Value * PH = ConstantPointerNull::get (getVoidPtrType (Context));
+
+  //
+  // Find the instruction following the reallocation site; this will be where
+  // we insert the reallocation registration call.
+  //
+  BasicBlock::iterator InsertPt = AllocSite;
+  ++InsertPt;
+
+  //
+  // Get the size of the allocation and cast it to the desired type.
+  //
+  Value * AllocSize = info->getOrCreateAllocSize(AllocSite);
+  if (!AllocSize->getType()->isIntegerTy(32)) {
+    AllocSize = CastInst::CreateIntegerCast (AllocSize,
+                                             Type::getInt32Ty(Context),
+                                             false,
+                                             AllocSize->getName(),
+                                             InsertPt);
+  }
+
+  //
+  // Get the pointers to the old and new memory buffer.
+  //
+  Value * OldPtr = castTo (info->getAllocedPointer (AllocSite),
+                           getVoidPtrType(PH->getContext()),
+                           (info->getAllocedPointer (AllocSite))->getName(),
+                           InsertPt);
+  Value * NewPtr = castTo (AllocSite,
+                           getVoidPtrType(PH->getContext()),
+                           AllocSite->getName(),
+                           InsertPt);
+
+  //
+  // Create the call to reregister the allocation.
+  //
+  std::vector<Value *> args;
+  args.push_back (PH);
+  args.push_back (NewPtr);
+  args.push_back (OldPtr);
+  args.push_back (AllocSize);
+  CallInst::Create(PoolReregisterFunc, args.begin(), args.end(), "", InsertPt); 
+  return;
 }
 
 void

@@ -86,5 +86,16 @@ SimpleAllocatorInfo::getFreedPointer(Value * FreeSite) const {
   return CI->getOperand(freePtrOperand);
 }
 
+Value *
+ReAllocatorInfo::getAllocedPointer (Value * AllocSite) const {
+  CallInst * CI = dyn_cast<CallInst>(AllocSite);
+
+  Function * F  = CI->getCalledFunction();
+  if (!F || F->getName() != allocCallName) 
+    return NULL;
+
+  return CI->getOperand(allocPtrOperand);
+}
+
 NAMESPACE_SC_END
 

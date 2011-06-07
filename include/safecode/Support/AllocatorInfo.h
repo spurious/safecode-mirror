@@ -95,6 +95,26 @@ class SimpleAllocatorInfo : public AllocatorInfo {
     uint32_t freePtrOperand;
 };
 
+/// ReAllocatorInfo - define the abstraction of simple reallcators /
+/// deallocators such as realloc / free
+class ReAllocatorInfo : public SimpleAllocatorInfo {
+  public:
+    ReAllocatorInfo(const std::string & allocCallName, 
+                    const std::string & freeCallName,
+                    uint32_t allocSizeOperand,
+                    uint32_t allocPtrOperand,
+                    uint32_t freePtrOperand) :
+      SimpleAllocatorInfo(allocCallName,
+                          freeCallName,
+                          allocSizeOperand,
+                          freePtrOperand),
+      allocPtrOperand(allocPtrOperand) {}
+    virtual Value * getAllocedPointer (Value * AllocSite) const;
+
+  protected:
+    uint32_t allocPtrOperand;
+};
+
 /// ArrayAllocatorInfo - define the abstraction of array allcators /
 /// deallocators such as calloc / free
 class ArrayAllocatorInfo : public SimpleAllocatorInfo {
@@ -126,10 +146,15 @@ class AllocatorInfoPass : public ImmutablePass {
   public:
     typedef std::vector<AllocatorInfo *> AllocatorInfoListTy;
     typedef AllocatorInfoListTy::iterator alloc_iterator;
+    typedef std::vector<ReAllocatorInfo *> ReAllocatorInfoListTy;
+    typedef ReAllocatorInfoListTy::iterator realloc_iterator;
 
   protected:
     // List of allocator/deallocator functions
     AllocatorInfoListTy allocators;
+
+    // List of reallocator functions
+    ReAllocatorInfoListTy reallocators;
 
   public:
     // Pass members and methods
@@ -138,20 +163,43 @@ class AllocatorInfoPass : public ImmutablePass {
       //
       // Register the standard C library allocators.
       //
+      static SimpleAllocatorInfo CPP1Allocator   ("_Znwm", "_ZdlPv", 1, 1);
+      static SimpleAllocatorInfo CPP2Allocator   ("_Znam", "_ZdaPv", 1, 1);
+      static SimpleAllocatorInfo CPP3Allocator   ("_Znwj", "", 1, 1);
+      static SimpleAllocatorInfo CPP4Allocator   ("_Znaj", "", 1, 1);
       static SimpleAllocatorInfo MallocAllocator ("malloc", "free", 1, 1);
       static ArrayAllocatorInfo  CallocAllocator ("calloc", "", 1, 2, 1);
-      addAllocator (&MallocAllocator);
-      addAllocator (&CallocAllocator);
+      static ReAllocatorInfo     ReAllocator     ("realloc", "", 2, 1, 1);
+
+      addAllocator   (&MallocAllocator);
+      addAllocator   (&CallocAllocator);
+#if 0
+      addReAllocator (&ReAllocator);
+#endif
+
+#if 0
+      // Add the C++ allocators
+      addAllocator   (&CPP1Allocator);
+      addAllocator   (&CPP2Allocator);
+      addAllocator   (&CPP3Allocator);
+      addAllocator   (&CPP4Allocator);
+#endif
       return;
     }
 
     // Iterator methods
     alloc_iterator alloc_begin() { return allocators.begin(); }
     alloc_iterator alloc_end() { return allocators.end(); }
+    realloc_iterator realloc_begin() { return reallocators.begin(); }
+    realloc_iterator realloc_end() { return reallocators.end(); }
 
     // Methods to add allocators
     void addAllocator (AllocatorInfo * Allocator) {
       allocators.push_back (Allocator);
+    }
+
+    void addReAllocator (ReAllocatorInfo * Allocator) {
+      reallocators.push_back (Allocator);
     }
 };
 

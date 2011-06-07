@@ -450,6 +450,73 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
 }
 
 //
+// Function: pool_reregister()
+//
+// Description:
+//  This is pool_register() for realloc() style allocators.  It will unregister
+//  the previously existing object (if necessary) and register the newly
+//  allocated object.
+//
+void
+__sc_dbg_poolreregister (DebugPoolTy *Pool,
+                         void * newptr,
+                         void * oldptr,
+                         unsigned NumBytes) {
+  if (oldptr == NULL) {
+    //
+    // If the old pointer is NULL, then we know that this is essentially a
+    // regular heap allocation; treat it as such.
+    //
+    __sc_dbg_poolregister (Pool, newptr, NumBytes);
+  } else if (NumBytes == 0) {
+    //
+    // Allocating a buffer of zero bytes is essentially a deallocation of the
+    // memory; treat it as such.
+    //
+    __sc_dbg_poolunregister (Pool, oldptr);
+  } else {
+    //
+    // Otherwise, this is a true reallocation.  Unregister the old memory and
+    // register the new memory.
+    __sc_dbg_poolunregister (Pool, oldptr);
+    __sc_dbg_poolregister(Pool, newptr, NumBytes);
+  }
+
+  return;
+}
+
+void
+__sc_dbg_src_poolreregister (DebugPoolTy *Pool,
+                             void * newptr,
+                             void * oldptr,
+                             unsigned NumBytes,
+                             TAG,
+                             const char * SourceFilep,
+                             unsigned lineno) {
+  if (oldptr == NULL) {
+    //
+    // If the old pointer is NULL, then we know that this is essentially a
+    // regular heap allocation; treat it as such.
+    //
+    __sc_dbg_src_poolregister(Pool, newptr, NumBytes, tag, SourceFilep, lineno);
+  } else if (NumBytes == 0) {
+    //
+    // Allocating a buffer of zero bytes is essentially a deallocation of the
+    // memory; treat it as such.
+    //
+    __sc_dbg_poolunregister_debug (Pool, oldptr, tag, SourceFilep, lineno);
+  } else {
+    //
+    // Otherwise, this is a true reallocation.  Unregister the old memory and
+    // register the new memory.
+    __sc_dbg_poolunregister_debug (Pool, oldptr, tag, SourceFilep, lineno);
+    __sc_dbg_src_poolregister(Pool, newptr, NumBytes, tag, SourceFilep, lineno);
+  }
+
+  return;
+}
+
+//
 // Function: __sc_dbg_src_poolregister_stack()
 //
 // Description:
