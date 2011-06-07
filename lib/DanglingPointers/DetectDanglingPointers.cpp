@@ -215,7 +215,7 @@ DetectDanglingPointers::runOnModule (Module & M) {
             const Type * Int32Type=IntegerType::getInt32Ty(getGlobalContext());
             BasicBlock::iterator InsertPt = CI;
             ++InsertPt;
-            Value * allocSize = info->getAllocSize(CI);
+            Value * allocSize = info->getOrCreateAllocSize(CI);
             allocSize = CastInst::CreateIntegerCast (allocSize,
                                                      Int32Type,
                                                      false,

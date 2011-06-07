@@ -1268,18 +1268,6 @@ __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
   if (New) {
     // Zero the memory
     bzero (New, Number * NumBytes);
-
-    //
-    // If dangling pointer detection is enabled, then create a shadow copy of
-    // the object.
-    //
-    if (ConfigData.RemapObjects)
-      New = pool_shadow (New, Number * NumBytes);
-
-    //
-    // Register the object with the splay tree.
-    //
-    __sc_dbg_src_poolregister (Pool, New, Number * NumBytes, tag, SourceFilep, lineno);
   }
 
   //

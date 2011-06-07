@@ -222,7 +222,7 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   BasicBlock::iterator InsertPt = AllocSite;
   ++InsertPt;
 
-  Value * AllocSize = info->getAllocSize(AllocSite);
+  Value * AllocSize = info->getOrCreateAllocSize(AllocSite);
   if (!AllocSize->getType()->isIntegerTy(32)) {
     AllocSize = CastInst::CreateIntegerCast (AllocSize,
                                              Type::getInt32Ty(Context),

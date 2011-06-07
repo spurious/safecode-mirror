@@ -46,6 +46,35 @@ SimpleAllocatorInfo::getAllocSize(Value * AllocSite) const {
 }
 
 Value *
+SimpleAllocatorInfo::getOrCreateAllocSize(Value * AllocSite) const {
+  return getAllocSize (AllocSite);
+}
+
+Value *
+ArrayAllocatorInfo::getOrCreateAllocSize(Value * AllocSite) const {
+  //
+  // See if this is a call to the allocator.  If not, return NULL.
+  //
+  CallInst * CI = dyn_cast<CallInst>(AllocSite);
+  if (!CI)
+    return NULL;
+
+  Function * F  = CI->getCalledFunction();
+  if (!F || F->getName() != allocCallName) 
+    return NULL;
+
+  //
+  // Insert a multiplication instruction to compute the size of the array
+  // allocation.
+  //
+  return BinaryOperator::Create (BinaryOperator::Mul,
+                                 CI->getOperand(allocSizeOperand),
+                                 CI->getOperand(allocNumOperand),
+                                 "size",
+                                 CI);
+}
+
+Value *
 SimpleAllocatorInfo::getFreedPointer(Value * FreeSite) const {
   CallInst * CI = dyn_cast<CallInst>(FreeSite);
 

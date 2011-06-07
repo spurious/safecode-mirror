@@ -48,18 +48,22 @@ class AllocatorInfo {
     /// size. We don't want to get into this complexity right now, even running
     /// ADCE right after exactcheck optimization might fix the problem.
     ///
-    virtual bool isAllocSizeMayConstant(llvm::Value * AllocSite) const {
+    virtual bool isAllocSizeMayConstant(Value * AllocSite) const {
       return true;
     }
 
     /// Return the size of the object being allocated
     /// Assume the caller knows it is an allocation for this allocator
     /// Return NULL when something is wrong
-    virtual llvm::Value * getAllocSize(llvm::Value * AllocSite) const = 0;
+    virtual Value * getAllocSize(Value * AllocSite) const = 0;
+
+    /// Return the size of the object being allocated; insert code into the
+    /// program to compute the size if necessary
+    virtual Value * getOrCreateAllocSize (Value * AllocSite) const = 0;
 
     /// Return the pointer being freed
     /// Return NULL when something is wrong
-    virtual llvm::Value * getFreedPointer(llvm::Value * FreeSite) const = 0;
+    virtual Value * getFreedPointer(Value * FreeSite) const = 0;
 
     /// Return the function name of the allocator, say "malloc".
     const std::string & getAllocCallName() const { return allocCallName; }
@@ -82,12 +86,33 @@ class SimpleAllocatorInfo : public AllocatorInfo {
                         uint32_t freePtrOperand) :
       AllocatorInfo(allocCallName, freeCallName),
       allocSizeOperand(allocSizeOperand), freePtrOperand(freePtrOperand) {}
-    virtual llvm::Value * getAllocSize(llvm::Value * AllocSite) const;
-    virtual llvm::Value * getFreedPointer(llvm::Value * FreeSite) const;
+    virtual Value * getAllocSize(Value * AllocSite) const;
+    virtual Value * getOrCreateAllocSize(Value * AllocSite) const;
+    virtual Value * getFreedPointer(Value * FreeSite) const;
 
-  private:
+  protected:
     uint32_t allocSizeOperand;
     uint32_t freePtrOperand;
+};
+
+/// ArrayAllocatorInfo - define the abstraction of array allcators /
+/// deallocators such as calloc / free
+class ArrayAllocatorInfo : public SimpleAllocatorInfo {
+  protected:
+    // The index of the operand used for the number of elements to allocate
+    uint32_t allocNumOperand;
+
+  public:
+    ArrayAllocatorInfo(const std::string & allocCallName, 
+                       const std::string & freeCallName,
+                       uint32_t allocSizeOperand,
+                       uint32_t allocNumOperand,
+                       uint32_t freePtrOperand) :
+      SimpleAllocatorInfo (allocCallName, freeCallName, allocSizeOperand, freePtrOperand), allocNumOperand (allocNumOperand) {}
+    virtual Value * getAllocSize(Value * AllocSite) const {
+      return 0;
+    }
+    virtual Value * getOrCreateAllocSize(Value * AllocSite) const;
 };
 
 //
@@ -114,7 +139,9 @@ class AllocatorInfoPass : public ImmutablePass {
       // Register the standard C library allocators.
       //
       static SimpleAllocatorInfo MallocAllocator ("malloc", "free", 1, 1);
+      static ArrayAllocatorInfo  CallocAllocator ("calloc", "", 1, 2, 1);
       addAllocator (&MallocAllocator);
+      addAllocator (&CallocAllocator);
       return;
     }
 
