@@ -188,12 +188,36 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
       }
   }
   
+  //
+  // Find the deallocation function, visit all uses of it, and process all
+  // calls to it.
+  //
   Function * freeFunc = M->getFunction(info->getFreeCallName());
   if (freeFunc) {
     for (Value::use_iterator it = freeFunc->use_begin(),
-           end = freeFunc->use_end(); it != end; ++it)
-      if (CallInst * CI = dyn_cast<CallInst>(*it))
+           end = freeFunc->use_end(); it != end; ++it) {
+      if (CallInst * CI = dyn_cast<CallInst>(*it)) {
         registerFreeSite(CI, info);
+      }
+
+      //
+      // If the user is a constant expression, the constant expression may be
+      // a cast that is used by a call instruction.  Get the enclosing call
+      // instruction if so.
+      //
+      if (ConstantExpr * CE = dyn_cast<ConstantExpr>(*it)) {
+        if (CE->isCast()) {
+          for (Value::use_iterator iit = CE->use_begin(),
+                 end = CE->use_end(); iit != end; ++iit) {
+            if (CallInst * CI = dyn_cast<CallInst>(*iit)) {
+              if (CI->getCalledValue() == CE) {
+                registerFreeSite(CI, info);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
 

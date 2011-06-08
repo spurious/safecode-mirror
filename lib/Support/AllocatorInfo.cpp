@@ -78,8 +78,7 @@ Value *
 SimpleAllocatorInfo::getFreedPointer(Value * FreeSite) const {
   CallInst * CI = dyn_cast<CallInst>(FreeSite);
 
-  Function * F  = CI->getCalledFunction();
-
+  Function * F  = dyn_cast<Function>(CI->getCalledValue()->stripPointerCasts());
   if (!F || F->getName() != freeCallName) 
     return NULL;
 
