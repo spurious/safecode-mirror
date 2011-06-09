@@ -34,6 +34,7 @@ then
 fi
 
 llvmgcc=@LLVMGCC@
+gxx=@CXX@
 sc=@SC@
 llc=@LLC@
 sc_lib=@SC_LIB@
@@ -95,10 +96,9 @@ compile()
   # Compile native assembly file from processed bitcode.
   $llc -o $scasm $scobj
   # Build and link test.
-  $llvmgcc -o $scfile $scasm \
-                      $sc_lib/libsc_dbg_rt.a \
-                      $sc_lib/libpoolalloc_bitmap.a \
-                      -lstdc++
+  $gxx -o $scfile $scasm \
+          $sc_lib/libsc_dbg_rt.a \
+          $sc_lib/libpoolalloc_bitmap.a
 }
 
 # Run test and check results.

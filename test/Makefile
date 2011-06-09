@@ -467,12 +467,13 @@ TESTSUITE=$(PROJ_SRC_ROOT)/test/cstdlib
 # Run the lit tests for cstdlib
 lit: cstdlib/test.sh
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE)
-	@rmdir $(TESTSUITE)/Output
+	@rm -rf $(TESTSUITE)/Output
 
 cstdlib/test.sh: $(PROJ_SRC_ROOT)/test/cstdlib/test.sh.in
 	@echo Creating test script...
 	@mkdir -p cstdlib
 	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
+       -e 's#@CXX@#$(CXX)#g' \
        -e 's#@SC@#$(SC_BIN)#g' \
        -e 's#@LLC@#$(LLC)#g' \
        -e 's#@SC_LIB@#$(SC_LIB)#g' \
