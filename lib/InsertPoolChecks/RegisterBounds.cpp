@@ -75,8 +75,13 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
   Value * PH = ConstantPointerNull::get (getVoidPtrType(GV->getContext()));
   const Type* csiType = IntegerType::getInt32Ty(GV->getContext());
   const Type * GlobalType = GV->getType()->getElementType();
-  Value * AllocSize = ConstantInt::get 
-    (csiType, TD->getTypeAllocSize(GlobalType));
+  unsigned TypeSize = TD->getTypeAllocSize((GlobalType));
+  if (!TypeSize) {
+    llvm::errs() << "FIXME: Ignoring global of size zero: ";
+    GV->dump();
+    return;
+  }
+  Value * AllocSize = ConstantInt::get (csiType, TypeSize);
   RegisterVariableIntoPool(PH, GV, AllocSize, InsertBefore);
 
   // Update statistics
