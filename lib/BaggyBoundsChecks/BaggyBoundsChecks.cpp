@@ -188,8 +188,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   }
 
   // align byval arguments
-  //FIXME Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
-
+  // FIXME Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
+  // Fixed in r132764.
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     if (I->isDeclaration()) continue;
