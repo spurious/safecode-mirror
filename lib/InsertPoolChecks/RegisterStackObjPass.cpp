@@ -17,7 +17,7 @@
 #include "safecode/SAFECode.h"
 
 #include "SCUtils.h"
-#include "safecode/InsertChecks.h"
+#include "safecode/InsertChecks/RegisterBounds.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
 #include "llvm/ADT/VectorExtras.h"
@@ -190,13 +190,14 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   LI = &getAnalysis<LoopInfo>();
   DT = &getAnalysis<DominatorTree>();
   DF = &getAnalysis<DominanceFrontier>();
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
 
   //
   // Get pointers to the functions for registering and unregistering pointers.
   //
-  PoolRegister = intrinsic->getIntrinsic("sc.pool_register_stack").F;  
-  StackFree = intrinsic->getIntrinsic("sc.pool_unregister_stack").F;  
+  PoolRegister = F.getParent()->getFunction ("sc.pool_register_stack");
+  StackFree    = F.getParent()->getFunction ("sc.pool_unregister_stack");
+  assert (PoolRegister);
+  assert (StackFree);
 
   // The set of registered stack objects
   std::vector<CallInst *> PoolRegisters;

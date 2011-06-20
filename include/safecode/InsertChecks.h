@@ -179,43 +179,6 @@ struct MonotonicLoopOpt : public LoopPass {
   bool isEligibleForOptimization(const Loop * L);
 };
 
-struct RegisterStackObjPass : public FunctionPass {
-  public:
-    static char ID;
-    RegisterStackObjPass() : FunctionPass((intptr_t) &ID) {};
-    virtual ~RegisterStackObjPass() {};
-    virtual bool runOnFunction(Function &F);
-    virtual const char * getPassName() const {
-      return "Register stack variables into pool";
-    }
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
-      AU.addRequired<LoopInfo>();
-      AU.addRequired<DominatorTree>();
-      AU.addRequired<DominanceFrontier>();
-      AU.addRequired<InsertSCIntrinsic>();
-
-      AU.addPreserved<InsertSCIntrinsic>();
-      AU.setPreservesAll();
-    };
-
-  private:
-    // References to other LLVM passes
-    TargetData * TD;
-    LoopInfo * LI;
-    DominatorTree * DT;
-    DominanceFrontier * DF;
-    InsertSCIntrinsic * intrinsic;
-
-    // The pool registration function
-    Constant *PoolRegister;
-
-    CallInst * registerAllocaInst(AllocaInst *AI);
-    void insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
-                          const std::vector<Instruction *> & ExitPoints,
-                          LLVMContext * Context);
- };
-
  extern ModulePass * createClearCheckAttributesPass();
 
 NAMESPACE_SC_END

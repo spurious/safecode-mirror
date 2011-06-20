@@ -19,6 +19,7 @@
 #include "safecode/PoolHandles.h"
 #include "safecode/Support/AllocatorInfo.h"
 
+#include "llvm/Analysis/LoopPass.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
 #include "llvm/Target/TargetData.h"
@@ -148,6 +149,40 @@ public:
 private:
   TargetData * TD;
   Function * StackFree;
+};
+
+struct RegisterStackObjPass : public FunctionPass {
+  public:
+    static char ID;
+    RegisterStackObjPass() : FunctionPass((intptr_t) &ID) {};
+    virtual ~RegisterStackObjPass() {};
+    virtual bool runOnFunction(Function &F);
+    virtual const char * getPassName() const {
+      return "Register stack variables into pool";
+    }
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<TargetData>();
+      AU.addRequired<LoopInfo>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominanceFrontier>();
+
+      AU.setPreservesAll();
+    };
+
+  private:
+    // References to other LLVM passes
+    TargetData * TD;
+    LoopInfo * LI;
+    DominatorTree * DT;
+    DominanceFrontier * DF;
+
+    // The pool registration function
+    Constant *PoolRegister;
+
+    CallInst * registerAllocaInst(AllocaInst *AI);
+    void insertPoolFrees (const std::vector<CallInst *> & PoolRegisters,
+                          const std::vector<Instruction *> & ExitPoints,
+                          LLVMContext * Context);
 };
 
 NAMESPACE_SC_END
