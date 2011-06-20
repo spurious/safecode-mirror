@@ -15,7 +15,6 @@
 #define _REGISTER_RUNTIME_INITIALIZER_H_
 
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
 
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
@@ -30,7 +29,6 @@ public:
   RegisterRuntimeInitializer() : llvm::ModulePass((uintptr_t) &ID) {}
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<InsertSCIntrinsic>();
     AU.setPreservesAll();
   }
 private:
@@ -38,7 +36,6 @@ private:
   void constructInitializer(llvm::Module & M);
   /// Insert the initializer into llvm.global_ctors
   void insertInitializerIntoGlobalCtorList(llvm::Module & M);
-  InsertSCIntrinsic * intrinsic;
 };
 
 NAMESPACE_SC_END

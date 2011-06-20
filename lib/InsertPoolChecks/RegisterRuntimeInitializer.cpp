@@ -30,7 +30,6 @@ X1 ("reg-runtime-init", "Register runtime initializer into programs");
 
 bool
 RegisterRuntimeInitializer::runOnModule(llvm::Module & M) {
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
   constructInitializer(M);
   insertInitializerIntoGlobalCtorList(M);
   return true;
@@ -43,10 +42,15 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   // run-time constructor; it will be called by static global variable
   // constructor magic before main() is called.
   //
-  Function * RuntimeCtor = intrinsic->getIntrinsic("sc.init_runtime").F;
-  Function * RuntimeInit = intrinsic->getIntrinsic("sc.init_pool_runtime").F;
-  Function * RegGlobals  = intrinsic->getIntrinsic("sc.register_globals").F;
-//  Function * PoolInit = M.getFunction("poolalloc.init");
+  const Type * VoidTy  = Type::getVoidTy (M.getContext());
+  const Type * Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  Function * RuntimeCtor = (Function *) M.getOrInsertFunction("sc.init_runtime",
+                                                              VoidTy,
+                                                              NULL);
+
+  Function * RuntimeInit = (Function *) M.getOrInsertFunction("sc.init_pool_runtime", VoidTy, Int32Ty, Int32Ty, Int32Ty, NULL);
+  Constant * CF = M.getOrInsertFunction ("sc.register_globals", VoidTy, NULL);
+  Function * RegGlobals  = dyn_cast<Function>(CF);
 
   //
   // Make the global registration function internal.
@@ -96,7 +100,7 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
 
 void
 RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
-  Function * RuntimeCtor = intrinsic->getIntrinsic("sc.init_runtime").F;
+  Function * RuntimeCtor = M.getFunction ("sc.init_runtime");
 
   //
   // Insert the run-time ctor into the ctor list.
