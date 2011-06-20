@@ -37,8 +37,7 @@ SimpleAllocatorInfo::getAllocSize(Value * AllocSite) const {
   if (!CI)
     return NULL;
 
-  Function * F  = CI->getCalledFunction();
-
+  Function * F  = dyn_cast<Function>(CI->getCalledValue()->stripPointerCasts());
   if (!F || F->getName() != allocCallName) 
     return NULL;
 
@@ -59,7 +58,7 @@ ArrayAllocatorInfo::getOrCreateAllocSize(Value * AllocSite) const {
   if (!CI)
     return NULL;
 
-  Function * F  = CI->getCalledFunction();
+  Function * F  = dyn_cast<Function>(CI->getCalledValue()->stripPointerCasts());
   if (!F || F->getName() != allocCallName) 
     return NULL;
 
@@ -89,7 +88,7 @@ Value *
 ReAllocatorInfo::getAllocedPointer (Value * AllocSite) const {
   CallInst * CI = dyn_cast<CallInst>(AllocSite);
 
-  Function * F  = CI->getCalledFunction();
+  Function * F  = dyn_cast<Function>(CI->getCalledValue()->stripPointerCasts());
   if (!F || F->getName() != allocCallName) 
     return NULL;
 

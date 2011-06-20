@@ -180,17 +180,36 @@ RegisterMainArgs::runOnModule(Module & M) {
 ///
 /// Methods for RegisterCustomizedAllocations
 ///
-
 void
 RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info) {
   Function * allocFunc = M->getFunction(info->getAllocCallName());
   if (allocFunc) {
     for (Value::use_iterator it = allocFunc->use_begin(), 
-           end = allocFunc->use_end(); it != end; ++it)
+           end = allocFunc->use_end(); it != end; ++it) {
       if (CallInst * CI = dyn_cast<CallInst>(*it)) {
         registerAllocationSite(CI, info);
         ++RegisteredHeapObjs;
       }
+
+      //
+      // If the user is a constant expression, the constant expression may be
+      // a cast that is used by a call instruction.  Get the enclosing call
+      // instruction if so.
+      //
+      if (ConstantExpr * CE = dyn_cast<ConstantExpr>(*it)) {
+        if (CE->isCast()) {
+          for (Value::use_iterator iit = CE->use_begin(),
+                 end = CE->use_end(); iit != end; ++iit) {
+            if (CallInst * CI = dyn_cast<CallInst>(*iit)) {
+              if (CI->getCalledValue() == CE) {
+                registerAllocationSite(CI, info);
+                ++RegisteredHeapObjs;
+              }
+            }
+          }
+        }
+      }
+    }
   }
   
   //
