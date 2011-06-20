@@ -9,7 +9,6 @@
 //
 // Various passes to register the bound information of variables into the pools
 //
-//
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "sc-register"
@@ -90,15 +89,24 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
 
 bool
 RegisterGlobalVariables::runOnModule(Module & M) {
-  init("sc.pool_register_global");
+  init(M, "sc.pool_register_global");
 
   //
   // Get required analysis passes.
   //
   TD       = &getAnalysis<TargetData>();
 
-  Instruction * InsertPt = 
-    CreateRegistrationFunction(intrinsic->getIntrinsic("sc.register_globals").F);
+  //
+  // Create a skeleton function that will register the global variables.
+  //
+  const Type * VoidTy = Type::getVoidTy (M.getContext());
+  Constant * CF = M.getOrInsertFunction ("sc.register_globals", VoidTy, NULL);
+  Function * F = dyn_cast<Function>(CF);
+
+  //
+  // Create the basic registration function.
+  //
+  Instruction * InsertPt = CreateRegistrationFunction (F);
 
   //
   // Skip over several types of globals, including:
@@ -138,7 +146,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
 
 bool
 RegisterMainArgs::runOnModule(Module & M) {
-  init("sc.pool_register");
+  init(M, "sc.pool_register");
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
     llvm::errs() << "Cannot do array bounds check for this program"
@@ -166,8 +174,14 @@ RegisterMainArgs::runOnModule(Module & M) {
   //
   // Register all of the argv strings
   //
-  // FIXME: Should use the intrinsic interface
-  Function * RegisterArgv = intrinsic->getIntrinsic("sc.pool_argvregister").F;
+  const Type * VoidPtrType = getVoidPtrType(M.getContext());
+  const Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
+  Constant * CF = M.getOrInsertFunction ("sc.pool_argvregister",
+                                          getVoidPtrType(M.getContext()),
+                                          Int32Type,
+                                          PointerType::getUnqual (VoidPtrType),
+                                          NULL);
+  Function * RegisterArgv = dyn_cast<Function>(CF);
 
   std::vector<Value *> fargs;
   fargs.push_back (Argc);
@@ -268,7 +282,7 @@ RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * i
 
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
-  init("sc.pool_register");
+  init(M, "sc.pool_register");
 
   //
   // Get the functions for reregistering and deregistering memory objects.
@@ -281,7 +295,14 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
                                                            getVoidPtrType (M),
                                                            Int32Type,
                                                            NULL);
-  PoolUnregisterFunc = intrinsic->getIntrinsic("sc.pool_unregister").F;
+
+  Constant * CF = M.getOrInsertFunction ("sc.pool_unregister",
+                                          Type::getVoidTy (M.getContext()),
+                                          getVoidPtrType(M.getContext()),
+                                          getVoidPtrType(M.getContext()),
+                                          NULL);
+  PoolUnregisterFunc = dyn_cast<Function>(CF);
+
   AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
   for (AllocatorInfoPass::alloc_iterator it = AIP.alloc_begin(),
       end = AIP.alloc_end(); it != end; ++it) {
@@ -445,14 +466,30 @@ RegisterVariables::~RegisterVariables() {}
 //  of this pass.
 //
 // Inputs:
+//  M            - The module in which to insert the function.
 //  registerName - The name of the function with which to register object.
 //
 void
-RegisterVariables::init(std::string registerName) {
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  PoolRegisterFunc = intrinsic->getIntrinsic(registerName).F;  
-}
+RegisterVariables::init (Module & M, std::string registerName) {
+  //
+  // Create the type of the registration function.
+  //
+  const Type * Int8Type    = IntegerType::getInt8Ty(M.getContext());
+  const Type * VoidTy      = Type::getVoidTy(M.getContext());
 
+  std::vector<const Type *> ArgTypes;
+  ArgTypes.push_back (PointerType::getUnqual(Int8Type));
+  ArgTypes.push_back (PointerType::getUnqual(Int8Type));
+  ArgTypes.push_back (IntegerType::getInt32Ty(M.getContext()));
+  FunctionType * PoolRegTy = FunctionType::get (VoidTy, ArgTypes, false);
+
+  //
+  // Create the function.
+  //
+  PoolRegisterFunc = dyn_cast<Function>(M.getOrInsertFunction (registerName,
+                                                               PoolRegTy));
+  return;
+}
 
 void
 RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * AllocSize, Instruction * InsertBefore) {
@@ -479,18 +516,22 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
 
 bool
 RegisterFunctionByvalArguments::runOnModule(Module & M) {
-  init("sc.pool_register_stack");
+  init(M, "sc.pool_register_stack");
 
   //
   // Fetch prerequisite analysis passes.
   //
   TD        = &getAnalysis<TargetData>();
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
 
   //
   // Insert required intrinsics.
   //
-  StackFree = intrinsic->getIntrinsic("sc.pool_unregister_stack").F;  
+  Constant * CF = M.getOrInsertFunction ("sc.pool_unregister_stack",
+                                          Type::getVoidTy (M.getContext()),
+                                          getVoidPtrType(M.getContext()),
+                                          getVoidPtrType(M.getContext()),
+                                          NULL);
+  StackFree = dyn_cast<Function>(CF);
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     //
@@ -510,6 +551,7 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
 
     runOnFunction(*I);
   }
+
   return true;
 }
 

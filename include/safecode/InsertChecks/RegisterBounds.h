@@ -16,7 +16,6 @@
 
 #include "ArrayBoundsCheck.h"
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
 #include "safecode/Support/AllocatorInfo.h"
 
@@ -40,7 +39,7 @@ protected:
   //  This method performs some initialization that is common to all subclasses
   //  of this pass.
   //
-  void init(std::string registerName);
+  void init(Module & M, std::string registerName);
 
   /// Helper function to register the bound information of a variable into a
   /// particular pool.
@@ -53,7 +52,6 @@ protected:
   /// Return the last instruction of the function body.
   llvm::Instruction * CreateRegistrationFunction(llvm::Function * F);
 
-  InsertSCIntrinsic * intrinsic;
   Function * PoolRegisterFunc;
 
 };
@@ -70,7 +68,6 @@ public:
   virtual bool runOnModule(llvm::Module & M);
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
     AU.addPreserved<ArrayBoundsCheckGroup>();
     AU.setPreservesCFG();
@@ -94,7 +91,6 @@ public:
   RegisterMainArgs() : RegisterVariables((uintptr_t) &ID) {}
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<InsertSCIntrinsic>();
     AU.setPreservesAll();
   }
 };
@@ -122,7 +118,6 @@ public:
   RegisterCustomizedAllocation() : RegisterVariables((uintptr_t) &ID) {}
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<AllocatorInfoPass>();
     AU.setPreservesAll();
   }
@@ -146,13 +141,11 @@ public:
   virtual bool runOnModule(llvm::Module & M);
   virtual bool runOnFunction(llvm::Function & F);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<InsertSCIntrinsic>();
     AU.addRequired<llvm::TargetData>();
     // Pretend we do nothing
     AU.setPreservesAll();
   }
 private:
-  InsertSCIntrinsic * intrinsic;
   TargetData * TD;
   Function * StackFree;
 };
