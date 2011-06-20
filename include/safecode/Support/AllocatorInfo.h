@@ -173,9 +173,7 @@ class AllocatorInfoPass : public ImmutablePass {
 
       addAllocator   (&MallocAllocator);
       addAllocator   (&CallocAllocator);
-#if 0
       addReAllocator (&ReAllocator);
-#endif
 
 #if 0
       // Add the C++ allocators
