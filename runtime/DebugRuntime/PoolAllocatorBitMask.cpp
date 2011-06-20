@@ -380,6 +380,12 @@ __sc_dbg_poolregister (DebugPoolTy *Pool, void * allocaptr,
 #endif
 
   //
+  // Heap allocations of zero size should just be ignored.
+  //
+  if (!NumBytes)
+    return;
+
+  //
   // Use the common registration function.  Mark the allocation as a heap
   // allocation.
   //
@@ -419,6 +425,13 @@ __sc_dbg_src_poolregister (DebugPoolTy *Pool,
     return
   }
 #endif
+
+  //
+  // Heap allocations of zero size should just be ignored.
+  //
+  if (!NumBytes)
+    return;
+
   _internal_poolregister (Pool,
                           allocaptr,
                           NumBytes, tag,
