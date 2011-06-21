@@ -701,15 +701,16 @@ pool_memcpy_debug(DebugPoolTy *dstPool,
 
   size_t dstSize = 0, srcSize = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
-
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound = false, srcFound = false;
 
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd)) && dstComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd)) && srcComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
@@ -718,14 +719,18 @@ pool_memcpy_debug(DebugPoolTy *dstPool,
   dstSize = (char *)dstEnd - (char *)dst + 1;
   srcSize = (char *)srcEnd - (char *)src + 1;
 
-  if (n > srcSize || n > dstSize) {
-    std::cout << "Cannot copy more bytes than the size of the source!\n";
-    WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
-  }
+  // The remainder of the checks require the objects to have been located in
+  // their pools.
+  if (dstFound && srcFound){
+    if (n > srcSize || n > dstSize){
+      std::cout << "Cannot copy more bytes than the size of the source!\n";
+      WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+    }
 
-  if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
-    std::cout<<"Two memory objects overlap each other!/n";
-    LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+    if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
+      std::cout<<"Two memory objects overlap each other!/n";
+      LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+    }
   }
 
   memcpy(dst, src, n);
