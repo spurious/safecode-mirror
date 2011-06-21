@@ -19,7 +19,7 @@ LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
 #
 #pointerchecks.a 
 
-USEDLIBS := CStdLib.a oob.a optchecks.a \
+USEDLIBS := FormatStrings.a CStdLib.a oob.a optchecks.a \
 						convert.a addchecks.a dpchecks.a speculativechecking.a \
 						baggyboundscheck.a arrayboundcheck.a stackcheck.a \
 						debuginstr.a sc-support.a scutility.a \

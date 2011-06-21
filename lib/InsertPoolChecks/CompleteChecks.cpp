@@ -232,6 +232,8 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
     ++change;
   }
 
+  return;
+
 }
 
 //
@@ -297,6 +299,75 @@ CompleteChecks::makeComplete (Function * Complete, Function * Incomplete) {
   return;
 }
 
+//
+// Function: makeFSParameterCallsComplete()
+//
+// Description:
+//  Finds calls to sc.fsparameter and fills in the completeness byte which
+//  is the last argument to such call. The second argument to the function
+//  is the one which is analyzed for completeness.
+//
+// Inputs:
+//  M      - Reference to the the module to analyze
+//
+void
+CompleteChecks::makeFSParameterCallsComplete(Module &M)
+{
+  Function *sc_fsparameter = M.getFunction("sc.fsparameter");
+
+  if (sc_fsparameter == NULL)
+    return;
+
+  std::set<CallInst *> toComplete;
+
+  //
+  // Iterate over all uses of sc.fsparameter and discover which have a complete
+  // pointer argument.
+  //
+  for (Function::use_iterator i = sc_fsparameter->use_begin();
+       i != sc_fsparameter->use_end(); ++i) {
+    CallInst *CI;
+    CI = dyn_cast<CallInst>(*i);
+    if (CI == 0 || CI->getCalledFunction() != sc_fsparameter)
+      continue;
+
+    //
+    // Get the parent function to which this call belongs.
+    //
+    Function *P = CI->getParent()->getParent();
+    Value *PtrOperand = CI->getOperand(2);
+    
+    DSNode *N = getDSNodeHandle(PtrOperand, P).getNode();
+
+    if (N == 0                ||
+        N->isExternalNode()   ||
+        N->isIncompleteNode() ||
+        N->isUnknownNode()    ||
+        N->isPtrToIntNode()   ||
+        N->isIntToPtrNode()) {
+      continue;
+    }
+
+    toComplete.insert(CI);
+  }
+
+  //
+  // Fill in a 1 for each call instruction that has a complete pointer
+  // argument.
+  //
+  const Type *int8      = Type::getInt8Ty(M.getContext());
+  Constant *complete = ConstantInt::get(int8, 1);
+
+  for (std::set<CallInst *>::iterator i = toComplete.begin();
+       i != toComplete.end();
+       ++i) {
+    CallInst *CI = *i;
+    CI->setOperand(4, complete);
+  }
+
+  return;
+}
+
 bool
 CompleteChecks::runOnModule (Module & M) {
   //
@@ -329,6 +400,8 @@ CompleteChecks::runOnModule (Module & M) {
     if (f != 0)
       makeCStdLibCallsComplete(f, entry->pool_argc);
   }
+
+  makeFSParameterCallsComplete(M);
 
   return true;
 }

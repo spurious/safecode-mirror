@@ -53,6 +53,7 @@
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/DetectDanglingPointers.h"
 #include "safecode/DummyUse.h"
+#include "safecode/FormatStrings.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
 #include "safecode/SpeculativeChecking.h"
@@ -100,6 +101,11 @@ static cl::opt<bool>
 DisableCStdLib("disable-cstdlib",
                cl::init(true),
                cl::desc("Disable transformations that secure C standard library calls"));
+
+static cl::opt<bool>
+DisableFSChecks("disable-printfchecks",
+                cl::init(true),
+                cl::desc("Disable securing of printf() style functions"));
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks",
@@ -272,6 +278,12 @@ int main(int argc, char **argv) {
         NOT_FOR_SVA(Passes.add(new StringTransform()));
       }
     }
+
+    //
+    // Transform format string functions
+    //
+    if (!DisableFSChecks && CheckingRuntime == RUNTIME_DEBUG)
+      NOT_FOR_SVA(Passes.add(new FormatStringTransform()));
 
     //
     // Ensure that all type-safe stack allocations are initialized.
@@ -658,6 +670,11 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"pool_index_debug",      "pool_index_debug"},
       {"pool_rindex_debug",     "pool_rindex_debug"},
       {"pool_strcasestr_debug", "pool_strcasestr_debug"},
+
+      // Format string functions
+      {"sc.fsparameter",        "__sc_fsparameter"},
+      {"sc.fscallinfo",         "__sc_fscallinfo"},
+      {"pool_printf",           "pool_printf"},
 
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},

@@ -120,6 +120,14 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   FunctionType * InitPoolRuntimeTy = FunctionType::get
     (VoidTy, args<const Type*>::list(Int32Ty, Int32Ty, Int32Ty), false);
 
+  // Format string function related intrinsics
+
+  FunctionType * FSParameterTy = FunctionType::get
+    (vpTy, args<const Type*>::list(vpTy, vpTy, vpTy, Int8Type), false);
+
+  FunctionType * FSCallInfoTy  = FunctionType::get
+    (vpTy, args<const Type*>::list(vpTy, Int32Ty), true);
+
   addIntrinsic
     ("sc.lscheck",
     SC_INTRINSIC_HAS_POOL_HANDLE | SC_INTRINSIC_HAS_VALUE_POINTER
@@ -228,6 +236,16 @@ InsertSCIntrinsic::runOnModule(Module & M) {
     ("sc.init_pool_runtime",
      SC_INTRINSIC_MISC,
      InitPoolRuntimeTy);
+
+  addIntrinsic
+    ("sc.fsparameter",
+     SC_INTRINSIC_MISC,
+     FSParameterTy);
+
+  addIntrinsic
+    ("sc.fscallinfo",
+     SC_INTRINSIC_MISC,
+     FSCallInfoTy);
 
   addDebugIntrinsic("sc.lscheck");
   addDebugIntrinsic("sc.lscheckalign");

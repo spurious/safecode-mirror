@@ -39,7 +39,7 @@ PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 
-SC_RT := libsc_dbg_rt libpoolalloc_bitmap
+SC_RT := libsc_dbg_rt libpoolalloc_bitmap libgdtoa
 
 ifdef DEBUG_SAFECODE
 PA_RT_O := $(addprefix $(PROJECT_DIR)/Debug/lib/,$(addsuffix .a,$(SC_RT)))

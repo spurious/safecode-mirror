@@ -98,7 +98,8 @@ compile()
   # Build and link test.
   $gxx -o $scfile $scasm \
           $sc_lib/libsc_dbg_rt.a \
-          $sc_lib/libpoolalloc_bitmap.a
+          $sc_lib/libpoolalloc_bitmap.a \
+          $sc_lib/libgdtoa.a
 }
 
 # Run test and check results.

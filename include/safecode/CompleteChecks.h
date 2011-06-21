@@ -58,6 +58,7 @@ struct CompleteChecks : public ModulePass {
     DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
     void makeComplete (Function * Complete, Function * Incomplete);
     void makeCStdLibCallsComplete(Function *, unsigned);
+    void makeFSParameterCallsComplete(Module &M);
 };
 
 NAMESPACE_SC_END

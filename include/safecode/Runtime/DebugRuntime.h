@@ -104,7 +104,7 @@ void installAllocHooks (void);
 
 NAMESPACE_SC_END
 
-// Use macros so that I won't polluate the namespace
+// Use macros so that I won't pollute the namespace
 
 #define PPOOL NAMESPACE_SC::DebugPoolTy*
 #define TAG unsigned
@@ -237,6 +237,11 @@ extern "C" {
 #ifdef _GNU_SOURCE
   void * pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n, const uint8_t complete);
 #endif
+
+  // Format string runtime
+  void *__sc_fsparameter(void *pool, void *ptr, void *dest, uint8_t complete);
+  void *__sc_fscallinfo(void *ci, uint32_t vargc, ...);
+  int  pool_printf(void *info, void *fmt, ...);
 
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);

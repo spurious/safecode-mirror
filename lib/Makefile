@@ -5,6 +5,7 @@ PARALLEL_DIRS = Support \
                 BaggyBoundsChecks \
                 ConvertUnsafeAllocas \
                 CStdLib \
+                FormatStrings \
                 InsertPoolChecks \
                 OptimizeChecks \
                 StackSafety \
