@@ -8,6 +8,6 @@ LEVEL=..
 #
 #PARALLEL_DIRS=SafePoolAllocator BoundsCheckAllocator KernelSafePoolAllocator KPoolCheck UserPoolSystem
 #PARALLEL_DIRS=BitmapPoolAllocator DebugRuntime SVA
-PARALLEL_DIRS=BitmapPoolAllocator DebugRuntime SVA BBRuntime
+PARALLEL_DIRS=BitmapPoolAllocator DebugRuntime SVA BBRuntime FloatConversion
 
 include $(LEVEL)/Makefile.common
