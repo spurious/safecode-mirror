@@ -31,6 +31,10 @@ struct args {
 		const t_arg arr[] = {ty1, ty2, ty3};
 		return t_list(arr, arr + sizeof(arr) / sizeof(t_arg)); 
 	};
+  static t_list list(t_arg ty1, t_arg ty2, t_arg ty3, t_arg ty4) {
+    const t_arg arr[] = {ty1, ty2, ty3, ty4};
+		return t_list(arr, arr + sizeof(arr) / sizeof(t_arg)); 
+  }
 	private:
 		args();
 };
