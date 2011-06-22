@@ -15,8 +15,10 @@
 #define SAFECODE_OPTIMIZECHECKS_H
 
 #include "safecode/SAFECode.h"
+#include "safecode/CheckInfo.h"
 #include "safecode/Intrinsic.h"
 #include "safecode/PoolHandles.h"
+#include "safecode/Support/AllocatorInfo.h"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/Dominators.h"
@@ -89,15 +91,14 @@ struct ExactCheckOpt : public ModulePass {
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     // We need to know about SAFECode intrinsics
-    AU.addRequired<InsertSCIntrinsic>();
+    AU.addRequired<AllocatorInfoPass>();
     AU.setPreservesCFG();
   }
 
  private:
     // References to required analysis passes
-    InsertSCIntrinsic * intrinsic;
     Function *ExactCheck2;
-    bool visitCheckingIntrinsic(CallInst * CI, bool isMemCheck);
+    bool visitCheckingIntrinsic(CallInst * CI, const struct CheckInfo & Info);
     void rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                              Value * ResultPointer, Value * Bounds);
     std::vector<CallInst*> checkingIntrinsicsToBeRemoved;

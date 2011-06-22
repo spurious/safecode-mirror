@@ -22,6 +22,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Value.h"
+#include "llvm/Target/TargetData.h"
 
 #include <stdint.h>
 #include <string>
@@ -183,6 +184,11 @@ class AllocatorInfoPass : public ImmutablePass {
       return;
     }
 
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<TargetData>();
+      AU.setPreservesAll();
+    }
+
     // Iterator methods
     alloc_iterator alloc_begin() { return allocators.begin(); }
     alloc_iterator alloc_end() { return allocators.end(); }
@@ -197,6 +203,8 @@ class AllocatorInfoPass : public ImmutablePass {
     void addReAllocator (ReAllocatorInfo * Allocator) {
       reallocators.push_back (Allocator);
     }
+
+    Value * getObjectSize(Value * V);
 };
 
 NAMESPACE_SC_END

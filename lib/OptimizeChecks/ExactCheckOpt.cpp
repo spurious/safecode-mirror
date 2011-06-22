@@ -15,13 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "exactcheck-opt"
+
 #include "safecode/OptimizeChecks.h"
 #include "safecode/Support/AllocatorInfo.h"
 #include "SCUtils.h"
 
-#include "dsa/DSSupport.h"
-
 #include "llvm/ADT/Statistic.h"
+
+#include <queue>
 
 NAMESPACE_SC_BEGIN
 
@@ -49,60 +50,56 @@ char ExactCheckOpt::ID = 0;
 //
 bool
 ExactCheckOpt::runOnModule(Module & M) {
-  intrinsic = &getAnalysis<InsertSCIntrinsic>();
-  ExactCheck2 = intrinsic->getIntrinsic("sc.exactcheck2").F;
+  //
+  // Add a prototype for the exactcheck function.
+  //
+  const Type * VoidPtrTy = getVoidPtrType (M.getContext());
+  const Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
+  ExactCheck2 = (Function *) M.getOrInsertFunction ("sc.exactcheck2",
+                                                    VoidPtrTy,
+                                                    VoidPtrTy,
+                                                    VoidPtrTy,
+                                                    Int32Type,
+                                                    NULL);
 
   //
   // Scan through all the intrinsics and process those that perform run-time
   // checks.
   //
-  InsertSCIntrinsic::intrinsic_const_iterator i = intrinsic->intrinsic_begin();
-  InsertSCIntrinsic::intrinsic_const_iterator e = intrinsic->intrinsic_end();
-  for (; i != e; ++i) {
+  for (unsigned index = 0; index < numChecks; ++index) {
     //
-    // If this intrinsic is a bounds checking intrinsic or a load/store
-    // checking intrinsic, try to optimize uses of it.
+    // Clear the list of calls to intrinsics that must be removed.
     //
-    if (i->flag & (InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK
-                   | InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK)) {
-      //
-      // Clear the list of calls to intrinsics that must be removed.
-      //
-      checkingIntrinsicsToBeRemoved.clear();
+    checkingIntrinsicsToBeRemoved.clear();
 
-      //
-      // Determine if this check is a memory check (i.e., it is a check on an
-      // operation that accesses memory).
-      //
-      bool isMemCheck = i->flag & InsertSCIntrinsic::SC_INTRINSIC_MEMCHECK;
-
-      //
-      // Scan through all uses of this run-time checking function and process
-      // each call to it.
-      //
-      Function * F = i->F;
+    //
+    // Scan through all uses of this run-time checking function and process
+    // each call to it.
+    //
+    Function * F = M.getFunction (RuntimeChecks[index].name);
+    if (F) {
       for (Value::use_iterator UI = F->use_begin(), E = F->use_end();
            UI != E;
            ++UI) {
         if (CallInst * CI = dyn_cast<CallInst>(*UI)) {
-          visitCheckingIntrinsic(CI, isMemCheck);
+          visitCheckingIntrinsic(CI, RuntimeChecks[index]);
         }
       }
+    }
 
-      //
-      // Update statistics if anything has changed.  We don't want to update
-      // the statistics variable if nothing has happened because we don't want
-      // it to appear in the output if it is zero.
-      //
-      if (checkingIntrinsicsToBeRemoved.size())
-        ExactChecks += checkingIntrinsicsToBeRemoved.size();
+    //
+    // Update statistics if anything has changed.  We don't want to update
+    // the statistics variable if nothing has happened because we don't want
+    // it to appear in the output if it is zero.
+    //
+    if (checkingIntrinsicsToBeRemoved.size())
+      ExactChecks += checkingIntrinsicsToBeRemoved.size();
 
-      //
-      // Remove checking intrinsics that have been optimized
-      //
-      for (std::vector<CallInst*>::const_iterator i = checkingIntrinsicsToBeRemoved.begin(), e = checkingIntrinsicsToBeRemoved.end(); i != e; ++i) {
-        (*i)->eraseFromParent();
-      }
+    //
+    // Remove checking intrinsics that have been optimized
+    //
+    for (std::vector<CallInst*>::const_iterator i = checkingIntrinsicsToBeRemoved.begin(), e = checkingIntrinsicsToBeRemoved.end(); i != e; ++i) {
+      (*i)->eraseFromParent();
     }
   }
 
@@ -113,6 +110,43 @@ ExactCheckOpt::runOnModule(Module & M) {
 }
 
 //
+// Function: findObject()
+//
+// Description:
+//  Find the singular memory object to which this pointer points (if such a
+//  singular object exists and is easy to find).
+//
+static Value *
+findObject (Value * obj) {
+  std::set<Value *> exploredObjects;
+  std::set<Value *> objects;
+  std::queue<Value *> queue;
+
+  queue.push(obj);
+  while (!queue.empty()) {
+    Value * o = queue.front();
+    queue.pop();
+    if (exploredObjects.count(o)) continue;
+
+    exploredObjects.insert(o);
+
+    if (isa<CastInst>(o)) {
+      queue.push(cast<CastInst>(o)->getOperand(0));
+    } else if (isa<GetElementPtrInst>(o)) {
+      queue.push(cast<GetElementPtrInst>(o)->getPointerOperand());
+    } else if (isa<PHINode>(o)) {
+      PHINode * p = cast<PHINode>(o);
+      for(unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
+        queue.push(p->getIncomingValue(i));
+      }
+    } else {
+      objects.insert(o);
+    }
+  }
+  return objects.size() == 1 ? *(objects.begin()) : NULL;
+}
+
+//
 // Function: visitCheckingIntrinsic()
 //
 // Description:
@@ -120,25 +154,25 @@ ExactCheckOpt::runOnModule(Module & M) {
 //  bounds check which will not use meta-data information.
 //
 // Inputs:
-//  CI         - A pointer to the instruction that performs a run-time check.
-//  isMemCheck - Flags whether the call is a run-time check on a memory
-//               operation.
+//  CI    - A pointer to the instruction that performs a run-time check.
+//  Info  - A reference to a structure containing information on the
+//         run-time check.
 //
 // Return value:
 //  true  - Successfully rewrite the check into an exact check.
 //  false - Cannot perform the optimization.
 //
 bool
-ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, bool isMemCheck) {
+ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, const struct CheckInfo & Info) {
   //
   // Get the pointer that is checked by this run-time check.
   //
-  Value * CheckPtr = intrinsic->getValuePointer(CI)->stripPointerCasts();
+  Value * CheckPtr = Info.getCheckedPointer(CI)->stripPointerCasts();
 
   //
   // Try to find the source of the pointer.
   //
-  Value * BasePtr = intrinsic->findObject (CheckPtr);
+  Value * BasePtr = findObject (CheckPtr);
   if (!BasePtr) return false;
 
   //
@@ -151,14 +185,15 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, bool isMemCheck) {
   // So, if this is a memory check, make sure that the object cannot be freed
   // before the check.  Global variables and stack allocations cannot be freed.
   //
-  if ((!isMemCheck) ||
+  if ((!(Info.isMemcheck)) ||
       ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr))) {
     //
     // Attempt to get the size of the pointer.  If a size is returned, we know
     // that the base pointer points to the beginning of an object, and we can
     // do a run-time check without a lookup.
     //
-    if (Value * Size = intrinsic->getObjectSize(BasePtr)) {
+    AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
+    if (Value * Size = AIP.getObjectSize(BasePtr)) {
       rewriteToExactCheck(CI, BasePtr, CheckPtr, Size);
       return true;
     }
