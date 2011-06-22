@@ -371,8 +371,6 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 //
 bool
 DebugInstrument::runOnModule (Module &M) {
-  InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
-
   // Create the void pointer type
   VoidPtrTy = getVoidPtrType(M);
 
@@ -400,16 +398,17 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("poolrealloc"), LInfo);
   transformFunction (M.getFunction ("poolstrdup"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheck").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheckui").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.lscheckalign").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.boundscheck").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.boundscheckui").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.exactcheck2").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_register").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_register_stack").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister").F, VInfo);
-  transformFunction (intrinsic.getIntrinsic("sc.pool_unregister_stack").F, VInfo);
+  transformFunction (M.getFunction ("sc.lscheck"), VInfo);
+  transformFunction (M.getFunction ("sc.lscheckui"), VInfo);
+  transformFunction (M.getFunction ("sc.lscheckalign"), VInfo);
+  transformFunction (M.getFunction ("sc.lscheckalignui"), VInfo);
+  transformFunction (M.getFunction ("sc.boundscheck"), VInfo);
+  transformFunction (M.getFunction ("sc.boundscheckui"), VInfo);
+  transformFunction (M.getFunction ("sc.exactcheck2"), VInfo);
+  transformFunction (M.getFunction ("sc.pool_register"), VInfo);
+  transformFunction (M.getFunction ("sc.pool_register_stack"), VInfo);
+  transformFunction (M.getFunction ("sc.pool_unregister"), VInfo);
+  transformFunction (M.getFunction ("sc.pool_unregister_stack"), VInfo);
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);

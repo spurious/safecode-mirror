@@ -16,7 +16,6 @@
 #define DEBUG_INSTRUMENTATION_H
 
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
@@ -75,7 +74,6 @@ struct DebugInstrument : public ModulePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<InsertSCIntrinsic>();
       AU.setPreservesCFG();
       AU.setPreservesAll();
     };
