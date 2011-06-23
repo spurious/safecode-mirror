@@ -241,8 +241,16 @@ extern "C" {
   // Format string runtime
   void *__sc_fsparameter(void *pool, void *ptr, void *dest, uint8_t complete);
   void *__sc_fscallinfo(void *ci, uint32_t vargc, ...);
-  int  pool_printf(void *info, void *fmt, ...);
-
+  int   pool_printf(void *info, void *fmt, ...);
+  int   pool_fprintf(void *info, void *dest, void *fmt, ...);
+  int   pool_sprintf(void *info, void *dest, void *fmt, ...);
+  int   pool_snprintf(void *info, void *dest, size_t n, void *fmt, ...);
+  void  pool_err(void *info, int eval, void *fmt, ...);
+  void  pool_errx(void *info, int eval, void *fmt, ...);
+  void  pool_warn(void *info, void *fmt, ...);
+  void  pool_warnx(void *info, void *fmt, ...);
+  void  pool_syslog(void *info, int priority, void *fmt, ...);
+ 
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,

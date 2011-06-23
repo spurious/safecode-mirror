@@ -114,13 +114,93 @@ do_output(output_parameter &P, struct __suio &uio)
     FILE *out = P.Output.File;
     for (int i = 0; i < uio.uio_iovcnt; ++i)
     {
-      size_t amt;
-      size_t sz = uio.uio_iov[i].iov_len;
+      size_t amt, sz = uio.uio_iov[i].iov_len;
       amt = fwrite_unlocked(&uio.uio_iov[i].iov_base[0], 1, sz, out);
       if (amt < sz)
         return 1; // Output error
     }
     uio.uio_resid = 0;
+    uio.uio_iovcnt = 0;
+    return 0;
+  }
+  //
+  // Write into a (fixed) buffer.
+  //
+  else if (P.OutputKind == output_parameter::OUTPUT_TO_STRING)
+  {
+    char *dest  = P.Output.String.string;
+    size_t &pos = P.Output.String.pos;
+    size_t n    = P.Output.String.n;
+    size_t msz  = P.Output.String.maxsz;
+    size_t amt;
+    if (pos > n) // Don't write anything if we've reached the limit.
+    {
+      uio.uio_resid = 0;
+      uio.uio_iovcnt = 0;
+      return 0;
+    }
+    for (int i = 0; i < uio.uio_iovcnt; ++i)
+    {
+      amt = uio.uio_iov[i].iov_len;
+      //
+      // Check for out of bounds write. Report an out of bounds write only once.
+      //
+      if (pos < msz && amt > msz - pos)
+      {
+        cerr << "Destination string not long enough!" << endl;
+        write_out_of_bounds_error(P.Output.String.info, msz, pos + amt);
+      }
+      //
+      // Check to see if the we'll reach the user imposed size.
+      // If so, fill the string to max capacity and return.
+      //
+      if (amt > n - pos)
+      {
+        memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], n - pos);
+        pos = n;
+        uio.uio_resid  = 0;
+        uio.uio_iovcnt = 0;
+        return 0;
+      }
+      memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], amt);
+      pos += amt;
+    }
+    uio.uio_resid  = 0;
+    uio.uio_iovcnt = 0;
+    return 0;
+  }
+  //
+  // Write into a buffer that's dynamically allocated to fit the entire write.
+  //
+  else if (P.OutputKind == output_parameter::OUTPUT_TO_ALLOCATED_STRING)
+  {
+    char  *&dest  = P.Output.AllocedString.string;
+    size_t &pos   = P.Output.AllocedString.pos;
+    size_t &bufsz = P.Output.AllocedString.bufsz;
+    size_t amt;
+
+    if (dest == NULL)
+      return 1; // Output error
+    //
+    // Allocate a new string if the old one isn't large enough.
+    //
+    if ((size_t) uio.uio_resid > bufsz - pos)
+    {
+      do bufsz *= 2; while ((size_t) uio.uio_resid > bufsz - pos);
+      dest = (char *) realloc(dest, bufsz);
+      if (dest == NULL)
+        return 1; // Output error
+    }
+    //
+    // Copy the characters over.
+    //
+    for (int i = 0; i < uio.uio_iovcnt; ++i)
+    {
+      amt = uio.uio_iov[i].iov_len;
+      memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], amt);
+      pos += amt;
+    }
+    uio.uio_resid  = 0;
     uio.uio_iovcnt = 0;
     return 0;
   }
@@ -148,7 +228,13 @@ write_check(pointer_info *P, size_t n)
 {
   size_t max;
   find_object(P);
-  if (P->flags & HAVEBOUNDS)
+  if (P->flags & NULL_PTR)
+  {
+    cerr << "Writing into a NULL pointer!" << endl;
+    c_library_error("printf");
+    return false;
+  }
+  else if (P->flags & HAVEBOUNDS)
   {
     max = object_len(P);
     if (n > max)
@@ -174,8 +260,16 @@ varg_check(int pos, int total, bool *flag)
 {
   if (pos > total)
   {
-    cerr << "Attempting to access argument " << pos << \
-      " but there are only " << total << " arguments!" << endl;
+    if (total == 1)
+    {
+      cerr << "Attempting to access argument " << pos << \
+        " but there is only 1 argument!" << endl;
+    }
+    else
+    {
+      cerr << "Attempting to access argument " << pos << \
+        " but there are only " << total << "arguments!" << endl;
+    }
     c_library_error("va_arg");
     *flag = true;
   }
@@ -395,7 +489,8 @@ internal_printf(const options_t &options,
   void **wl      = CInfo.whitelist;       // whitelist of pointer arguments
   pointer_info *p;   // handy pointer_info structure
   bool oob = false;  // whether too many arguments have been accessed
-  char wc;
+  wchar_t wc;
+  mbstate_t ps;
 
   //
   // Choose PADSIZE to trade efficiency vs. size.  If larger printf
@@ -579,7 +674,7 @@ internal_printf(const options_t &options,
 
 //
 // Write the current number of bytes that have been written into the next
-// argument, which should be a pointer of type 'type'.
+// argument, which should be a pointer to 'type'.
 //
 #define WRITECOUNTAS(type)             \
   do {                                 \
@@ -588,7 +683,7 @@ internal_printf(const options_t &options,
       write_check(p, sizeof(type)) &&  \
       (*(type *)(p->ptr) = ret);       \
     } else                             \
-      c_library_error("va_arg");       \
+      c_library_error("printf");       \
   } while (0)
 
   fmt = (char *)fmt0;
@@ -600,13 +695,15 @@ internal_printf(const options_t &options,
   uio.uio_iovcnt = 0;
   ret = 0;
 
+  memset(&ps, 0, sizeof(mbstate_t));
+
   //
   // Scan the format for conversions (`%' character).
   //
   for (;;) {
     cp = fmt;
-    while ((wc = *fmt) != 0) {
-      fmt++;
+    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0) { 
+      fmt += n;
       if (wc == '%') {
         fmt--;
         break;
@@ -619,7 +716,7 @@ internal_printf(const options_t &options,
       PRINT(cp, m);
       ret += m;
     }
-    if (wc == 0)
+    if (n <= 0)
       goto done;
     fmt++;    // skip over '%'
 
@@ -1060,10 +1157,6 @@ fp_common:
       //
       if (prec >= 0)
       {
-        //
-        // If we have the boundaries of the object, then we should print no
-        // further than min(precision, object size).
-        //
         size_t maxbytes = (p->flags & HAVEBOUNDS) ? 
           min((size_t) prec, object_len(p)) :
           (size_t) prec;
@@ -1400,7 +1493,8 @@ __find_arguments(const char *fmt0, va_list ap, union arg **argtable,
   int tablemax;  // largest used index in table
   int nextarg;   // 1-based argument index
   int ret = 0;   // return value
-  char wc;
+  wchar_t wc;
+  mbstate_t ps;
 
 //
 // Add an argument type to the table, expanding if necessary.
@@ -1455,20 +1549,21 @@ __find_arguments(const char *fmt0, va_list ap, union arg **argtable,
   tablemax = 0;
   nextarg = 1;
   memset(typetable, T_UNUSED, STATIC_ARG_TBL_SIZE);
+  memset(&ps, 0, sizeof(mbstate_t));
 
   //
   // Scan the format for conversions (`%' character).
   //
   for (;;) {
     cp = fmt;
-    while ((wc = *fmt) != 0) {
-      fmt++;
+    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0) {
+      fmt += n;
       if (wc == '%') {
         fmt--;
         break;
       }
     }
-    if (wc == 0)
+    if (n <= 0)
       goto done;
     fmt++;    // skip over '%'
 

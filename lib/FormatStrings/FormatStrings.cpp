@@ -37,7 +37,15 @@ NAMESPACE_SC_BEGIN
 static RegisterPass<FormatStringTransform>
 R("formatstrings", "Secure calls to format string functions");
 
-STATISTIC(stat_printf, "Number of calls to printf() that were secured");
+STATISTIC(stat_printf,   "Number of calls to printf() that were secured");
+STATISTIC(stat_fprintf,  "Number of calls to fprintf() that were secured");
+STATISTIC(stat_sprintf,  "Number of calls to sprintf() that were secured");
+STATISTIC(stat_snprintf, "Number of calls to snprintf() that were secured");
+STATISTIC(stat_err,      "Number of calls to err() that were secured");
+STATISTIC(stat_errx,     "Number of calls to errx() that were secured");
+STATISTIC(stat_warn,     "Number of calls to warn() that were secured");
+STATISTIC(stat_warnx,    "Number of calls to warnx() that were secured");
+STATISTIC(stat_syslog,   "Number of calls to syslog() that were secured");
 
 char FormatStringTransform::ID = 0;
 
@@ -46,17 +54,21 @@ char FormatStringTransform::ID = 0;
 // format string function.
 //
 // Inputs:
-//   C - the context to build types from
-//   F - the original function type
+//   C    - the context to build types from
+//   argc - the expected number of (fixed) arguments the function type takes
+//   F    - the original function type
 //
 FunctionType *
 FormatStringTransform::buildTransformedFunctionType(LLVMContext &C,
+                                                    unsigned argc,
                                                     const FunctionType *F)
 {
   const Type *int8ptr = Type::getInt8PtrTy(C);
   FunctionType::param_iterator i     = F->param_begin();
   FunctionType::param_iterator end   = F->param_end();
   vector<const Type *> NewParams;
+
+  assert(F->getNumParams() == argc && "Incorrect number of argument!");
 
   NewParams.push_back(int8ptr);
   while (i != end)
@@ -88,7 +100,15 @@ FormatStringTransform::runOnModule(Module &M)
 
   bool changed = false;
 
-  changed |= transform(M, "printf", "pool_printf", stat_printf);
+  changed |= transform(M, "printf",   1, "pool_printf",   stat_printf);
+  changed |= transform(M, "fprintf",  2, "pool_fprintf",  stat_fprintf);
+  changed |= transform(M, "sprintf",  2, "pool_sprintf",  stat_sprintf);
+  changed |= transform(M, "snprintf", 3, "pool_snprintf", stat_snprintf);
+  changed |= transform(M, "err",      2, "pool_err",      stat_err);
+  changed |= transform(M, "errx",     2, "pool_errx",     stat_errx);
+  changed |= transform(M, "warn",     1, "pool_warn",     stat_warn);
+  changed |= transform(M, "warnx",    1, "pool_warnx",    stat_warnx);
+  changed |= transform(M, "syslog",   2, "pool_syslog",   stat_syslog);
 
   //
   // The transformations use placehold arrays of size 0. This call fills those
@@ -120,14 +140,17 @@ FormatStringTransform::runOnModule(Module &M)
 // Inputs:
 //  M           - a reference to the current Module
 //  name        - the name of the function to transform
+//  argc        - the number of (fixed) arguments to the function
 //  replacement - the name of the replacemant function
-//  stat        - a statistic pertaining to the number of 
+//  stat        - a statistic pertaining to the number of transfomations
+//                that have been performed
 //
 // This function returns true if the module was modified, false otherwise.
 //
 bool
 FormatStringTransform::transform(Module &M,
                                  const char *name,
+                                 unsigned argc,
                                  const char *replacement,
                                  Statistic &stat)
 {
@@ -155,6 +178,7 @@ FormatStringTransform::transform(Module &M,
     return false;
 
   FunctionType *rType = buildTransformedFunctionType(f->getContext(),
+                                                     argc,
                                                      f->getFunctionType());
   Function *found = M.getFunction(replacement);
   assert((found == 0 || found->getFunctionType() == rType) && 
@@ -282,7 +306,7 @@ FormatStringTransform::registerPointerParameter(Instruction *i,
   // Otherwise use the next free PointerInfo structure.
   //
   // First determine if the array of PointerInfo structures has already
-  // been allocated on the stack. If not, do so.
+  // been allocated on the function's stack. If not, do so.
   //
   if (PointerInfoStructures.find(f) == PointerInfoStructures.end())
   {
@@ -310,6 +334,11 @@ FormatStringTransform::registerPointerParameter(Instruction *i,
   const Type *int8     = Type::getInt8Ty(i->getContext());
   const Type *int8ptr  = Type::getInt8PtrTy(i->getContext());
 
+  //
+  // Update the per-function count of the number of pointer_info structures
+  // that are used. This used is for allocating the correct size on the stack in
+  // fillArraySizes().
+  //
   PointerInfoFuncArrayUsage[f] =
     max(PointerInfoFuncArrayUsage[f], 1 + nextStructure);
 
@@ -327,7 +356,8 @@ FormatStringTransform::registerPointerParameter(Instruction *i,
 
   //
   // Create the sc.fsparameter call and insert it before the given instruction.
-  // Also store it for later use if necessary.
+  // Also store it for later use if necessary (if the same parameter is
+  // registered for the same instruction)
   //
   Value *castedParameter = parameter;
   if (castedParameter->getType() != int8ptr)
@@ -409,6 +439,12 @@ FormatStringTransform::registerCallInformation(Instruction *i,
     CallInfoStructUsage[f] = 0;
   }
 
+  //
+  // Update the per-function count of the max size of the whitelist in the
+  // call_info structure. Later fillArraySizes() will allocate a structure
+  // with enough space to hold a whitelist for each registered
+  // call in the function.
+  //
   CallInfoStructUsage[f] = max(CallInfoStructUsage[f], pargc);
 
   Value *cInfo = CallInfoStructures[f];

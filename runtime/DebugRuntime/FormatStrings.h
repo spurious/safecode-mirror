@@ -31,6 +31,7 @@
 #define ISRETRIEVED 0x02 // Whether there has been an attempt made to retrive
                          // the target object's boundaries
 #define HAVEBOUNDS  0x04 // Whether the boundaries were retrieved successfully
+#define NULL_PTR    0x08 // Whether the pointer in the structure is NULL
 
 typedef struct
 {
@@ -59,10 +60,19 @@ typedef struct
     FILE *File;
     struct
     {
+      pointer_info *info;
       char   *string;
       size_t pos;
-      size_t maxsz;
+      size_t maxsz;  // Maximum size of the array that can be written into the
+                     // object safely. (SAFECode-imposed)
+      size_t n;      // The maximum number of bytes to write. (user-imposed)
     } String;
+    struct
+    {
+      char *string;
+      size_t bufsz;
+      size_t pos;
+    } AllocedString;
   } Output;
 } output_parameter;
 
@@ -113,7 +123,9 @@ namespace
       return;
 
     DebugPoolTy *pool = (DebugPoolTy *) P.pool;
-    if ((pool && pool->Objects.find(P.ptr, P.bounds[0], P.bounds[1])) ||
+    if (P.ptr == 0)
+      P.flags |= NULL_PTR;
+    else if ((pool && pool->Objects.find(P.ptr, P.bounds[0], P.bounds[1])) ||
         ExternalObjects.find(P.ptr, P.bounds[0], P.bounds[1]))
     {
       P.flags |= HAVEBOUNDS;

@@ -675,6 +675,14 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"sc.fsparameter",        "__sc_fsparameter"},
       {"sc.fscallinfo",         "__sc_fscallinfo"},
       {"pool_printf",           "pool_printf"},
+      {"pool_fprintf",          "pool_fprintf"},
+      {"pool_sprintf",          "pool_sprintf"},
+      {"pool_snprintf",         "pool_snprintf"},
+      {"pool_err",              "pool_err"},
+      {"pool_errx",             "pool_errx"},
+      {"pool_warn",             "pool_warn"},
+      {"pool_warnx",            "pool_warnx"},
+      {"pool_syslog",           "pool_syslog"},
 
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},

@@ -57,12 +57,14 @@ private:
   const Type *makeCallInfoType(LLVMContext &Context, unsigned argc);
 
   FunctionType *buildTransformedFunctionType(LLVMContext &C,
+                                             unsigned argc,
                                              const FunctionType *F);
 
   void fillArraySizes(Module &M);
 
   bool transform(Module &M,
                  const char *name,
+                 unsigned argc,
                  const char *replacement,
                  Statistic &stat);
 

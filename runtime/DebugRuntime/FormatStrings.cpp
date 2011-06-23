@@ -16,9 +16,13 @@
 #include "PoolAllocator.h"
 #include "DebugReport.h"
 
-#include <wchar.h>
-#include <stdio.h>
+#include <err.h>
+#include <limits.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <syslog.h>
+#include <wchar.h>
 
 #include <iostream>
 using std::cerr;
@@ -35,8 +39,9 @@ using std::endl;
 using namespace NAMESPACE_SC;
 
 //
-// Functions to report errors.
+// Error reporting functions
 //
+
 void out_of_bounds_error(pointer_info *p, size_t obj_len)
 {
   OutOfBoundsViolation v;
@@ -93,6 +98,12 @@ void load_store_error(pointer_info *p)
 }
 
 //
+// Intrinsics
+//
+
+//
+// __sc_fsparameter
+//
 // Store the given pointer/pool/completeness information into a pointer_info
 // structure that gets passed into the transformed format string function.
 //
@@ -117,6 +128,8 @@ void *__sc_fsparameter(void *_pool, void *ptr, void *_dest, uint8_t complete)
   return dest;
 }
 
+//
+// __sc_fscallinfo
 //
 // Register information about a call to a secured format string function.
 // This information is stored into a call_info structure that gets passed into
@@ -154,6 +167,10 @@ void *__sc_fscallinfo(void *_dest, uint32_t vargc, ...)
 }
 
 //
+// Wrappers for standard library functions
+//
+
+//
 // Secure runtime wrapper to replace printf()
 //
 int pool_printf(void *_info, void *_fmt, ...)
@@ -163,7 +180,6 @@ int pool_printf(void *_info, void *_fmt, ...)
   pointer_info *fmt  = (pointer_info *) _fmt;
   call_info    *call = (call_info *)    _info;
   options_t options = 0x0;
-
   //
   // Set up the output parameter structure to point to stdout as the output
   // file.
@@ -171,7 +187,6 @@ int pool_printf(void *_info, void *_fmt, ...)
   output_parameter P;
   P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
   P.Output.File = stdout;
-
   //
   // Lock stdout before calling the function which does the printing.
   //
@@ -184,6 +199,344 @@ int pool_printf(void *_info, void *_fmt, ...)
   return result;
 }
 
+//
+// Secure runtime wrapper to replace fprintf()
+//
+int pool_fprintf(void *_info, void *_dest, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  call_info    *call = (call_info *)    _info;
+  pointer_info *fmt  = (pointer_info *) _fmt;
+  pointer_info *file = (pointer_info *) _dest;
+  options_t options = 0x0;
+  //
+  // Set up the output parameter structure to point to the output file.
+  //
+  output_parameter P;
+  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
+  P.Output.File = (FILE *) file->ptr;
+  //
+  // Lock the file before calling the function which does the printing.
+  //
+  flockfile(P.Output.File);
+  va_start(ap, _fmt);
+  result = gprintf(options, P, *call, *fmt, ap);
+  va_end(ap);
+  funlockfile(P.Output.File);
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace sprintf()
+//
+int pool_sprintf(void *_info, void *_dest, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *call = (call_info *)    _info;
+  pointer_info *str = (pointer_info *) _dest;
+  pointer_info *fmt = (pointer_info *)  _fmt;
+  //
+  // Set up the output parameter to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
+  p.Output.String.string = (char *) str->ptr;
+  p.Output.String.pos    = 0;
+  p.Output.String.info   = str;
+  //
+  // Get the object boundaries of the destination array.
+  //
+  find_object(str);
+  if (str->flags & HAVEBOUNDS)
+    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+  else // If boundaries are not found, assume unlimited length.
+    p.Output.String.maxsz = SIZE_MAX;
+  p.Output.String.n = SIZE_MAX; // The caller didn't place a size limitation.
+
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *call, *fmt, ap);
+  va_end(ap);
+  //
+  // Add the terminator byte.
+  //
+  p.Output.String.string[p.Output.String.pos] = '\0';
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace snprintf()
+//
+int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *call = (call_info *)    _info;
+  pointer_info *str = (pointer_info *) _dest;
+  pointer_info *fmt = (pointer_info *)  _fmt;
+  //
+  // Set up the output parameter to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
+  p.Output.String.string = (char *) str->ptr;
+  p.Output.String.pos    = 0;
+  p.Output.String.info   = str;
+  //
+  // Get the object boundaries of the destination array.
+  //
+  find_object(str);
+  if (str->flags & HAVEBOUNDS)
+    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+  else // If boundaries are not found, assume unlimited length.
+    p.Output.String.maxsz = SIZE_MAX;
+  if (n > 0)
+    p.Output.String.n = n - 1; // Caller-imposed size limitation.
+  else
+    p.Output.String.n = 0;     // Don't write anything.
+
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *call, *fmt, ap);
+  va_end(ap);
+  //
+  // Add the terminator byte, if n is not 0.
+  //
+  if (n > 0)
+    p.Output.String.string[p.Output.String.pos] = '\0';
+
+  return result;
+}
+
+//
+// This is the size of the string to initially allocate for printing into.
+//
+static const size_t INITIAL_ALLOC_SIZE = 64;
+//
+// If the wrapper function needs to print the formatted result using another
+// function, but there's been an error during the formatting, it uses this
+// message instead.
+//
+static const char *message_error = "SAFECode: error building message";
+
+//
+// Secure runtime wrapper to replace err()
+//
+void pool_err(void *_info, int eval, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // On a NULL format string, no formatted message is output.
+  //
+  if (fmt->ptr == 0)
+    err(eval, 0); // Doesn't return.
+  //
+  // Set up the output parameter to allocate space to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
+  p.Output.AllocedString.pos    = 0;
+  //
+  // Print into the allocated string.
+  //
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *info, *fmt, ap);
+  va_end(ap);
+  //
+  // Print the resulting string if there was no error making it.
+  //
+  if (result < 0)
+    err(eval, message_error);
+  else
+    // This call exits the program; we can't free the allocated string.
+    err(eval, "%.*s", result, p.Output.AllocedString.string);
+}
+
+//
+// Secure runtime wrapper to replace errx()
+//
+void pool_errx(void *_info, int eval, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // On a NULL format string, no formatted message is output.
+  //
+  if (fmt->ptr == 0)
+    errx(eval, 0); // Doesn't return.
+  //
+  // Set up the output parameter to allocate space to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
+  p.Output.AllocedString.pos    = 0;
+  //
+  // Print into the allocated string.
+  //
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *info, *fmt, ap);
+  va_end(ap);
+  //
+  // Print the resulting string if there was no error making it.
+  //
+  if (result < 0)
+    errx(eval, message_error);
+  else
+    // This call exits the program; we can't free the allocated string.
+    errx(eval, "%.*s", result, p.Output.AllocedString.string);
+}
+
+//
+// Secure runtime wrapper to replace warn()
+//
+void pool_warn(void *_info, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // On a NULL format string, no formatted message is output.
+  //
+  if (fmt->ptr == 0)
+  {
+    warn(0);
+    return;
+  }
+  //
+  // Set up the output parameter to allocate space to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
+  p.Output.AllocedString.pos    = 0;
+  //
+  // Print into the allocated string.
+  //
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *info, *fmt, ap);
+  va_end(ap);
+  //
+  // Print and free the resulting string if there was no error making it.
+  //
+  if (result < 0)
+    warn(message_error);
+  else
+  {
+    warn("%.*s", result, p.Output.AllocedString.string);
+    free(p.Output.AllocedString.string);
+  }
+  return;
+}
+
+//
+// Secure runtime wrapper to replace warnx()
+//
+void pool_warnx(void *_info, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // On a NULL format string, no formatted message is output.
+  //
+  if (fmt->ptr == 0)
+  {
+    warnx(0);
+    return;
+  }
+  //
+  // Set up the output parameter to allocate space to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
+  p.Output.AllocedString.pos    = 0;
+  //
+  // Print into the allocated string.
+  //
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *info, *fmt, ap);
+  va_end(ap);
+  //
+  // Print and free the resulting string if there was no error making it.
+  //
+  if (result < 0)
+    warnx(message_error);
+  else
+  {
+    warnx("%.*s", result, p.Output.AllocedString.string);
+    free(p.Output.AllocedString.string);
+  }
+  return;
+}
+
+//
+// Secure runtime wrapper to replace syslog()
+//
+void pool_syslog(void *_info, int priority, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // Set up the output parameter to allocate space to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
+  p.Output.AllocedString.pos    = 0;
+  //
+  // Print into the allocated string.
+  //
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *info, *fmt, ap);
+  va_end(ap);
+  //
+  // Print and free the resulting string if there was no error making it.
+  //
+  if (result < 0)
+    syslog(priority, message_error);
+  else
+  {
+    syslog(priority, "%.*s", result, p.Output.AllocedString.string);
+    free(p.Output.AllocedString.string);
+  }
+  return;
+}
+
+//
+// gprintf
 //
 // Secure general printf()-family replacement
 //
@@ -229,6 +582,7 @@ gprintf(const options_t &Options,
   if (Fmt == 0)
   {
     cerr << "NULL format string!" << endl;
+    c_library_error("printf");
     return 0;
   }
   //
