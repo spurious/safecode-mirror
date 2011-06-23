@@ -633,23 +633,27 @@ pool_strcmp_debug(DebugPoolTy *str1Pool,
   size_t str1Size = 0, str2Size = 0;
   void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
 
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
+  const bool str1Complete = ARG1_COMPLETE(complete);
+  const bool str2Complete = ARG2_COMPLETE(complete);
+  bool str1ObjFound, str2ObjFound;
 
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
+  if (!(str1ObjFound = pool_find(str1Pool, (void*)str1, str1Begin, str1End))
+      && str1Complete) {
     std::cout << "String 1 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
+  if (!(str2ObjFound = pool_find(str2Pool, (void*)str2, str2Begin, str2End))
+      && str2Complete) {
     std::cout << "String 2 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
 
   // Check if strings are terminated.
-  if (!isTerminated(str1, str1End, str1Size)) {
+  if (str1ObjFound && !isTerminated(str1, str1End, str1Size)) {
     std::cout << "String 1 not terminated within bounds!\n";
     OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
   }
-  if (!isTerminated(str2, str2End, str2Size)) {
+  if (str2ObjFound && !isTerminated(str2, str2End, str2Size)) {
     std::cout << "String 2 not terminated within bounds!\n";
     OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
   }
@@ -783,25 +787,33 @@ pool_memmove_debug(DebugPoolTy *dstPool,
   size_t dstSize = 0, srcSize = 0, stop = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
 
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  //assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound, srcFound;
 
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd))
+     && dstComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+     && srcComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
 
-  // Calculate the maximum number of bytes to copy.
-  dstSize = (char *)dstEnd - (char *)dst + 1;
-  srcSize = (char *)srcEnd - (char *)src + 1;
-  stop = std::min(n, srcSize);
-  if (n > srcSize || n > dstSize) {
-    std::cout << "Cannot copy more bytes than the size of the source!\n";
-    WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+  if (dstFound && srcFound)
+  {
+    // Calculate the maximum number of bytes to copy.
+    dstSize = (char *)dstEnd - (char *)dst + 1;
+    srcSize = (char *)srcEnd - (char *)src + 1;
+    stop = std::min(n, srcSize);
+    if (n > srcSize || n > dstSize) {
+      std::cout << "Cannot copy more bytes than the size of the source!\n";
+      WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+    }
   }
 
   memmove(dst, src, stop);
@@ -853,33 +865,40 @@ pool_mempcpy_debug(DebugPoolTy *dstPool,
 
   size_t dstSize = 0, srcSize = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound, srcFound;
 
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  // assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd))
+     && dstComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+     && srcComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
 
-  // Calculate the maximum number of bytes to copy.
-  dstSize = (char *)dstEnd - (char *)dst + 1;
-  srcSize = (char *)srcEnd - (char *)src + 1;
-  // Check that copy size is too big
-  if (n > srcSize || n > dstSize) {
-    std::cout << "Cannot copy more bytes than the size of the source!\n";
-    WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+  if (dstFound && srcFound)
+  {
+    // Calculate the maximum number of bytes to copy.
+    dstSize = (char *)dstEnd - (char *)dst + 1;
+    srcSize = (char *)srcEnd - (char *)src + 1;
+    // Check that copy size is too big
+    if (n > srcSize || n > dstSize) {
+      std::cout << "Cannot copy more bytes than the size of the source!\n";
+      WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+    }
+    // Check if two memory object overlap
+    if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
+      std::cout<<"Two memory objects overlap each other!/n";
+      LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+    }
   }
-  // Check if two memory object overlap
-  if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
-    std::cout<<"Two memory objects overlap each other!/n";
-    LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
-  }
-
  
   return  mempcpy(dst, src, n);
 }
@@ -924,17 +943,20 @@ pool_memset_debug(DebugPoolTy *stringPool,
                   SRC_INFO){
   size_t stringSize = 0;
   void *stringBegin = string, *stringEnd = NULL;
+  const bool objComplete = ARG1_COMPLETE(complete);
+  bool objFound;
 
   assert(stringPool && string && "Null pool parameters!");
 
-  // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(stringPool, (void*)string, stringBegin, stringEnd)){
+  //// Retrieve both the destination and source buffer's bounds from the pool handle.
+  if(!(objFound = pool_find(stringPool, (void*)string, stringBegin, stringEnd))
+     && objComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(string,stringPool, SRC_INFO_ARGS);
   }
 
   stringSize = (char *)stringEnd - (char *)string + 1;
-  if (n > stringSize) {
+  if (objFound && n > stringSize) {
     std::cout << "Cannot write more bytes than the size of the destination string!\n";
     WRITE_VIOLATION(stringBegin, stringPool, stringSize, 0, SRC_INFO_ARGS);
   }
@@ -980,16 +1002,21 @@ pool_strcpy_debug(DebugPoolTy *dstPool,
                   SRC_INFO) {
   size_t dstSize = 0, srcSize = 0, len = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound, srcFound;
 
   // Ensure all valid pointers.
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  // assert(dstPool && srcPool && dst && src && "Null pool parameters!");
   
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd))
+     && dstComplete) {
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+     && srcComplete) {
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
@@ -997,21 +1024,27 @@ pool_strcpy_debug(DebugPoolTy *dstPool,
   // Calculate the maximum number of bytes to copy.
   dstSize = (char *)dstEnd - (char *)dst + 1;
   srcSize = (char *)srcEnd - (char *)src + 1;
-  len = strnlen(src,srcSize);
+  if (srcFound)
+  {
+    len = strnlen(src,srcSize);
 
-  if (len == srcSize) {
-    std::cout << "Source string is not NULL terminated!\n";
-    OOB_VIOLATION(src,srcPool,src,len,SRC_INFO_ARGS);
-  }
+    if (len == srcSize) {
+      std::cout << "Source string is not NULL terminated!\n";
+      OOB_VIOLATION(src,srcPool,src,len,SRC_INFO_ARGS);
+    }
 
-  if (len+1 > dstSize) {
-    std::cout << "Cannot copy more bytes than the size of the source!\n";
-    WRITE_VIOLATION(dstBegin, dstPool, dstSize, srcSize, SRC_INFO_ARGS);
-  }
+    if (dstFound)
+    {
+      if (len+1 > dstSize) {
+        std::cout << "Cannot copy more bytes than the size of the source!\n";
+        WRITE_VIOLATION(dstBegin, dstPool, dstSize, srcSize, SRC_INFO_ARGS);
+      }
 
-  if(isOverlapped(dst,(const char*)dst+len,src,(const char*)src+len)){ 
-    std::cout<<"Two memory objects overlap each other!\n";
-    LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+      if(isOverlapped(dst,(const char*)dst+len,src,(const char*)src+len)){ 
+        std::cout<<"Two memory objects overlap each other!\n";
+        LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+      }
+    }
   }
 
   strncpy(dst, src, len+1);
@@ -1038,36 +1071,34 @@ pool_strlen(DebugPoolTy *stringPool,
 /**
  * Secure runtime wrapper function to replace strlen()
  *
- * @param   stringPool  Pool handle for the string
- * @param   string      String pointer
+ * @param   strPool  Pool handle for the string
+ * @param   str      String pointer
  * @return  Length of the string
  */
 size_t
-pool_strlen_debug(DebugPoolTy *stringPool, 
-                  const char *string, 
+pool_strlen_debug(DebugPoolTy *strPool, 
+                  const char *str, 
                   const uint8_t complete, 
                   TAG, 
                   SRC_INFO) {
-  size_t len = 0, maxlen = 0;
-  void *stringBegin = (char *)string, *stringEnd = NULL;
+  const bool strComplete = ARG1_COMPLETE(complete);
+  bool strFound;
+  size_t len = 0;
+  void *strBegin = 0, *strEnd = 0;
 
-  assert(stringPool && string && "Null pool parameters!");
-  // Retrieve the string bound from pool
-  if(!pool_find(stringPool, (void*)string, stringBegin, stringEnd)){
-    std::cout<<"Memory object not found in pool!\n";
-    LOAD_STORE_VIOLATION(string,stringPool, SRC_INFO_ARGS);
+  if (!(strFound = pool_find(strPool, (void *) str, strBegin, strEnd)) &&
+      strComplete)
+  {
+    LOAD_STORE_VIOLATION(str, strPool, SRC_INFO_ARGS);
   }
-  
-  // Null termination check
-  maxlen = (char *)stringEnd - (char *)string+1;
-  len = strnlen(string, maxlen);
-
-  if (len  == maxlen) {
-    std::cout << "String not terminated within bounds!\n";
-    OOB_VIOLATION(string,stringPool,string,len, SRC_INFO_ARGS);
+  if (strFound)
+  {
+    if (!isTerminated(str, strEnd, len))
+      C_LIBRARY_VIOLATION(str, strPool, "strlen", SRC_INFO_ARGS);
+    else
+      return len;
   }
-
-  return len;
+  return strlen(str);
 }
 
 //// FIXME: WHen it is tested, compiled program outputs "Illegal Instruction"
@@ -1113,15 +1144,20 @@ pool_strncpy_debug(DebugPoolTy *dstPool,
                    SRC_INFO){
   size_t dstSize = 0, srcSize = 0, stop = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
+  bool dstFound, srcFound;
 
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  // assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
- // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  // Retrieve both the destination and source buffer's bounds from the pool handle.
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd)) &&
+     dstComplete) {
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+     && srcComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
@@ -1132,24 +1168,26 @@ pool_strncpy_debug(DebugPoolTy *dstPool,
   stop = strnlen(src,srcSize);
   // If source string is not bounded and copy length is longer than the source object
   // Behavior is undefined
-  if (stop==srcSize && n > srcSize) {
+  if (srcFound && stop==srcSize && n > srcSize) {
     std::cout << "String is not bounded and copy length is out of bound!\n";
     WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
   }
   // Check if destination will be overflowed
-  if (n > dstSize) {
+  if (dstFound && n > dstSize) {
     std::cout << "Cannot copy more bytes than the size of the source!\n";
     WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
   }
   // Check if two strings are over lapped
-  if(isOverlapped(dst,(const char*)dst+stop-1,src,(const char*)src+stop-1)){ 
+  if(srcFound && dstFound &&
+     isOverlapped(dst,(const char*)dst+stop-1,src,(const char*)src+stop-1)){ 
     std::cout<<"Two memory objects overlap each other!/n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
   // Copy string 
   strncpy_asm(dst, src, stop+1);
   // Check whether result string is NULL terminated
-  if(!isTerminated(dst,dstEnd,stop)){
+  // FIXME: Is this necessary?
+  if(dstFound && !isTerminated(dst,dstEnd,stop)){
     std::cout<<"NULL terminator is not copied!\n";
     OOB_VIOLATION(dst,dstPool,dst,stop,SRC_INFO_ARGS);
   }
@@ -1191,10 +1229,13 @@ pool_strnlen_debug(DebugPoolTy *stringPool,
                    SRC_INFO) {
   size_t len = 0, difflen = 0;
   void *stringBegin = (char *)string, *stringEnd = NULL;
+  const bool strComplete = ARG1_COMPLETE(complete);
+  bool strFound;
 
-  assert(stringPool && string && "Null pool parameters!");
+  // assert(stringPool && string && "Null pool parameters!");
   // Retrieve string from the pool
-  if(!pool_find(stringPool, (void*)string, stringBegin, stringEnd)){
+  if(!(strFound = pool_find(stringPool, (void*)string, stringBegin, stringEnd))
+     && strComplete) {
     std::cout<<"String not found in pool!\n";
     LOAD_STORE_VIOLATION(string,stringPool, SRC_INFO_ARGS);
   }
@@ -1202,7 +1243,7 @@ pool_strnlen_debug(DebugPoolTy *stringPool,
   difflen = (char *)stringEnd - (char *)string +1;
   len = strnlen(string, difflen);
   // If the string is not terminated within range and maxlen is bigger than object size
-  if(maxlen > len && len==difflen){
+  if(strFound && maxlen > len && len==difflen){
     std::cout<<"String is not bounded!\n";
     OOB_VIOLATION(string,stringPool,string,difflen,SRC_INFO_ARGS);
   }
@@ -1251,14 +1292,19 @@ pool_strncmp_debug(DebugPoolTy *str1Pool,
 
   size_t str1Size = 0, str2Size = 0;
   void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
+  const bool str1Complete = ARG1_COMPLETE(complete);
+  const bool str2Complete = ARG2_COMPLETE(complete);
+  bool str1Found, str2Found;
 
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
+  // assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
 
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
+  if (!(str1Found = pool_find(str1Pool, (void*)str1, str1Begin, str1End))
+      && str1Complete) {
     std::cout << "String 1 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
+  if (!(str2Found = pool_find(str2Pool, (void*)str2, str2Begin, str2End))
+      && str2Complete) {
     std::cout << "String 2 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
@@ -1266,11 +1312,11 @@ pool_strncmp_debug(DebugPoolTy *str1Pool,
   str1Size = (char*) str1End - str1+1;
   str2Size = (char*) str2End - str2+1;  
 
-  if (str1Size<num) {
+  if (str1Found && str1Size<num) {
     std::cout << "Possible read out of bound in string1!\n";
     OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
   }
-  if (str2Size<num) {
+  if (str2Found && str2Size<num) {
     std::cout << "Possible read out of bound in string2!\n";
     OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
   }
@@ -1320,14 +1366,19 @@ pool_memcmp_debug(DebugPoolTy *str1Pool,
 
   size_t str1Size = 0, str2Size = 0;
   void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
+  const bool str1Complete = ARG1_COMPLETE(complete);
+  const bool str2Complete = ARG2_COMPLETE(complete);
+  bool str1Found, str2Found;
 
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
+  // assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
 
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
+  if (!(str1Found = pool_find(str1Pool, (void*)str1, str1Begin, str1End))
+      && str1Complete) {
     std::cout << "String 1 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
+  if (!(str2Found = pool_find(str2Pool, (void*)str2, str2Begin, str2End))
+      && str2Complete) {
     std::cout << "String 2 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
@@ -1335,11 +1386,11 @@ pool_memcmp_debug(DebugPoolTy *str1Pool,
   str1Size = (char*) str1End - (char*)str1+1;
   str2Size = (char*) str2End - (char*)str2+1;  
 
-  if (str1Size<num) {
+  if (str1Found && str1Size<num) {
     std::cout << "Possible read out of bound in string1!\n";
     OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
   }
-  if (str2Size<num) {
+  if (str2Found && str2Size<num) {
     std::cout << "Possible read out of bound in string2!\n";
     OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
   }
@@ -1387,24 +1438,29 @@ pool_strspn_debug(DebugPoolTy *str1Pool,
 
   size_t str1Size = 0, str2Size = 0;
   void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
+  const bool str1Complete = ARG1_COMPLETE(complete);
+  const bool str2Complete = ARG2_COMPLETE(complete);
+  bool str1Found, str2Found;
 
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
+  // assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
 
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
+  if (!(str1Found = pool_find(str1Pool, (void*)str1, str1Begin, str1End))
+      && str1Complete) {
     std::cout << "String 1 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
+  if (!(str2Found = pool_find(str2Pool, (void*)str2, str2Begin, str2End))
+      && str2Complete) {
     std::cout << "String 2 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
 
   // Check if strings are terminated.
-  if (!isTerminated(str1, str1End, str1Size)) {
+  if (str1Found && !isTerminated(str1, str1End, str1Size)) {
     std::cout << "String 1 not terminated within bounds!\n";
     OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
   }
-  if (!isTerminated(str2, str2End, str2Size)) {
+  if (str2Found && !isTerminated(str2, str2End, str2Size)) {
     std::cout << "String 2 not terminated within bounds!\n";
     OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
   }
@@ -1441,33 +1497,38 @@ int pool_strcspn(DebugPoolTy *s1p,
  *          consist of any characters from str2.
  */
 int pool_strcspn_debug(DebugPoolTy *str1Pool,
-                DebugPoolTy *str2Pool, 
-                      const char *str1, 
-                      const char *str2,
-                      const uint8_t complete,
-          TAG,
-                      SRC_INFO) {
+                       DebugPoolTy *str2Pool, 
+                       const char *str1, 
+                       const char *str2,
+                       const uint8_t complete,
+                       TAG,
+                       SRC_INFO) {
 
   size_t str1Size = 0, str2Size = 0;
   void *str1Begin =(void*)str1, *str1End = NULL, *str2Begin = (void*)str2, *str2End = NULL;
+  const bool str1Complete = ARG1_COMPLETE(complete);
+  const bool str2Complete = ARG2_COMPLETE(complete);
+  bool str1Found, str2Found;
 
-  assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
+  // assert(str1Pool && str2Pool && str2 && str1 && "Null pool parameters!");
 
-  if (!pool_find(str1Pool, (void*)str1, str1Begin, str1End)) {
+  if (!(str1Found = pool_find(str1Pool, (void*)str1, str1Begin, str1End))
+      && str1Complete) {
     std::cout << "String 1 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
-  if (!pool_find(str2Pool, (void*)str2, str2Begin, str2End)) {
+  if (!(str2Found = pool_find(str2Pool, (void*)str2, str2Begin, str2End))
+      && str2Complete) {
     std::cout << "String 2 not found in pool!\n";
     LOAD_STORE_VIOLATION(str1Begin, str1Pool, SRC_INFO_ARGS);
   }
 
   // Check if strings are terminated.
-  if (!isTerminated(str1, str1End, str1Size)) {
+  if (str1Found && !isTerminated(str1, str1End, str1Size)) {
     std::cout << "String 1 not terminated within bounds!\n";
     OOB_VIOLATION(str1Begin, str1Pool, str1Begin, str1Size, SRC_INFO_ARGS);
   }
-  if (!isTerminated(str2, str2End, str2Size)) {
+  if (str2Found && !isTerminated(str2, str2End, str2Size)) {
     std::cout << "String 2 not terminated within bounds!\n";
     OOB_VIOLATION(str2Begin, str2Pool, str2Begin, str2Size, SRC_INFO_ARGS);
   }
@@ -1511,24 +1572,32 @@ pool_memchr_debug(DebugPoolTy *stringPool,
                   SRC_INFO){
   size_t stringSize = 0;
   void *stringBegin = string, *stringEnd = NULL, *stop= NULL;
+  const bool strComplete = ARG1_COMPLETE(complete);
+  bool strFound;
 
-  assert(stringPool && string && "Null pool parameters!");
+  //assert(stringPool && string && "Null pool parameters!");
 
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(stringPool, (void*)string, stringBegin, stringEnd)){
+  if(!(strFound = pool_find(stringPool, (void*)string, stringBegin, stringEnd))
+     && strComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(string,stringPool, SRC_INFO_ARGS);
   }
 
-  stringSize = (char *)stringEnd - (char *)string + 1;
-  stop = memchr(string,c,stringSize);
-  if (stop && (char*)stop<(char*)string+std::min(n,stringSize))
-    return stop;
-  else {
-    std::cout << "Possible read out of bound in memory object!\n";
-    OOB_VIOLATION(stringBegin, stringPool, stringBegin, stringSize, SRC_INFO_ARGS);
-    return NULL;
+  if (strFound)
+  {
+    stringSize = (char *)stringEnd - (char *)string + 1;
+    stop = memchr(string,c,stringSize);
+    if (stop && (char*)stop<(char*)string+std::min(n,stringSize))
+      return stop;
+    else {
+      std::cout << "Possible read out of bound in memory object!\n";
+      OOB_VIOLATION(stringBegin, stringPool, stringBegin, stringSize, SRC_INFO_ARGS);
+      return NULL;
+    }
   }
+  else
+    return memchr(string, c, n);
 }
 
 /**
@@ -1580,44 +1649,53 @@ pool_memccpy_debug(DebugPoolTy *dstPool,
 
   size_t dstSize = 0, srcSize = 0;
   void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL, *stop = NULL;
+  const bool dstComplete = ARG1_COMPLETE(complete);
+  const bool srcComplete = ARG2_COMPLETE(complete);
 
-  assert(dstPool && srcPool && dst && src && "Null pool parameters!");
+  bool dstFound, srcFound;
+
+  //assert(dstPool && srcPool && dst && src && "Null pool parameters!");
 
   // Retrieve both the destination and source buffer's bounds from the pool handle.
-  if(!pool_find(dstPool, (void*)dst, dstBegin, dstEnd)){
+  if(!(dstFound = pool_find(dstPool, (void*)dst, dstBegin, dstEnd))
+     && dstComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
   }
-  if(!pool_find(srcPool, (void*)src, srcBegin, srcEnd)){
+  if(!(srcFound = pool_find(srcPool, (void*)src, srcBegin, srcEnd))
+     && srcComplete){
     std::cout<<"Memory object not found in pool!\n";
     LOAD_STORE_VIOLATION(src,srcPool, SRC_INFO_ARGS);
   }
 
-  // Calculate the maximum number of bytes to copy.
-  dstSize = (char *)dstEnd - (char *)dst + 1;
-  srcSize = (char *)srcEnd - (char *)src + 1;
-  stop= memchr((void*)src,c,srcSize);
-  if(!stop){
-    
-    if (n > srcSize) {
-      std::cout << "Cannot copy more bytes than the size of the source!\n";
-      WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
-    }
+  if (dstFound && srcFound)
+  {
+    // Calculate the maximum number of bytes to copy.
+    dstSize = (char *)dstEnd - (char *)dst + 1;
+    srcSize = (char *)srcEnd - (char *)src + 1;
+    stop= memchr((void*)src,c,srcSize);
+    if(!stop){
+      
+      if (n > srcSize) {
+        std::cout << "Cannot copy more bytes than the size of the source!\n";
+        WRITE_VIOLATION(srcBegin, srcPool, dstSize, srcSize, SRC_INFO_ARGS);
+      }
 
-    if (n >dstSize) {
+      if (n >dstSize) {
+        std::cout << "Cannot copy more bytes than the size of the destination!\n";
+        WRITE_VIOLATION(dstBegin, dstPool, dstSize, srcSize, SRC_INFO_ARGS);
+      }
+
+      if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
+        std::cout<<"Two memory objects overlap each other!/n";
+        LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
+      }
+    }
+    
+    if((size_t)((char*)stop-(char*)src+1)>dstSize){
       std::cout << "Cannot copy more bytes than the size of the destination!\n";
       WRITE_VIOLATION(dstBegin, dstPool, dstSize, srcSize, SRC_INFO_ARGS);
     }
-
-    if(isOverlapped(dst,(const char*)dst+n-1,src,(const char*)src+n-1)){ 
-      std::cout<<"Two memory objects overlap each other!/n";
-      LOAD_STORE_VIOLATION(dst,dstPool, SRC_INFO_ARGS);
-    }
-  }
-  
-  if((size_t)((char*)stop-(char*)src+1)>dstSize){
-    std::cout << "Cannot copy more bytes than the size of the destination!\n";
-    WRITE_VIOLATION(dstBegin, dstPool, dstSize, srcSize, SRC_INFO_ARGS);
   }
 
   memccpy(dst, src, c, n);
