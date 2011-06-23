@@ -18,12 +18,14 @@ SOURCES = dmisc.c dtoa.c gdtoa.c gmisc.c hdtoa.c ldtoa.c misc.c
 #
 include $(LEVEL)/Makefile.common
 
-arith.h: $(PROJ_SRC_ROOT)/runtime/FloatConversion/arithchk.c
-	$(CC) $(PROJ_SRC_ROOT)/runtime/FloatConversion/arithchk.c
-	./a.out >arith.h
+SRCPATH=$(PROJ_SRC_ROOT)/runtime/FloatConversion
+
+arith.h: $(SRCPATH)/arithchk.c
+	$(CC) $(SRCPATH)/arithchk.c
+	./a.out >$(SRCPATH)/arith.h
 	rm -f a.out
 
-gd_qnan.h: arith.h qnan.c
-	$(CC) $(PROJ_SRC_ROOT)/runtime/FloatConversion/qnan.c
-	./a.out >gd_qnan.h
+gd_qnan.h: $(SRCPATH)/arith.h $(SRCPATH)/qnan.c
+	$(CC) $(SRCPATH)/qnan.c
+	./a.out >$(SRCPATH)/gd_qnan.h
 	rm -f a.out
