@@ -25,6 +25,11 @@
 #include "PoolAllocator.h"
 
 //
+// Enable support for floating point numbers.
+//
+#define FLOATING_POINT
+
+//
 // The pointer_info structure and associated flags
 // This holds a pointer argument to a format string function.
 // This structure is initialized by a call to sc.fsparameter.

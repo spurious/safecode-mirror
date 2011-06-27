@@ -257,7 +257,7 @@ o_collect(int c,
   return bufp == inp_buf ? 0 : bufp - 1;
 }
 
-#ifndef NOFLOAT
+#ifdef FLOATING_POINT
 
 #include "ScanfTables.h"
 //
@@ -505,7 +505,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   int  ic = EOF;              // the input character
   char Xtable[NR_CHARS];      // table for %[...] scansets
   char inp_buf[NUMLEN + 1];   // buffer to hold numerical inputs
-#ifndef NOFLOAT
+#ifdef FLOATING_POINT
   long double ld_val;
 #endif
   const char *format = fmt;
@@ -952,7 +952,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
           *str = '\0';  
         }
         break;
-#ifndef NOFLOAT
+#ifdef FLOATING_POINT
       //
       // Floating point specifiers: %e, %E, %f, %g, %G
       //

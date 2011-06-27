@@ -42,12 +42,32 @@ using namespace NAMESPACE_SC;
 // Error reporting functions
 //
 
+//
+// Use this to check if a pointer_info structure is whitelisted.
+// The error reporting functions will only attempt to access whitelisted
+// pointer_info structures because other ones may be invalid.
+//
+static inline bool
+is_in_whitelist(call_info *c, pointer_info *p)
+{
+  void **whitelist = c->whitelist;
+  do
+  {
+    if ((void *) p == *whitelist)
+      break;
+    whitelist++;
+  } while (*whitelist);
+  return (*whitelist != 0);
+}
+
+#define pointer_info_value(c, p) is_in_whitelist(c, p) ? p->ptr : (void *) p
+
 void out_of_bounds_error(call_info *c, pointer_info *p, size_t obj_len)
 {
   OutOfBoundsViolation v;
   v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = p->ptr;
+  v.faultPtr    = pointer_info_value(c, p);
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -64,7 +84,7 @@ void write_out_of_bounds_error(call_info *c,
   WriteOOBViolation v;
   v.type        = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = p->ptr;
+  v.faultPtr    = pointer_info_value(c, p);
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -92,7 +112,7 @@ void load_store_error(call_info *c, pointer_info *p)
   DebugViolationInfo v;
   v.type        = ViolationInfo::FAULT_LOAD_STORE;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = p->ptr;
+  v.faultPtr    = pointer_info_value(c, p);
   v.dbgMetaData = NULL;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;

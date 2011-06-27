@@ -79,9 +79,6 @@ using std::min;
 
 using namespace NAMESPACE_SC;
 
-// Enable floating point number support
-#define FLOATING_POINT
-
 struct __siov
 {
   char *iov_base;
