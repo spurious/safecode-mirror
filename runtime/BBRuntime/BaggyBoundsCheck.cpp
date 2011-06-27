@@ -44,6 +44,7 @@
 
 #define TAG unsigned tag
 
+#define SIZE ((size_t)(1L << 43))
 #define DEBUG(x)
 
 NAMESPACE_SC_BEGIN
@@ -145,7 +146,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // Initialize the baggy bounds table
   __baggybounds_size_table_begin = NULL;
   __baggybounds_size_table_begin = 
-    (unsigned char*) mmap(0, ((size_t)(1024*1024*1024)*(size_t)(64*1024)), 
+    (unsigned char*) mmap(0, SIZE, 
                           PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, 
                           -1, 0);
 
