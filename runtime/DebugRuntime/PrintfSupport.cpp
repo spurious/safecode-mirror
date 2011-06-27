@@ -104,7 +104,7 @@ struct __suio
 // Return nonzero on error, zero on success.
 //
 static int
-do_output(output_parameter &P, struct __suio &uio)
+do_output(call_info &C, output_parameter &P, struct __suio &uio)
 {
   //
   // Do a write to an output file if that's the output destination.
@@ -148,11 +148,11 @@ do_output(output_parameter &P, struct __suio &uio)
       if (pos < msz && amt > msz - pos)
       {
         cerr << "Destination string not long enough!" << endl;
-        write_out_of_bounds_error(P.Output.String.info, msz, pos + amt);
+        write_out_of_bounds_error(&C, P.Output.String.info, msz, pos + amt);
       }
       //
       // Check to see if the we'll reach the user imposed size.
-      // If so, fill the string to max capacity and return.
+      // If so, fill the string to the allowed capacity and return.
       //
       if (amt > n - pos)
       {
@@ -224,14 +224,14 @@ object_len(pointer_info *p)
 // least n.
 //
 static inline bool
-write_check(pointer_info *P, size_t n)
+write_check(call_info *C, pointer_info *P, size_t n)
 {
   size_t max;
-  find_object(P);
+  find_object(C, P);
   if (P->flags & NULL_PTR)
   {
     cerr << "Writing into a NULL pointer!" << endl;
-    c_library_error("printf");
+    c_library_error(C, "printf");
     return false;
   }
   else if (P->flags & HAVEBOUNDS)
@@ -240,7 +240,7 @@ write_check(pointer_info *P, size_t n)
     if (n > max)
     {
       cerr << "Writing out of bounds!" << endl;
-      write_out_of_bounds_error(P, max, n);
+      write_out_of_bounds_error(C, P, max, n);
       return false;
     }
     else
@@ -256,7 +256,7 @@ write_check(pointer_info *P, size_t n)
 // Check if too many arguments are accessed, if so, report an error.
 //
 static inline void
-varg_check(int pos, int total, bool *flag)
+varg_check(call_info *c, int pos, int total, bool *flag)
 {
   if (pos > total)
   {
@@ -270,7 +270,7 @@ varg_check(int pos, int total, bool *flag)
       cerr << "Attempting to access argument " << pos << \
         " but there are only " << total << "arguments!" << endl;
     }
-    c_library_error("va_arg");
+    c_library_error(c, "va_arg");
     *flag = true;
   }
 }
@@ -279,7 +279,7 @@ varg_check(int pos, int total, bool *flag)
 // Determine if the given pointer parameter exists in the whitelist.
 //
 static inline pointer_info *
-check_whitelist(void **whitelist, void *p)
+check_whitelist(call_info *c, void **whitelist, void *p)
 {
   while (*whitelist)
   {
@@ -288,7 +288,7 @@ check_whitelist(void **whitelist, void *p)
     ++whitelist;
   }
   cerr << "Attempting to access a non-pointer parameter as a pointer!" << endl;
-  c_library_error("va_arg");
+  c_library_error(c, "va_arg");
   return NULL; 
 }
 
@@ -313,14 +313,15 @@ getptrarg(void **whitelist, void *p)
 //
 // Secured va_arg() which checks if too many arguments are accessed
 //
+// c     - a pointer to the call_info structure
 // fl    - flag to set to true if too many arguments are accessed
 // pos   - the argument number currently being accessed
 // total - the total number of variable arguments
 // ap    - the va_list
 // type  - the type of the argument to be accessed
 //
-#define va_sarg(fl, pos, total, ap, type) \
-  (varg_check(pos, total, fl),            \
+#define va_sarg(c, fl, pos, total, ap, type) \
+  (varg_check(c, pos, total, fl),            \
    va_arg(ap, type))
 
 union arg
@@ -413,7 +414,8 @@ static int exponent(char *, int, int);
 // IMPORTANT IMPLEMENTATION LIMITATIONS
 //   - No support for printing wide characters (%ls or %lc)
 //   - Floating point number printing is not thread safe
-//   - No support for locale defined thousands grouping (the "'" flag)
+//   - No support for (nonstandard) locale-defined thousands grouping
+//     (the "'" flag)
 //
 int
 internal_printf(const options_t &options,
@@ -527,7 +529,7 @@ internal_printf(const options_t &options,
   uio.uio_resid += (len); \
   iovp++; \
   if (++uio.uio_iovcnt >= NIOV) { \
-    if (do_output(P, uio)) \
+    if (do_output(CInfo, P, uio)) \
       goto error; \
     iovp = iov; \
   } \
@@ -563,7 +565,7 @@ internal_printf(const options_t &options,
 // Flush any output buffers yet to be printed.
 //
 #define FLUSH() do { \
-  if (uio.uio_resid && do_output(P, uio)) \
+  if (uio.uio_resid && do_output(CInfo, P, uio)) \
     goto error; \
   uio.uio_iovcnt = 0; \
   iovp = iov; \
@@ -652,16 +654,16 @@ internal_printf(const options_t &options,
 //
 #define GETARG(type)                                           \
   ((argtable != NULL) ?                                        \
-    (varg_check(nextarg, vargc, &oob),                         \
+    (varg_check(&CInfo, nextarg, vargc, &oob),                 \
       oob ? (type) 0 :  *((type*)(&argtable[nextarg++]))) :    \
-    (nextarg++, va_sarg(&oob, nextarg - 1, vargc, ap, type)))
+    (nextarg++, va_sarg(&CInfo, &oob, nextarg - 1, vargc, ap, type)))
 
 //
 // Get the pointer_info structure indexed by nextarg.
 // This will report an error if the argument is not found in the whitelist.
 //
 #define GETPTRINFOARG(wl) \
-  (check_whitelist(wl, GETARG(void *)))
+  (check_whitelist(&CInfo, wl, GETARG(void *)))
 
 //
 // Get the pointer argument indexed by nextarg.
@@ -676,14 +678,14 @@ internal_printf(const options_t &options,
 // Write the current number of bytes that have been written into the next
 // argument, which should be a pointer to 'type'.
 //
-#define WRITECOUNTAS(type)             \
-  do {                                 \
-    p = GETPTRINFOARG(wl);             \
-    if (p != 0) {                      \
-      write_check(p, sizeof(type)) &&  \
-      (*(type *)(p->ptr) = ret);       \
-    } else                             \
-      c_library_error("printf");       \
+#define WRITECOUNTAS(type)                    \
+  do {                                        \
+    p = GETPTRINFOARG(wl);                    \
+    if (p != 0) {                             \
+      write_check(&CInfo, p, sizeof(type)) && \
+      (*(type *)(p->ptr) = ret);              \
+    } else                                    \
+      c_library_error(&CInfo, "printf");      \
   } while (0)
 
   fmt = (char *)fmt0;
@@ -1150,7 +1152,7 @@ fp_common:
       //
       // Otherwise load the object boundaries.
       //
-      find_object(p);
+      find_object(&CInfo, p);
       //
       // A nonnegative precision means that we should print at most prec bytes
       // from this string.
@@ -1171,7 +1173,7 @@ fp_common:
         {
           size = prec;
           cerr << "Reading string out of bounds!" << endl;
-          out_of_bounds_error(p, maxbytes);
+          out_of_bounds_error(&CInfo, p, maxbytes);
         }
       }
       else
@@ -1188,7 +1190,7 @@ fp_common:
           if (len == maxbytes)
           {
             cerr << "Reading string out of bounds!" << endl;
-            out_of_bounds_error(p, maxbytes);
+            out_of_bounds_error(&CInfo, p, maxbytes);
           }
         }
         else

@@ -253,6 +253,7 @@ InsertSCIntrinsic::runOnModule(Module & M) {
   addDebugIntrinsic("sc.boundscheckui");
   addDebugIntrinsic("sc.exactcheck2");
   addDebugIntrinsic("sc.pool_register");
+  addDebugIntrinsic("sc.fscallinfo");
 
   
   // We always change the module.

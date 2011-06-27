@@ -42,28 +42,31 @@ using namespace NAMESPACE_SC;
 // Error reporting functions
 //
 
-void out_of_bounds_error(pointer_info *p, size_t obj_len)
+void out_of_bounds_error(call_info *c, pointer_info *p, size_t obj_len)
 {
   OutOfBoundsViolation v;
   v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
-  v.SourceFile  = "";
-  v.lineNo      = 0;
+  v.SourceFile  = c->source_info;
+  v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
   v.objLen      = obj_len;
   v.dbgMetaData = NULL;
   ReportMemoryViolation(&v);
 }
 
-void write_out_of_bounds_error(pointer_info *p, size_t dst_sz, size_t src_sz)
+void write_out_of_bounds_error(call_info *c,
+                               pointer_info *p,
+                               size_t dst_sz,
+                               size_t src_sz)
 {
   WriteOOBViolation v;
   v.type        = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
-  v.SourceFile  = "";
-  v.lineNo      = 0;
+  v.SourceFile  = c->source_info;
+  v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
   v.dstSize     = dst_sz;
   v.srcSize     = src_sz;
@@ -71,28 +74,28 @@ void write_out_of_bounds_error(pointer_info *p, size_t dst_sz, size_t src_sz)
   ReportMemoryViolation(&v);
 }
 
-void c_library_error(const char *function)
+void c_library_error(call_info *c, const char *function)
 {
   CStdLibViolation v;
   v.type        = ViolationInfo::FAULT_CSTDLIB;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = 0;
-  v.SourceFile  = "";
-  v.lineNo      = 0;
+  v.SourceFile  = c->source_info;
+  v.lineNo      = c->line_no;
   v.function    = function;
   v.dbgMetaData = NULL;
   ReportMemoryViolation(&v);
 }
 
-void load_store_error(pointer_info *p)
+void load_store_error(call_info *c, pointer_info *p)
 {
   DebugViolationInfo v;
   v.type        = ViolationInfo::FAULT_LOAD_STORE;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
   v.dbgMetaData = NULL;
-  v.SourceFile  = "";
-  v.lineNo      = 0;
+  v.SourceFile  = c->source_info;
+  v.lineNo      = c->line_no;
   v.PoolHandle  = NULL;
   ReportMemoryViolation(&v);
 }
@@ -161,6 +164,62 @@ void *__sc_fscallinfo(void *_dest, uint32_t vargc, ...)
     arg = va_arg(ap, void *);
     dest->whitelist[argpos++] = arg;
   } while (arg != 0);
+  va_end(ap);
+
+  //
+  // Add empty debugging information.
+  //
+  dest->tag         = 0;
+  dest->source_info = "<unknown>";
+  dest->line_no     = 0;
+
+  return dest;
+}
+
+//
+// __sc_fscallinfo_debug
+//
+// Register information about a call to a secured format string function.
+// This information is stored into a call_info structure that gets passed into
+// the secured format string function and also holds debugging information.
+//
+// Inputs:
+//  _dest:  A pointer to the call_info structure to write the information into
+//  vargc:  The number of varargs arguments to the call to the function
+//
+//  The NULL-ended variable argument list consists of the vararg parameters to
+//  the format string function which are pointer_info structures. The secured
+//  format string function will only access these values as pointers.
+//
+//  After the NULL value is read, there are three more arguments in the
+//  variable argument list: an integral tag, a char * pointer to a source
+//  filename, and an integral line number. These are also added to the
+//  call_info structure.
+//
+// This function returns a pointer to the call_info structure (= _dest).
+//
+void *__sc_fscallinfo_debug(void *_dest, uint32_t vargc, ...)
+{
+  va_list ap;
+  call_info *dest = (call_info *) _dest;
+
+  dest->vargc = vargc;
+
+  void *arg;
+  unsigned argpos = 0;
+
+  va_start(ap, vargc);
+  do
+  {
+    arg = va_arg(ap, void *);
+    dest->whitelist[argpos++] = arg;
+  } while (arg != 0);
+  //
+  // Add debugging information.
+  //
+  dest->tag         = va_arg(ap, uint32_t);
+  dest->source_info = va_arg(ap, const char *);
+  dest->line_no     = va_arg(ap, uint32_t);
   va_end(ap);
 
   return dest;
@@ -251,7 +310,7 @@ int pool_sprintf(void *_info, void *_dest, void *_fmt, ...)
   //
   // Get the object boundaries of the destination array.
   //
-  find_object(str);
+  find_object(call, str);
   if (str->flags & HAVEBOUNDS)
     p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
@@ -292,7 +351,7 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
   //
   // Get the object boundaries of the destination array.
   //
-  find_object(str);
+  find_object(call, str);
   if (str->flags & HAVEBOUNDS)
     p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
@@ -307,6 +366,7 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
   va_end(ap);
   //
   // Add the terminator byte, if n is not 0.
+  // (If n is 0, nothing is written.)
   //
   if (n > 0)
     p.Output.String.string[p.Output.String.pos] = '\0';
@@ -315,11 +375,16 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
 }
 
 //
+// For functions err(), errx(), warn(), warnx(), and syslog(), which do
+// additional work beyond format string processing, we first print the
+// string into an allocate buffer, then pass the result into the actual
+// function to let it do its additional work.
+//
 // This is the size of the string to initially allocate for printing into.
 //
 static const size_t INITIAL_ALLOC_SIZE = 64;
 //
-// If the wrapper function needs to print the formatted result using another
+// If the wrapper function needs to pass a formatted result to another
 // function, but there's been an error during the formatting, it uses this
 // message instead.
 //
@@ -536,9 +601,108 @@ void pool_syslog(void *_info, int priority, void *_fmt, ...)
 }
 
 //
+// Secure runtime wrapper function to replace scanf()
+//
+int pool_scanf(void *_info, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  input_parameter p;
+
+  call_info    *info = (call_info *)   _info;
+  pointer_info  *fmt = (pointer_info *) _fmt;
+  //
+  // Set up the input parameter to read from stdin.
+  //
+  p.InputKind = input_parameter::INPUT_FROM_STREAM;
+  p.Input.Stream.stream = stdin;
+  //
+  // Lock stdin before calling the function to do the scanning.
+  //
+  flockfile(stdin);
+  va_start(ap, _fmt);
+  result = gscanf(p, *info, *fmt, ap);
+  va_end(ap);
+  funlockfile(stdin);
+
+  return result;
+}
+
+//
+// Secure runtime wrapper function to replace fscanf()
+//
+int pool_fscanf(void *_info, void *_src, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  input_parameter p;
+
+  call_info  *info  = (call_info *)   _info;
+  FILE     *stream  = (FILE *)         _src;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // Set the input parameter to read from the input stream.
+  //
+  p.InputKind = input_parameter::INPUT_FROM_STREAM;
+  p.Input.Stream.stream = stream;
+  //
+  // Lock the stream before calling the function to do the scanning
+  //
+  flockfile(stream);
+  va_start(ap, _fmt);
+  result = gscanf(p, *info, *fmt, ap);
+  va_end(ap);
+  funlockfile(stream);
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace sscanf()
+//
+int pool_sscanf(void *_info, void *_str, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  input_parameter p;
+
+  call_info   *info = (call_info *)   _info;
+  pointer_info *str = (pointer_info *) _str;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // Set the input parameter to read from a string
+  //
+  p.InputKind = input_parameter::INPUT_FROM_STRING;
+  p.Input.String.string = (const char *) str->ptr;
+  p.Input.String.pos    = 0;
+  //
+  // Check if the input string is terminated within object boundaries,
+  // if we have the object boundaries.
+  //
+  find_object(info, str);
+  if (str->flags & HAVEBOUNDS)
+  {
+    const char *string = (const char *) str->ptr;
+    size_t maxlen = (char *) str->bounds[1] - string;
+    size_t len    = _strnlen(string, 1 + maxlen);
+    if (len > maxlen)
+    {
+      cerr << "Input string not terminated within object bounds!" << endl;
+      out_of_bounds_error(info, str, len);
+    }
+  }
+
+  va_start(ap, _fmt);
+  result = gscanf(p, *info, *fmt, ap);
+  va_end(ap);
+
+  return result;
+}
+
+//
 // gprintf
 //
-// Secure general printf()-family replacement
+// Secure general printf() family replacement
 //
 // Attempts to verify the following:
 //  - The output string is not written to out of bounds, if there is an output
@@ -548,8 +712,11 @@ void pool_syslog(void *_info, int priority, void *_fmt, ...)
 //    string.
 //  - A %n format directive will not result in an out of bounds write into
 //    a parameter.
+//  - Only the variable arguments that were passed are accessed.
 //
 // Arguments:
+//  Options:       Parameter describing whether to use various features
+//                   (eg. enable/disable parsing of the %m directive)
 //  Output:        Information about where to print the output
 //  CInfo:         Information about the call parameters (call_info structure)
 //  FormatString:  pointer_info structure holding the format string
@@ -574,7 +741,7 @@ gprintf(const options_t &Options,
   //
   // Get the object boundaries for the format string.
   //
-  find_object(&FormatString);
+  find_object(&CInfo, &FormatString);
   Fmt = (const char *) FormatString.ptr;
   //
   // Make sure the format string isn't NULL.
@@ -582,7 +749,7 @@ gprintf(const options_t &Options,
   if (Fmt == 0)
   {
     cerr << "NULL format string!" << endl;
-    c_library_error("printf");
+    c_library_error(&CInfo, "printf");
     return 0;
   }
   //
@@ -596,10 +763,72 @@ gprintf(const options_t &Options,
     if (len == maxbytes)
     {
       cerr << "Format string not terminated within object bounds!" << endl;
-      out_of_bounds_error(&FormatString, len);
+      out_of_bounds_error(&CInfo, &FormatString, len);
     }
   }
 
   result = internal_printf(Options, Output, CInfo, Fmt, Args);
+  return result;
+}
+
+//
+// gscanf()
+//
+// Secure general scanf() family replacement
+//
+// Attempts to verify the following:
+//  - The format string is not read out of bounds.
+//  - Only the variable arguments that were passed are accessed.
+//  - A format directive which writes into a variable argument is writing into
+//    a destination object that is large enough to hold the write.
+//
+// Arguments:
+//   Input        - An input_parameter structure describing the input
+//   CInfo        - A call_info structure describing the call arguments
+//   FormatString - The pointer_info structure for the format string
+//   Args         - The list of arguments
+//
+// Returns:
+//   The function returns the number of format directives that were
+//   successfully matched with the input.
+//
+int
+gscanf(input_parameter &Input,
+       call_info &CInfo,
+       pointer_info &FormatString,
+       va_list Args)
+{
+  int result;
+  const char *Fmt;
+  //
+  // Get the object boundaries for the formating string.
+  //
+  find_object(&CInfo, &FormatString);
+  Fmt = (const char *) FormatString.ptr;
+  //
+  // Make sure the format string isn't NULL.
+  //
+  if (Fmt == 0)
+  {
+    cerr << "NULL format string!" << endl;
+    c_library_error(&CInfo, "scanf");
+    return 0;
+  }
+  //
+  // Check to make sure the format string is a nul-terminated within the
+  // boundaries of its object, if we have the boundaries.
+  //
+  if (FormatString.flags & HAVEBOUNDS)
+  {
+    size_t maxbytes = 1 + (char *) FormatString.bounds[1] - Fmt;
+    size_t len      = _strnlen(Fmt, maxbytes);
+    if (len == maxbytes)
+    {
+      cerr << "Format string not terminated within object bounds!" << endl;
+      out_of_bounds_error(&CInfo, &FormatString, len);
+    }
+  }
+
+  result = internal_scanf(Input, CInfo, Fmt, Args);
   return result;
 }

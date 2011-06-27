@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
     }
 
     //
-    // Transform format string functions
+    // Transform format string functions.
     //
     if (!DisableFSChecks && CheckingRuntime == RUNTIME_DEBUG)
       NOT_FOR_SVA(Passes.add(new FormatStringTransform()));
@@ -646,6 +646,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"poolalloc_debug",       "__sc_dbg_src_poolalloc"},
       {"poolfree_debug",        "__sc_dbg_src_poolfree"},
 
+      // CStdLib
       {"pool_strcat_debug",     "pool_strcat_debug"},
       {"pool_strcpy_debug",     "pool_strcpy_debug"},
       {"pool_stpcpy_debug",     "pool_stpcpy_debug"},
@@ -674,6 +675,7 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       // Format string functions
       {"sc.fsparameter",        "__sc_fsparameter"},
       {"sc.fscallinfo",         "__sc_fscallinfo"},
+      {"sc.fscallinfo_debug",   "__sc_fscallinfo_debug"},
       {"pool_printf",           "pool_printf"},
       {"pool_fprintf",          "pool_fprintf"},
       {"pool_sprintf",          "pool_sprintf"},
@@ -683,6 +685,9 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"pool_warn",             "pool_warn"},
       {"pool_warnx",            "pool_warnx"},
       {"pool_syslog",           "pool_syslog"},
+      {"pool_scanf",            "pool_scanf"},
+      {"pool_fscanf",           "pool_fscanf"},
+      {"pool_sscanf",           "pool_sscanf"},
 
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},

@@ -249,9 +249,20 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<const Type *> ParamTypes (FuncType->param_begin(),
                                         FuncType->param_end());
-  ParamTypes.push_back (Int32Type);
-  ParamTypes.push_back (VoidPtrTy);
-  ParamTypes.push_back (Int32Type);
+
+  //
+  // This pass currently pushes back debugging information at the end of a
+  // function call's arguments, whether or not the function is a
+  // variable argument function. Hence these parameters should not be added to
+  // a variable argument function type, since they won't be the last
+  // parameters to a function call.
+  //
+  if (!FuncType->isVarArg())
+  {
+    ParamTypes.push_back (Int32Type);
+    ParamTypes.push_back (VoidPtrTy);
+    ParamTypes.push_back (Int32Type);
+  }
 
   //
   // Check to see if the debug version of the function already exists.
@@ -262,7 +273,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
-                                                    false);
+                                                    FuncType->isVarArg());
   std::string funcdebugname = F->getName().str() + "_debug";
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
@@ -409,6 +420,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("sc.pool_register_stack"), VInfo);
   transformFunction (M.getFunction ("sc.pool_unregister"), VInfo);
   transformFunction (M.getFunction ("sc.pool_unregister_stack"), VInfo);
+  transformFunction (M.getFunction ("sc.fscallinfo"), LInfo);
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);

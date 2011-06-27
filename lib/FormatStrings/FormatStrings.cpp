@@ -46,6 +46,9 @@ STATISTIC(stat_errx,     "Number of calls to errx() that were secured");
 STATISTIC(stat_warn,     "Number of calls to warn() that were secured");
 STATISTIC(stat_warnx,    "Number of calls to warnx() that were secured");
 STATISTIC(stat_syslog,   "Number of calls to syslog() that were secured");
+STATISTIC(stat_scanf,    "Number of calls to scanf() that were secured");
+STATISTIC(stat_fscanf,   "Number of calls to fscanf() that were secured");
+STATISTIC(stat_sscanf,   "Number of calls to sscanf() that were secured");
 
 char FormatStringTransform::ID = 0;
 
@@ -92,7 +95,6 @@ FormatStringTransform::runOnModule(Module &M)
   InsertSCIntrinsic &I = getAnalysis<InsertSCIntrinsic>();
   FSParameter = I.getIntrinsic("sc.fsparameter").F;
   FSCallInfo  = I.getIntrinsic("sc.fscallinfo").F;
-
   //
   // Get the type of the pointer_info structure.
   //
@@ -109,10 +111,13 @@ FormatStringTransform::runOnModule(Module &M)
   changed |= transform(M, "warn",     1, "pool_warn",     stat_warn);
   changed |= transform(M, "warnx",    1, "pool_warnx",    stat_warnx);
   changed |= transform(M, "syslog",   2, "pool_syslog",   stat_syslog);
+  changed |= transform(M, "scanf",    1, "pool_scanf",    stat_scanf);
+  changed |= transform(M, "fscanf",   2, "pool_fscanf",   stat_fscanf);
+  changed |= transform(M, "sscanf",   2, "pool_sscanf",   stat_sscanf);
 
   //
-  // The transformations use placehold arrays of size 0. This call fills those
-  // arrays in with the proper size.
+  // The transformations use placehold arrays of size 0. This call changes
+  // those arrays to be allocated to the proper size.
   //
   if (changed)
     fillArraySizes(M);
@@ -572,11 +577,15 @@ FormatStringTransform::makePointerInfoType(LLVMContext &C)
 //   typedef struct
 //   {
 //      uint32_t vargc;
+//      uint32_t tag;
+//      uint32_t line_no;
+//      const char *source_info;
 //      void  *whitelist[1];
 //   } call_info;
 //
 // The fields are used as follows:
 //  - vargc is the total number of variable arguments passed in the call.
+//  - tag, line_no, source_info hold debug-related information.
 //  - whitelist is a variable-sized array of pointers, with the last element
 //    in the array being NULL. These pointers are the only values which the
 //    wrapper callee will treat as vararg pointer arguments.
@@ -588,7 +597,7 @@ FormatStringTransform::makeCallInfoType(LLVMContext &C, unsigned argc)
   const Type *int8ptr     = Type::getInt8PtrTy(C);
   const Type *int8ptr_arr = ArrayType::get(int8ptr, 1 + argc);
   vector<const Type *> CallInfoFields =
-    args<const Type *>::list(int32, int8ptr, int8ptr_arr);
+    args<const Type *>::list(int32, int32, int32, int8ptr, int8ptr_arr);
 
   return StructType::get(C, CallInfoFields);
 }
