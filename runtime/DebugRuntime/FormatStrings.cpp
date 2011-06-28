@@ -658,8 +658,9 @@ int pool_fscanf(void *_info, void *_src, void *_fmt, ...)
   input_parameter p;
 
   call_info  *info  = (call_info *)   _info;
-  FILE     *stream  = (FILE *)         _src;
+  pointer_info *str = (pointer_info *) _src;
   pointer_info *fmt = (pointer_info *) _fmt;
+  FILE *stream      = (FILE *) str->ptr;
   //
   // Set the input parameter to read from the input stream.
   //

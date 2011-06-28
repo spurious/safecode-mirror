@@ -120,7 +120,7 @@ _getc(input_parameter *i)
     char &lastch = i->Input.Stream.lastch;
     int ch;
 
-    if ((ch = fgetc_unlocked(file)) == EOF)
+    if ((ch = fgetc(file)) == EOF)
       return EOF;
     else
     {
@@ -143,20 +143,29 @@ static inline void
 _ungetc(input_parameter *i)
 {
   if (i->InputKind == input_parameter::INPUT_FROM_STRING)
-    // Push back the string by just decrementing the position.
+    //
+    // 'Push back' the string by just decrementing the position.
+    //
     i->Input.String.pos--;
   else if (i->InputKind == input_parameter::INPUT_FROM_STREAM)
   {
     const char lastch = i->Input.Stream.lastch;
+    //
     // Use ungetc() to push the last character back into the stream.
+    // See the note over internal_scanf() about the portability of this
+    // operation.
+    //
     ungetc(lastch, i->Input.Stream.stream);
   }
 }
 
 //
 // Check if the parameter has had an input failure.
-// This is defined as EOF or a read error.
+// This is defined as EOF or a read error, according to the standard.
 // For strings we check if the end of the string occurs.
+//
+// Returns: True if the parameter is said to have an input failure, false
+// otherwise.
 //
 static inline bool
 input_failure(input_parameter *i)
@@ -179,7 +188,26 @@ input_failure(input_parameter *i)
 // according to the format of the number. At the end of the function, base
 // is then set to 0, so strtol() will get the right argument.
 //
-// Returns NULL on failure, otherwise the last nonnul position of the buffer.
+// Inputs:
+//
+//  c       - the first character to read as an input item
+//  inp_buf - the buffer into which the number should be written
+//  stream  - the input_parameter object which contains the rest of the
+//            characters to be read as input items
+//  type    - the type of the specifier associated with this conversion, one of
+//            'i', 'p', 'x', 'X', 'd', 'o', or 'b'
+//  width   - the maximum field width
+//  basep   - A pointer to an integer. This value is written into with the
+//            numerical base of the value in the buffer, suitable for a call to
+//            strtol() or other function, as determined by this function.
+//
+// This function returns NULL if the input buffer was not filled with a valid
+// integer that could be converted; and otherwise if the input buffer contains
+// the digits of a valid integer, the function returns the last nonnul position
+// of the buffer that was written.
+//
+// On success, the buffer is suited for a call to strtol() or other integer
+// conversion function, with the base given in *basep.
 // 
 static char *
 o_collect(int c,
@@ -204,16 +232,22 @@ o_collect(int c,
     case 'b': base = 2; break;
   }
 
+  //
   // Process any initial +/- sign.
+  //
   if (c == '-' || c == '+')
   {
     *bufp++ = c;
     if (--width)
       c = _getc(stream);
+    else
+      return 0;  // An initial [+-] is not a valid number.
   }
 
+  //
   // Determine whether an initial '0' means to process the number in
   // hexadecimal or octal, if we are given a choice between the two.
+  //
   if (width && c == '0' && base == 16)
   {
     *bufp++ = c;
@@ -229,11 +263,15 @@ o_collect(int c,
       if (--width)
         c = _getc(stream);
     }
+    else
+      return 0; // Don't accept only an initial [+-]?0[xX] as a valid number.
   }
   else if (type == 'i')
     base = 10;
 
-  // Read as many digits as necessary.
+  //
+  // Read as many digits as we can.
+  //
   while (width)
   {
     if (    ((base == 10) && isdigit(c)             )
@@ -248,6 +286,7 @@ o_collect(int c,
     else break;
   }
 
+  // Push back any extra read characters that aren't part of an integer.
   if (width && c != EOF)
     _ungetc(stream);
   if (type == 'i')
@@ -260,10 +299,11 @@ o_collect(int c,
 #ifdef FLOATING_POINT
 
 #include "ScanfTables.h"
+
 //
 // f_collect()
 //
-// Read the longest valid floating point number from the input buffer.
+// Read the longest valid floating point number prefix from the input buffer.
 // Upon encountering an error, the function returns and leaves the character
 // to have caused the error in the input stream.
 //
@@ -282,7 +322,9 @@ f_collect(int c, char *inp_buf, input_parameter *stream, unsigned int width)
   while (width && state > 0)
   {
     --width;
+    //
     // Get the next character.
+    //
     if (firstiter)
     {
       ch = c;
@@ -290,14 +332,18 @@ f_collect(int c, char *inp_buf, input_parameter *stream, unsigned int width)
     }
     else
       ch = _getc(stream);
+    //
     // Handle an 8 bit character or EOF character as if it were the end of the
     // buffer; which is denoted by 0.
+    //
     if (ch == EOF || ch > 127)
       nextch = 0;
     else
       nextch = ch;
     state = yy_nxt[state][nextch];
+    //
     // Advance to the next state and save the current character, if valid.
+    //
     if (state > 0)
       *buf++ = nextch;
   }
@@ -332,14 +378,13 @@ f_collect(int c, char *inp_buf, input_parameter *stream, unsigned int width)
 
 //
 // Takes a pointer_info structure and attempts to verify that
-//  0) the structure is not NULL
-//  1) the structure exists in the given whitelist
-//  2) the destination associated with the pointer_info structure has enough
-//     space to hold a write of sz
+//  1) the structure is not NULL
+//  2) the structure exists in the given whitelist
+//  3) the destination associated with the pointer_info structure has enough
+//     space to hold a write of size sz.
 //
 // Returns p if p was not found in the whitelist, or the pointer associated
 // with p otherwise.
-//
 //
 static inline void *
 unwrap_and_check(call_info *c, pointer_info *p, size_t sz)
@@ -380,7 +425,18 @@ unwrap_and_check(call_info *c, pointer_info *p, size_t sz)
 }
 
 //
-// Like above, but only does the unwrapping part.
+// Takes a pointer_info structure and attempts to verify that:
+//  1) the structure is not NULL
+//  2) the structure is found in the given whitelist.
+//
+// Inputs:
+//  c        - pointer to the call_info structure containing the whitelist to
+//             search
+//  p        - the pointer_info structure to lookup
+//
+// Returns:
+//  This function returns p->ptr if the structure was found in the whitelist,
+//  and p otherwise.
 //
 static inline void *
 unwrap(call_info *c, pointer_info *p)
@@ -410,11 +466,30 @@ unwrap(call_info *c, pointer_info *p)
   return p->ptr;
 }
 
+//
+// Returns a size which represents the maximum number of bytes that can be
+// safely written starting at the address that s points to.
+// 
+// Inputs:
+//  c       -  a pointer to the call_info structure associated with p
+//  p       -  a pointer to the pointer_info structure associate with s
+//  s       -  a pointer, returned via unwrap() or unwrap_and_check()
+//
+// The function first checks if p is a valid pointer_info structure, which
+// is necessary to find the boundaries of s. If p is not a valid structure
+// or the boundaries of s are unknown, the function returns SIZE_MAX.
+//
 static inline size_t
 getsafewidth(call_info *c, pointer_info *p, void *s)
 {
+  //
+  // The structure is not valid. Return maximum possible size.
+  //
   if (p == s)
     return SIZE_MAX;
+  //
+  // Attempt to get the boundaries of s.
+  //
   find_object(c, p);
   if (p->flags & HAVEBOUNDS)
     return (size_t) 1 + ((char *) p->bounds[1] - (char *) p->ptr);
@@ -422,8 +497,27 @@ getsafewidth(call_info *c, pointer_info *p, void *s)
     return SIZE_MAX;
 }
 
+//
+// Increment a counter that is set up to verify that a write is in boundaries.
+// If the counter ever exceeds the maximum safe size, report an error.
+//
+// Inputs:
+//  c         - the call_info structure associated with this function call
+//  p         - the pointer_info structure associated with the object being
+//              written into
+//  curwidth  - a reference to the current number of bytes written into an
+//              an object
+//  safewidth - the maximum value of curwidth that won't cause a memory safety
+//              error
+//
+// After the first time that curwidth > safewidth, the function reports a write
+// error.
+//
 static inline void
-check_and_incr_widths(call_info *c, pointer_info *p, size_t &curwidth, size_t safewidth)
+check_and_incr_widths(call_info *c,
+                      pointer_info *p,
+                      size_t &curwidth,
+                      const size_t safewidth)
 {
   if ((++curwidth - safewidth) == 1)
   {
@@ -436,8 +530,7 @@ check_and_incr_widths(call_info *c, pointer_info *p, size_t &curwidth, size_t sa
 //
 // SAFEWRITE()
 //
-// A macro that attempts to securely write a value into the next variable
-// argument.
+// A macro that attempts to securely write a value into the next parameter.
 //
 // Inputs:
 //  ci       - pointer to the call_info structure
@@ -447,21 +540,20 @@ check_and_incr_widths(call_info *c, pointer_info *p, size_t &curwidth, size_t sa
 //  item     - the item to write
 //  type     - the type to write the item as
 //
-#define SAFEWRITE(ci, ap, arg, vargc, item, type)     \
-  do                                                  \
-  {                                                   \
-    pointer_info *p;                                  \
-    void *dest;                                       \
-    if (arg++ > vargc)                                \
-    {                                                 \
-      cerr << "Attempting to write into argument " << \
-        (arg-1) << " but the number of arguments is " \
-        << vargc << "!" << endl;                      \
-      c_library_error(ci, "scanf");                   \
-    }                                                 \
-    p = va_arg(ap, pointer_info *);                   \
-    dest = unwrap_and_check(ci, p, sizeof(type));     \
-   /* if (dest != 0) */ *(type *) dest = (type) item; \
+#define SAFEWRITE(ci, ap, arg, vargc, item, type)                              \
+  do                                                                           \
+  {                                                                            \
+    pointer_info *p;                                                           \
+    void *dest;                                                                \
+    if (arg++ > vargc)                                                         \
+    {                                                                          \
+      cerr << "Attempting to write into argument " << (arg-1) <<               \
+        " but the number of arguments is " << vargc << "!" << endl;            \
+      c_library_error(ci, "scanf");                                            \
+    }                                                                          \
+    p = va_arg(ap, pointer_info *);                                            \
+    dest = unwrap_and_check(ci, p, sizeof(type));                              \
+   /* if (dest != 0) */ *(type *) dest = (type) item;                          \
   } while (0)
 
 //
@@ -505,9 +597,11 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   int  ic = EOF;              // the input character
   char Xtable[NR_CHARS];      // table for %[...] scansets
   char inp_buf[NUMLEN + 1];   // buffer to hold numerical inputs
+
 #ifdef FLOATING_POINT
   long double ld_val;
 #endif
+
   const char *format = fmt;
   input_parameter *stream = &i;
   str = 0; // Suppress g++ complaints.
@@ -587,7 +681,9 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
       continue;
     }
     format++; // We've read '%'; start processing a directive.
-    // The '%' directive
+    //
+    // The '%' specifier
+    //
     if (*format == '%')
     {
       ic = _getc(stream);
@@ -623,7 +719,6 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
       for (width = 0; isdigit (*format);)
         width = width * 10 + *format++ - '0';
     }
-
     // Process length modifiers.
     switch (*format)
     {
@@ -662,10 +757,8 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         flags |= FL_LONGDOUBLE;
         break;
     }
-
     // Read the actual specifier.
     kind = *format;
-
     // Eat any initial whitespace for specifiers that allow it.
     if ((kind != 'c') && (kind != '[') && (kind != 'n'))
     {
@@ -775,10 +868,13 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
             _SAFEWRITE(val, unsigned);
         }
         break;
+
 #define va_sarg(ap) va_arg(ap, pointer_info *)
-#define incr_argcount()                                                      \
-  arg++ > vargc && cerr << "Attempting to access argument " << (arg-1) <<    \
+
+#define incr_argcount()                                                        \
+  arg++ > vargc && cerr << "Attempting to access argument " << (arg-1) <<      \
   " but the number of arguments is " << vargc << "!" << endl
+
       //
       // %c specifier
       //
@@ -882,14 +978,18 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
 
         memset(&Xtable[0], 0, sizeof(Xtable));
 
+        //
         // ']' appearing as the first character in the set does not close the
         // directive, but adds ']' to the scanset.
+        //
         if (*format == ']') Xtable[(unsigned) *format++] = 1;
 
         while (*format && *format != ']')
         {
           Xtable[(unsigned) *format++] = 1;
+          //
           // Add a character range to the scanset...
+          //
           if (*format == '-')
           {
             format++;
@@ -952,6 +1052,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
           *str = '\0';  
         }
         break;
+
 #ifdef FLOATING_POINT
       //
       // Floating point specifiers: %e, %E, %f, %g, %G
@@ -989,6 +1090,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         }
         break;
 #endif
+
     }
     if (!(flags & FL_NOASSIGN) && kind != 'n')
       done++;

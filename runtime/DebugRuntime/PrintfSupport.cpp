@@ -112,7 +112,7 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     for (int i = 0; i < uio.uio_iovcnt; ++i)
     {
       size_t amt, sz = uio.uio_iov[i].iov_len;
-      amt = fwrite_unlocked(&uio.uio_iov[i].iov_base[0], 1, sz, out);
+      amt = fwrite(&uio.uio_iov[i].iov_base[0], 1, sz, out);
       if (amt < sz)
         return 1; // Output error
     }
@@ -1708,6 +1708,9 @@ done:
   //
   // Build the argument table.
   //
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
   if (tablemax >= STATIC_ARG_TBL_SIZE)
   {
     *argtablesiz = sizeof(union arg) * (tablemax + 1);
