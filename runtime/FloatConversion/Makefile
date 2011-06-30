@@ -19,13 +19,18 @@ SOURCES = dmisc.c dtoa.c gdtoa.c gmisc.c hdtoa.c ldtoa.c misc.c
 include $(LEVEL)/Makefile.common
 
 SRCPATH=$(PROJ_SRC_ROOT)/runtime/FloatConversion
+OBJPATH=$(PROJ_OBJ_ROOT)/runtime/FloatConversion
+
+CFLAGS   += -I$(OBJPATH)
+CPPFLAGS += -I$(OBJPATH)
+CXXFLAGS += -I$(OBJPATH)
 
 arith.h: $(SRCPATH)/arithchk.c
-	$(CC) $(SRCPATH)/arithchk.c -o arithchk
-	./arithchk >$(SRCPATH)/arith.h
-	rm -f arithchk
+	$(CC) $(SRCPATH)/arithchk.c -o $(OBJPATH)/arithchk
+	$(OBJPATH)/arithchk >$(OBJPATH)/arith.h
+	rm -f $(OBJPATH)/arithchk
 
 gd_qnan.h: $(SRCPATH)/arith.h $(SRCPATH)/qnan.c
-	$(CC) $(SRCPATH)/qnan.c -o gd_qnan
-	./gd_qnan >$(SRCPATH)/gd_qnan.h
-	rm -f gd_qnan
+	$(CC) $(SRCPATH)/qnan.c -I$(OBJPATH) -o $(OBJPATH)/gd_qnan
+	$(OBJPATH)/gd_qnan >$(OBJPATH)/gd_qnan.h
+	rm -f $(OBJPATH)/gd_qnan
