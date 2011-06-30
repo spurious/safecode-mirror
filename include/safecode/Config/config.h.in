@@ -97,6 +97,12 @@
 /* Define to 1 if you have the <fcntl.h> header file. */
 #undef HAVE_FCNTL_H
 
+/* Define to 1 if you have the `fgetc_unlocked' function. */
+#undef HAVE_FGETC_UNLOCKED
+
+/* Define to 1 if you have the `fwrite_unlocked' function. */
+#undef HAVE_FWRITE_UNLOCKED
+
 /* Set to 1 if the finite function is found in <ieeefp.h> */
 #undef HAVE_FINITE_IN_IEEEFP_H
 
