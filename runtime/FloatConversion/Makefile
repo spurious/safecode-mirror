@@ -30,7 +30,7 @@ arith.h: $(SRCPATH)/arithchk.c
 	$(OBJPATH)/arithchk >$(OBJPATH)/arith.h
 	rm -f $(OBJPATH)/arithchk
 
-gd_qnan.h: $(SRCPATH)/arith.h $(SRCPATH)/qnan.c
+gd_qnan.h: arith.h $(SRCPATH)/qnan.c
 	$(CC) $(SRCPATH)/qnan.c -I$(OBJPATH) -o $(OBJPATH)/gd_qnan
 	$(OBJPATH)/gd_qnan >$(OBJPATH)/gd_qnan.h
 	rm -f $(OBJPATH)/gd_qnan
