@@ -570,6 +570,7 @@ handle_s_directive(call_info *ci,
         {
           *cp  = (char *) "(error)";
           *len = 7;
+          return;
         }
       }
       //
@@ -603,7 +604,6 @@ handle_s_directive(call_info *ci,
 //   failure.
 //
 // IMPORTANT IMPLEMENTATION LIMITATIONS
-//   - No support for printing wide characters (%ls or %lc)
 //   - Floating point number printing is not thread safe
 //   - No support for (nonstandard) locale-defined thousands grouping
 //     (the "'" flag)
