@@ -480,10 +480,12 @@ const scanset_t all_chars =
 #define invert_scanset(set) \
   for (int i = 0; i < 4; i++) (set)->s.t[i] = ~(set)->s.t[i]
 // Query if a character is in the scanset.
-#define is_in_scanset(set, c)  \
-  (set)->kind == scanset_t::TABLE ? \
-  (set)->s.t[((unsigned char) c) >> 6] & (((uint64_t) 1) << (c & 0x3f)) : \
-  (set)->s.f(c)
+#define is_in_scanset(set, c)                                                  \
+  (                                                                            \
+  (set)->kind == scanset_t::TABLE ?                                            \
+  (set)->s.t[((unsigned char) c) >> 6] & (((uint64_t) 1) << (c & 0x3f)) :      \
+  (set)->s.f(c)                                                                \
+  )
 
 //
 // match_string()
@@ -573,8 +575,6 @@ match_string(call_info    *ci,
   //
   while (width > 0 && c != EOF && is_in_scanset(set, c))
   {
-    if (width == 0)
-      break;         // Compiler bug?
     if (dowrite)
     {
       if (!wcs)
