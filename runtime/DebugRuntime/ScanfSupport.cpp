@@ -51,19 +51,16 @@
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include  <ctype.h>
-#include  <inttypes.h>
-#include  <limits.h>
-#include  <stdio.h>
-#include  <stdlib.h>
-#include  <stdarg.h>
-#include  <wchar.h>
+#include "safecode/Config/config.h"
+#include "FormatStrings.h"
 
-#include  <set>
-
-using std::set;
-
-#include  "FormatStrings.h"
+#include <ctype.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <wchar.h>
 
 #ifdef __x86_64__
 #define set_pointer(flags)  (flags |= FL_LONG)
@@ -119,8 +116,16 @@ _getc(input_parameter *i)
     FILE *file = i->Input.Stream.stream;
     char &lastch = i->Input.Stream.lastch;
     int ch;
-
-    if ((ch = fgetc(file)) == EOF)
+    //
+    // Call fgetc_unlocked() for performance because the given input stream
+    // should already be locked by the thread.
+    //
+    // Use fgetc() on platforms without fgetc_unlocked().
+    //
+#ifndef HAVE_FGETC_UNLOCKED
+#define fgetc_unlocked fgetc
+#endif
+    if ((ch = fgetc_unlocked(file)) == EOF)
       return EOF;
     else
     {
@@ -283,7 +288,8 @@ o_collect(int c,
       if (--width)
         c = _getc(stream);
     }
-    else break;
+    else
+      break;
   }
 
   // Push back any extra read characters that aren't part of an integer.
@@ -389,28 +395,20 @@ f_collect(int c, char *inp_buf, input_parameter *stream, unsigned int width)
 static inline void *
 unwrap_and_check(call_info *c, pointer_info *p, size_t sz)
 {
-  void **whitelist = c->whitelist;
-
   if (p == 0)
   {
     cerr << "Attempting to write into NULL!" << endl;
     return (void *) p;
   }
 
-  while (*whitelist)
-  {
-    if (p == *whitelist)
-      break;
-    ++whitelist;
-  }
-  if (*whitelist == 0)
+  if (is_in_whitelist(c, p) == false)
   {
     cerr << "Attempting to access nonexistent pointer argument "
       << (void *) p << "!" << endl;
     c_library_error(c, "va_arg");
     return (void *) p;
   }
-  
+
   find_object(c, p);
   if (p->flags & HAVEBOUNDS)
   {
@@ -425,106 +423,257 @@ unwrap_and_check(call_info *c, pointer_info *p, size_t sz)
 }
 
 //
-// Takes a pointer_info structure and attempts to verify that:
-//  1) the structure is not NULL
-//  2) the structure is found in the given whitelist.
+// eat_whitespace()
+//
+// Read all initial whitespace from the input stream.
 //
 // Inputs:
-//  c        - pointer to the call_info structure containing the whitelist to
-//             search
-//  p        - the pointer_info structure to lookup
+//  stream     - the input stream
+//  count      - a reference to a counter of the number of characters read
 //
 // Returns:
-//  This function returns p->ptr if the structure was found in the whitelist,
-//  and p otherwise.
+//  This function returns the first non whitespace character encountered in the
+//  input stream (which could be EOF).
 //
-static inline void *
-unwrap(call_info *c, pointer_info *p)
+static inline int
+eat_whitespace(input_parameter *stream, int &count)
 {
-  void **whitelist = c->whitelist;
-
-  if (p == 0)
+  int ch;
+  do
   {
-    cerr << "Attempting to write into NULL!" << endl;
-    return (void *) p;
-  }
-
-  while (*whitelist)
-  {
-    if (p == *whitelist)
-      break;
-    ++whitelist;
-  }
-  if (*whitelist == 0)
-  {
-    cerr << "Attempting to access nonexistent pointer argument "
-      << (void *) p << "!" << endl;
-    c_library_error(c, "va_arg");
-    return (void *) p;
-  }
-
-  return p->ptr;
+    ch = _getc(stream);
+    count++;
+  } while (isspace(ch));
+  --count;
+  return ch;
 }
 
 //
-// Returns a size which represents the maximum number of bytes that can be
-// safely written starting at the address that s points to.
-// 
-// Inputs:
-//  c       -  a pointer to the call_info structure associated with p
-//  p       -  a pointer to the pointer_info structure associate with s
-//  s       -  a pointer, returned via unwrap() or unwrap_and_check()
+// This is a bitvector which specifies a set of characters to match.
 //
-// The function first checks if p is a valid pointer_info structure, which
-// is necessary to find the boundaries of s. If p is not a valid structure
-// or the boundaries of s are unknown, the function returns SIZE_MAX.
+typedef struct
+{
+  enum { FUNCTION, TABLE } kind;
+  union
+  {
+    uint64_t t[4];
+    int (*f)(int);
+  } s;
+} scanset_t;
+
+const scanset_t all_chars =
+{
+  scanset_t::TABLE,
+  { { 0xfffffffffffffffful,
+      0xfffffffffffffffful,
+      0xfffffffffffffffful,
+      0xfffffffffffffffful } }
+};
+
+// Clear the scanset.
+#define clear_scanset(set) \
+  for (int i = 0; i < 4; i++) (set)->s.t[i] = 0ul
+// Add a character to the scanset.
+#define add_to_scanset(set, c) \
+  (set)->s.t[((unsigned char) c) >> 6] |= ((uint64_t)1) << (c & 0x3f)
+// Take the complement of the scanset.
+#define invert_scanset(set) \
+  for (int i = 0; i < 4; i++) (set)->s.t[i] = ~(set)->s.t[i]
+// Query if a character is in the scanset.
+#define is_in_scanset(set, c)  \
+  (set)->kind == scanset_t::TABLE ? \
+  (set)->s.t[((unsigned char) c) >> 6] & (((uint64_t) 1) << (c & 0x3f)) : \
+  (set)->s.f(c)
+
+//
+// match_string()
+//
+// Read a string of characters that belong in the given scanset, up to size
+// width. If 'dowrite' is true, write the string (with a nul terminator) into
+// the buffer associated with the pointer_info argument. Report if there are
+// any memory safety errors due to writing into the buffer.
+//
+// Inputs:
+//
+//  ci      - a pointer to the call_info structure for this function call
+//  p       - a pointer to the pointer_info structure that contains the buffer
+//            to write into
+//  flags   - the set of flags associated with the current conversion
+//  c       - the first character to read
+//  stream  - the input stream which contains the rest of the characters
+//  width   - the maximum number of characters to read
+//  dowrite - a boolean, if true, the string is written into a buffer 
+//  nrchars - a reference to a relevant counter of the number of characters
+//            read
+//  set     - the set of permissible characters in the string
+//
+// Returns:
+//  This function returns the number of characters that it has read.
+//  Reading 0 characters indicates a conversion error.
+//
+//  If dowrite is true and (flags&FL_LONG) is true, then the buffer is filled
+//  with wide characters converted from the multibyte input stream. Otherwise,
+//  the buffer is filled with the same characters that composed the input, if
+//  dowrite is true.
 //
 static inline size_t
-getsafewidth(call_info *c, pointer_info *p, void *s)
+match_string(call_info    *ci,
+             pointer_info *p,
+             int          flags,
+             int          c,
+             input_parameter *stream,
+             size_t width,
+             const bool   dowrite,
+             int &nrchars,
+             const scanset_t *set)
 {
-  //
-  // The structure is not valid. Return maximum possible size.
-  //
-  if (p == s)
-    return SIZE_MAX;
-  //
-  // Attempt to get the boundaries of s.
-  //
-  find_object(c, p);
-  if (p->flags & HAVEBOUNDS)
-    return (size_t) 1 + ((char *) p->bounds[1] - (char *) p->ptr);
-  else
-    return SIZE_MAX;
-}
-
-//
-// Increment a counter that is set up to verify that a write is in boundaries.
-// If the counter ever exceeds the maximum safe size, report an error.
-//
-// Inputs:
-//  c         - the call_info structure associated with this function call
-//  p         - the pointer_info structure associated with the object being
-//              written into
-//  curwidth  - a reference to the current number of bytes written into an
-//              an object
-//  safewidth - the maximum value of curwidth that won't cause a memory safety
-//              error
-//
-// After the first time that curwidth > safewidth, the function reports a write
-// error.
-//
-static inline void
-check_and_incr_widths(call_info *c,
-                      pointer_info *p,
-                      size_t &curwidth,
-                      const size_t safewidth)
-{
-  if ((++curwidth - safewidth) == 1)
+  size_t maxwrite   = SIZE_MAX;
+  size_t writecount = 0;
+  size_t readcount  = 0;
+  char   *buf       = 0;
+  char    mbbuf[MB_LEN_MAX];
+  size_t  mbbufpos   = 0;
+  wchar_t wc;
+  size_t wclen;
+  const bool wcs    = flags & FL_LONG;
+  mbstate_t ps;
+  if (dowrite)
   {
-    size_t objlen = (size_t) 1 + ((char *) p->bounds[1] - (char *) p->ptr);
-    cerr << "Writing out of bounds!" << endl;
-    write_out_of_bounds_error(c, p, objlen, objlen + 1);
+    //
+    // Get the output buffer.
+    //
+    buf = (char *) p;
+    if (p == NULL)
+    {
+      cerr << "Writing into a NULL object!" << endl;
+      c_library_error(ci, "scanf");
+    }
+    else if (is_in_whitelist(ci, p) == false)
+    {
+      cerr << "Writing into a non-pointer!" << endl;
+      c_library_error(ci, "scanf");
+    }
+    else
+    {
+      find_object(ci, p);
+      if (p->flags & HAVEBOUNDS)
+        maxwrite = (size_t) 1 + (char *)p->bounds[1] - (char *) p->ptr;
+      buf = (char *) p->ptr;
+      if (buf == 0)
+      {
+        cerr << "Writing into a NULL object!" << endl;
+        c_library_error(ci, "scanf");
+      }
+    }
   }
+  if (wcs)
+    memset(&ps, 0, sizeof(mbstate_t));
+  //
+  // Read the input string.
+  //
+  while (width > 0 && c != EOF && is_in_scanset(set, c))
+  {
+    if (width == 0)
+      break;         // Compiler bug?
+    if (dowrite)
+    {
+      if (!wcs)
+      {
+        //
+        // Write directly into the output buffer.
+        //
+
+        //
+        // Check if this write will go out of bounds. Only report this the first
+        // time that it occurs.
+        //
+        if ((++writecount - maxwrite) == 1)
+        {
+          cerr << "Writing out of bounds!" << endl;
+          write_out_of_bounds_error(ci, p, maxwrite, writecount);
+        }
+        *buf++ = c;
+      }
+      else
+      {
+        //
+        // Read the next multibyte character incrementally. Write it into the
+        // output buffer once we've encountered a valid character.
+        //
+        mbbuf[mbbufpos++] = (char) c;
+        //
+        // Attempt a multibyte to wide character conversion.
+        //
+        wclen = mbrtowc(&wc, &mbbuf[0], mbbufpos, &ps);
+        if (wclen == (size_t) -1) // Conversion error
+          break;
+        else if (wclen == (size_t) -2)
+          ; // The buffer might be holding the prefix of a valid
+            // multibyte character sequence, so try reading more.
+        else
+        {
+          writecount += sizeof(wchar_t);
+          //
+          // Check if the write will go out of bounds. Only report this the first
+          // time that it occurs.
+          //
+          if (writecount - maxwrite > 0 &&
+            (writecount - maxwrite) <= sizeof(wchar_t))
+          {
+            cerr << "Writing out of bounds!" << endl;
+            write_out_of_bounds_error(ci, p, maxwrite, writecount);
+          }
+          ((wchar_t *)buf)[(writecount/sizeof(wchar_t)) - 1] = wc;
+          //
+          // Reset the input buffer.
+          //
+          mbbufpos = 0;
+        }
+      }
+    }
+    if (--width > 0)
+    {
+      c = _getc(stream);
+      readcount++;
+      nrchars++;
+    }
+  }
+  if (dowrite && writecount > 0)
+  {
+    //
+    // Terminate the string.
+    //
+    if (!wcs)
+    {
+      if ((++writecount - maxwrite) == 1)
+      {
+        cerr << "Writing out of bounds!" << endl;
+        write_out_of_bounds_error(ci, p, maxwrite, writecount);
+      }
+      *buf = '\0';
+    }
+    else
+    {
+      writecount += sizeof(wchar_t);
+      if (writecount - maxwrite > 0 &&
+        (writecount - maxwrite) <= sizeof(wchar_t))
+      {
+        cerr << "Writing out of bounds!" << endl;
+        write_out_of_bounds_error(ci, p, maxwrite, writecount);
+      }
+      ((wchar_t *)buf)[(writecount/sizeof(wchar_t)) - 1] = L'\0';
+    }
+  }
+  //
+  // Push back any character that was read and not in the scanset.
+  //
+  if (width != 0 && c != EOF)
+  {
+    _ungetc(stream);
+    readcount--;
+    nrchars--;
+  }
+  return readcount;
 }
 
 //
@@ -549,17 +698,22 @@ check_and_incr_widths(call_info *c,
     {                                                                          \
       cerr << "Attempting to write into argument " << (arg-1) <<               \
         " but the number of arguments is " << vargc << "!" << endl;            \
-      c_library_error(ci, "scanf");                                            \
+      c_library_error(ci, "va_arg");                                           \
     }                                                                          \
     p = va_arg(ap, pointer_info *);                                            \
     dest = unwrap_and_check(ci, p, sizeof(type));                              \
    /* if (dest != 0) */ *(type *) dest = (type) item;                          \
   } while (0)
 
+int isnspace(int c)
+{
+  return !isspace(c);
+}
+
 //
 // internal_scanf()
 //
-// This is the main logic for the scanf() routine.
+// This is the main logic for the secured scanf() family of functions.
 //
 //
 // IMPLEMENTATION NOTES
@@ -588,8 +742,8 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   int   nrchars = 0;          // number of characters read
   int   base;                 // conversion base
   uintmax_t val;              // an integer value
-  char *str;                  // temporary pointer
-  char    *tmp_string;        // ditto
+  char  *str;                 // temporary pointer
+  char  *tmp_string;          // ditto
   unsigned  width = 0;        // width of field
   int   flags;                // some flags
   int   reverse;              // reverse the checking in [...]
@@ -604,10 +758,13 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
 
   const char *format = fmt;
   input_parameter *stream = &i;
+
   str = 0; // Suppress g++ complaints.
   pointer_info *p = 0;
 
-  if (!*format) return 0;
+  // Return immediately for an empty format string.
+  if (*format == '\0')
+    return 0;
 
   mbstate_t ps;
   size_t    len;
@@ -617,32 +774,61 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   call_info *ci = &c;
   const unsigned vargc = ci->vargc;
   unsigned int arg   = 1;
-  size_t safewidth = 0, curwidth = 0;
 
+  bool   wr;
+  size_t sz;
+  scanset_t nonws;
+  nonws.kind = scanset_t::FUNCTION;
+  nonws.s.f  = isnspace;
+  scanset_t scanset;
+  scanset.kind = scanset_t::TABLE;
+
+//
+// Version of SAFEWRITE() relevant to this function.
+//
 #define _SAFEWRITE(item, type) SAFEWRITE(ci, ap, arg, vargc, item, type)
+
+//
+// Increment count of arguments and raise an error if we read too many.
+//
+#define incr_argcount()                                                        \
+  do                                                                           \
+  {                                                                            \
+    if (arg++ > vargc)                                                         \
+    {                                                                          \
+      cerr << "Attempting to access argument " << (arg-1) <<                   \
+      "but the number of arguments is " << vargc << "!" <<  endl;              \
+      c_library_error(ci, "va_arg");                                           \
+    }                                                                          \
+  } while(0)
+
+//
+// Get the next pointer_info * argument.
+//
+#define va_sarg(ap) va_arg(ap, pointer_info *)
 
   //
   // The main loop that processes the format string.
   //
   while (1)
   {
+    //
+    // Whitespace in the format string indicates to match all whitespace in the
+    // input stream.
+    //
     if (isspace(*format))
     {
       while (isspace(*format))
-        format++; // Skip whitespace.
-      ic = _getc(stream);
-      nrchars++;
-      while (isspace (ic))
-      {
-        ic = _getc(stream);
-        nrchars++;
-      }
+        format++; // Skip whitespace in the format string.
+      ic = eat_whitespace(stream, nrchars);
       if (ic != EOF)
         _ungetc(stream);
-      nrchars--;
     }
-    if (!*format) break;  // End of format
+    if (*format == '\0')
+      break; // End of format
+    //
     // Match a multibyte character from the input.
+    //
     if (*format != '%')
     {
       len = mbrtowc(NULL, format, MB_CUR_MAX, &ps);
@@ -686,14 +872,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
     //
     if (*format == '%')
     {
-      ic = _getc(stream);
-      nrchars++;
-      // Eat whitespace.
-      while (isspace(ic))
-      {
-        ic = _getc(stream);
-        nrchars++;
-      }
+      ic = eat_whitespace(stream, nrchars);
       if (ic == '%')
       {
         format++;
@@ -762,11 +941,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
     // Eat any initial whitespace for specifiers that allow it.
     if ((kind != 'c') && (kind != '[') && (kind != 'n'))
     {
-      do
-      {
-        ic = _getc(stream);
-        nrchars++;
-      } while (isspace(ic));
+      ic = eat_whitespace(stream, nrchars);
       if (ic == EOF)
         goto failure;
     }
@@ -868,50 +1043,26 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
             _SAFEWRITE(val, unsigned);
         }
         break;
-
-#define va_sarg(ap) va_arg(ap, pointer_info *)
-
-#define incr_argcount()                                                        \
-  arg++ > vargc && cerr << "Attempting to access argument " << (arg-1) <<      \
-  " but the number of arguments is " << vargc << "!" << endl
-
       //
       // %c specifier
       //
       case 'c':
+        //
+        // No specified width means to read a single character.
+        //
         if (!(flags & FL_WIDTHSPEC))
           width = 1;
-        if (!(flags & FL_NOASSIGN))
+        if (width == 0)
+          goto match_failure;
+        wr = !(flags & FL_NOASSIGN);
+        if (wr)
         {
           incr_argcount();
-          p         = va_sarg(ap);
-          str       = (char *) unwrap(ci, p);
-          safewidth = getsafewidth(ci, p, (void *) str);
-          curwidth  = 0;
+          p = va_sarg(ap);
         }
-        if (!width)
-          goto match_failure;
-
-        while (width && ic != EOF)
-        {
-          if (!(flags & FL_NOASSIGN))
-          {
-            check_and_incr_widths(ci, p, curwidth, safewidth);
-            *str++ = (char) ic;
-          }
-          if (--width)
-          {
-            ic = _getc(stream);
-            nrchars++;
-          }
-        }
-
-        if (width)
-        {
-          // Is this condition ever true?
-          if (ic != EOF) _ungetc(stream);
-          nrchars--;
-        }
+        sz = match_string(ci, p, flags, ic, stream, width, wr, nrchars, &all_chars);
+        if (sz == 0)
+          goto failure;
         break;
       //
       // %s specifier
@@ -919,43 +1070,17 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
       case 's':
         if (!(flags & FL_WIDTHSPEC))
           width = UINT_MAX;
-        if (!(flags & FL_NOASSIGN))
+        if (width == 0)
+          goto match_failure;
+        wr = !(flags & FL_NOASSIGN);
+        if (wr)
         {
           incr_argcount();
-          p         = va_sarg(ap);
-          str       = (char *) unwrap(ci, p);
-          safewidth = getsafewidth(ci, p, (void *) str);
-          curwidth = 0;
+          p = va_sarg(ap);
         }
-        if (!width)
-          goto match_failure;
-
-        // Read the string, with the given width, up to a space or EOF.
-        while (width && ic != EOF && !isspace(ic))
-        {
-          if (!(flags & FL_NOASSIGN))
-          {
-            check_and_incr_widths(ci, p, curwidth, safewidth);
-            *str++ = (char) ic;
-          }
-          if (--width)
-          {
-            ic = _getc(stream);
-            nrchars++;
-          }
-        }
-        // Terminate the string.
-        if (!(flags & FL_NOASSIGN))
-        {
-          check_and_incr_widths(ci, p, curwidth, safewidth);
-          *str = '\0';  
-        }
-        if (width)
-        {
-          // Push back any whitespace we've read.
-          if (ic != EOF) _ungetc(stream);
-          nrchars--;
-        }
+        sz = match_string(ci, p, flags, ic, stream, width, wr, nrchars, &nonws);
+        if (sz == 0)
+          goto failure;
         break;
       //
       // %[...] specifier
@@ -963,7 +1088,7 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
       case '[':
         if (!(flags & FL_WIDTHSPEC))
           width = UINT_MAX;
-        if (!width)
+        if (width == 0)
           goto match_failure;
         //
         // Determine if we take the complement of the scanset.
@@ -976,7 +1101,10 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         else
           reverse = 0;
 
-        memset(&Xtable[0], 0, sizeof(Xtable));
+        //
+        // Clear the scanset first.
+        //
+        clear_scanset(&scanset);
 
         //
         // ']' appearing as the first character in the set does not close the
@@ -986,7 +1114,8 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
 
         while (*format && *format != ']')
         {
-          Xtable[(unsigned) *format++] = 1;
+          add_to_scanset(&scanset, *format);
+          format++;
           //
           // Add a character range to the scanset...
           //
@@ -998,59 +1127,37 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
               int c;
               for( c = *(format -2) + 1
                   ; c <= *format ; c++)
-                Xtable[(unsigned) c] = 1;
+                add_to_scanset(&scanset, c);
               format++;
             }
             // ...unless '-' is the last character in the set.
             else if (*format == ']')
-              Xtable[(unsigned) '-'] = 1;
+              add_to_scanset(&scanset, '-');
           }
         }
-        if (!*format)
+        if (*format == '\0')
           goto match_failure;
+
+        if (reverse)
+          invert_scanset(&scanset);
         
-        // Check for match failure.
-        if (!(Xtable[(unsigned) ic] ^ reverse))
+        // Check for match failure with the initial character.
+        if (!is_in_scanset(&scanset, ic))
         {
           _ungetc(stream);
           goto match_failure;
         }
 
-        if (!(flags & FL_NOASSIGN))
+        wr = !(flags & FL_NOASSIGN);
+
+        if (wr)
         {
           incr_argcount();
-          p         = va_sarg(ap);
-          str       = (char *) unwrap(ci, p);
-          safewidth = getsafewidth(ci, p, (void *) str);
-          curwidth  = 0;
+          p = va_sarg(ap);
         }
-
-        // Read the rest of the string.
-        do
-        {
-          if (!(flags & FL_NOASSIGN))
-          {
-            check_and_incr_widths(ci, p, curwidth, safewidth);
-            *str++ = (char) ic;
-          }
-          if (--width)
-          {
-            ic = _getc(stream);
-            nrchars++;
-          }
-        } while (width && ic != EOF && (Xtable[ic] ^ reverse));
-
-        if (width)
-        {
-          if (ic != EOF)
-            _ungetc(stream);
-          nrchars--;
-        }
-        if (!(flags & FL_NOASSIGN)) // Terminate string.
-        {
-          check_and_incr_widths(ci, p, curwidth, safewidth);
-          *str = '\0';  
-        }
+        sz = match_string(ci, p, flags, ic, stream, width, wr, nrchars, &nonws);
+        if (sz == 0)
+          goto failure;
         break;
 
 #ifdef FLOATING_POINT

@@ -43,23 +43,10 @@ using namespace NAMESPACE_SC;
 //
 
 //
-// Use this to check if a pointer_info structure is whitelisted.
+// Use this macro to first check if a pointer_info structure is whitelisted.
 // The error reporting functions will only attempt to access whitelisted
 // pointer_info structures because other ones may be invalid.
 //
-static inline bool
-is_in_whitelist(call_info *c, pointer_info *p)
-{
-  void **whitelist = c->whitelist;
-  do
-  {
-    if ((void *) p == *whitelist)
-      break;
-    whitelist++;
-  } while (*whitelist);
-  return (*whitelist != 0);
-}
-
 #define pointer_info_value(c, p) is_in_whitelist(c, p) ? p->ptr : (void *) p
 
 void out_of_bounds_error(call_info *c, pointer_info *p, size_t obj_len)

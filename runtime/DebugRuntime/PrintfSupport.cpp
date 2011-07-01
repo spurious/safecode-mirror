@@ -54,6 +54,7 @@
 // This code is large and complicated...
 //
 
+#include "safecode/Config/config.h"
 #include "FormatStrings.h"
 
 #include <sys/types.h>
@@ -112,7 +113,16 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     for (int i = 0; i < uio.uio_iovcnt; ++i)
     {
       size_t amt, sz = uio.uio_iov[i].iov_len;
-      amt = fwrite(&uio.uio_iov[i].iov_base[0], 1, sz, out);
+      //
+      // Call fwrite_unlocked() for performance since the output stream should
+      // already be locked by this thread.
+      //
+      // Use fwrite() on platforms without fwrite_unlocked().
+      //
+#ifndef HAVE_FWRITE_UNLOCKED
+#define fwrite_unlocked fwrite
+#endif
+      amt = fwrite_unlocked(&uio.uio_iov[i].iov_base[0], 1, sz, out);
       if (amt < sz)
         return 1; // Output error
     }
@@ -176,7 +186,7 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     size_t &bufsz = P.Output.AllocedString.bufsz;
     size_t amt;
 
-    if (dest == NULL)
+    if (dest == 0)
       return 1; // Output error
     //
     // Allocate a new string if the old one isn't large enough.
@@ -185,7 +195,7 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     {
       do bufsz *= 2; while ((size_t) uio.uio_resid > bufsz - pos);
       dest = (char *) realloc(dest, bufsz);
-      if (dest == NULL)
+      if (dest == 0)
         return 1; // Output error
     }
     //
@@ -265,7 +275,7 @@ varg_check(call_info *c, int pos, int total, bool *flag)
     else
     {
       cerr << "Attempting to access argument " << pos << \
-        " but there are only " << total << "arguments!" << endl;
+        " but there are only " << total << " arguments!" << endl;
     }
     c_library_error(c, "va_arg");
     *flag = true;
@@ -286,7 +296,7 @@ check_whitelist(call_info *c, void **whitelist, void *p)
   }
   cerr << "Attempting to access a non-pointer parameter as a pointer!" << endl;
   c_library_error(c, "va_arg");
-  return NULL; 
+  return 0; 
 }
 
 //
@@ -335,6 +345,7 @@ union arg
   intmax_t    intmaxarg;
   uintmax_t   uintmaxarg;
   void        *pvoidarg;
+  wint_t      wintarg;
 
 #ifdef FLOATING_POINT
   double      doublearg;
@@ -391,6 +402,189 @@ static int exponent(char *, int, int);
 #define CHARINT   0x0800    // 8 bit integer
 #define MAXINT    0x1000    // largest integer size (intmax_t)
 
+
+//
+// handle_s_directive()
+//
+// Prepare a string for printing.
+//
+// Inputs:
+//
+//  ci         - a pointer to the relevant call_info structure
+//  p          - a pointer to the pointer_info structure that contains the
+//               string to print
+//  flags      - the relevant flags from the parsed format string
+//  cp         - a pointer into which is written the location of the string to
+//               print
+//  len        - a pointer to a size_t object, into which is written the number
+//               of bytes to print
+//  mbstr      - a pointer into which will be written the location of any string
+//               allocated for purposes of converting a multibyte sequence
+//  prec       - an integer representing the precision
+//
+// Returns:
+//
+//  The function returns no value. Instead, *cp is set to point to the buffer
+//  containing the string of which the first *len bytes should be written.
+//  If this string is the result of a wide character to multibyte conversion,
+//  it is an allocated string and *mbstr is set to point to it. Otherwise
+//  *mbstr is set to NULL.
+//
+static inline void
+handle_s_directive(call_info *ci,
+                   pointer_info *p,
+                   int flags,
+                   char **cp,
+                   size_t *len,
+                   char **mbstr,
+                   int prec)
+{
+  //
+  // Free any previously allocated buffers.
+  //
+  if (*mbstr)
+    free(*mbstr);
+  //
+  // Load the object boundaries.
+  //
+  find_object(ci, p);
+  //
+  // A negative precision indicates the precision has not been set. Set it to
+  // the maximum allowed value and continue.
+  //
+  if (prec < 0)
+    prec = INT_MAX;
+  if (!(flags & LONGINT))
+  {
+    //
+    // Print out a regular string.
+    //
+    // maxbytes is the maximum number of bytes that can be read safely from
+    // the input while respecting the precision requirements.
+    //
+    size_t maxbytes = (p->flags & HAVEBOUNDS) ? 
+      min((size_t) prec, object_len(p)) :
+      (size_t) prec;
+    char *str = (char *) p->ptr;
+    char *r = (char *) memchr(str, 0, maxbytes);
+    *cp = str;
+    *mbstr = 0;
+    if (r)
+      *len = r - str;
+    else if ((unsigned)prec <= maxbytes)
+      *len = prec;
+    else
+    {
+      *len = prec;
+      cerr << "Reading string out of bounds!" << endl;
+      out_of_bounds_error(ci, p, maxbytes);
+    }
+    return;
+  }
+  else
+  {
+    //
+    // Print out a wide character string converted into multibyte
+    // characters.
+    //
+    // We can't tell how long the resulting multibyte character string will
+    // be without converting it character by character.
+    //
+    // maxbytes represents the maximum number of bytes we can read from the
+    // wide character string in a safe manner.
+    //
+    size_t maxbytes  = (p->flags & HAVEBOUNDS) ? object_len(p) : SIZE_MAX;
+    mbstate_t ps;
+    wchar_t *input  = (wchar_t *) p->ptr;
+    size_t bytesread = 0; // the current number of bytes read from the wide
+                          // character array
+    bool   overread  = false; // whether the wide character array is read out
+                              // of bounds
+    size_t destpos   = 0;     // the current index of the converted character
+                              // string
+    size_t destsize;          // the current size of the converted character
+                              // string object
+    size_t convlen   = 0;     // the length of the most recent converted
+                              // character
+    wchar_t nextch;           // the next character to convert
+    char buffer[MB_LEN_MAX];  // buffer for holding character conversions
+    //
+    // Set up the destination.
+    //
+    *mbstr = (char *) malloc((destsize = 64));
+    memset(&ps, 0, sizeof(mbstate_t));
+    bytesread = 0;
+
+    if (*mbstr == 0)
+    {
+      *cp = (char *) "(error)";
+      *len = 7;
+      return;
+    }
+    //
+    // Read the wide character string and convert it to a multibyte character
+    // string using wcrtomb().
+    //
+    while (1)
+    {
+      //
+      // If the next wide character to be read will cause us to read out of
+      // bounds of the array, issue a SAFECode error.
+      //
+      if (sizeof(wchar_t) > (maxbytes - bytesread) && overread == false)
+      {
+        overread = true;
+        cerr << "Reading wide character string out of bounds!" << endl;
+        out_of_bounds_error(ci, p, maxbytes);
+      }
+      //
+      // Read the next wide character from the input. If it's the string
+      // terminator, terminate the conversion.
+      //
+      nextch = input[bytesread / sizeof(wchar_t)];
+      if (nextch == L'\0')
+        break;
+      bytesread += sizeof(wchar_t);
+      //
+      // Convert the wide character into a multibyte character.
+      //
+      convlen = wcrtomb(&buffer[0], nextch, &ps);
+      //
+      // Check for conversion error. If so, terminate the conversion
+      // at this point.
+      //
+      if (convlen == (size_t) -1)
+        break;
+      //
+      // Check if 1) appending the destination character keeps us within the
+      // allowed precision, and 2) if appending the destination character
+      // requires making the conversion buffer larger.
+      //
+      else if (convlen > (size_t) prec - destpos)
+        break;
+      else if (convlen > destsize - destpos)
+      {
+        do destsize *= 2; while (convlen > destsize - destpos);
+        *mbstr = (char *) realloc(*mbstr, destsize);
+        if (*mbstr == 0)
+        {
+          *cp  = (char *) "(error)";
+          *len = 7;
+        }
+      }
+      //
+      // Finally, append the converted character.
+      //
+      memcpy(&(*mbstr)[destpos], &buffer[0], convlen);
+      destpos += convlen;
+      if (destpos == (size_t) prec)
+        break;
+    }
+    *cp  = *mbstr;
+    *len = destpos;
+    return;
+  }
+}
 
 //
 // The main logic for printf() style functions
@@ -464,7 +658,7 @@ internal_printf(const options_t &options,
   // This is a large overestimate.
 #define MAXEXPDIG 32
   char expstr[MAXEXPDIG+2]; // buffer for exponent string: e+ZZZ
-  char *dtoaresult = NULL;
+  char *dtoaresult = 0;
 #endif
 
   uintmax_t _umax;              // integer arguments %[diouxX]
@@ -489,6 +683,7 @@ internal_printf(const options_t &options,
   pointer_info *p;   // handy pointer_info structure
   bool oob = false;  // whether too many arguments have been accessed
   wchar_t wc;
+  char *mbstr;       // a string that is a result of multibyte conversion
   mbstate_t ps;
 
   //
@@ -632,7 +827,7 @@ internal_printf(const options_t &options,
   } \
   if (*cp == '$') { \
     int hold = nextarg; \
-    if (argtable == NULL) { \
+    if (argtable == 0) { \
       argtable = statargtable; \
       __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc); \
     } \
@@ -650,7 +845,7 @@ internal_printf(const options_t &options,
 // argument (and arguments must be gotten sequentially).
 //
 #define GETARG(type)                                           \
-  ((argtable != NULL) ?                                        \
+  ((argtable != 0) ?                                        \
     (varg_check(&CInfo, nextarg, vargc, &oob),                 \
       oob ? (type) 0 :  *((type*)(&argtable[nextarg++]))) :    \
     (nextarg++, va_sarg(&CInfo, &oob, nextarg - 1, vargc, ap, type)))
@@ -686,29 +881,34 @@ internal_printf(const options_t &options,
   } while (0)
 
   fmt = (char *)fmt0;
-  argtable = NULL;
+  argtable = 0;
   nextarg = 1;
   va_copy(orgap, ap);
   uio.uio_iov = iovp = iov;
   uio.uio_resid = 0;
   uio.uio_iovcnt = 0;
   ret = 0;
+  mbstr = 0;
 
   memset(&ps, 0, sizeof(mbstate_t));
 
   //
   // Scan the format for conversions (`%' character).
   //
-  for (;;) {
+  for (;;)
+  {
     cp = fmt;
-    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0) { 
+    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0)
+    {
       fmt += n;
-      if (wc == '%') {
+      if (wc == '%')
+      {
         fmt--;
         break;
       }
     }
-    if (fmt != cp) {
+    if (fmt != cp)
+    {
       ptrdiff_t m = fmt - cp;
       if (m < 0 || m > INT_MAX - ret)
         goto overflow;
@@ -792,12 +992,13 @@ reswitch: switch (ch) {
       // If the number ends with a $, this indicates a positional argument.
       // So parse the whole format string for positional arguments.
       //
-      if (ch == '$') {
+      if (ch == '$')
+      {
         nextarg = n;
-        if (argtable == NULL) {
+        if (argtable == 0)
+        {
           argtable = statargtable;
-          __find_arguments(fmt0, orgap,
-              &argtable, &argtablesiz, vargc);
+          __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
         }
         goto rflag;
       }
@@ -818,7 +1019,8 @@ reswitch: switch (ch) {
     case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
       n = 0;
-      do {
+      do
+      {
         APPEND_DIGIT(n, ch);
         ch = *fmt++;
       } while (is_digit(ch));
@@ -826,12 +1028,13 @@ reswitch: switch (ch) {
       // If the number ends with a $, this indicates a positional argument.
       // So parse the whole format string for positional arguments.
       //
-      if (ch == '$') {
+      if (ch == '$')
+      {
         nextarg = n;
-        if (argtable == NULL) {
+        if (argtable == 0)
+        {
           argtable = statargtable;
-          __find_arguments(fmt0, orgap,
-              &argtable, &argtablesiz, vargc);
+          __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
         }
         goto rflag;
       }
@@ -859,12 +1062,13 @@ reswitch: switch (ch) {
       flags |= MAXINT;
       goto rflag;
     case 'l':
-      if (*fmt == 'l') {
+      if (*fmt == 'l')
+      {
         fmt++;
         flags |= LLONGINT;
-      } else {
-        flags |= LONGINT;
       }
+      else
+        flags |= LONGINT;
       goto rflag;
     case 'q':
       flags |= LLONGINT;
@@ -876,9 +1080,48 @@ reswitch: switch (ch) {
       flags |= SIZEINT;
       goto rflag;
     case 'c':
-      *(cp = buf) = GETARG(int);
-      size = 1;
       sign = '\0';
+      if (!(flags & LONGINT))
+      {
+        *(cp = buf) = GETARG(int);
+        size = 1;
+      }
+      //
+      // Handle wide characters correctly.
+      //
+      else
+      {
+        wint_t wc = GETARG(wint_t);
+        mbstate_t st;
+        size_t sz;
+        if (mbstr)
+          free(mbstr);
+        mbstr = (char *) malloc(MB_LEN_MAX);
+        if (mbstr == 0)
+        {
+          cp = (char *) "(error)";
+          size = 8;
+          break;
+        }
+        else if ((wchar_t) wc == L'\0')
+        {
+          // Print nothing.
+          cp = (char *) "";
+          size = 0;
+          break;
+        }
+        memset(&st, 0, sizeof(mbstate_t));
+        sz = wcrtomb(&mbstr[0], (wchar_t) wc, &st);
+        // Handle printing errors.
+        if (sz == (size_t) -1)
+        {
+          cp = (char *) "";
+          size = 0;
+          break;
+        }
+        cp = mbstr;
+        size = (int) sz;
+      }
       break;
     //
     // This section parses conversion specifiers and gives instructions on how
@@ -890,7 +1133,8 @@ reswitch: switch (ch) {
     case 'd':
     case 'i':
       _umax = SARG();
-      if ((intmax_t)_umax < 0) {
+      if ((intmax_t)_umax < 0)
+      {
         _umax = -_umax;
         sign = '-';
       }
@@ -900,11 +1144,14 @@ reswitch: switch (ch) {
 #ifdef FLOATING_POINT
     case 'a':
     case 'A':
-      if (ch == 'a') {
+      if (ch == 'a')
+      {
         ox[1] = 'x';
         xdigs = xdigs_lower;
         expchar = 'p';
-      } else {
+      }
+      else
+      {
         ox[1] = 'X';
         xdigs = xdigs_upper;
         expchar = 'P';
@@ -913,12 +1160,13 @@ reswitch: switch (ch) {
         prec++;
       if (dtoaresult)
         __freedtoa(dtoaresult);
-      if (flags & LONGDBL) {
+      if (flags & LONGDBL)
+      {
         fparg.ldbl = GETARG(long double);
         dtoaresult = cp =
-            __hldtoa(fparg.ldbl, xdigs, prec,
-            &expt, &signflag, &dtoaend);
-        if (dtoaresult == NULL) {
+            __hldtoa(fparg.ldbl, xdigs, prec, &expt, &signflag, &dtoaend);
+        if (dtoaresult == 0)
+        {
           errno = ENOMEM;
           goto error;
         }
@@ -927,7 +1175,8 @@ reswitch: switch (ch) {
         dtoaresult = cp =
             __hdtoa(fparg.dbl, xdigs, prec,
             &expt, &signflag, &dtoaend);
-        if (dtoaresult == NULL) {
+        if (dtoaresult == 0)
+        {
           errno = ENOMEM;
           goto error;
         }
@@ -970,12 +1219,13 @@ fp_begin:
         prec = DEFPREC;
       if (dtoaresult)
         __freedtoa(dtoaresult);
-      if (flags & LONGDBL) {
+      if (flags & LONGDBL)
+      {
         fparg.ldbl = GETARG(long double);
         dtoaresult = cp =
-            __ldtoa(&fparg.ldbl, expchar ? 2 : 3, prec,
-            &expt, &signflag, &dtoaend);
-        if (dtoaresult == NULL) {
+        __ldtoa(&fparg.ldbl, expchar ? 2 : 3, prec, &expt, &signflag, &dtoaend);
+        if (dtoaresult == 0)
+        {
           errno = ENOMEM;
           goto error;
         }
@@ -1011,9 +1261,13 @@ fp_begin:
         // - signflag is set to true when the number is negative, 0 if not
         // - dtoaend is set to point to the end of the returned string.
         //
+        // The calls to similar floating point conversion functions, ie.
+        // __ldtoa(), __hdtoa(), and __hldtoa() are more or less analogous to
+        // the call to __dtoa().
+        //
         dtoaresult = cp =
           __dtoa(fparg.dbl, expchar ? 2 : 3, prec, &expt, &signflag, &dtoaend);
-        if (dtoaresult == NULL)
+        if (dtoaresult == 0)
         {
           errno = ENOMEM;
           goto error;
@@ -1027,8 +1281,8 @@ fp_begin:
 fp_common:
       if (signflag)
         sign = '-';
-      if (expt == INT_MAX)
-      {  // inf or nan
+      if (expt == INT_MAX)  // INF or NaN
+      {
         if (*cp == 'N')
         {
           cp = (char *) ((ch >= 'a') ? "nan" : "NAN");
@@ -1140,63 +1394,23 @@ fp_common:
       //
       // Handle printing null pointers.
       //
-      else if ((cp = (char *) p->ptr) == 0)
+      else if (p->ptr == 0)
       {
         cp = (char *) "(null)";
         size = (int) strlen(cp);
         break;
       }
       //
-      // Otherwise load the object boundaries.
+      // Handle printing a string.
       //
-      find_object(&CInfo, p);
-      //
-      // A nonnegative precision means that we should print at most prec bytes
-      // from this string.
-      //
-      if (prec >= 0)
-      {
-        size_t maxbytes = (p->flags & HAVEBOUNDS) ? 
-          min((size_t) prec, object_len(p)) :
-          (size_t) prec;
-
-        char *r = (char *) memchr(cp, 0, maxbytes);
-
-        if (r)
-          size = r - cp;
-        else if ((unsigned)prec <= maxbytes)
-          size = prec;
-        else
-        {
-          size = prec;
-          cerr << "Reading string out of bounds!" << endl;
-          out_of_bounds_error(&CInfo, p, maxbytes);
-        }
-      }
       else
       {
-        size_t len;
-        //
-        // If we have the boundaries of the object, then we should print
-        // no further than the object size.
-        //
-        if (p->flags & HAVEBOUNDS)
-        {
-          size_t maxbytes = object_len(p);
-          len = _strnlen(cp, maxbytes);
-          if (len == maxbytes)
-          {
-            cerr << "Reading string out of bounds!" << endl;
-            out_of_bounds_error(&CInfo, p, maxbytes);
-          }
-        }
-        else
-          len = strlen(cp);
-
-        if (len > INT_MAX)
+        size_t sz;
+        handle_s_directive(&CInfo, p, flags, &cp, &sz, &mbstr, prec);
+        if (sz > INT_MAX)
           goto overflow;
-
-        size = (int)len;
+        else
+          size = (int) sz;
       }
       break;
     case 'U':
@@ -1254,7 +1468,7 @@ number:     if ((dprec = prec) >= 0)
           break;
 
         case DEC:
-          // many numbers are 1 digit
+          // many numbers are 1 digit  // INF or NaN
           while (_umax >= 10)
           {
             *--cp = to_char(_umax % 10);
@@ -1337,7 +1551,8 @@ number:     if ((dprec = prec) >= 0)
     if (sign)
       PRINT(&sign, 1);
     if (ox[1])
-    {  // ox[1] is either x, X, or \0
+    {
+      // ox[1] is either x, X, or \0
       ox[0] = '0';
       PRINT(ox, 2);
     }
@@ -1357,9 +1572,11 @@ number:     if ((dprec = prec) >= 0)
       PRINT(cp, size);
     }
     else
-    {  // glue together f_p fragments
+    {
+      // glue together f_p fragments
       if (!expchar)
-      { // %[fF] or sufficiently short %[gG]
+      {
+        // %[fF] or sufficiently short %[gG]
         if (expt <= 0)
         {
           PRINT(zeroes, 1);
@@ -1379,7 +1596,8 @@ number:     if ((dprec = prec) >= 0)
         PRINTANDPAD(cp, dtoaend, prec, zeroes);
       }
       else
-      {  // %[eE] or sufficiently long %[gG]
+      {
+        // %[eE] or sufficiently long %[gG]
         if (prec > 1 || flags & ALT)
         {
           buf[0] = *cp++;
@@ -1388,7 +1606,8 @@ number:     if ((dprec = prec) >= 0)
           PRINT(cp, ndig-1);
           PAD(prec - ndig, zeroes);
         } else
-        { // XeYYY
+        {
+          // XeYYY
           PRINT(cp, 1);
         }
         PRINT(expstr, expsize);
@@ -1430,10 +1649,16 @@ finish:
     __freedtoa(dtoaresult);
 #endif
 
-  if (argtable != NULL && argtable != statargtable)
+  //
+  // Free any allocated buffers for multibyte conversion;
+  //
+  if (mbstr != 0)
+    free(mbstr);
+
+  if (argtable != 0 && argtable != statargtable)
   {
     munmap(argtable, argtablesiz);
-    argtable = NULL;
+    argtable = 0;
   }
   return (ret);
 }
@@ -1468,6 +1693,7 @@ finish:
 #define TP_MAXINT 24
 #define T_CHAR    25
 #define T_U_CHAR  26
+#define T_WINT    27
 
 //
 // Find all arguments when a positional parameter is encountered.  Returns a
@@ -1619,10 +1845,13 @@ reswitch: switch (ch) {
       }
       goto rflag;
     case 'l':
-      if (*fmt == 'l') {
+      if (*fmt == 'l')
+      {
         fmt++;
         flags |= LLONGINT;
-      } else {
+      }
+      else
+      {
         flags |= LONGINT;
       }
       goto rflag;
@@ -1636,7 +1865,13 @@ reswitch: switch (ch) {
       flags |= SIZEINT;
       goto rflag;
     case 'c':
-      ADDTYPE(T_INT);
+      //
+      // Handle wide character arguments correctly.
+      //
+      if (flags & LONGINT)
+        ADDTYPE(T_WINT);
+      else
+        ADDTYPE(T_INT);
       break;
     case 'D':
       flags |= LONGINT;
@@ -1714,7 +1949,7 @@ done:
   if (tablemax >= STATIC_ARG_TBL_SIZE)
   {
     *argtablesiz = sizeof(union arg) * (tablemax + 1);
-    *argtable = (union arg *) mmap(NULL, *argtablesiz,
+    *argtable = (union arg *) mmap(0, *argtablesiz,
         PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
     if (*argtable == MAP_FAILED)
       return (-1);
@@ -1737,7 +1972,10 @@ done:
     case T_SHORT:
     case T_U_SHORT:
     case T_INT:
-      (*argtable)[n].intarg = va_arg(ap, int);
+      (*argtable)[n].intarg  = va_arg(ap, int);
+      break;
+    case T_WINT:
+      (*argtable)[n].wintarg = va_arg(ap, wint_t);
       break;
     case TP_SHORT:
     case TP_INT:
@@ -1793,9 +2031,9 @@ overflow:
   ret = -1;
 
 finish:
-  if (typetable != NULL && typetable != stattypetable) {
+  if (typetable != 0 && typetable != stattypetable) {
     munmap(typetable, *argtablesiz);
-    typetable = NULL;
+    typetable = 0;
   }
   return (ret);
 }
@@ -1816,13 +2054,13 @@ __grow_type_table(unsigned char **typetable, int *tablesize)
   // Allocate the new table with mmap().
   //
   if (*tablesize == STATIC_ARG_TBL_SIZE) {
-    *typetable = (unsigned char *) mmap(NULL, newsize, PROT_WRITE|PROT_READ,
+    *typetable = (unsigned char *) mmap(0, newsize, PROT_WRITE|PROT_READ,
         MAP_ANON|MAP_PRIVATE, -1, 0);
     if (*typetable == MAP_FAILED)
       return (-1);
     bcopy(oldtable, *typetable, *tablesize);
   } else {
-    unsigned char *nc = (unsigned char *) mmap(NULL, newsize,
+    unsigned char *nc = (unsigned char *) mmap(0, newsize,
         PROT_WRITE|PROT_READ, MAP_ANON|MAP_PRIVATE, -1, 0);
     if (nc == MAP_FAILED)
       return (-1);

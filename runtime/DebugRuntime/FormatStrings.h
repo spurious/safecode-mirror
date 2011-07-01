@@ -215,6 +215,37 @@ namespace
         break;
     return i;
   }
+  
+  //
+  // This function is identical to wscnlen(), which is not found on Mac OS X.
+  //
+  static inline size_t
+  _wcsnlen(const wchar_t *ws, size_t max)
+  {
+    size_t i;
+    for (i = 0; i < max; ++i)
+      if (ws[i] == L'\0')
+        break;
+    return i;
+  }
+  
+  //
+  // Check if a pointer_info structure exists in the whitelist of the given
+  // call_info structure.
+  //
+  static inline bool
+  is_in_whitelist(call_info *c, pointer_info *p)
+  {
+    void **whitelist = c->whitelist;
+    do
+    {
+      if ((void *) p == *whitelist)
+        break;
+      whitelist++;
+    } while (*whitelist);
+    return (*whitelist != 0);
+  }
+
 }
 
 #endif
