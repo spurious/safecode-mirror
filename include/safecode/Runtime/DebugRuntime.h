@@ -254,6 +254,10 @@ extern "C" {
   int   pool_scanf(void *info, void *fmt, ...);
   int   pool_fscanf(void *info, void *src, void *fmt, ...);
   int   pool_sscanf(void *info, void *str, void *fmt, ...);
+  int   pool___printf_chk(void *info, int flag, void *fmt, ...);
+  int   pool___fprintf_chk(void *info, void *dest, int flag, void *fmt, ...);
+  int   pool___sprintf_chk(void *info, void *dest, int flag, size_t slen, void *fmt, ...);
+  int   pool___snprintf_chk(void *info, void *dest, size_t n, int flag, size_t slen, void *fmt, ...);
  
   // Exact checks
   void * exactcheck2 (const char *base, const char *result, unsigned size);

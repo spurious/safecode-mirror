@@ -688,6 +688,10 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
       {"pool_scanf",            "pool_scanf"},
       {"pool_fscanf",           "pool_fscanf"},
       {"pool_sscanf",           "pool_sscanf"},
+      {"pool___printf_chk",     "pool___printf_chk"},
+      {"pool___fprintf_chk",    "pool___fprintf_chk"},
+      {"pool___sprintf_chk",    "pool___sprintf_chk"},
+      {"pool___snprintf_chk",   "pool___snprintf_chk"},
 
       // These functions register objects in the splay trees
       {"poolcalloc_debug",      "__sc_dbg_src_poolcalloc"},

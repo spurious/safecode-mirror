@@ -382,6 +382,181 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
 }
 
 //
+// Secure runtime wrapper to replace __printf_chk()
+//
+// This function is currently identical to pool_printf().
+//
+int pool___printf_chk(void *_info, int flags, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  pointer_info *fmt  = (pointer_info *) _fmt;
+  call_info    *call = (call_info *)    _info;
+  options_t options = 0x0;
+  //
+  // Set up the output parameter structure to point to stdout as the output
+  // file.
+  //
+  output_parameter P;
+  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
+  P.Output.File = stdout;
+  //
+  // Lock stdout before calling the function which does the printing.
+  //
+  flockfile(stdout);
+  va_start(ap, _fmt);
+  result = gprintf(options, P, *call, *fmt, ap);
+  va_end(ap);
+  funlockfile(stdout);
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace __fprintf_chk()
+//
+// This function is currently identical to pool_fprintf().
+//
+int pool___fprintf_chk(void *_info, void *_dest, int flags, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  call_info    *call = (call_info *)    _info;
+  pointer_info *fmt  = (pointer_info *) _fmt;
+  pointer_info *file = (pointer_info *) _dest;
+  options_t options = 0x0;
+  //
+  // Set up the output parameter structure to point to the output file.
+  //
+  output_parameter P;
+  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
+  P.Output.File = (FILE *) file->ptr;
+  //
+  // Lock the file before calling the function which does the printing.
+  //
+  flockfile(P.Output.File);
+  va_start(ap, _fmt);
+  result = gprintf(options, P, *call, *fmt, ap);
+  va_end(ap);
+  funlockfile(P.Output.File);
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace __sprintf_chk()
+//
+// The only difference between this function and pool_sprintf() is that this
+// function aborts the program when the parameter 'n' (= the size of the
+// output buffer) is 0.
+//
+int pool___sprintf_chk(void *_i, void *_d, int f, size_t n, void *_fmt, ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  //
+  // Abort if n is 0.
+  //
+  if (n == 0)
+    abort();
+
+  call_info   *call = (call_info *)    _i;
+  pointer_info *str = (pointer_info *) _d;
+  pointer_info *fmt = (pointer_info *) _fmt;
+  //
+  // Set up the output parameter to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
+  p.Output.String.string = (char *) str->ptr;
+  p.Output.String.pos    = 0;
+  p.Output.String.info   = str;
+  //
+  // Get the object boundaries of the destination array.
+  //
+  find_object(call, str);
+  if (str->flags & HAVEBOUNDS)
+    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+  else // If boundaries are not found, assume unlimited length.
+    p.Output.String.maxsz = SIZE_MAX;
+  p.Output.String.n = SIZE_MAX; // The caller didn't place a size limitation.
+
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *call, *fmt, ap);
+  va_end(ap);
+  //
+  // Add the terminator byte.
+  //
+  p.Output.String.string[p.Output.String.pos] = '\0';
+
+  return result;
+}
+
+//
+// Secure runtime wrapper to replace __snprintf_chk()
+//
+// This function is the same as pool_snprintf(), except that it aborts the
+// program when strlen (= the size of the output buffer) < n.
+//
+int
+pool___snprintf_chk(void *_info,
+                    void *_dest,
+                    size_t n,
+                    int flag,
+                    size_t strlen,
+                    void *_fmt,
+                    ...)
+{
+  va_list ap;
+  int result;
+  output_parameter p;
+  options_t options = 0x0;
+
+  //
+  // Abort if strlen < n.
+  //
+  if (strlen < n)
+    abort();
+
+  call_info   *call = (call_info *)    _info;
+  pointer_info *str = (pointer_info *) _dest;
+  pointer_info *fmt = (pointer_info *)  _fmt;
+  //
+  // Set up the output parameter to output into a string.
+  //
+  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
+  p.Output.String.string = (char *) str->ptr;
+  p.Output.String.pos    = 0;
+  p.Output.String.info   = str;
+  //
+  // Get the object boundaries of the destination array.
+  //
+  find_object(call, str);
+  if (str->flags & HAVEBOUNDS)
+    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+  else // If boundaries are not found, assume unlimited length.
+    p.Output.String.maxsz = SIZE_MAX;
+  if (n > 0)
+    p.Output.String.n = n - 1; // Caller-imposed size limitation.
+  else
+    p.Output.String.n = 0;     // Don't write anything.
+
+  va_start(ap, _fmt);
+  result = gprintf(options, p, *call, *fmt, ap);
+  va_end(ap);
+  //
+  // Add the terminator byte, if n is not 0.
+  // (If n is 0, nothing is written.)
+  //
+  if (n > 0)
+    p.Output.String.string[p.Output.String.pos] = '\0';
+
+  return result;
+}
+
+//
 // For functions err(), errx(), warn(), warnx(), and syslog(), which do
 // additional work beyond format string processing, we first print the
 // string into an allocate buffer, then pass the result into the actual

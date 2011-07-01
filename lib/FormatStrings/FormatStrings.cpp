@@ -49,6 +49,18 @@ STATISTIC(stat_syslog,   "Number of calls to syslog() that were secured");
 STATISTIC(stat_scanf,    "Number of calls to scanf() that were secured");
 STATISTIC(stat_fscanf,   "Number of calls to fscanf() that were secured");
 STATISTIC(stat_sscanf,   "Number of calls to sscanf() that were secured");
+STATISTIC(
+  stat___printf_chk,   "Number of calls to __printf_chk() that were secured"
+);
+STATISTIC(
+  stat___fprintf_chk,  "Number of calls to __fprintf_chk() that were secured"
+);
+STATISTIC(
+  stat___sprintf_chk,  "Number of calls to __sprintf_chk() that were secured"
+);
+STATISTIC(
+  stat___snprintf_chk, "Number of calls to __snprintf_chk() that were secured"
+);
 
 char FormatStringTransform::ID = 0;
 
@@ -114,6 +126,18 @@ FormatStringTransform::runOnModule(Module &M)
   changed |= transform(M, "scanf",    1, "pool_scanf",    stat_scanf);
   changed |= transform(M, "fscanf",   2, "pool_fscanf",   stat_fscanf);
   changed |= transform(M, "sscanf",   2, "pool_sscanf",   stat_sscanf);
+  changed |= transform(
+    M, "__printf_chk",   2, "pool___printf_chk",   stat___printf_chk
+  );
+  changed |= transform(
+    M, "__fprintf_chk",  3, "pool___fprintf_chk",  stat___fprintf_chk
+  );
+  changed |= transform(
+    M, "__sprintf_chk",  4, "pool___sprintf_chk",  stat___sprintf_chk
+  );
+  changed |= transform(
+    M, "__snprintf_chk", 5, "pool___snprintf_chk", stat___snprintf_chk
+  );
 
   //
   // The transformations use placehold arrays of size 0. This call changes
