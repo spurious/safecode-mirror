@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <stdint.h>
+#include <math.h>
 
 #include "gdtoa.h"
 
@@ -60,13 +61,10 @@ __ldtoa(long double *ld,
   bits[0] = l->ieee.mt0;
   bits[1] = l->ieee.mt1;
 
-  if (exp == 0x7fff)     /* Infinity or NAN    */
-  {
-    if (bits[0] | bits[1])
+  if (isnan(*ld))        /* NaN                */
       kind = STRTOG_NaN;
-    else
+  else if (isinf(*ld))   /* Infinity           */
       kind = STRTOG_Infinite;
-  }
   else if (exp == 0)     /* Denormalized       */
   {
     kind = STRTOG_Denormal;
