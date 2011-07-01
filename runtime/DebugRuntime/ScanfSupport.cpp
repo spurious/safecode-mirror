@@ -749,7 +749,6 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   int   reverse;              // reverse the checking in [...]
   int   kind;
   int  ic = EOF;              // the input character
-  char Xtable[NR_CHARS];      // table for %[...] scansets
   char inp_buf[NUMLEN + 1];   // buffer to hold numerical inputs
 
 #ifdef FLOATING_POINT
@@ -1108,9 +1107,13 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
 
         //
         // ']' appearing as the first character in the set does not close the
-        // directive, but adds ']' to the scanset.
+        // directive, but rather adds ']' to the scanset.
         //
-        if (*format == ']') Xtable[(unsigned) *format++] = 1;
+        if (*format == ']')
+        {
+          add_to_scanset(&scanset, ']');
+          format++;
+        }
 
         while (*format && *format != ']')
         {
