@@ -71,14 +71,24 @@ static RegisterPass<RewriteOOB> P ("oob-rewriter",
 //  of the original pointer which was passed into boundscheck().
 //
 // Inputs:
-//  F       - A pointer to the checking function to process.
+//  M       - The module to modify.
+//  Check   - A reference to a structure describing the checking function to
+//            process.
 //
 // Return value:
 //  false - No modifications were made to the Module.
 //  true  - One or more modifications were made to the module.
 //
 bool
-RewriteOOB::processFunction (Function * F) {
+RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
+  //
+  // Get a pointer to the checking function.  If the checking function does
+  // not exist within the program, then do nothing.
+  //
+  Function * F = M.getFunction (Check.name);
+  if (!F)
+    return false;
+
   //
   // Ensure the function has the right number of arguments and that its
   // result is a pointer type.
@@ -118,9 +128,8 @@ RewriteOOB::processFunction (Function * F) {
       // one because a call instruction's first operand is the function to
       // call.
       //
-      std::set<Value *>Chain;
-      Value * RealOperand = intrinPass->getValuePointer (CI);
-      Value * PeeledOperand = peelCasts (RealOperand, Chain);
+      Value * RealOperand = Check.getCheckedPointer (CI);
+      Value * PeeledOperand = RealOperand->stripPointerCasts();
 
       //
       // Cast the result of the call instruction to match that of the original
@@ -252,7 +261,14 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Get a reference to the getactualvalue() function.
   //
-  Function * GetActualValue = intrinPass->getIntrinsic("sc.get_actual_val").F;
+  Module * M = SCI->getParent()->getParent()->getParent();
+  const Type * VoidPtrTy = getVoidPtrType (M->getContext());
+  Constant * GAVConst = M->getOrInsertFunction ("sc.get_actual_val",
+                                                VoidPtrTy,
+                                                VoidPtrTy,
+                                                VoidPtrTy,
+                                                NULL);
+  Function * GetActualValue = dyn_cast<Function>(GAVConst);
 
   // We know that the operand is a pointer type 
   Value *op   = SCI->getOperand(operand);
@@ -260,8 +276,7 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Peel casts off of the operand.
   //
-  std::set<Value *>Chain;
-  Value * peeledOp = peelCasts (op, Chain);
+  Value * peeledOp = op->stripPointerCasts();
 
   //
   // Get the pool handle associated with the pointer.
@@ -327,21 +342,6 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
 bool
 RewriteOOB::runOnModule (Module & M) {
   //
-  // Get prerequisite analysis results.
-  //
-  intrinPass = &getAnalysis<InsertSCIntrinsic>();
-
-  //
-  // Get the set of GEP checking functions
-  //
-  std::vector<Function *> GEPCheckingFunctions;
-  InsertSCIntrinsic::intrinsic_const_iterator i, e;
-  for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
-    if (i->flag & InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK)
-      GEPCheckingFunctions.push_back (i->F);
-  }
-
-  //
   // Insert calls so that comparison instructions convert Out of Bound pointers
   // back into their original values.  This should be done *before* rewriting
   // the program so that pointers are replaced with the return values of bounds
@@ -354,16 +354,17 @@ RewriteOOB::runOnModule (Module & M) {
   // Transform the code for each type of checking function.  Mark whether
   // we've changed anything.
   //
-  while (GEPCheckingFunctions.size()) {
-    // Remove a function from the set of functions to process
-    Function * F = GEPCheckingFunctions.back();
-    GEPCheckingFunctions.pop_back();
-
+  for (unsigned index = 0; index < numChecks; ++index) {
     //
-    // Transform the function so that the pointer it checks is replaced with
-    // its return value.  The return value is the rewritten OOB pointer.
+    // If this is not a pointer arithmetic check, skip it.
     //
-    modified |= processFunction (F);
+    if (!(RuntimeChecks[index].isMemcheck)) {
+      //
+      // Transform the function so that the pointer it checks is replaced with
+      // its return value.  The return value is the rewritten OOB pointer.
+      //
+      modified |= processFunction (M, RuntimeChecks[index]);
+    }
   }
   return modified;
 }

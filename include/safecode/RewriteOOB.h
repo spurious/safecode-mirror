@@ -20,7 +20,7 @@
 #include "llvm/Pass.h"
 
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
+#include "safecode/CheckInfo.h"
 #include "safecode/PoolHandles.h"
 
 using namespace llvm;
@@ -38,12 +38,9 @@ NAMESPACE_SC_BEGIN
 class RewriteOOB : public ModulePass {
   private:
     // Private methods
-    bool processFunction (Function * F);
+    bool processFunction (Module & M, const struct CheckInfo & Check);
     bool addGetActualValues (Module & M);
     void addGetActualValue (Instruction *SCI, unsigned operand);
-
-    // Private variables
-    InsertSCIntrinsic * intrinPass;
 
   public:
     static char ID;
@@ -53,12 +50,6 @@ class RewriteOOB : public ModulePass {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // We require Dominator information
       AU.addRequired<DominatorTree>();
-
-      // This pass gives us information on the various run-time checks
-      AU.addRequired<InsertSCIntrinsic>();
-
-      // Pretend that we don't modify anything
-      AU.setPreservesAll();
     }
 };
 
