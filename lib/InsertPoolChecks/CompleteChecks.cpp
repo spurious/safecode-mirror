@@ -115,7 +115,7 @@ CompleteChecks::getDSNodeHandle (const Value * V, const Function * F) {
 //
 //  Specifically, this function assumes that there are as many pointer arguments
 //  to check as there are initial pool arguments, and the pointer arguments
-//  follow the pool arguments in corrsponding order. Also, it is assumed that
+//  follow the pool arguments in corresponding order. Also, it is assumed that
 //  the final argument to the function is a byte sized bit vector.
 //
 //  This function fills in this final byte with a constant value whose ith
@@ -401,6 +401,10 @@ CompleteChecks::runOnModule (Module & M) {
       makeCStdLibCallsComplete(f, entry->pool_argc);
   }
 
+  //
+  // For every call to sc.fsparameter, fill in the relevant completeness
+  // information about its pointer argument.
+  //
   makeFSParameterCallsComplete(M);
 
   return true;

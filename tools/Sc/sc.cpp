@@ -105,7 +105,7 @@ DisableCStdLib("disable-cstdlib",
 static cl::opt<bool>
 DisableFSChecks("disable-printfchecks",
                 cl::init(true),
-                cl::desc("Disable securing of printf() style functions"));
+                cl::desc("Disable securing of printf()/scanf() style functions"));
 
 static cl::opt<bool>
 EnableFastCallChecks("enable-fastcallchecks",

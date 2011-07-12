@@ -76,10 +76,10 @@ typedef struct
     OUTPUT_TO_ALLOCATED_STRING,
     OUTPUT_TO_STRING,
     OUTPUT_TO_FILE
-  } OutputKind;
+  } output_kind;
   union
   {
-    FILE *File;
+    FILE *file;
     struct
     {
       pointer_info *info;
@@ -88,14 +88,14 @@ typedef struct
       size_t maxsz;  // Maximum size of the array that can be written into the
                      // object safely. (SAFECode-imposed)
       size_t n;      // The maximum number of bytes to write. (user-imposed)
-    } String;
+    } string;
     struct
     {
       char *string;
       size_t bufsz;
       size_t pos;
-    } AllocedString;
-  } Output;
+    } alloced_string;
+  } output;
 } output_parameter;
 
 #define USE_M_DIRECTIVE 0x0001 // Enable parsing of the %m directive for
@@ -112,20 +112,20 @@ typedef struct
   {
     INPUT_FROM_STREAM,
     INPUT_FROM_STRING
-  } InputKind;
+  } input_kind;
   union
   {
     struct
     {
       FILE *stream;
       char lastch;
-    } Stream;
+    } stream;
     struct
     {
       const char *string;
       size_t pos;
-    } String;
-  } Input;
+    } string;
+  } input;
 } input_parameter;
 
 //
@@ -177,61 +177,44 @@ namespace
   using namespace NAMESPACE_SC;
 
   //
+  // find_object()
+  //
   // Get the object boundaries of the pointer associated with the pointer_info
   // structure.
+  //
+  // Inputs:
+  //  c - a pointer to the relevant call_info structure
+  //  p - a pointer to a valid pointer_info structure which contains the pointer
+  //      whose object boundaries should be discovered
+  // 
   //
   static inline void
   find_object(call_info *c, pointer_info *p)
   {
-    pointer_info &P = *p;
-    if (P.flags & ISRETRIEVED)
+    if (p->flags & ISRETRIEVED)
       return;
 
-    DebugPoolTy *pool = (DebugPoolTy *) P.pool;
-    if (P.ptr == 0)
-      P.flags |= NULL_PTR;
-    else if ((pool && pool->Objects.find(P.ptr, P.bounds[0], P.bounds[1])) ||
-        ExternalObjects.find(P.ptr, P.bounds[0], P.bounds[1]))
+    DebugPoolTy *pool = (DebugPoolTy *) p->pool;
+    if (p->ptr == 0)
+      p->flags |= NULL_PTR;
+    else if ((pool && pool->Objects.find(p->ptr, p->bounds[0], p->bounds[1])) ||
+        ExternalObjects.find(p->ptr, p->bounds[0], p->bounds[1]))
     {
-      P.flags |= HAVEBOUNDS;
+      p->flags |= HAVEBOUNDS;
     }
-    else if (P.flags & ISCOMPLETE)
+    else if (p->flags & ISCOMPLETE)
     {
       cerr << "Object not found in pool!" << endl;
       load_store_error(c, p);
     }
-    P.flags |= ISRETRIEVED;
-  }
-
-  //
-  // This function is identical to strnlen(), which is not found on Mac OS X.
-  //
-  static inline size_t
-  _strnlen(const char *s, size_t max)
-  {
-    size_t i;
-    for (i = 0; i < max; ++i)
-      if (s[i] == '\0')
-        break;
-    return i;
+    p->flags |= ISRETRIEVED;
   }
   
   //
-  // This function is identical to wscnlen(), which is not found on Mac OS X.
+  // is_in_whitelist()
   //
-  static inline size_t
-  _wcsnlen(const wchar_t *ws, size_t max)
-  {
-    size_t i;
-    for (i = 0; i < max; ++i)
-      if (ws[i] == L'\0')
-        break;
-    return i;
-  }
-  
-  //
-  // Check if a pointer_info structure exists in the whitelist of the given
-  // call_info structure.
+  // Check if a (non-NULL) pointer_info structure exists in the whitelist of the
+  // given call_info structure.
   //
   static inline bool
   is_in_whitelist(call_info *c, pointer_info *p)
@@ -244,6 +227,151 @@ namespace
       whitelist++;
     } while (*whitelist);
     return (*whitelist != 0);
+  }
+
+  //
+  // object_len()
+  //
+  // Get the number of bytes in the object that the pointer associated with the
+  // pointer_info structure points to, from address the pointer points to, until
+  // the end of the object.
+  //
+  // Note: Call find_object() before calling this.
+  //
+  static inline size_t
+  object_len(pointer_info *p)
+  {
+    return 1 + (size_t) ((char *) p->bounds[1] - (char *) p->ptr);
+  }
+
+  //
+  // write_check()
+  //
+  // Check if a write into the object associated with the given pointer_info
+  // structure of n bytes would be safe.
+  //
+  // Inputs:
+  //  c - the relevant call_info structure
+  //  p - the pointer_info structure
+  //  n - the size of the write
+  //
+  // This function outputs any relevant SAFECode messages. It returns true if
+  // the write is to be considered safe, and false otherwise.
+  //
+  static inline bool
+  write_check(call_info *c, pointer_info *p, size_t n)
+  {
+    size_t max;
+    //
+    // First check if the object is a valid pointer_info structure.
+    //
+    if (p == 0 || !is_in_whitelist(c, p))
+    {
+      cerr << "The destination of the write isn't a valid pointer!" << endl;
+      c_library_error(c, "va_arg");
+      return false;
+    }
+    //
+    // Look up the object boundaries.
+    //
+    find_object(c, p);
+    //
+    // Check for NULL pointer writes.
+    //
+    if (p->flags & NULL_PTR)
+    {
+      cerr << "Writing into a NULL pointer!" << endl;
+      c_library_error(c, "va_arg");
+      return false;
+    }
+    else if (p->flags & HAVEBOUNDS)
+    {
+      max = object_len(p);
+      if (n > max)
+      {
+        cerr << "Writing out of bounds!" << endl;
+        write_out_of_bounds_error(c, p, max, n);
+        return false;
+      }
+      else
+        return true;
+    }
+    //
+    // Assume an object without discovered boundaries has enough space.
+    //
+    return true;
+  }
+
+  //
+  // varg_check()
+  //
+  // Check if too many arguments are accessed, if so, report an error.
+  //
+  // Inputs:
+  //  c   - the call_info structure describing the function call
+  //  pos - the number of the variable argument that the function is trying to
+  //        access
+  //
+  // This function returns true if an argument is trying to be accessed beyond
+  // the arguments that exist to the function call, and false otherwise.
+  //
+  static inline bool
+  varg_check(call_info *c, unsigned pos)
+  {
+    if (pos > c->vargc)
+    {
+      if (c->vargc == 1)
+      {
+        cerr << "Attempting to access argument " << pos << \
+          " but there is only 1 argument!" << endl;
+      } 
+      else
+      {
+        cerr << "Attempting to access argument " << pos << \
+          " but there are only " << c->vargc << " arguments!" << endl;
+      }
+      c_library_error(c, "va_arg");
+      return true;
+    }
+    return false;
+  }
+
+  //
+  // unwrap_pointer()
+  //
+  // Get the actual pointer argument from the given parameter. If the parameter
+  // is whitelisted and so a wrapper, this retrieves the pointer from the
+  // wrapper. Otherwise it just returns the parameter because it isn't 
+  // recognized as a wrapper.
+  //
+  // Inputs:
+  //  c - a pointer to the relevant call_info structure
+  //  p - a pointer to the pointer_info structure to query
+  //
+  // Returns:
+  //  This function returns p->ptr if p is a valid pointer_info structure found
+  //  in the whitelist, and p otherwise.
+  //
+  static inline void *
+  unwrap_pointer(call_info *c, void *p)
+  {
+    if (is_in_whitelist(c, (pointer_info *) p))
+      return ((pointer_info *) p)->ptr;
+    else
+      return p;
+  }
+
+  //
+  // This function is identical to strnlen(), which is not found on Mac OS X.
+  //
+  static inline size_t
+  _strnlen(const char *s, size_t n)
+  {
+    size_t i;
+    for (i = 0; i < n; i++)
+      if (s[i] == '\0')
+        break;
+    return i;
   }
 
 }

@@ -250,15 +250,15 @@ int pool_printf(void *_info, void *_fmt, ...)
   // Set up the output parameter structure to point to stdout as the output
   // file.
   //
-  output_parameter P;
-  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
-  P.Output.File = stdout;
+  output_parameter p;
+  p.output_kind  = output_parameter::OUTPUT_TO_FILE;
+  p.output.file = stdout;
   //
   // Lock stdout before calling the function which does the printing.
   //
   flockfile(stdout);
   va_start(ap, _fmt);
-  result = gprintf(options, P, *call, *fmt, ap);
+  result = gprintf(options, p, *call, *fmt, ap);
   va_end(ap);
   funlockfile(stdout);
 
@@ -279,17 +279,17 @@ int pool_fprintf(void *_info, void *_dest, void *_fmt, ...)
   //
   // Set up the output parameter structure to point to the output file.
   //
-  output_parameter P;
-  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
-  P.Output.File = (FILE *) file->ptr;
+  output_parameter p;
+  p.output_kind  = output_parameter::OUTPUT_TO_FILE;
+  p.output.file = (FILE *) file->ptr;
   //
   // Lock the file before calling the function which does the printing.
   //
-  flockfile(P.Output.File);
+  flockfile(p.output.file);
   va_start(ap, _fmt);
-  result = gprintf(options, P, *call, *fmt, ap);
+  result = gprintf(options, p, *call, *fmt, ap);
   va_end(ap);
-  funlockfile(P.Output.File);
+  funlockfile(p.output.file);
 
   return result;
 }
@@ -310,19 +310,19 @@ int pool_sprintf(void *_info, void *_dest, void *_fmt, ...)
   //
   // Set up the output parameter to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
-  p.Output.String.string = (char *) str->ptr;
-  p.Output.String.pos    = 0;
-  p.Output.String.info   = str;
+  p.output_kind = output_parameter::OUTPUT_TO_STRING;
+  p.output.string.string = (char *) str->ptr;
+  p.output.string.pos    = 0;
+  p.output.string.info   = str;
   //
   // Get the object boundaries of the destination array.
   //
   find_object(call, str);
   if (str->flags & HAVEBOUNDS)
-    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+    p.output.string.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
-    p.Output.String.maxsz = SIZE_MAX;
-  p.Output.String.n = SIZE_MAX; // The caller didn't place a size limitation.
+    p.output.string.maxsz = SIZE_MAX;
+  p.output.string.n = SIZE_MAX; // The caller didn't place a size limitation.
 
   va_start(ap, _fmt);
   result = gprintf(options, p, *call, *fmt, ap);
@@ -330,7 +330,7 @@ int pool_sprintf(void *_info, void *_dest, void *_fmt, ...)
   //
   // Add the terminator byte.
   //
-  p.Output.String.string[p.Output.String.pos] = '\0';
+  p.output.string.string[p.output.string.pos] = '\0';
 
   return result;
 }
@@ -351,22 +351,22 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
   //
   // Set up the output parameter to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
-  p.Output.String.string = (char *) str->ptr;
-  p.Output.String.pos    = 0;
-  p.Output.String.info   = str;
+  p.output_kind = output_parameter::OUTPUT_TO_STRING;
+  p.output.string.string = (char *) str->ptr;
+  p.output.string.pos    = 0;
+  p.output.string.info   = str;
   //
   // Get the object boundaries of the destination array.
   //
   find_object(call, str);
   if (str->flags & HAVEBOUNDS)
-    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+    p.output.string.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
-    p.Output.String.maxsz = SIZE_MAX;
+    p.output.string.maxsz = SIZE_MAX;
   if (n > 0)
-    p.Output.String.n = n - 1; // Caller-imposed size limitation.
+    p.output.string.n = n - 1; // Caller-imposed size limitation.
   else
-    p.Output.String.n = 0;     // Don't write anything.
+    p.output.string.n = 0;     // Don't write anything.
 
   va_start(ap, _fmt);
   result = gprintf(options, p, *call, *fmt, ap);
@@ -376,7 +376,7 @@ int pool_snprintf(void *_info, void *_dest, size_t n, void *_fmt, ...)
   // (If n is 0, nothing is written.)
   //
   if (n > 0)
-    p.Output.String.string[p.Output.String.pos] = '\0';
+    p.output.string.string[p.output.string.pos] = '\0';
 
   return result;
 }
@@ -397,15 +397,15 @@ int pool___printf_chk(void *_info, int flags, void *_fmt, ...)
   // Set up the output parameter structure to point to stdout as the output
   // file.
   //
-  output_parameter P;
-  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
-  P.Output.File = stdout;
+  output_parameter p;
+  p.output_kind  = output_parameter::OUTPUT_TO_FILE;
+  p.output.file = stdout;
   //
   // Lock stdout before calling the function which does the printing.
   //
   flockfile(stdout);
   va_start(ap, _fmt);
-  result = gprintf(options, P, *call, *fmt, ap);
+  result = gprintf(options, p, *call, *fmt, ap);
   va_end(ap);
   funlockfile(stdout);
 
@@ -428,17 +428,17 @@ int pool___fprintf_chk(void *_info, void *_dest, int flags, void *_fmt, ...)
   //
   // Set up the output parameter structure to point to the output file.
   //
-  output_parameter P;
-  P.OutputKind  = output_parameter::OUTPUT_TO_FILE;
-  P.Output.File = (FILE *) file->ptr;
+  output_parameter p;
+  p.output_kind  = output_parameter::OUTPUT_TO_FILE;
+  p.output.file = (FILE *) file->ptr;
   //
   // Lock the file before calling the function which does the printing.
   //
-  flockfile(P.Output.File);
+  flockfile(p.output.file);
   va_start(ap, _fmt);
-  result = gprintf(options, P, *call, *fmt, ap);
+  result = gprintf(options, p, *call, *fmt, ap);
   va_end(ap);
-  funlockfile(P.Output.File);
+  funlockfile(p.output.file);
 
   return result;
 }
@@ -469,19 +469,19 @@ int pool___sprintf_chk(void *_i, void *_d, int f, size_t n, void *_fmt, ...)
   //
   // Set up the output parameter to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
-  p.Output.String.string = (char *) str->ptr;
-  p.Output.String.pos    = 0;
-  p.Output.String.info   = str;
+  p.output_kind = output_parameter::OUTPUT_TO_STRING;
+  p.output.string.string = (char *) str->ptr;
+  p.output.string.pos    = 0;
+  p.output.string.info   = str;
   //
   // Get the object boundaries of the destination array.
   //
   find_object(call, str);
   if (str->flags & HAVEBOUNDS)
-    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+    p.output.string.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
-    p.Output.String.maxsz = SIZE_MAX;
-  p.Output.String.n = SIZE_MAX; // The caller didn't place a size limitation.
+    p.output.string.maxsz = SIZE_MAX;
+  p.output.string.n = SIZE_MAX; // The caller didn't place a size limitation.
 
   va_start(ap, _fmt);
   result = gprintf(options, p, *call, *fmt, ap);
@@ -489,7 +489,7 @@ int pool___sprintf_chk(void *_i, void *_d, int f, size_t n, void *_fmt, ...)
   //
   // Add the terminator byte.
   //
-  p.Output.String.string[p.Output.String.pos] = '\0';
+  p.output.string.string[p.output.string.pos] = '\0';
 
   return result;
 }
@@ -526,22 +526,22 @@ pool___snprintf_chk(void *_info,
   //
   // Set up the output parameter to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_STRING;
-  p.Output.String.string = (char *) str->ptr;
-  p.Output.String.pos    = 0;
-  p.Output.String.info   = str;
+  p.output_kind = output_parameter::OUTPUT_TO_STRING;
+  p.output.string.string = (char *) str->ptr;
+  p.output.string.pos    = 0;
+  p.output.string.info   = str;
   //
   // Get the object boundaries of the destination array.
   //
   find_object(call, str);
   if (str->flags & HAVEBOUNDS)
-    p.Output.String.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
+    p.output.string.maxsz = (char *) str->bounds[1] - (char *) str->ptr;
   else // If boundaries are not found, assume unlimited length.
-    p.Output.String.maxsz = SIZE_MAX;
+    p.output.string.maxsz = SIZE_MAX;
   if (n > 0)
-    p.Output.String.n = n - 1; // Caller-imposed size limitation.
+    p.output.string.n = n - 1; // Caller-imposed size limitation.
   else
-    p.Output.String.n = 0;     // Don't write anything.
+    p.output.string.n = 0;     // Don't write anything.
 
   va_start(ap, _fmt);
   result = gprintf(options, p, *call, *fmt, ap);
@@ -551,7 +551,7 @@ pool___snprintf_chk(void *_info,
   // (If n is 0, nothing is written.)
   //
   if (n > 0)
-    p.Output.String.string[p.Output.String.pos] = '\0';
+    p.output.string.string[p.output.string.pos] = '\0';
 
   return result;
 }
@@ -592,10 +592,10 @@ void pool_err(void *_info, int eval, void *_fmt, ...)
   //
   // Set up the output parameter to allocate space to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
-  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
-  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
-  p.Output.AllocedString.pos    = 0;
+  p.output_kind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.output.alloced_string.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.output.alloced_string.bufsz  = INITIAL_ALLOC_SIZE;
+  p.output.alloced_string.pos    = 0;
   //
   // Print into the allocated string.
   //
@@ -609,7 +609,7 @@ void pool_err(void *_info, int eval, void *_fmt, ...)
     err(eval, message_error);
   else
     // This call exits the program; we can't free the allocated string.
-    err(eval, "%.*s", result, p.Output.AllocedString.string);
+    err(eval, "%.*s", result, p.output.alloced_string.string);
 }
 
 //
@@ -632,10 +632,10 @@ void pool_errx(void *_info, int eval, void *_fmt, ...)
   //
   // Set up the output parameter to allocate space to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
-  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
-  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
-  p.Output.AllocedString.pos    = 0;
+  p.output_kind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.output.alloced_string.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.output.alloced_string.bufsz  = INITIAL_ALLOC_SIZE;
+  p.output.alloced_string.pos    = 0;
   //
   // Print into the allocated string.
   //
@@ -649,7 +649,7 @@ void pool_errx(void *_info, int eval, void *_fmt, ...)
     errx(eval, message_error);
   else
     // This call exits the program; we can't free the allocated string.
-    errx(eval, "%.*s", result, p.Output.AllocedString.string);
+    errx(eval, "%.*s", result, p.output.alloced_string.string);
 }
 
 //
@@ -675,10 +675,10 @@ void pool_warn(void *_info, void *_fmt, ...)
   //
   // Set up the output parameter to allocate space to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
-  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
-  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
-  p.Output.AllocedString.pos    = 0;
+  p.output_kind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.output.alloced_string.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.output.alloced_string.bufsz  = INITIAL_ALLOC_SIZE;
+  p.output.alloced_string.pos    = 0;
   //
   // Print into the allocated string.
   //
@@ -692,8 +692,8 @@ void pool_warn(void *_info, void *_fmt, ...)
     warn(message_error);
   else
   {
-    warn("%.*s", result, p.Output.AllocedString.string);
-    free(p.Output.AllocedString.string);
+    warn("%.*s", result, p.output.alloced_string.string);
+    free(p.output.alloced_string.string);
   }
   return;
 }
@@ -721,10 +721,10 @@ void pool_warnx(void *_info, void *_fmt, ...)
   //
   // Set up the output parameter to allocate space to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
-  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
-  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
-  p.Output.AllocedString.pos    = 0;
+  p.output_kind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.output.alloced_string.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.output.alloced_string.bufsz  = INITIAL_ALLOC_SIZE;
+  p.output.alloced_string.pos    = 0;
   //
   // Print into the allocated string.
   //
@@ -738,8 +738,8 @@ void pool_warnx(void *_info, void *_fmt, ...)
     warnx(message_error);
   else
   {
-    warnx("%.*s", result, p.Output.AllocedString.string);
-    free(p.Output.AllocedString.string);
+    warnx("%.*s", result, p.output.alloced_string.string);
+    free(p.output.alloced_string.string);
   }
   return;
 }
@@ -759,10 +759,10 @@ void pool_syslog(void *_info, int priority, void *_fmt, ...)
   //
   // Set up the output parameter to allocate space to output into a string.
   //
-  p.OutputKind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
-  p.Output.AllocedString.string = (char *) malloc(INITIAL_ALLOC_SIZE);
-  p.Output.AllocedString.bufsz  = INITIAL_ALLOC_SIZE;
-  p.Output.AllocedString.pos    = 0;
+  p.output_kind = output_parameter::OUTPUT_TO_ALLOCATED_STRING;
+  p.output.alloced_string.string = (char *) malloc(INITIAL_ALLOC_SIZE);
+  p.output.alloced_string.bufsz  = INITIAL_ALLOC_SIZE;
+  p.output.alloced_string.pos    = 0;
   //
   // Print into the allocated string.
   //
@@ -776,8 +776,8 @@ void pool_syslog(void *_info, int priority, void *_fmt, ...)
     syslog(priority, message_error);
   else
   {
-    syslog(priority, "%.*s", result, p.Output.AllocedString.string);
-    free(p.Output.AllocedString.string);
+    syslog(priority, "%.*s", result, p.output.alloced_string.string);
+    free(p.output.alloced_string.string);
   }
   return;
 }
@@ -796,8 +796,8 @@ int pool_scanf(void *_info, void *_fmt, ...)
   //
   // Set up the input parameter to read from stdin.
   //
-  p.InputKind = input_parameter::INPUT_FROM_STREAM;
-  p.Input.Stream.stream = stdin;
+  p.input_kind = input_parameter::INPUT_FROM_STREAM;
+  p.input.stream.stream = stdin;
   //
   // Lock stdin before calling the function to do the scanning.
   //
@@ -826,8 +826,8 @@ int pool_fscanf(void *_info, void *_src, void *_fmt, ...)
   //
   // Set the input parameter to read from the input stream.
   //
-  p.InputKind = input_parameter::INPUT_FROM_STREAM;
-  p.Input.Stream.stream = stream;
+  p.input_kind = input_parameter::INPUT_FROM_STREAM;
+  p.input.stream.stream = stream;
   //
   // Lock the stream before calling the function to do the scanning
   //
@@ -855,9 +855,9 @@ int pool_sscanf(void *_info, void *_str, void *_fmt, ...)
   //
   // Set the input parameter to read from a string
   //
-  p.InputKind = input_parameter::INPUT_FROM_STRING;
-  p.Input.String.string = (const char *) str->ptr;
-  p.Input.String.pos    = 0;
+  p.input_kind = input_parameter::INPUT_FROM_STRING;
+  p.input.string.string = (const char *) str->ptr;
+  p.input.string.pos    = 0;
   //
   // Check if the input string is terminated within object boundaries,
   // if we have the object boundaries.
@@ -973,7 +973,8 @@ gprintf(const options_t &Options,
 //
 // Returns:
 //   The function returns the number of format directives that were
-//   successfully matched with the input.
+//   successfully matched with the input, or EOF if there was an input failure
+//   before any directives could be matched.
 //
 int
 gscanf(input_parameter &Input,

@@ -57,16 +57,13 @@
 #include "safecode/Config/config.h"
 #include "FormatStrings.h"
 
-#include <sys/types.h>
-#include <sys/mman.h>
-
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <wchar.h>
@@ -77,42 +74,60 @@
 using std::cerr;
 using std::endl;
 using std::min;
+using std::max;
 
 using namespace NAMESPACE_SC;
 
-struct __siov
+//
+// This structure holds a single buffer to be printed.
+//
+struct siov
 {
+  // Start of buffer
   char *iov_base;
+  // Number of bytes to print
   size_t iov_len;
 };
 
-struct __suio
+//
+// This structure holds an array of buffers which are printed at one time.
+//
+struct suio
 {
-  struct __siov *uio_iov;
-  // Number of uio_iov buffers
+  // Array of buffers
+  struct siov *uio_iov;
+  // Number of buffers
   int uio_iovcnt;
-  // Total number of characters to print
+  // Total number of bytes to print
   int uio_resid;
 };
 
 //
-// Flush out all the vectors defined by the given uio,
-// then reset it so that it can be reused.
+// do_output()
 //
-// Return nonzero on error, zero on success.
+// Flushes out all the vectors defined by the given uio, then resets it so that
+// it can be reused.
+//
+// Inputs:
+//  c - a pointer to the relevant call_info structure
+//  p - a pointer to the output_parameter structure describing the output
+//      location
+//  uio - a pointer to an suio structure that contains the buffers to be written
+//
+// Returns nonzero on error, zero on success.
 //
 static int
-do_output(call_info &C, output_parameter &P, struct __suio &uio)
+do_output(call_info *c, output_parameter *p, struct suio *uio)
 {
   //
   // Do a write to an output file if that's the output destination.
   //
-  if (P.OutputKind == output_parameter::OUTPUT_TO_FILE)
+  if (p->output_kind == output_parameter::OUTPUT_TO_FILE)
   {
-    FILE *out = P.Output.File;
-    for (int i = 0; i < uio.uio_iovcnt; ++i)
+    FILE *out = p->output.file;
+    for (int i = 0; i < uio->uio_iovcnt; ++i)
     {
-      size_t amt, sz = uio.uio_iov[i].iov_len;
+      size_t amt, sz = uio->uio_iov[i].iov_len;
       //
       // Call fwrite_unlocked() for performance since the output stream should
       // already be locked by this thread.
@@ -122,40 +137,40 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
 #ifndef HAVE_FWRITE_UNLOCKED
 #define fwrite_unlocked fwrite
 #endif
-      amt = fwrite_unlocked(&uio.uio_iov[i].iov_base[0], 1, sz, out);
+      amt = fwrite_unlocked(&uio->uio_iov[i].iov_base[0], 1, sz, out);
       if (amt < sz)
         return 1; // Output error
     }
-    uio.uio_resid = 0;
-    uio.uio_iovcnt = 0;
+    uio->uio_resid = 0;
+    uio->uio_iovcnt = 0;
     return 0;
   }
   //
   // Write into a (fixed) buffer.
   //
-  else if (P.OutputKind == output_parameter::OUTPUT_TO_STRING)
+  else if (p->output_kind == output_parameter::OUTPUT_TO_STRING)
   {
-    char *dest  = P.Output.String.string;
-    size_t &pos = P.Output.String.pos;
-    size_t n    = P.Output.String.n;
-    size_t msz  = P.Output.String.maxsz;
+    char *dest  = p->output.string.string;
+    size_t &pos = p->output.string.pos;
+    size_t n    = p->output.string.n;
+    size_t msz  = p->output.string.maxsz;
     size_t amt;
     if (pos > n) // Don't write anything if we've reached the limit.
     {
-      uio.uio_resid = 0;
-      uio.uio_iovcnt = 0;
+      uio->uio_resid = 0;
+      uio->uio_iovcnt = 0;
       return 0;
     }
-    for (int i = 0; i < uio.uio_iovcnt; ++i)
+    for (int i = 0; i < uio->uio_iovcnt; ++i)
     {
-      amt = uio.uio_iov[i].iov_len;
+      amt = uio->uio_iov[i].iov_len;
       //
       // Check for out of bounds write. Report an out of bounds write only once.
       //
       if (pos < msz && amt > msz - pos)
       {
         cerr << "Destination string not long enough!" << endl;
-        write_out_of_bounds_error(&C, P.Output.String.info, msz, pos + amt);
+        write_out_of_bounds_error(c, p->output.string.info, msz, pos + amt);
       }
       //
       // Check to see if the we'll reach the user imposed size.
@@ -163,27 +178,30 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
       //
       if (amt > n - pos)
       {
-        memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], n - pos);
+        memcpy(&dest[pos], &uio->uio_iov[i].iov_base[0], n - pos);
         pos = n;
-        uio.uio_resid  = 0;
-        uio.uio_iovcnt = 0;
+        uio->uio_resid  = 0;
+        uio->uio_iovcnt = 0;
         return 0;
       }
-      memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], amt);
+      //
+      // Otherwise, copy over the buffer and continue.
+      //
+      memcpy(&dest[pos], &uio->uio_iov[i].iov_base[0], amt);
       pos += amt;
     }
-    uio.uio_resid  = 0;
-    uio.uio_iovcnt = 0;
+    uio->uio_resid  = 0;
+    uio->uio_iovcnt = 0;
     return 0;
   }
   //
   // Write into a buffer that's dynamically allocated to fit the entire write.
   //
-  else if (P.OutputKind == output_parameter::OUTPUT_TO_ALLOCATED_STRING)
+  else // if (p->output_kind == output_parameter::OUTPUT_TO_ALLOCATED_STRING)
   {
-    char  *&dest  = P.Output.AllocedString.string;
-    size_t &pos   = P.Output.AllocedString.pos;
-    size_t &bufsz = P.Output.AllocedString.bufsz;
+    char  *&dest  = p->output.alloced_string.string;
+    size_t &pos   = p->output.alloced_string.pos;
+    size_t &bufsz = p->output.alloced_string.bufsz;
     size_t amt;
 
     if (dest == 0)
@@ -191,9 +209,9 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     //
     // Allocate a new string if the old one isn't large enough.
     //
-    if ((size_t) uio.uio_resid > bufsz - pos)
+    if ((size_t) uio->uio_resid > bufsz - pos)
     {
-      do bufsz *= 2; while ((size_t) uio.uio_resid > bufsz - pos);
+      do bufsz *= 2; while ((size_t) uio->uio_resid > bufsz - pos);
       dest = (char *) realloc(dest, bufsz);
       if (dest == 0)
         return 1; // Output error
@@ -201,135 +219,17 @@ do_output(call_info &C, output_parameter &P, struct __suio &uio)
     //
     // Copy the characters over.
     //
-    for (int i = 0; i < uio.uio_iovcnt; ++i)
+    for (int i = 0; i < uio->uio_iovcnt; ++i)
     {
-      amt = uio.uio_iov[i].iov_len;
-      memcpy(&dest[pos], &uio.uio_iov[i].iov_base[0], amt);
+      amt = uio->uio_iov[i].iov_len;
+      memcpy(&dest[pos], &uio->uio_iov[i].iov_base[0], amt);
       pos += amt;
     }
-    uio.uio_resid  = 0;
-    uio.uio_iovcnt = 0;
+    uio->uio_resid  = 0;
+    uio->uio_iovcnt = 0;
     return 0;
   }
-  return 0; 
 }
-
-//
-// Get the number of bytes in the object that the pointer associated with the
-// pointer_info structure points to, to the end of the object.
-//
-// Note: Call find_object() before calling this.
-//
-static inline size_t
-object_len(pointer_info *p)
-{
-  return 1 + (size_t) ((char *) p->bounds[1] - (char *) p->ptr);
-}
-
-//
-// Check if the memory object referenced by the value in P is of size at
-// least n.
-//
-static inline bool
-write_check(call_info *C, pointer_info *P, size_t n)
-{
-  size_t max;
-  find_object(C, P);
-  if (P->flags & NULL_PTR)
-  {
-    cerr << "Writing into a NULL pointer!" << endl;
-    c_library_error(C, "printf");
-    return false;
-  }
-  else if (P->flags & HAVEBOUNDS)
-  {
-    max = object_len(P);
-    if (n > max)
-    {
-      cerr << "Writing out of bounds!" << endl;
-      write_out_of_bounds_error(C, P, max, n);
-      return false;
-    }
-    else
-      return true;
-  }
-  //
-  // Assume an object without discovered boundaries has enough space.
-  //
-  return true;
-}
-
-//
-// Check if too many arguments are accessed, if so, report an error.
-//
-static inline void
-varg_check(call_info *c, int pos, int total, bool *flag)
-{
-  if (pos > total)
-  {
-    if (total == 1)
-    {
-      cerr << "Attempting to access argument " << pos << \
-        " but there is only 1 argument!" << endl;
-    }
-    else
-    {
-      cerr << "Attempting to access argument " << pos << \
-        " but there are only " << total << " arguments!" << endl;
-    }
-    c_library_error(c, "va_arg");
-    *flag = true;
-  }
-}
-
-//
-// Determine if the given pointer parameter exists in the whitelist.
-//
-static inline pointer_info *
-check_whitelist(call_info *c, void **whitelist, void *p)
-{
-  while (*whitelist)
-  {
-    if (p == *whitelist)
-      return (pointer_info *) p;
-    ++whitelist;
-  }
-  cerr << "Attempting to access a non-pointer parameter as a pointer!" << endl;
-  c_library_error(c, "va_arg");
-  return 0; 
-}
-
-//
-// Get the actual pointer argument from the given parameter. If the parameter
-// is whitelisted and so a wrapper, this retrieves the pointer from the
-// wrapper. Otherwise it just returns the parameter because it isn't recognized
-// as a wrapper.
-//
-static inline void *
-getptrarg(void **whitelist, void *p)
-{
-  while (*whitelist)
-  {
-    if (p == *whitelist)
-      return ((pointer_info *)p)->ptr;
-    ++whitelist;
-  }
-  return p;
-}
-
-//
-// Secured va_arg() which checks if too many arguments are accessed
-//
-// c     - a pointer to the call_info structure
-// fl    - flag to set to true if too many arguments are accessed
-// pos   - the argument number currently being accessed
-// total - the total number of variable arguments
-// ap    - the va_list
-// type  - the type of the argument to be accessed
-//
-#define va_sarg(c, fl, pos, total, ap, type) \
-  (varg_check(c, pos, total, fl),            \
-   va_arg(ap, type))
 
 union arg
 {
@@ -354,9 +254,15 @@ union arg
 
 };
 
-static int __find_arguments(const char *fmt0, va_list ap, union arg **argtable,
-    size_t *argtablesiz, unsigned vargc);
-static int __grow_type_table(unsigned char **typetable, int *tablesize);
+static inline int
+find_arguments(const char *fmt0,
+               va_list ap,
+               union arg **argtable,
+               size_t *argtablesiz,
+               unsigned vargc);
+
+static inline int
+grow_type_table(unsigned char **typetable, size_t *tablesize, size_t minsz);
 
 #ifdef FLOATING_POINT
 #include "safecode/Runtime/FloatConversion.h"
@@ -402,14 +308,12 @@ static int exponent(char *, int, int);
 #define CHARINT   0x0800    // 8 bit integer
 #define MAXINT    0x1000    // largest integer size (intmax_t)
 
-
 //
 // handle_s_directive()
 //
 // Prepare a string for printing.
 //
 // Inputs:
-//
 //  ci         - a pointer to the relevant call_info structure
 //  p          - a pointer to the pointer_info structure that contains the
 //               string to print
@@ -423,11 +327,10 @@ static int exponent(char *, int, int);
 //  prec       - an integer representing the precision
 //
 // Returns:
-//
 //  The function returns no value. Instead, *cp is set to point to the buffer
 //  containing the string of which the first *len bytes should be written.
 //  If this string is the result of a wide character to multibyte conversion,
-//  it is an allocated string and *mbstr is set to point to it. Otherwise
+//  it is an allocated string and *mbstr is also set to point to it. Otherwise
 //  *mbstr is set to NULL.
 //
 static inline void
@@ -593,7 +496,7 @@ handle_s_directive(call_info *ci,
 // Inputs:
 //   P         - a reference to the output_parameter structure describing
 //               where to do the write
-//   CInfo     - a reference to the call_info structure which contains
+//   cinfo     - a reference to the call_info structure which contains
 //               information about the va_list
 //   fmt0      - the format string
 //   ap        - the variable argument list
@@ -610,8 +513,8 @@ handle_s_directive(call_info *ci,
 //
 int
 internal_printf(const options_t &options,
-                output_parameter &P,
-                call_info &CInfo,
+                output_parameter &output,
+                call_info &cinfo,
                 const char *fmt0,
                 va_list ap)
 {
@@ -619,7 +522,7 @@ internal_printf(const options_t &options,
   int ch;               // character from fmt
   int n, n2;            // handy integers (short term usage)
   char *cp;             // handy char pointer (short term usage)
-  struct __siov *iovp;  // for PRINT macro
+  struct siov *iovp;    // for PRINT macro
   int flags;            // flags as above
   int ret;              // return value accumulator
   int width;            // width from format (%8d), or 0
@@ -669,22 +572,19 @@ internal_printf(const options_t &options,
   const char *xdigs; // digits for %[xX] conversion
 
   const int NIOV = 8;
-  struct __suio uio;      // output information: summary
-  struct __siov iov[NIOV];// ... and individual io vectors
-  char buf[BUF];          // buffer with space for digits of uintmax_t
-  char ox[2];             // space for 0x; ox[1] is either x, X, or \0
-  union arg *argtable;    // args, built due to positional arg
+  struct suio uio;       // output information: summary
+  struct siov iov[NIOV]; // ... and individual io vectors
+  char buf[BUF];         // buffer with space for digits of uintmax_t
+  char ox[2];            // space for 0x; ox[1] is either x, X, or \0
+  union arg *argtable;   // args, built due to positional arg
   union arg statargtable[STATIC_ARG_TBL_SIZE];
-  size_t argtablesiz;
-  int nextarg;       // 1-based argument index
-  va_list orgap;     // original argument pointer
-  unsigned vargc = CInfo.vargc;           // number of variable arguments
-  void **wl      = CInfo.whitelist;       // whitelist of pointer arguments
-  pointer_info *p;   // handy pointer_info structure
-  bool oob = false;  // whether too many arguments have been accessed
-  wchar_t wc;
-  char *mbstr;       // a string that is a result of multibyte conversion
-  mbstate_t ps;
+  size_t argtablesiz;    // number of elements in the positional arg table
+  int nextarg;           // 1-based argument index
+  va_list orgap;         // original argument pointer
+  pointer_info *p;       // handy pointer_info structure
+  wchar_t wc;            // the input character to process
+  char *mbstr;           // a string that is a result of multibyte conversion
+  mbstate_t ps;          // conversion state
 
   //
   // Choose PADSIZE to trade efficiency vs. size.  If larger printf
@@ -706,6 +606,8 @@ internal_printf(const options_t &options,
 
   xdigs = 0;
 
+  const unsigned vargc = cinfo.vargc;
+
   //
   // Printing macros
   //
@@ -713,54 +615,57 @@ internal_printf(const options_t &options,
   //
 
 //
-// Add the first 'len' bytes of 'ptr' to the print queue.
+// Add the first 'len' bytes of 'ptr' to the output queue.
 //
-#define PRINT(ptr, len) do { \
-  iovp->iov_base = (char *) (ptr); \
-  iovp->iov_len = (len); \
-  uio.uio_resid += (len); \
-  iovp++; \
-  if (++uio.uio_iovcnt >= NIOV) { \
-    if (do_output(CInfo, P, uio)) \
-      goto error; \
-    iovp = iov; \
-  } \
+#define PRINT(ptr, len) do {                                                   \
+  iovp->iov_base = (char *) (ptr);                                             \
+  iovp->iov_len = (len);                                                       \
+  uio.uio_resid += (len);                                                      \
+  iovp++;                                                                      \
+  if (++uio.uio_iovcnt >= NIOV)                                                \
+  {                                                                            \
+    if (do_output(&cinfo, &output, &uio))                                      \
+      goto error;                                                              \
+    iovp = iov;                                                                \
+  }                                                                            \
 } while (0)
 
 //
 // Output 'howmany' bytes from a pad chunk 'with'.
 //
-#define PAD(howmany, with) do { \
-  if ((n = (howmany)) > 0) { \
-    while (n > PADSIZE) { \
-      PRINT(with, PADSIZE); \
-      n -= PADSIZE; \
-    } \
-    PRINT(with, n); \
-  } \
+#define PAD(howmany, with) do {                                                \
+  if ((n = (howmany)) > 0)                                                     \
+  {                                                                            \
+    while (n > PADSIZE)                                                        \
+    {                                                                          \
+      PRINT(with, PADSIZE);                                                    \
+      n -= PADSIZE;                                                            \
+    }                                                                          \
+    PRINT(with, n);                                                            \
+  }                                                                            \
 } while (0)
 
 //
 // Output a string of exactly len bytes, consisting of the string found in the
 // range [p, ep), right-padded by the pad characters in 'with', if necessary.
 //
-#define PRINTANDPAD(p, ep, len, with) do {  \
-  n2 = (ep) - (p);            \
-  if (n2 > (len))             \
-    n2 = (len);               \
-  if (n2 > 0)                 \
-    PRINT((p), n2);           \
-  PAD((len) - (n2 > 0 ? n2 : 0), (with)); \
+#define PRINTANDPAD(p, ep, len, with) do {                                     \
+  n2 = (ep) - (p);                                                             \
+  if (n2 > (len))                                                              \
+    n2 = (len);                                                                \
+  if (n2 > 0)                                                                  \
+    PRINT((p), n2);                                                            \
+  PAD((len) - (n2 > 0 ? n2 : 0), (with));                                      \
 } while(0)
 
 //
 // Flush any output buffers yet to be printed.
 //
-#define FLUSH() do { \
-  if (uio.uio_resid && do_output(CInfo, P, uio)) \
-    goto error; \
-  uio.uio_iovcnt = 0; \
-  iovp = iov; \
+#define FLUSH() do {                                                           \
+  if (uio.uio_resid && do_output(&cinfo, &output, &uio))                       \
+    goto error;                                                                \
+  uio.uio_iovcnt = 0;                                                          \
+  iovp = iov;                                                                  \
 } while (0)
 
 
@@ -774,39 +679,39 @@ internal_printf(const options_t &options,
 //
 // Retrieve a signed argument.
 //
-#define SARG() ((intmax_t) \
-  ((flags&MAXINT   ? GETARG(intmax_t)   : \
-    flags&LLONGINT ? GETARG(long long)  : \
-    flags&LONGINT  ? GETARG(long)       : \
-    flags&PTRINT   ? GETARG(ptrdiff_t)  : \
-    flags&SIZEINT  ? GETARG(ssize_t)    : \
-    flags&SHORTINT ? (short)GETARG(int) : \
-    flags&CHARINT  ? (signed char)GETARG(int) : \
+#define SARG() ((intmax_t)                                                     \
+  ((flags&MAXINT   ? GETARG(intmax_t)   :                                      \
+    flags&LLONGINT ? GETARG(long long)  :                                      \
+    flags&LONGINT  ? GETARG(long)       :                                      \
+    flags&PTRINT   ? GETARG(ptrdiff_t)  :                                      \
+    flags&SIZEINT  ? GETARG(ssize_t)    :                                      \
+    flags&SHORTINT ? (short)GETARG(int) :                                      \
+    flags&CHARINT  ? (signed char)GETARG(int) :                                \
     GETARG(int))))
 
 //
 // Retrieve an unsigned argument.
 //
-#define UARG() ((uintmax_t) \
-  ((flags&MAXINT   ? GETARG(uintmax_t)            : \
-    flags&LLONGINT ? GETARG(unsigned long long)   : \
-    flags&LONGINT  ? GETARG(unsigned long)        : \
-    flags&PTRINT   ? (uintptr_t)GETARG(ptrdiff_t) : /* XXX */ \
-    flags&SIZEINT  ? GETARG(size_t)               : \
-    flags&SHORTINT ? (unsigned short)GETARG(int)  : \
-    flags&CHARINT  ? (unsigned char)GETARG(int)   : \
+#define UARG() ((uintmax_t)                                                    \
+  ((flags&MAXINT   ? GETARG(uintmax_t)            :                            \
+    flags&LLONGINT ? GETARG(unsigned long long)   :                            \
+    flags&LONGINT  ? GETARG(unsigned long)        :                            \
+    flags&PTRINT   ? (uintptr_t)GETARG(ptrdiff_t) : /* XXX */                  \
+    flags&SIZEINT  ? GETARG(size_t)               :                            \
+    flags&SHORTINT ? (unsigned short)GETARG(int)  :                            \
+    flags&CHARINT  ? (unsigned char)GETARG(int)   :                            \
     GETARG(unsigned int))))
 
 //
 // Append a digit to a value and check for overflow.
 //
-#define APPEND_DIGIT(val, dig) do { \
-  if ((val) > INT_MAX / 10) \
-    goto overflow; \
-  (val) *= 10; \
-  if ((val) > INT_MAX - to_digit((dig))) \
-    goto overflow; \
-  (val) += to_digit((dig)); \
+#define APPEND_DIGIT(val, dig) do {                                            \
+  if ((val) > INT_MAX / 10)                                                    \
+    goto overflow;                                                             \
+  (val) *= 10;                                                                 \
+  if ((val) > INT_MAX - to_digit((dig)))                                       \
+    goto overflow;                                                             \
+  (val) += to_digit((dig));                                                    \
 } while (0)
 
 
@@ -818,66 +723,49 @@ internal_printf(const options_t &options,
 // Get * arguments, including the form *nn$, into val.  Preserve the nextarg
 // that the argument can be gotten once the type is determined.
 //
-#define GETASTER(val) \
-  n2 = 0; \
-  cp = fmt; \
-  while (is_digit(*cp)) { \
-    APPEND_DIGIT(n2, *cp); \
-    cp++; \
-  } \
-  if (*cp == '$') { \
-    int hold = nextarg; \
-    if (argtable == 0) { \
-      argtable = statargtable; \
-      __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc); \
-    } \
-    nextarg = n2; \
-    val = GETARG(int); \
-    nextarg = hold; \
-    fmt = ++cp; \
-  } else { \
-    val = GETARG(int); \
-  }
+#define GETASTER(val)                                                          \
+  n2 = 0;                                                                      \
+  cp = fmt;                                                                    \
+  while (is_digit(*cp))                                                        \
+  {                                                                            \
+    APPEND_DIGIT(n2, *cp);                                                     \
+    cp++;                                                                      \
+  }                                                                            \
+  if (*cp == '$')                                                              \
+  {                                                                            \
+    int hold = nextarg;                                                        \
+    if (argtable == 0)                                                         \
+    {                                                                          \
+      argtable = statargtable;                                                 \
+      if (find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc) == -1)   \
+        goto error;                                                            \
+    }                                                                          \
+    nextarg = n2;                                                              \
+    val = GETARG(int);                                                         \
+    nextarg = hold;                                                            \
+    fmt = ++cp;                                                                \
+  }                                                                            \
+  else                                                                         \
+    val = GETARG(int);
 
 //
 // Get the actual argument indexed by nextarg. If the argument table is
 // built, use it to get the argument.  If its not, get the next
 // argument (and arguments must be gotten sequentially).
 //
-#define GETARG(type)                                           \
-  ((argtable != 0) ?                                        \
-    (varg_check(&CInfo, nextarg, vargc, &oob),                 \
-      oob ? (type) 0 :  *((type*)(&argtable[nextarg++]))) :    \
-    (nextarg++, va_sarg(&CInfo, &oob, nextarg - 1, vargc, ap, type)))
-
-//
-// Get the pointer_info structure indexed by nextarg.
-// This will report an error if the argument is not found in the whitelist.
-//
-#define GETPTRINFOARG(wl) \
-  (check_whitelist(&CInfo, wl, GETARG(void *)))
-
-//
-// Get the pointer argument indexed by nextarg.
-// This is either the inner pointer value found in a pointer_info structure, or
-// the value of the actual parameter if the parameter is not found in the
-// whitelist.
-//
-#define GETPTRARG(type, wl) \
-  ((type *) getptrarg(wl, GETARG(void *)))
+#define GETARG(type) (                                                         \
+  varg_check(&cinfo, nextarg++),                                               \
+  (argtable != 0) ? *((type *) &argtable[nextarg-1]) : va_arg(ap, type) )
 
 //
 // Write the current number of bytes that have been written into the next
 // argument, which should be a pointer to 'type'.
 //
-#define WRITECOUNTAS(type)                    \
-  do {                                        \
-    p = GETPTRINFOARG(wl);                    \
-    if (p != 0) {                             \
-      write_check(&CInfo, p, sizeof(type)) && \
-      (*(type *)(p->ptr) = ret);              \
-    } else                                    \
-      c_library_error(&CInfo, "printf");      \
+#define WRITECOUNTAS(type)                                                     \
+  do {                                                                         \
+    p = GETARG(pointer_info *);                                                \
+    write_check(&cinfo, p, sizeof(type));                                      \
+    *(type *)(p->ptr) = ret;                                                   \
   } while (0)
 
   fmt = (char *)fmt0;
@@ -927,10 +815,12 @@ internal_printf(const options_t &options,
     ox[1] = '\0';
 
     //
-    // This is the main % directive parsing section.
+    // This is the main directive parsing section.
     //
 rflag:    ch = *fmt++;
-reswitch: switch (ch) {
+reswitch:
+    switch (ch)
+    {
     //
     // This section parses flags, precision, and field width values.
     //
@@ -947,7 +837,9 @@ reswitch: switch (ch) {
       flags |= ALT;
       goto rflag;
     case '\'':
-      // grouping not implemented
+      //
+      // The grouping flag is recognized but is not implemented.
+      //
       goto rflag;
     //
     // Parse field width given in an argument
@@ -973,7 +865,7 @@ reswitch: switch (ch) {
       sign = '+';
       goto rflag;
     //
-    // Parse precision
+    // Parse the precision.
     //
     case '.':
       if ((ch = *fmt++) == '*')
@@ -998,7 +890,7 @@ reswitch: switch (ch) {
         if (argtable == 0)
         {
           argtable = statargtable;
-          __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
+          find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
         }
         goto rflag;
       }
@@ -1034,7 +926,7 @@ reswitch: switch (ch) {
         if (argtable == 0)
         {
           argtable = statargtable;
-          __find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
+          find_arguments(fmt0, orgap, &argtable, &argtablesiz, vargc);
         }
         goto rflag;
       }
@@ -1051,12 +943,13 @@ reswitch: switch (ch) {
 #endif
 
     case 'h':
-      if (*fmt == 'h') {
+      if (*fmt == 'h')
+      {
         fmt++;
         flags |= CHARINT;
-      } else {
-        flags |= SHORTINT;
       }
+      else
+        flags |= SHORTINT;
       goto rflag;
     case 'j':
       flags |= MAXINT;
@@ -1079,6 +972,10 @@ reswitch: switch (ch) {
     case 'z':
       flags |= SIZEINT;
       goto rflag;
+    //
+    // This section parses conversion specifiers and gives instructions on how
+    // to print the output.
+    //
     case 'c':
       sign = '\0';
       if (!(flags & LONGINT))
@@ -1105,14 +1002,18 @@ reswitch: switch (ch) {
         }
         else if ((wchar_t) wc == L'\0')
         {
+          //
           // Print nothing.
+          //
           cp = (char *) "";
           size = 0;
           break;
         }
         memset(&st, 0, sizeof(mbstate_t));
         sz = wcrtomb(&mbstr[0], (wchar_t) wc, &st);
+        //
         // Handle printing errors.
+        //
         if (sz == (size_t) -1)
         {
           cp = (char *) "";
@@ -1123,10 +1024,6 @@ reswitch: switch (ch) {
         size = (int) sz;
       }
       break;
-    //
-    // This section parses conversion specifiers and gives instructions on how
-    // to print the output.
-    //
     case 'D':
       flags |= LONGINT;
       // FALLTHROUGH
@@ -1164,17 +1061,18 @@ reswitch: switch (ch) {
       {
         fparg.ldbl = GETARG(long double);
         dtoaresult = cp =
-            __hldtoa(fparg.ldbl, xdigs, prec, &expt, &signflag, &dtoaend);
+          __hldtoa(fparg.ldbl, xdigs, prec, &expt, &signflag, &dtoaend);
         if (dtoaresult == 0)
         {
           errno = ENOMEM;
           goto error;
         }
-      } else {
+      }
+      else
+      {
         fparg.dbl = GETARG(double);
         dtoaresult = cp =
-            __hdtoa(fparg.dbl, xdigs, prec,
-            &expt, &signflag, &dtoaend);
+          __hdtoa(fparg.dbl, xdigs, prec, &expt, &signflag, &dtoaend);
         if (dtoaresult == 0)
         {
           errno = ENOMEM;
@@ -1371,7 +1269,8 @@ fp_common:
       // defined manner.''
       //  -- ANSI X3J11
       //
-      _umax = (u_long) GETPTRARG(void, wl);
+      p = GETARG(pointer_info *);
+      _umax = (uintmax_t) unwrap_pointer(&cinfo, (void *) p);
       base = HEX;
       xdigs = xdigs_lower;
       ox[1] = 'x';
@@ -1381,11 +1280,12 @@ fp_common:
       //
       // Get the pointer_info structure associated with the current argument.
       //
-      p = GETPTRINFOARG(wl);
+      p = GETARG(pointer_info *);
       //
-      // If the structure is NULL, then the current argument was not a pointer.
+      // If the structure is NULL or not found in the whitelist, then the
+      // current argument is not a string.
       //
-      if (p == 0)
+      if (p == 0 || !is_in_whitelist(&cinfo, p))
       {
         cp = (char *) "(not a string)";
         size = (int) strlen(cp);
@@ -1406,7 +1306,7 @@ fp_common:
       else
       {
         size_t sz;
-        handle_s_directive(&CInfo, p, flags, &cp, &sz, &mbstr, prec);
+        handle_s_directive(&cinfo, p, flags, &cp, &sz, &mbstr, prec);
         if (sz > INT_MAX)
           goto overflow;
         else
@@ -1425,22 +1325,23 @@ fp_common:
       goto hex;
     case 'x':
       xdigs = xdigs_lower;
-hex:      _umax = UARG();
+hex:
+      _umax = UARG();
       base = HEX;
       // leading 0x/X only if non-zero
       if (flags & ALT && _umax != 0)
         ox[1] = ch;
-
+nosign:
       // unsigned conversions
-nosign:     sign = '\0';
+      sign = '\0';
+number:
       //
       // ``... diouXx conversions ... if a precision is
       // specified, the 0 flag will be ignored.''
       //  -- ANSI X3J11
       //
-number:     if ((dprec = prec) >= 0)
+      if ((dprec = prec) >= 0)
         flags &= ~ZEROPAD;
-
       //
       // ``The result of converting a zero value with an
       // explicit precision of zero is no characters.''
@@ -1468,7 +1369,7 @@ number:     if ((dprec = prec) >= 0)
           break;
 
         case DEC:
-          // many numbers are 1 digit  // INF or NaN
+          // many numbers are 1 digit
           while (_umax >= 10)
           {
             *--cp = to_char(_umax % 10);
@@ -1486,7 +1387,7 @@ number:     if ((dprec = prec) >= 0)
           break;
 
         default:
-          cp = (char *) "bug in vfprintf: bad base";
+          cp = (char *) "bug in *printf: bad base";
           size = strlen(cp);
           goto skipsize;
         }
@@ -1531,12 +1432,6 @@ number:     if ((dprec = prec) >= 0)
     // size excludes decimal prec; realsz includes it.
     //
 
-    //
-    // If we've accessed an out of bounds argument, stop printing.
-    //
-    if (oob)
-      goto error;
-
     realsz = dprec > size ? dprec : size;
     if (sign)
       realsz++;
@@ -1568,9 +1463,7 @@ number:     if ((dprec = prec) >= 0)
 
 #ifdef FLOATING_POINT
     if ((flags & FPT) == 0)
-    {
       PRINT(cp, size);
-    }
     else
     {
       // glue together f_p fragments
@@ -1645,128 +1538,144 @@ overflow:
 finish:
 
 #ifdef FLOATING_POINT
+  //
+  // Free the buffers allocated for floating point number conversion.
+  //
   if (dtoaresult)
     __freedtoa(dtoaresult);
 #endif
 
   //
-  // Free any allocated buffers for multibyte conversion;
+  // Free the buffers allocated for multibyte character string conversion.
   //
   if (mbstr != 0)
     free(mbstr);
+  //
+  // If the argument table had to be expanded, free it as well.
+  //
+  if (argtable != statargtable)
+    free(argtable);
 
-  if (argtable != 0 && argtable != statargtable)
-  {
-    munmap(argtable, argtablesiz);
-    argtable = 0;
-  }
-  return (ret);
+  return ret;
 }
 
 //
 // Type ids for argument type table.
 //
-#define T_UNUSED  0
-#define T_SHORT   1
-#define T_U_SHORT 2
-#define TP_SHORT  3
-#define T_INT     4
-#define T_U_INT   5
-#define TP_INT    6
-#define T_LONG    7
-#define T_U_LONG  8
-#define TP_LONG   9
-#define T_LLONG   10
-#define T_U_LLONG 11
-#define TP_LLONG  12
-#define T_DOUBLE  13
+#define T_UNUSED      0
+#define T_SHORT       1
+#define T_U_SHORT     2
+#define TP_SHORT      3
+#define T_INT         4
+#define T_U_INT       5
+#define TP_INT        6
+#define T_LONG        7
+#define T_U_LONG      8
+#define TP_LONG       9
+#define T_LLONG       10
+#define T_U_LLONG     11
+#define TP_LLONG      12
+#define T_DOUBLE      13
 #define T_LONG_DOUBLE 14
-#define TP_CHAR   15
-#define TP_VOID   16
-#define T_PTRINT  17
-#define TP_PTRINT 18
-#define T_SIZEINT 19
-#define T_SSIZEINT  20
-#define TP_SSIZEINT 21
-#define T_MAXINT  22
-#define T_MAXUINT 23
-#define TP_MAXINT 24
-#define T_CHAR    25
-#define T_U_CHAR  26
-#define T_WINT    27
+#define TP_CHAR       15
+#define TP_VOID       16
+#define T_PTRINT      17
+#define TP_PTRINT     18
+#define T_SIZEINT     19
+#define T_SSIZEINT    20
+#define TP_SSIZEINT   21
+#define T_MAXINT      22
+#define T_MAXUINT     23
+#define TP_MAXINT     24
+#define T_CHAR        25
+#define T_U_CHAR      26
+#define T_WINT        27
 
+//
+// find_arguments()
 //
 // Find all arguments when a positional parameter is encountered.  Returns a
 // table, indexed by argument number, of pointers to each arguments.  The
 // initial argument table should be an array of STATIC_ARG_TBL_SIZE entries.
-// It will be replaced with a mmap-ed one if it overflows (malloc cannot be
-// used since we are attempting to make snprintf thread safe, and alloca is
-// problematic since we have nested functions..)
+//
+// Inputs:
+//  fmt0     - a pointer to the format string
+//  ap       - the list of arguments
+//  argtable - a pointer to the initial argument table
+//  argtablesz - a pointer to a parameter which will be filled with the size
+//               of the argument table
+//  vargc    - the maximum number of arguments to access
 //
 static int
-__find_arguments(const char *fmt0, va_list ap, union arg **argtable,
-    size_t *argtablesiz, unsigned vargc)
+find_arguments(const char *fmt0,
+               va_list ap,
+               union arg **argtable,
+               size_t *argtablesiz,
+               unsigned vargc)
 {
-  char *fmt;     // format string
-  int ch;        // character from fmt
-  int n, n2;     // handy integer (short term usage)
-  char *cp;      // handy char pointer (short term usage)
-  int flags;     // flags as above
+  char *fmt;         // format string
+  int ch;            // character from fmt
+  int n, n2;         // handy integer (short term usage)
+  char *cp;          // handy char pointer (short term usage)
+  int flags;         // flags as above
   unsigned char *typetable; // table of types
   unsigned char stattypetable[STATIC_ARG_TBL_SIZE];
-  int tablesize; // current size of type table
-  int tablemax;  // largest used index in table
-  int nextarg;   // 1-based argument index
-  int ret = 0;   // return value
+  size_t tablesize;  // current size of type table
+  unsigned tablemax; // largest used index in table
+  unsigned nextarg;  // 1-based argument index
+  unsigned i;        // handy unsigned integer
+  int ret = 0;       // return value
   wchar_t wc;
   mbstate_t ps;
 
 //
 // Add an argument type to the table, expanding if necessary.
 //
-#define ADDTYPE(type) \
-  ((nextarg >= tablesize) ? \
-    __grow_type_table(&typetable, &tablesize) : 0, \
-  (nextarg > tablemax) ? tablemax = nextarg : 0, \
-  typetable[nextarg++] = type)
+#define ADDTYPE(type)                                                          \
+  ((nextarg >= tablesize) ?                                                    \
+    grow_type_table(&typetable, &tablesize, 1 + nextarg) : 0),                 \
+  ((nextarg > tablemax) ? tablemax = nextarg : 0),                             \
+  (typetable != 0 ? typetable[nextarg++] = type : 0)
 
-#define ADDSARG() \
-      ((flags&MAXINT) ? ADDTYPE(T_MAXINT) : \
-      ((flags&PTRINT) ? ADDTYPE(T_PTRINT) : \
-      ((flags&SIZEINT) ? ADDTYPE(T_SSIZEINT) : \
-      ((flags&LLONGINT) ? ADDTYPE(T_LLONG) : \
-      ((flags&LONGINT) ? ADDTYPE(T_LONG) : \
-      ((flags&SHORTINT) ? ADDTYPE(T_SHORT) : \
-      ((flags&CHARINT) ? ADDTYPE(T_CHAR) : ADDTYPE(T_INT))))))))
+#define ADDSARG()                                                              \
+      ((flags&MAXINT)   ? ADDTYPE(T_MAXINT)   :                                \
+      ((flags&PTRINT)   ? ADDTYPE(T_PTRINT)   :                                \
+      ((flags&SIZEINT)  ? ADDTYPE(T_SSIZEINT) :                                \
+      ((flags&LLONGINT) ? ADDTYPE(T_LLONG)    :                                \
+      ((flags&LONGINT)  ? ADDTYPE(T_LONG)     :                                \
+      ((flags&SHORTINT) ? ADDTYPE(T_SHORT)    :                                \
+      ((flags&CHARINT)  ? ADDTYPE(T_CHAR)     : ADDTYPE(T_INT))))))))
 
-#define ADDUARG() \
-      ((flags&MAXINT) ? ADDTYPE(T_MAXUINT) : \
-      ((flags&PTRINT) ? ADDTYPE(T_PTRINT) : \
-      ((flags&SIZEINT) ? ADDTYPE(T_SIZEINT) : \
-      ((flags&LLONGINT) ? ADDTYPE(T_U_LLONG) : \
-      ((flags&LONGINT) ? ADDTYPE(T_U_LONG) : \
-      ((flags&SHORTINT) ? ADDTYPE(T_U_SHORT) : \
-      ((flags&CHARINT) ? ADDTYPE(T_U_CHAR) : ADDTYPE(T_U_INT))))))))
+#define ADDUARG()                                                              \
+      ((flags&MAXINT)   ? ADDTYPE(T_MAXUINT) :                                 \
+      ((flags&PTRINT)   ? ADDTYPE(T_PTRINT)  :                                 \
+      ((flags&SIZEINT)  ? ADDTYPE(T_SIZEINT) :                                 \
+      ((flags&LLONGINT) ? ADDTYPE(T_U_LLONG) :                                 \
+      ((flags&LONGINT)  ? ADDTYPE(T_U_LONG)  :                                 \
+      ((flags&SHORTINT) ? ADDTYPE(T_U_SHORT) :                                 \
+      ((flags&CHARINT)  ? ADDTYPE(T_U_CHAR)  : ADDTYPE(T_U_INT))))))))
 
 //
 // Add * arguments to the type array.
 //
-#define ADDASTER() \
-  n2 = 0; \
-  cp = fmt; \
-  while (is_digit(*cp)) { \
-    APPEND_DIGIT(n2, *cp); \
-    cp++; \
-  } \
-  if (*cp == '$') { \
-    int hold = nextarg; \
-    nextarg = n2; \
-    ADDTYPE(T_INT); \
-    nextarg = hold; \
-    fmt = ++cp; \
-  } else { \
-    ADDTYPE(T_INT); \
-  }
+#define ADDASTER()                                                             \
+  n2 = 0;                                                                      \
+  cp = fmt;                                                                    \
+  while (is_digit(*cp))                                                        \
+  {                                                                            \
+    APPEND_DIGIT(n2, *cp);                                                     \
+    cp++;                                                                      \
+  }                                                                            \
+  if (*cp == '$')                                                              \
+  {                                                                            \
+    unsigned hold = nextarg;                                                   \
+    nextarg = n2;                                                              \
+    ADDTYPE(T_INT);                                                            \
+    nextarg = hold;                                                            \
+    fmt = ++cp;                                                                \
+  }                                                                            \
+  else                                                                         \
+    ADDTYPE(T_INT);
 
   fmt = (char *)fmt0;
   typetable = stattypetable;
@@ -1779,11 +1688,14 @@ __find_arguments(const char *fmt0, va_list ap, union arg **argtable,
   //
   // Scan the format for conversions (`%' character).
   //
-  for (;;) {
+  for (;;)
+  {
     cp = fmt;
-    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0) {
+    while ((n = mbrtowc(&wc, fmt, MB_CUR_MAX, &ps)) > 0)
+    {
       fmt += n;
-      if (wc == '%') {
+      if (wc == '%')
+      {
         fmt--;
         break;
       }
@@ -1793,9 +1705,13 @@ __find_arguments(const char *fmt0, va_list ap, union arg **argtable,
     fmt++;    // skip over '%'
 
     flags = 0;
-
+  //
+  // Scan the format directive for argument type information.
+  //
 rflag:    ch = *fmt++;
-reswitch: switch (ch) {
+reswitch:
+  switch (ch)
+  {
     case ' ':
     case '#':
     case '\'':
@@ -1807,24 +1723,26 @@ reswitch: switch (ch) {
     case '+':
       goto rflag;
     case '.':
-      if ((ch = *fmt++) == '*') {
+      if ((ch = *fmt++) == '*')
+      {
         ADDASTER();
         goto rflag;
       }
-      while (is_digit(ch)) {
+      while (is_digit(ch))
         ch = *fmt++;
-      }
       goto reswitch;
     case '0':
       goto rflag;
     case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
       n = 0;
-      do {
+      do
+      {
         APPEND_DIGIT(n ,ch);
         ch = *fmt++;
       } while (is_digit(ch));
-      if (ch == '$') {
+      if (ch == '$')
+      {
         nextarg = n;
         goto rflag;
       }
@@ -1837,12 +1755,12 @@ reswitch: switch (ch) {
 #endif
 
     case 'h':
-      if (*fmt == 'h') {
+      if (*fmt == 'h')
+      {
         fmt++;
         flags |= CHARINT;
-      } else {
+      } else
         flags |= SHORTINT;
-      }
       goto rflag;
     case 'l':
       if (*fmt == 'l')
@@ -1851,9 +1769,7 @@ reswitch: switch (ch) {
         flags |= LLONGINT;
       }
       else
-      {
         flags |= LONGINT;
-      }
       goto rflag;
     case 'q':
       flags |= LLONGINT;
@@ -1941,140 +1857,137 @@ reswitch: switch (ch) {
   }
 done:
   //
-  // Build the argument table.
+  // A NULL type table indicates a malloc() failure.
   //
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
+  if (typetable == 0)
+  {
+    ret = -1;
+    goto finish;
+  }
+  //
+  // Allocate the argument table, if necessary.
+  //
   if (tablemax >= STATIC_ARG_TBL_SIZE)
   {
     *argtablesiz = sizeof(union arg) * (tablemax + 1);
-    *argtable = (union arg *) mmap(0, *argtablesiz,
-        PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-    if (*argtable == MAP_FAILED)
-      return (-1);
-  }
-
-#if 0
-  /* XXX is this required? */
-  (*argtable)[0].intarg = 0;
-#endif
-
-  //
-  // Build the argument table based on the entries of the type table.
-  //
-  for (n = 1; n <= min((int) vargc, tablemax); n++)
-  {
-    switch (typetable[n]) {
-    case T_UNUSED:
-    case T_CHAR:
-    case T_U_CHAR:
-    case T_SHORT:
-    case T_U_SHORT:
-    case T_INT:
-      (*argtable)[n].intarg  = va_arg(ap, int);
-      break;
-    case T_WINT:
-      (*argtable)[n].wintarg = va_arg(ap, wint_t);
-      break;
-    case TP_SHORT:
-    case TP_INT:
-    case TP_LONG:
-    case TP_LLONG:
-    case TP_CHAR:
-    case TP_VOID:
-    case TP_PTRINT:
-    case TP_SSIZEINT:
-    case TP_MAXINT:
-      (*argtable)[n].pvoidarg = va_arg(ap, void *);
-      break;
-    case T_U_INT:
-      (*argtable)[n].uintarg = va_arg(ap, unsigned int);
-      break;
-    case T_LONG:
-      (*argtable)[n].longarg = va_arg(ap, long);
-      break;
-    case T_U_LONG:
-      (*argtable)[n].ulongarg = va_arg(ap, unsigned long);
-      break;
-    case T_LLONG:
-      (*argtable)[n].longlongarg = va_arg(ap, long long);
-      break;
-    case T_U_LLONG:
-      (*argtable)[n].ulonglongarg = va_arg(ap, unsigned long long);
-      break;
-
-#ifdef FLOATING_POINT
-    case T_DOUBLE:
-      (*argtable)[n].doublearg = va_arg(ap, double);
-      break;
-    case T_LONG_DOUBLE:
-      (*argtable)[n].longdoublearg = va_arg(ap, long double);
-      break;
-#endif
-
-    case T_PTRINT:
-      (*argtable)[n].ptrdiffarg = va_arg(ap, ptrdiff_t);
-      break;
-    case T_SIZEINT:
-      (*argtable)[n].sizearg = va_arg(ap, size_t);
-      break;
-    case T_SSIZEINT:
-      (*argtable)[n].ssizearg = va_arg(ap, ssize_t);
-      break;
+    *argtable = (union arg *) malloc(*argtablesiz);
+    if (argtable == 0)
+    {
+      ret = -1;
+      goto finish;
     }
   }
-  goto finish;
+  //
+  // Fill the argument table based on the entries of the type table.
+  //
+  for (i = 1; i <= min(vargc, tablemax); i++)
+  {
+    switch (typetable[i])
+    {
+      case T_UNUSED:
+      case T_CHAR:
+      case T_U_CHAR:
+      case T_SHORT:
+      case T_U_SHORT:
+      case T_INT:
+        (*argtable)[i].intarg  = va_arg(ap, int);
+        break;
+      case T_WINT:
+        (*argtable)[i].wintarg = va_arg(ap, wint_t);
+        break;
+      case TP_SHORT:
+      case TP_INT:
+      case TP_LONG:
+      case TP_LLONG:
+      case TP_CHAR:
+      case TP_VOID:
+      case TP_PTRINT:
+      case TP_SSIZEINT:
+      case TP_MAXINT:
+        (*argtable)[i].pvoidarg = va_arg(ap, void *);
+        break;
+      case T_U_INT:
+        (*argtable)[i].uintarg = va_arg(ap, unsigned int);
+        break;
+      case T_LONG:
+        (*argtable)[i].longarg = va_arg(ap, long);
+        break;
+      case T_U_LONG:
+        (*argtable)[i].ulongarg = va_arg(ap, unsigned long);
+        break;
+      case T_LLONG:
+        (*argtable)[i].longlongarg = va_arg(ap, long long);
+        break;
+      case T_U_LLONG:
+        (*argtable)[i].ulonglongarg = va_arg(ap, unsigned long long);
+        break;
+
+#ifdef FLOATING_POINT
+      case T_DOUBLE:
+        (*argtable)[i].doublearg = va_arg(ap, double);
+        break;
+      case T_LONG_DOUBLE:
+        (*argtable)[i].longdoublearg = va_arg(ap, long double);
+        break;
+#endif
+
+      case T_PTRINT:
+        (*argtable)[i].ptrdiffarg = va_arg(ap, ptrdiff_t);
+        break;
+      case T_SIZEINT:
+        (*argtable)[i].sizearg = va_arg(ap, size_t);
+        break;
+      case T_SSIZEINT:
+        (*argtable)[i].ssizearg = va_arg(ap, ssize_t);
+        break;
+    }
+  }
 
 overflow:
   errno = ENOMEM;
-  ret = -1;
+  ret   = -1;
 
 finish:
-  if (typetable != 0 && typetable != stattypetable) {
-    munmap(typetable, *argtablesiz);
-    typetable = 0;
-  }
-  return (ret);
+  //
+  // Free the type table, if necessary, and return.
+  //
+  if (typetable != stattypetable)
+    free(typetable);
+  return ret;
 }
 
 //
-// Increase the size of the type table.
+// grow_type_table()
 //
-static int
-__grow_type_table(unsigned char **typetable, int *tablesize)
+// Expand the internal type table to be at least of size minsz.
+//
+// Inputs:
+//  typetable - a pointer to the current type table
+//  tablesize - a pointer to a value holding the current table size
+//  minsz     - the minimum new size of the table
+//
+// Returns:
+//  This function returns 0 on success and -1 on failure.
+//
+static inline int
+grow_type_table(unsigned char **typetable, size_t *tablesize, size_t minsz)
 {
-  unsigned char *oldtable = *typetable;
-  int newsize = *tablesize * 2;
-
-  if (newsize < getpagesize())
-    newsize = getpagesize();
-
   //
-  // Allocate the new table with mmap().
+  // Allocate the new table on the heap.
   //
-  if (*tablesize == STATIC_ARG_TBL_SIZE) {
-    *typetable = (unsigned char *) mmap(0, newsize, PROT_WRITE|PROT_READ,
-        MAP_ANON|MAP_PRIVATE, -1, 0);
-    if (*typetable == MAP_FAILED)
-      return (-1);
-    bcopy(oldtable, *typetable, *tablesize);
-  } else {
-    unsigned char *nc = (unsigned char *) mmap(0, newsize,
-        PROT_WRITE|PROT_READ, MAP_ANON|MAP_PRIVATE, -1, 0);
-    if (nc == MAP_FAILED)
-      return (-1);
-    memmove(nc, *typetable, *tablesize);
-    munmap(*typetable, *tablesize);
-    *typetable = nc;
-  }
+  const size_t newsize = max(*tablesize * 2, minsz);
+  if (*tablesize == STATIC_ARG_TBL_SIZE)
+    *typetable = (unsigned char *) malloc(newsize);
+  else
+    *typetable = (unsigned char *) realloc(*typetable, newsize);
+  if (*typetable == 0)
+    return -1;
   //
   // Fill the rest of the table with empty entries.
   //
   memset(*typetable + *tablesize, T_UNUSED, (newsize - *tablesize));
-
   *tablesize = newsize;
-  return (0);
+  return 0;
 }
 
 #ifdef FLOATING_POINT
@@ -2088,7 +2001,7 @@ __grow_type_table(unsigned char **typetable, int *tablesize)
 //  fmtch - the associated format directive
 //
 // Returns:
-//  The length of the converted string
+//  This function returns the length of the converted string.
 //
 static int
 exponent(char *p0, int exp, int fmtch)
