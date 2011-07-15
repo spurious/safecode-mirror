@@ -124,8 +124,7 @@ def build_test(n, input, fmt, rval, wrvals):
   return '  ' + '\n  '.join(tests)
 
 top = \
-'''
-#include <stdio.h>
+'''#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 
@@ -160,11 +159,11 @@ int main(int argc, char *argv[])
   fail = 0;
 
   /* Begin tests. */
+
 '''
 
 bottom = \
-'''
-  /* End tests. */
+'''  /* End tests. */
 
   return fail;
 }

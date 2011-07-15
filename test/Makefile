@@ -43,9 +43,9 @@ LARGE_PROBLEM_SIZE_DIRS := \
 #DEBUG_SAFECODE := DEBUG_SAFECODE=1
 
 NORMAL_PROBLEM_SIZE_DIRS := \
+  MultiSource/Benchmarks/Olden \
   External/SPEC/CINT2000 \
-  #MultiSource/Benchmarks/Olden \
-  #External/SPEC/CINT2006 \
+  External/SPEC/CINT2006 \
   #MultiSource/Benchmarks/Olden/bisort \
   #External/SPEC/CINT2000/197.parser \
   #External/SPEC/CINT2000/164.gzip \
@@ -471,16 +471,18 @@ lit: lit-formatstrings lit-cstdlib
 
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
+	@mkdir -p $(CSTDLIB)
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB)
 
 # Run the lit tests for format string functions
 lit-formatstrings: $(TESTSCRIPT)
+	@mkdir -p $(FMTSTR)
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR)
 
 # Build the script to run the lit tests
 $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in
 	@echo Creating test script...
-	@mkdir -p cstdlib
+	@mkdir -p `dirname $@`
 	@sed -e 's#@LLVMGCC@#$(LLVMGCC)#g' \
        -e 's#@CXX@#$(CXX)#g' \
        -e 's#@SC@#$(SC_BIN)#g' \

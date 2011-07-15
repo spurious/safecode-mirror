@@ -111,12 +111,12 @@ compile()
     fstring_opt='-disable-printfchecks=false'
   fi
   scflags=$cstdlib_opt' '$fstring_opt
-  # Run SAFECode with CStdLib and format string passes on bitcode.
-  $sc -terminate                  \
-      -pa=apa                     \
-      -stats                      \
-      -time-passes                \
-      $scflags                    \
+  # Run SAFECode with specified flags.
+  $sc -terminate   \
+      -pa=apa      \
+      -stats       \
+      -time-passes \
+      $scflags     \
       -o $scobj $bcfile >& $sclog
   # Compile native assembly file from processed bitcode.
   $llc -o $scasm $scobj

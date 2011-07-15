@@ -138,13 +138,13 @@ percentntesttab = \
 ]
 
 prefix = \
-'''
-#include <locale.h>
+'''#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
+/* These functions return floating point NaN and infinity. */
 double infinity()
 {
   return strtod("infinity", NULL);
@@ -155,6 +155,7 @@ double nan()
   return strtod("nan", NULL);
 }
 
+/* Check for support of the %ls directive. */
 int russian_test()
 {
   const char *cat = "\\xd0\\x9a\\xd0\\x9e\\xd0\\xa8\\xd0\\x9a\\xd0\\x90";
@@ -224,6 +225,8 @@ suffix = \
 
 import sys
 
+quote = lambda s : '"' + s + '"'
+
 def make_regular_test(count, param):
   fmt = quote(param[0])
   arg = param[1]
@@ -243,15 +246,15 @@ def make_percent_n_test(count, param):
     n1, n2 = (param[3][0], param[3][1])
   return percent_n_test % (fmt, arg, out, n1, n2, count)
 
-sys.stdout.write(prefix)
-quote = lambda s : '"' + s + '"'
-count = 1
-for unit in basictesttab:
-  built_test = make_regular_test(count, unit)
-  sys.stdout.write(built_test)
-  count += 1
-for unit in percentntesttab:
-  built_test = make_percent_n_test(count, unit)
-  sys.stdout.write(built_test)
-  count += 1
-sys.stdout.write(suffix)
+if __name__ == '__main__':
+  sys.stdout.write(prefix)
+  count = 1
+  for unit in basictesttab:
+    built_test = make_regular_test(count, unit)
+    sys.stdout.write(built_test)
+    count += 1
+  for unit in percentntesttab:
+    built_test = make_percent_n_test(count, unit)
+    sys.stdout.write(built_test)
+    count += 1
+  sys.stdout.write(suffix)
