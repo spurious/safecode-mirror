@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // Try concatenating from an unterminated source string. This should
 // fail.

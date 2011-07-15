@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // This is an example of a destination string too short for strncat().
 

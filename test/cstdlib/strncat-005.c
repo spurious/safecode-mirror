@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // strncat() when the source array overlaps with the destination
 // string, and nul is not one of the n characters to concatenate.

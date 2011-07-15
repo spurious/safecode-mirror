@@ -1,20 +1,30 @@
 #!/bin/bash -e
 
+#
+# This script is used to compile and test a single file with SAFECode.
+#
+
 expect_error=1
+format_strings=0
+cstdlib_checks=0
 
 usage()
 {
-  echo 'usage: test.sh [args] file.c'
+  echo 'usage: test.sh [args] file.c/file.ll'
   echo 'arguments:'
   echo '   -t dir    directory to use for testing'
-  echo '   -p        expect no safecode errors from the test case'
-  echo '   -e        expect a safecode error from the test case'
+  echo '   -p        expect no SAFEcode errors from the test case'
+  echo '   -e        expect a SAFEcode error from the test case'
+  echo '   -c        enable CStdLib runtime checks'
+  echo '   -f        enable format string function runtime checks'
 }
 
 # Process the arguments.
-while getopts hept: option
+while getopts hept:cf option
   do
     case $option in
+      f) format_strings=1;;
+      c) cstdlib_checks=1;;
       e) expect_error=1;;
       p) expect_error=0;;
       t) testdir=$OPTARG;;
@@ -27,6 +37,7 @@ while getopts hept: option
 # Get the file argument.
 shift $((OPTIND-1))
 
+# If there is no file, print usage information and exit.
 if [ $# -lt 1 ]
 then
   usage
@@ -58,20 +69,17 @@ bcfile=$testdir/${prefix}.bc
 scobj=$testdir/${prefix}.sc.bc
 # Compiled version of SAFECode transformations
 scasm=$testdir/${prefix}.sc.s
+# SAFECode compilation log
+sclog=$testdir/${prefix}.sc.log
 # Final executable
 scfile=$testdir/${prefix}.sc
 # Executable output
-scout=$testdir/${prefix}.output
+scout=$testdir/${prefix}.sc.output
 
-
-# Clean up all temporary files the script made.
+# Do any necessary cleanup before exit.
 cleanup()
 {
-  rm -f $bcfile $scobj $scasm $scfile $scout
-  if [ $testdir != '.' ]
-  then
-    rmdir --ignore-fail-on-non-empty $testdir
-  fi
+  return 0
 }
 
 # Prepare the testing directory.
@@ -91,8 +99,25 @@ compile()
      c) $llvmgcc -c -emit-llvm -o $bcfile $filename;;
     ll) $llvmas $filename -o $bcfile;;
   esac
-  # Run SAFECode with CStdLib passes on bitcode.
-  $sc -terminate -pa=apa -disable-cstdlib=false -o $scobj $bcfile 2>&1
+  # Build the flags to the call to sc.
+  cstdlib_opt=''
+  fstring_opt=''
+  if [ $cstdlib_checks -eq 1 ]
+  then
+    cstdlib_opt='-disable-cstdlib=false'
+  fi
+  if [ $format_strings -eq 1 ]
+  then
+    fstring_opt='-disable-printfchecks=false'
+  fi
+  scflags=$cstdlib_opt' '$fstring_opt
+  # Run SAFECode with CStdLib and format string passes on bitcode.
+  $sc -terminate                  \
+      -pa=apa                     \
+      -stats                      \
+      -time-passes                \
+      $scflags                    \
+      -o $scobj $bcfile >& $sclog
   # Compile native assembly file from processed bitcode.
   $llc -o $scasm $scobj
   # Build and link test.
@@ -108,7 +133,7 @@ runtest()
   # Don't exit immediately on failure of below commands.
   set +e
   $scfile >& $scout
-  # Ensure the test ran successfully.
+  # Ensure the test ran successfully. If not, exit with error.
   if [ $? -ne 0 ]
   then
     cleanup
@@ -117,8 +142,8 @@ runtest()
   error_count=$(grep -c SAFECode $scout)
   set -e
   cleanup
-  # Exit with a value depending on whether SAFECode output was encountered
-  # and if we expected an error.
+  # Exit with a value depending on whether SAFECode output was encountered and
+  # if we expected an error.
   if [ $error_count -gt 0 ]
   then
     exit $((!expect_error))

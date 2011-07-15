@@ -69,3 +69,4 @@ WatchDog            safecode/tools/WatchDog
 PrintfSupport       safecode/runtime/DebugRuntime
 ScanfSupport        safecode/runtime/DebugRuntime
 FloatConversion     safecode/runtime/FloatConversion
+tst-sscanf          safecode/test/formatstrings

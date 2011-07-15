@@ -1,4 +1,4 @@
-// RUN: test.sh -p -t %t %s
+// RUN: test.sh -c -p -t %t %s
 
 // Example of the correct use of bcopy().
 

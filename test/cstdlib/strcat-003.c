@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // Concatenate onto a destination string that is too short.
 // This should cause an error that should be caught.

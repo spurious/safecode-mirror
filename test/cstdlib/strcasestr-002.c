@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // strcasestr() with an unterminated substring.
 

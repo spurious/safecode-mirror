@@ -1,4 +1,4 @@
-// RUN: test.sh -e -t %t %s
+// RUN: test.sh -c -e -t %t %s
 
 // strrchr() on an unterminated string, with the character being searched
 // for not found in the string.
