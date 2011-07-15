@@ -459,11 +459,13 @@ endif
 SC_LIB  := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib
 SC_BIN  := $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/bin/sc
 
-SETPATH = PATH=$(PROJ_OBJ_ROOT)/test/tools:$(PATH)
+SETPATH = PATH=$(PROJ_OBJ_ROOT)/test/tools:$(PATH) SC_OBJ_ROOT=$(PROJ_OBJ_ROOT)
 
 # Path to test files
 CSTDLIB=$(PROJ_SRC_ROOT)/test/cstdlib
 FMTSTR=$(PROJ_SRC_ROOT)/test/formatstrings
+CSTDLIBOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
+FMTSTROBJ=$(PROJ_OBJ_ROOT)/test/formatstrings
 TESTSCRIPT=$(PROJ_OBJ_ROOT)/test/tools/test.sh
 
 # Run all lit tests
@@ -471,12 +473,12 @@ lit: lit-formatstrings lit-cstdlib
 
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
-	@mkdir -p $(CSTDLIB)
+	@mkdir -p $(CSTDLIBOBJ)
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB)
 
 # Run the lit tests for format string functions
 lit-formatstrings: $(TESTSCRIPT)
-	@mkdir -p $(FMTSTR)
+	@mkdir -p $(FMTSTROBJ)
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR)
 
 # Build the script to run the lit tests
