@@ -1,6 +1,6 @@
 //===- DebugInstrumentation.h - Adds debug information to run-time checks ----//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -15,7 +15,6 @@
 #ifndef DEBUG_INSTRUMENTATION_H
 #define DEBUG_INSTRUMENTATION_H
 
-#include "safecode/SAFECode.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
@@ -25,9 +24,7 @@
 #include <string>
 #include <utility>
 
-using namespace llvm;
-
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 class GetSourceInfo {
   protected:
@@ -65,7 +62,7 @@ struct DebugInstrument : public ModulePass {
     static char ID;
 
     virtual bool runOnModule(Module &M);
-    DebugInstrument () : ModulePass ((intptr_t) &ID) {
+    DebugInstrument () : ModulePass (ID) {
       return;
     }
 
@@ -86,6 +83,6 @@ struct DebugInstrument : public ModulePass {
     void transformFunction (Function * F, GetSourceInfo & SI);
 };
 
-NAMESPACE_SC_END
+}
 
 #endif

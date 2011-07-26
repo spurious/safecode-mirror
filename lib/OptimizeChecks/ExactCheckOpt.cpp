@@ -1,6 +1,6 @@
 //===- ExactCheckOpt.cpp -------------------------------------------------- --//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -16,15 +16,14 @@
 
 #define DEBUG_TYPE "exactcheck-opt"
 
-#include "safecode/OptimizeChecks.h"
-#include "safecode/Support/AllocatorInfo.h"
-#include "SCUtils.h"
-
 #include "llvm/ADT/Statistic.h"
+#include "safecode/AllocatorInfo.h"
+#include "safecode/OptimizeChecks.h"
+#include "safecode/Utility.h"
 
 #include <queue>
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 static RegisterPass<ExactCheckOpt> X ("exactcheck-opt", "Exact check optimization", true);
 
@@ -53,9 +52,9 @@ ExactCheckOpt::runOnModule(Module & M) {
   //
   // Add a prototype for the exactcheck function.
   //
-  const Type * VoidPtrTy = getVoidPtrType (M.getContext());
-  const Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
-  ExactCheck2 = (Function *) M.getOrInsertFunction ("sc.exactcheck2",
+  Type * VoidPtrTy = getVoidPtrType (M.getContext());
+  Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
+  ExactCheck2 = (Function *) M.getOrInsertFunction ("exactcheck2",
                                                     VoidPtrTy,
                                                     VoidPtrTy,
                                                     VoidPtrTy,
@@ -220,8 +219,8 @@ void
 ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                                    Value * ResultPointer, Value * Bounds) {
   // The LLVM type for a void *
-  const Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
-  const Type * Int32Type = IntegerType::getInt32Ty(CI->getContext());
+  Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
+  Type * Int32Type = IntegerType::getInt32Ty(CI->getContext());
 
   //
   // For readability, make sure that both the base pointer and the result
@@ -260,7 +259,7 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   args.push_back(ResultPointer);
   args.push_back(CastBounds);
 
-  CallInst * ExactCheckCI = CallInst::Create (ExactCheck2, args.begin(), args.end(), "", CI);
+  CallInst * ExactCheckCI = CallInst::Create (ExactCheck2, args, "", CI);
   // boundscheck / exactcheck return an out of bound pointer when REWRITE_OOB is
   // enabled. We need to replace all uses to make the optimization correct, but
   // we don't need do anything for load / store checks.
@@ -274,4 +273,4 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   checkingIntrinsicsToBeRemoved.push_back(CI);
 }
 
-NAMESPACE_SC_END
+}

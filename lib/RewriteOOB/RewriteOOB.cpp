@@ -36,16 +36,13 @@
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
 #include "llvm/Support/InstIterator.h"
-
 #include "safecode/RewriteOOB.h"
-#include "SCUtils.h"
-
-#include "dsa/DSSupport.h"
+#include "safecode/Utility.h"
 
 #include <iostream>
 
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 // Identifier variable for the pass
 char RewriteOOB::ID = 0;
@@ -116,7 +113,7 @@ RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
     // We are only concerned about call instructions; any other use is of
     // no interest to the organization.
     //
-    if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
       //
       // We're going to make a change.  Mark that we will have done so.
       //
@@ -158,7 +155,7 @@ RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
       std::vector<User *> Uses;
       Value::use_iterator UI = PeeledOperand->use_begin();
       for (; UI != PeeledOperand->use_end(); ++UI) {
-        if (Instruction * Use = dyn_cast<Instruction>(UI))
+        if (Instruction * Use = dyn_cast<Instruction>(*UI))
           if ((CI != Use) && (domTree->dominates (CI, Use))) {
             Uses.push_back (*UI);
             ++Changes;
@@ -262,8 +259,8 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   // Get a reference to the getactualvalue() function.
   //
   Module * M = SCI->getParent()->getParent()->getParent();
-  const Type * VoidPtrTy = getVoidPtrType (M->getContext());
-  Constant * GAVConst = M->getOrInsertFunction ("sc.get_actual_val",
+  Type * VoidPtrTy = getVoidPtrType (M->getContext());
+  Constant * GAVConst = M->getOrInsertFunction ("pchk_getActualValue",
                                                 VoidPtrTy,
                                                 VoidPtrTy,
                                                 VoidPtrTy,
@@ -309,17 +306,18 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Insert the call to getActualValue()
   //
-  const Type * VoidPtrType = getVoidPtrType(peeledOp->getContext());
+  Type * VoidPtrType = getVoidPtrType(peeledOp->getContext());
   Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
   Value * OpVptr = castTo (op,
                            VoidPtrType,
                            op->getName() + ".casted",
                            SCI);
 
-  std::vector<Value *> args = make_vector (PHVptr, OpVptr,0);
+  std::vector<Value *> args;
+  args.push_back (PHVptr);
+  args.push_back (OpVptr);
   CallInst *CI = CallInst::Create (GetActualValue,
-                                   args.begin(),
-                                   args.end(),
+                                   args,
                                    "getval",
                                    SCI);
   Instruction *CastBack = castTo (CI,
@@ -369,5 +367,5 @@ RewriteOOB::runOnModule (Module & M) {
   return modified;
 }
 
-NAMESPACE_SC_END
+}
 

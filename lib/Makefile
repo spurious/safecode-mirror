@@ -2,17 +2,17 @@ LEVEL = ..
 
 PARALLEL_DIRS = \
                InsertPoolChecks \
+               OptimizeChecks \
+               RewriteOOB \
+               DebugInstrumentation \
 #               Support \
 #               ArrayBoundChecks \
 #               BaggyBoundsChecks \
 #               ConvertUnsafeAllocas \
 #               CStdLib \
 #               FormatStrings \
-#               OptimizeChecks \
 #               StackSafety \
 #               SpeculativeChecking \
-#               RewriteOOB \
-#               DebugInstrumentation \
 #               DanglingPointers \
 #               CStdLib \
 #               Utility \

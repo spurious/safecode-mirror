@@ -1,6 +1,6 @@
 //===- DebugInstrumentation.cpp - Modify run-time checks to track debug info -//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -18,7 +18,6 @@
 
 #define DEBUG_TYPE "debug-instrumentation"
 
-#include "safecode/DebugInstrumentation.h"
 
 #include "llvm/Analysis/DebugInfo.h"
 #include "llvm/Constants.h"
@@ -33,7 +32,8 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
-#include "SCUtils.h"
+#include "safecode/DebugInstrumentation.h"
+#include "safecode/Utility.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -41,7 +41,7 @@
 
 using namespace llvm;
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char DebugInstrument::ID = 0;
 
@@ -55,9 +55,9 @@ static int tagCounter = 0;
 //
 // Basic LLVM Types
 //
-static const Type * VoidType  = 0;
-static const Type * Int8Type  = 0;
-static const Type * Int32Type = 0;
+static Type * VoidType  = 0;
+static Type * Int8Type  = 0;
+static Type * Int32Type = 0;
 
 ///////////////////////////////////////////////////////////////////////////
 // Command line options
@@ -247,22 +247,11 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   // have additional debug parameters at the end.
   //
   const FunctionType * FuncType = F->getFunctionType();
-  std::vector<const Type *> ParamTypes (FuncType->param_begin(),
-                                        FuncType->param_end());
-
-  //
-  // This pass currently pushes back debugging information at the end of a
-  // function call's arguments, whether or not the function is a
-  // variable argument function. Hence these parameters should not be added to
-  // a variable argument function type, since they won't be the last
-  // parameters to a function call.
-  //
-  if (!FuncType->isVarArg())
-  {
-    ParamTypes.push_back (Int32Type);
-    ParamTypes.push_back (VoidPtrTy);
-    ParamTypes.push_back (Int32Type);
-  }
+  std::vector<Type *> ParamTypes (FuncType->param_begin(),
+                                  FuncType->param_end());
+  ParamTypes.push_back (Int32Type);
+  ParamTypes.push_back (VoidPtrTy);
+  ParamTypes.push_back (Int32Type);
 
   //
   // Check to see if the debug version of the function already exists.
@@ -273,7 +262,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
-                                                    FuncType->isVarArg());
+                                                    false);
   std::string funcdebugname = F->getName().str() + "_debug";
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
@@ -289,7 +278,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
 
     LLVMContext & Context = F->getContext();
     BasicBlock * entryBB=BasicBlock::Create (Context, "entry", DebugFunc);
-    const Type * VoidTy = Type::getVoidTy(Context);
+    Type * VoidTy = Type::getVoidTy(Context);
     if (DebugFunc->getReturnType() == VoidTy) {
       ReturnInst::Create (Context, entryBB);
     } else {
@@ -304,7 +293,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   std::vector<CallInst *> Worklist;
   Function::use_iterator i, e;
   for (i = F->use_begin(), e = F->use_end(); i != e; ++i) {
-    if (CallInst * CI = dyn_cast<CallInst>(i)) {
+    if (CallInst * CI = dyn_cast<CallInst>(*i)) {
       Worklist.push_back (CI);
     }
   }
@@ -359,8 +348,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     args.push_back (LineNumber);
 
     CallInst * NewCall = CallInst::Create (FDebug,
-                                           args.begin(),
-                                           args.end(),
+                                           args,
                                            CI->getName(),
                                            CI);
     CI->replaceAllUsesWith (NewCall);
@@ -420,7 +408,6 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("sc.pool_register_stack"), VInfo);
   transformFunction (M.getFunction ("sc.pool_unregister"), VInfo);
   transformFunction (M.getFunction ("sc.pool_unregister_stack"), VInfo);
-  transformFunction (M.getFunction ("sc.fscallinfo"), LInfo);
 
   // CStdLib
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
@@ -459,5 +446,5 @@ DebugInstrument::runOnModule (Module &M) {
   return true;
 }
 
-NAMESPACE_SC_END
+}
 

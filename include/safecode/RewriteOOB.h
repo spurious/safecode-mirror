@@ -18,14 +18,9 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-
-#include "safecode/SAFECode.h"
 #include "safecode/CheckInfo.h"
-#include "safecode/PoolHandles.h"
 
-using namespace llvm;
-
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 //
 // Pass: RewriteOOB
@@ -44,7 +39,7 @@ class RewriteOOB : public ModulePass {
 
   public:
     static char ID;
-    RewriteOOB() : ModulePass((intptr_t)(&ID)) {}
+    RewriteOOB() : ModulePass(ID) {}
     const char *getPassName() const { return "Rewrite OOB Pass"; }
     virtual bool runOnModule (Module & M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -53,6 +48,6 @@ class RewriteOOB : public ModulePass {
     }
 };
 
-NAMESPACE_SC_END
+}
 
 #endif

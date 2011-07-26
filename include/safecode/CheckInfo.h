@@ -1,6 +1,6 @@
 //===- CheckInfo.h - Information about SAFECode run-time checks --*- C++ -*---//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -20,7 +20,7 @@
 
 using namespace llvm;
 
-namespace safecode {
+namespace {
 
 //
 // Structure: CheckInfo
@@ -43,21 +43,21 @@ struct CheckInfo {
     return CS.getArgument (argno);
   }
 };
+}
 
 //
 // Create a table describing all of the SAFECode run-time checks.
 //
 static const unsigned numChecks = 8;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
-  {"sc.lscheck",        1, true},
-  {"sc.lscheckui",      1, true},
-  {"sc.lscheckalign",   1, true},
-  {"sc.lscheckuialign", 1, true},
-  {"sc.boundscheck",    2, false},
-  {"sc.boundscheckui",  2, false},
-  {"sc.exactcheck2",    1, false},
-  {"sc.funccheck",      1, true}
+  {"lscheck",        1, true},
+  {"lscheckui",      1, true},
+  {"lscheckalign",   1, true},
+  {"lscheckuialign", 1, true},
+  {"boundscheck",    2, false},
+  {"boundscheckui",  2, false},
+  {"exactcheck2",    1, false},
+  {"funccheck",      1, true}
 };
 
-}
 #endif
