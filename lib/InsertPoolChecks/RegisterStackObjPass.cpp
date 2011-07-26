@@ -1,6 +1,6 @@
 //===- RegisterStackObjPass.cpp - Pass to Insert Stack Object Registration ---//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -14,19 +14,17 @@
 
 #define DEBUG_TYPE "stackreg"
 
-#include "safecode/SAFECode.h"
-
-#include "SCUtils.h"
-#include "safecode/InsertChecks/RegisterBounds.h"
-#include "llvm/Instruction.h"
-#include "llvm/Module.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Instruction.h"
+#include "llvm/Module.h"
+#include "llvm/Support/CallSite.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
-#include "safecode/VectorListHelper.h"
+#include "safecode/Utility.h"
+#include "safecode/RegisterBounds.h"
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char RegisterStackObjPass::ID = 0;
 
@@ -85,12 +83,13 @@ RegisterStackObjPass::insertPoolFrees
     // Take the first element off of the worklist.
     //
     CallInst * CI = PoolRegisters[index];
+    CallSite CS(CI);
 
     //
     // Get the pool handle and allocated pointer from the poolregister() call.
     //
-    Value * PH  = CI->getOperand(1);
-    Value * Ptr = CI->getOperand(2);
+    Value * PH  = CS.getArgument(0);
+    Value * Ptr = CS.getArgument(1);
 
     //
     // Create a place to store the pointer returned from alloca.  Initialize it
@@ -150,14 +149,14 @@ RegisterStackObjPass::insertPoolFrees
       std::vector<Value *> args;
       args.push_back (PH);
       args.push_back (Ptr);
-      CallInst::Create (StackFree, args.begin(), args.end(), "", Return);
+      CallInst::Create (StackFree, args, "", Return);
     }
   }
 
   //
   // Lastly, promote the allocas we created into LLVM virtual registers.
   //
-  PromoteMemToReg(PtrList, *DT, *DF);
+  PromoteMemToReg(PtrList, *DT);
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -194,8 +193,8 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Get pointers to the functions for registering and unregistering pointers.
   //
-  PoolRegister = F.getParent()->getFunction ("sc.pool_register_stack");
-  StackFree    = F.getParent()->getFunction ("sc.pool_unregister_stack");
+  PoolRegister = F.getParent()->getFunction ("pool_register_stack");
+  StackFree    = F.getParent()->getFunction ("pool_unregister_stack");
   assert (PoolRegister);
   assert (StackFree);
 
@@ -224,12 +223,18 @@ RegisterStackObjPass::runOnFunction(Function & F) {
         //
         // Ensure that the alloca is not within a loop; we don't support yet.
         //
+#if 0
         if (LI->getLoopFor (BI)) {
           assert (0 &&
                   "Register Stack Objects: No support for alloca in loop!\n");
           abort();
         }
         AllocaList.push_back (AI);
+#else
+        if (!(LI->getLoopFor (BI))) {
+          AllocaList.push_back (AI);
+        }
+#endif
       }
     }
 
@@ -257,7 +262,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Insert poolunregister calls for all of the registered allocas.
   //
-  insertPoolFrees (PoolRegisters, ExitPoints, &getGlobalContext());
+  insertPoolFrees (PoolRegisters, ExitPoints, &F.getContext());
 
   //
   // Conservatively assume that we've changed the function.
@@ -285,7 +290,16 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   // not, then none of the checks will consult the MetaPool, and we can
   // forego registering the alloca.
   //
+#if 0
   bool MustRegisterAlloca = false;
+#else
+  //
+  // FIXME: For now, register all allocas.  The reason is that this
+  // optimization requires that other optimizations be executed, and those are
+  // not integrated into LLVM yet.
+  //
+  bool MustRegisterAlloca = true;
+#endif
   std::vector<Value *> AllocaWorkList;
   AllocaWorkList.push_back (AI);
   while ((!MustRegisterAlloca) && (AllocaWorkList.size())) {
@@ -294,27 +308,27 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
     Value::use_iterator UI = V->use_begin();
     for (; UI != V->use_end(); ++UI) {
       // We cannot handle PHI nodes or Select instructions
-      if (isa<PHINode>(UI) || isa<SelectInst>(UI)) {
+      if (isa<PHINode>(*UI) || isa<SelectInst>(*UI)) {
         MustRegisterAlloca = true;
         continue;
       }
 
       // The pointer escapes if it's stored to memory somewhere.
       StoreInst * SI;
-      if ((SI = dyn_cast<StoreInst>(UI)) && (SI->getOperand(0) == V)) {
+      if ((SI = dyn_cast<StoreInst>(*UI)) && (SI->getOperand(0) == V)) {
         MustRegisterAlloca = true;
         continue;
       }
 
       // GEP instructions are okay, but need to be added to the worklist
-      if (isa<GetElementPtrInst>(UI)) {
+      if (isa<GetElementPtrInst>(*UI)) {
         AllocaWorkList.push_back (*UI);
         continue;
       }
 
       // Cast instructions are okay as long as they cast to another pointer
       // type
-      if (CastInst * CI = dyn_cast<CastInst>(UI)) {
+      if (CastInst * CI = dyn_cast<CastInst>(*UI)) {
         if (isa<PointerType>(CI->getType())) {
           AllocaWorkList.push_back (*UI);
           continue;
@@ -325,7 +339,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
       }
 
 #if 0
-      if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(UI)) {
+      if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(*UI)) {
         if (cExpr->getOpcode() == Instruction::Cast) {
           AllocaWorkList.push_back (*UI);
           continue;
@@ -337,7 +351,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
 #endif
 
       CallInst * CI1;
-      if ((CI1 = dyn_cast<CallInst>(UI))) {
+      if ((CI1 = dyn_cast<CallInst>(*UI))) {
         if (!(CI1->getCalledFunction())) {
           MustRegisterAlloca = true;
           continue;
@@ -382,12 +396,18 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
   // Create an LLVM Value for the allocation size.  Insert a multiplication
   // instruction if the allocation allocates an array.
   //
-  const Type * Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  Type * Int32Type = IntegerType::getInt32Ty(AI->getContext());
   unsigned allocsize = TD->getTypeAllocSize(AI->getAllocatedType());
-  Value *AllocSize = ConstantInt::get (Int32Type, allocsize);
-  if (AI->isArrayAllocation())
-    AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
-                                       AI->getOperand(0), "sizetmp", AI);
+  Value *AllocSize = ConstantInt::get (AI->getOperand(0)->getType(), allocsize);
+  if (AI->isArrayAllocation()) {
+    Value * Operand = AI->getOperand(0);
+    AllocSize = BinaryOperator::Create(Instruction::Mul,
+                                       AllocSize,
+                                       Operand,
+                                       "sizetmp",
+                                       AI);
+  }
+  AllocSize = castTo (AllocSize, Int32Type, "sizetmp", AI);
 
   //
   // Attempt to insert the call to register the alloca'ed object after all of
@@ -418,7 +438,7 @@ RegisterStackObjPass::registerAllocaInst (AllocaInst *AI) {
 
   // Update statistics
   ++StackRegisters;
-  return CallInst::Create (PoolRegister, args.begin(), args.end(), "", iptI);
+  return CallInst::Create (PoolRegister, args, "", iptI);
 }
 
-NAMESPACE_SC_END
+}

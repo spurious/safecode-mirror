@@ -6,13 +6,13 @@ LIBRARYNAME=addchecks
 
 SOURCES = GEPChecks.cpp \
           LoadStoreChecks.cpp \
+          RegisterBounds.cpp \
+          RegisterRuntimeInitializer.cpp \
+          RegisterStackObjPass.cpp \
           #AlignmentChecks.cpp \
           #MonotonicLoopOpt.cpp \
           #ClearCheckAttributes.cpp \
-          #RegisterBounds.cpp \
           #CompleteChecks.cpp \
-          #RegisterRuntimeInitializer.cpp \
-          #RegisterStackObjPass.cpp \
           #insert.cpp
 
 include $(LEVEL)/Makefile.common

@@ -1,6 +1,6 @@
 //===- RegisterBounds.cpp ---------------------------------------*- C++ -*----//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -13,14 +13,12 @@
 
 #define DEBUG_TYPE "sc-register"
 
-#include "safecode/InsertChecks/RegisterBounds.h"
-#include "safecode/Support/AllocatorInfo.h"
-#include "dsa/DSGraph.h"
-#include "SCUtils.h"
-
-#include "llvm/Support/InstIterator.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/InstIterator.h"
+#include "safecode/RegisterBounds.h"
+#include "safecode/AllocatorInfo.h"
+#include "safecode/Utility.h"
 
 #include <functional>
 
@@ -33,7 +31,7 @@ namespace {
   STATISTIC (RegisteredHeapObjs, "Number of registered heap objects");
 }
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char RegisterGlobalVariables::ID = 0;
 char RegisterMainArgs::ID = 0;
@@ -72,8 +70,8 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
   // Get the pool into which the global should be registered.
   //
   Value * PH = ConstantPointerNull::get (getVoidPtrType(GV->getContext()));
-  const Type* csiType = IntegerType::getInt32Ty(GV->getContext());
-  const Type * GlobalType = GV->getType()->getElementType();
+  Type* csiType = IntegerType::getInt32Ty(GV->getContext());
+  Type * GlobalType = GV->getType()->getElementType();
   unsigned TypeSize = TD->getTypeAllocSize((GlobalType));
   if (!TypeSize) {
     llvm::errs() << "FIXME: Ignoring global of size zero: ";
@@ -89,7 +87,7 @@ RegisterGlobalVariables::registerGV (GlobalVariable * GV,
 
 bool
 RegisterGlobalVariables::runOnModule(Module & M) {
-  init(M, "sc.pool_register_global");
+  init(M, "pool_register_global");
 
   //
   // Get required analysis passes.
@@ -99,7 +97,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
   //
   // Create a skeleton function that will register the global variables.
   //
-  const Type * VoidTy = Type::getVoidTy (M.getContext());
+  Type * VoidTy = Type::getVoidTy (M.getContext());
   Constant * CF = M.getOrInsertFunction ("sc.register_globals", VoidTy, NULL);
   Function * F = dyn_cast<Function>(CF);
 
@@ -133,10 +131,9 @@ RegisterGlobalVariables::runOnModule(Module & M) {
     if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
     if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
    
-    if (SCConfig.svaEnabled()) {
-      // Linking fails when registering objects in section exitcall.exit
-      if (GV->getSection() == ".exitcall.exit") continue;
-    }
+    // Linking fails when registering objects in section exitcall.exit
+    // This is needed for the Linux kernel.
+    if (GV->getSection() == ".exitcall.exit") continue;
 
     registerGV(GV, InsertPt);    
   }
@@ -146,12 +143,10 @@ RegisterGlobalVariables::runOnModule(Module & M) {
 
 bool
 RegisterMainArgs::runOnModule(Module & M) {
-  init(M, "sc.pool_register");
+  init(M, "pool_register");
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    llvm::errs() << "Cannot do array bounds check for this program"
-               << "no 'main' function yet!\n";
-    abort();
+    return false;
   }
 
   if (MainFunc->arg_size() != 2) {
@@ -174,9 +169,9 @@ RegisterMainArgs::runOnModule(Module & M) {
   //
   // Register all of the argv strings
   //
-  const Type * VoidPtrType = getVoidPtrType(M.getContext());
-  const Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
-  Constant * CF = M.getOrInsertFunction ("sc.pool_argvregister",
+  Type * VoidPtrType = getVoidPtrType(M.getContext());
+  Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
+  Constant * CF = M.getOrInsertFunction ("poolargvregister",
                                           getVoidPtrType(M.getContext()),
                                           Int32Type,
                                           PointerType::getUnqual (VoidPtrType),
@@ -186,7 +181,7 @@ RegisterMainArgs::runOnModule(Module & M) {
   std::vector<Value *> fargs;
   fargs.push_back (Argc);
   fargs.push_back (Argv);
-  CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+  CallInst::Create (RegisterArgv, fargs, "", InsertPt);
   return true;
 }
 
@@ -201,8 +196,10 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
     for (Value::use_iterator it = allocFunc->use_begin(), 
            end = allocFunc->use_end(); it != end; ++it) {
       if (CallInst * CI = dyn_cast<CallInst>(*it)) {
-        registerAllocationSite(CI, info);
-        ++RegisteredHeapObjs;
+        if (CI->getCalledValue() == allocFunc) {
+          registerAllocationSite(CI, info);
+          ++RegisteredHeapObjs;
+        }
       }
 
       //
@@ -235,7 +232,9 @@ RegisterCustomizedAllocation::proceedAllocator(Module * M, AllocatorInfo * info)
     for (Value::use_iterator it = freeFunc->use_begin(),
            end = freeFunc->use_end(); it != end; ++it) {
       if (CallInst * CI = dyn_cast<CallInst>(*it)) {
-        registerFreeSite(CI, info);
+        if (CI->getCalledValue() == freeFunc) {
+          registerFreeSite(CI, info);
+        }
       }
 
       //
@@ -282,13 +281,22 @@ RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * i
 
 bool
 RegisterCustomizedAllocation::runOnModule(Module & M) {
-  init(M, "sc.pool_register");
+  init(M, "pool_register");
+
+  //
+  // Ensure that a prototype for strlen() exists.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  M.getOrInsertFunction ("strlen",
+                         TD.getIntPtrType(M.getContext()),
+                         getVoidPtrType(M.getContext()),
+                         NULL);
 
   //
   // Get the functions for reregistering and deregistering memory objects.
   //
-  const Type * Int32Type = IntegerType::getInt32Ty (M.getContext());
-  PoolReregisterFunc = (Function *) M.getOrInsertFunction ("sc.pool_reregister",
+  Type * Int32Type = IntegerType::getInt32Ty (M.getContext());
+  PoolReregisterFunc = (Function *) M.getOrInsertFunction ("pool_reregister",
                                                            Type::getVoidTy (M.getContext()),
                                                            getVoidPtrType (M),
                                                            getVoidPtrType (M),
@@ -296,7 +304,7 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
                                                            Int32Type,
                                                            NULL);
 
-  Constant * CF = M.getOrInsertFunction ("sc.pool_unregister",
+  Constant * CF = M.getOrInsertFunction ("pool_unregister",
                                           Type::getVoidTy (M.getContext()),
                                           getVoidPtrType(M.getContext()),
                                           getVoidPtrType(M.getContext()),
@@ -386,7 +394,7 @@ RegisterCustomizedAllocation::registerReallocationSite(CallInst * AllocSite, ReA
   args.push_back (NewPtr);
   args.push_back (OldPtr);
   args.push_back (AllocSize);
-  CallInst::Create(PoolReregisterFunc, args.begin(), args.end(), "", InsertPt); 
+  CallInst::Create(PoolReregisterFunc, args, "", InsertPt); 
   return;
 }
 
@@ -433,7 +441,7 @@ RegisterCustomizedAllocation::registerFreeSite (CallInst * FreeSite,
   std::vector<Value *> args;
   args.push_back (PHCasted);
   args.push_back (Casted);
-  CallInst::Create (PoolUnregisterFunc, args.begin(), args.end(), "", FreeSite);
+  CallInst::Create (PoolUnregisterFunc, args, "", FreeSite);
 }
 
 Instruction *
@@ -448,12 +456,12 @@ RegisterVariables::CreateRegistrationFunction(Function * F) {
   // Add a call in the new constructor function to the SAFECode initialization
   // function.
   //
-  BasicBlock * BB = BasicBlock::Create (getGlobalContext(), "entry", F);
+  BasicBlock * BB = BasicBlock::Create (F->getContext(), "entry", F);
 
   //
   // Add a return instruction at the end of the basic block.
   //
-  return ReturnInst::Create (getGlobalContext(), BB);
+  return ReturnInst::Create (F->getContext(), BB);
 }
 
 RegisterVariables::~RegisterVariables() {}
@@ -474,10 +482,10 @@ RegisterVariables::init (Module & M, std::string registerName) {
   //
   // Create the type of the registration function.
   //
-  const Type * Int8Type    = IntegerType::getInt8Ty(M.getContext());
-  const Type * VoidTy      = Type::getVoidTy(M.getContext());
+  Type * Int8Type    = IntegerType::getInt8Ty(M.getContext());
+  Type * VoidTy      = Type::getVoidTy(M.getContext());
 
-  std::vector<const Type *> ArgTypes;
+  std::vector<Type *> ArgTypes;
   ArgTypes.push_back (PointerType::getUnqual(Int8Type));
   ArgTypes.push_back (PointerType::getUnqual(Int8Type));
   ArgTypes.push_back (IntegerType::getInt32Ty(M.getContext()));
@@ -498,25 +506,25 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
                  << "\n";
     return;
   }
-  Instruction *GVCasted = 
-    CastInst::CreatePointerCast
-    (val, getVoidPtrType(PH->getContext()), 
-     val->getName()+".casted", InsertBefore);
-  Instruction * PHCasted = 
-    CastInst::CreatePointerCast
-    (PH, getVoidPtrType(PH->getContext()), 
-     PH->getName()+".casted", InsertBefore);
+
+  Value *GVCasted = castTo (val,
+                            getVoidPtrType(PH->getContext()), 
+                            val->getName()+".casted",
+                            InsertBefore);
+  Value * PHCasted = castTo (PH,
+                             getVoidPtrType(PH->getContext()), 
+                             PH->getName()+".casted",
+                             InsertBefore);
   std::vector<Value *> args;
   args.push_back (PHCasted);
   args.push_back (GVCasted);
   args.push_back (AllocSize);
-  CallInst::Create(PoolRegisterFunc, 
-                   args.begin(), args.end(), "", InsertBefore); 
+  CallInst::Create(PoolRegisterFunc, args, "", InsertBefore); 
 }
 
 bool
 RegisterFunctionByvalArguments::runOnModule(Module & M) {
-  init(M, "sc.pool_register_stack");
+  init(M, "pool_register_stack");
 
   //
   // Fetch prerequisite analysis passes.
@@ -526,7 +534,7 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
   //
   // Insert required intrinsics.
   //
-  Constant * CF = M.getOrInsertFunction ("sc.pool_unregister_stack",
+  Constant * CF = M.getOrInsertFunction ("pool_unregister_stack",
                                           Type::getVoidTy (M.getContext()),
                                           getVoidPtrType(M.getContext()),
                                           getVoidPtrType(M.getContext()),
@@ -545,7 +553,7 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
     //
     if (I->hasName()) {
       std::string Name = I->getName();
-      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0))
+      if ((Name.find ("__poolalloc") == 0) || (Name.find ("poolregister") == 0))
         continue;
     }
 
@@ -581,8 +589,8 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
   for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
     if (I->hasByValAttr()) {
       assert (isa<PointerType>(I->getType()));
-      const PointerType * PT = cast<PointerType>(I->getType());
-      const Type * ET = PT->getElementType();
+      PointerType * PT = cast<PointerType>(I->getType());
+      Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get
         (IntegerType::getInt32Ty(Context), TD->getTypeAllocSize(ET));
       Value * PH = ConstantPointerNull::get (getVoidPtrType(Context));
@@ -617,7 +625,7 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
       Value *CastV = castTo (I->second, getVoidPtrType(Context), Pt);
       args.push_back (CastPH);
       args.push_back (CastV);
-      CallInst::Create (StackFree, args.begin(), args.end(), "", Pt);
+      CallInst::Create (StackFree, args, "", Pt);
     }
   }
 
@@ -630,4 +638,4 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
   return true;
 }
 
-NAMESPACE_SC_END
+}
