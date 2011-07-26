@@ -1,6 +1,6 @@
 //===- LoadStoreChecks.cpp - Insert load/store run-time checks ------------ --//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -14,13 +14,12 @@
 
 #define DEBUG_TYPE "safecode"
 
-#include "safecode/SAFECode.h"
-#include "safecode/LoadStoreChecks.h"
-#include "SCUtils.h"
-
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Constants.h"
+#include "safecode/LoadStoreChecks.h"
+#include "safecode/Utility.h"
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char InsertLSChecks::ID = 0;
 
@@ -54,7 +53,7 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
   // Create the call to the run-time check.  Place it *before* the load
   // instruction.
   //
-  CallInst::Create (PoolCheckUI, args.begin(), args.end(), "", &LI);
+  CallInst::Create (PoolCheckUI, args, "", &LI);
 
   //
   // Update the statistics.
@@ -85,7 +84,7 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
   // Create the call to the run-time check.  Place it *before* the store
   // instruction.
   //
-  CallInst::Create (PoolCheckUI, args.begin(), args.end(), "", &SI);
+  CallInst::Create (PoolCheckUI, args, "", &SI);
 
   //
   // Update the statistics.
@@ -94,17 +93,39 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
   return;
 }
 
+//
+// Method: doInitialization()
+//
+// Description:
+//  Perform module-level initialization before the pass is run.  For this
+//  pass, we need to create a function prototype for the load/store check
+//  function.
+//
+// Inputs:
+//  M - A reference to the LLVM module to modify.
+//
+// Return value:
+//  true - This LLVM module has been modified.
+//
+bool
+InsertLSChecks::doInitialization (Module & M) {
+  //
+  // Create a function prototype for the function that performs incomplete
+  // load/store checks.
+  //
+  Type * VoidTy  = Type::getVoidTy (M.getContext());
+  Type * VoidPtrTy = getVoidPtrType (M.getContext());
+  M.getOrInsertFunction ("poolcheckui", VoidTy, VoidPtrTy, VoidPtrTy, NULL);
+  return true;
+}
+
 bool
 InsertLSChecks::runOnFunction (Function & F) {
   //
-  // Get pointers to required analysis passes.
-  //
-  TD      = &getAnalysis<TargetData>();
-
-  //
   // Get a pointer to the run-time check function.
   //
-  PoolCheckUI = F.getParent()->getFunction ("sc.lscheckui");
+  PoolCheckUI = F.getParent()->getFunction ("poolcheckui");
+  assert (PoolCheckUI && "Load/Store Check function has disappeared!\n");
 
   //
   // Visit all of the instructions in the function.
@@ -113,5 +134,5 @@ InsertLSChecks::runOnFunction (Function & F) {
   return true;
 }
 
-NAMESPACE_SC_END
+}
 

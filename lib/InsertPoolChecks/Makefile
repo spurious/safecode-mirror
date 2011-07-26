@@ -5,7 +5,7 @@ BUILD_ARCHIVE := 1
 LIBRARYNAME=addchecks
 
 SOURCES = GEPChecks.cpp \
-          #LoadStoreChecks.cpp \
+          LoadStoreChecks.cpp \
           #AlignmentChecks.cpp \
           #MonotonicLoopOpt.cpp \
           #ClearCheckAttributes.cpp \

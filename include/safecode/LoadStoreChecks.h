@@ -1,6 +1,6 @@
 //===- InsertChecks.h - Insert run-time checks for SAFECode ------------------//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -16,14 +16,10 @@
 #ifndef _SAFECODE_LOADSTORECHECKS_H_
 #define _SAFECODE_LOADSTORECHECKS_H_
 
-#include "safecode/SAFECode.h"
-
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
 
-#include "safecode/Intrinsic.h"
-
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 //
 // Pass: InsertLSChecks
@@ -34,15 +30,12 @@ NAMESPACE_SC_BEGIN
 struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
   public:
     static char ID;
-    InsertLSChecks () : FunctionPass ((intptr_t) &ID) { }
+    InsertLSChecks () : FunctionPass (ID) { }
     const char *getPassName() const { return "Insert Load/Store Checks"; }
-    virtual bool runOnFunction(Function &F);
+    virtual bool  doInitialization (Module & M);
+    virtual bool runOnFunction(Function & F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // Required passes
-      AU.addRequired<TargetData>();
-
       // Preserved passes
-      AU.addPreserved<InsertSCIntrinsic>();
       AU.setPreservesCFG();
     };
 
@@ -51,13 +44,9 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
     void visitStoreInst (StoreInst & SI);
 
   protected:
-    // Pointers to required passes
-    TargetData * TD;
-
     // Pointer to load/store run-time check function
     Function * PoolCheckUI;
 };
 
-
-NAMESPACE_SC_END
+}
 #endif
