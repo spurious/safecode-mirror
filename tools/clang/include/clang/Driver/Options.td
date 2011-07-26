@@ -857,3 +857,8 @@ def Z_reserved_lib_stdcxx : Flag<"-Z-reserved-lib-stdc++">,
     Flags<[LinkerInput, NoArgumentUnused, Unsupported]>, Group<reserved_lib_Group>;
 def Z_reserved_lib_cckext : Flag<"-Z-reserved-lib-cckext">,
     Flags<[LinkerInput, NoArgumentUnused, Unsupported]>, Group<reserved_lib_Group>;
+
+// Memory safety options
+def memsafety : Flag<"-memsafety">,
+ HelpText<"Instrument program with memory-safety checks">;
+

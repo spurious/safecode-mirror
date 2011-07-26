@@ -1019,6 +1019,7 @@ static void ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.UnsafeFPMath = Args.hasArg(OPT_cl_unsafe_math_optimizations) ||
                       Args.hasArg(OPT_cl_fast_relaxed_math);
   Opts.UnwindTables = Args.hasArg(OPT_munwind_tables);
+  Opts.MemSafety = Args.hasArg(OPT_memsafety);
   Opts.RelocationModel = Args.getLastArgValue(OPT_mrelocation_model, "pic");
 
   Opts.FunctionSections = Args.hasArg(OPT_ffunction_sections);

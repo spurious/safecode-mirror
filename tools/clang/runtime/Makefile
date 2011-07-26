@@ -8,7 +8,6 @@
 ##===----------------------------------------------------------------------===##
 
 CLANG_LEVEL := ..
-include $(CLANG_LEVEL)/../../Makefile.config
 
 ifndef NO_RUNTIME_LIBS
 

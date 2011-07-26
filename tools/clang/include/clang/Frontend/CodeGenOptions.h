@@ -93,6 +93,7 @@ public:
   unsigned UnrollLoops       : 1; /// Control whether loops are unrolled.
   unsigned UnsafeFPMath      : 1; /// Allow unsafe floating point optzns.
   unsigned UnwindTables      : 1; /// Emit unwind tables.
+  unsigned MemSafety         : 1; /// Instrument code with memory safety checks
 
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
@@ -185,6 +186,7 @@ public:
     UnrollLoops = 0;
     UnsafeFPMath = 0;
     UnwindTables = 0;
+    MemSafety = 0;
     UseRegisterSizedBitfieldAccess = 0;
     VerifyModule = 1;
 

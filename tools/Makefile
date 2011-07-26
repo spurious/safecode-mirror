@@ -1,8 +1,9 @@
 LEVEL = ..
 PARALLEL_DIRS = \
+  WatchDog \
+  clang \
   #Sc \
   #InjectF \
-  WatchDog
 
 #LTO
 # QueueSpeed

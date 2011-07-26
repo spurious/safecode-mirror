@@ -31,6 +31,15 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Target/TargetRegistry.h"
 #include "llvm/Transforms/Instrumentation.h"
+
+#include "safecode/DebugInstrumentation.h"
+#include "safecode/GEPChecks.h"
+#include "safecode/LoadStoreChecks.h"
+#include "safecode/OptimizeChecks.h"
+#include "safecode/RegisterBounds.h"
+#include "safecode/RegisterRuntimeInitializer.h"
+#include "safecode/RewriteOOB.h"
+
 using namespace clang;
 using namespace llvm;
 
@@ -182,7 +191,25 @@ void EmitAssemblyHelper::CreatePasses() {
     if (!CodeGenOpts.DebugInfo)
       MPM->add(createStripSymbolsPass(true));
   }
-  
+
+  // Add the memory safety passes
+  if (CodeGenOpts.MemSafety) {
+    MPM->add (new RegisterGlobalVariables());
+    MPM->add (new RegisterMainArgs());
+    MPM->add (new RegisterCustomizedAllocation());
+    MPM->add (new RegisterFunctionByvalArguments ());
+    MPM->add (new LoopInfo ());
+    MPM->add (new DominatorTree ());
+    MPM->add (new DominanceFrontier ());
+    MPM->add (new RegisterStackObjPass ());
+    MPM->add (new RegisterRuntimeInitializer());
+    MPM->add (new DebugInstrument());
+    MPM->add (new InsertLSChecks());
+    MPM->add (new InsertGEPChecks());
+    MPM->add (new ExactCheckOpt());
+    MPM->add (new DebugInstrument());
+    MPM->add (new RewriteOOB());
+  }
   
   PMBuilder.populateModulePassManager(*MPM);
 }

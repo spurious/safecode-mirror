@@ -1676,6 +1676,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(Twine(StackProtectorLevel)));
   }
 
+  // Handle the memory safety options
+  if (Args.getLastArg(options::OPT_memsafety))
+    CmdArgs.push_back("-memsafety");
+
   // Translate -mstackrealign
   if (Args.hasArg(options::OPT_mstackrealign)) {
     CmdArgs.push_back("-backend-option");

@@ -690,3 +690,10 @@ def cl_mad_enable : Flag<"-cl-mad-enable">,
   HelpText<"OpenCL only. Enable less precise MAD instructions to be generated.">;
 def cl_std_EQ : Joined<"-cl-std=">,
   HelpText<"OpenCL language standard to compile for">;
+
+//===----------------------------------------------------------------------===//
+// Memory Safety Options
+//===----------------------------------------------------------------------===//
+def memsafety : Flag<"-memsafety">,
+  HelpText<"Instrument program with memory-safety checks">;
+

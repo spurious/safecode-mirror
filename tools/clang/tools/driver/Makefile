@@ -33,16 +33,16 @@ TOOL_INFO_PLIST := Info.plist
 # Include this here so we can get the configuration of the targets that have
 # been configured for construction. We have to do this early so we can set up
 # LINK_COMPONENTS before including Makefile.rules
-include $(CLANG_LEVEL)/../../Makefile.config
 
-LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader bitwriter codegen \
+LINK_COMPONENTS = $(TARGETS_TO_BUILD) asmparser bitreader bitwriter codegen \
                    instrumentation ipo selectiondag
 USEDLIBS = clangFrontendTool.a clangFrontend.a clangDriver.a \
            clangSerialization.a clangCodeGen.a clangParse.a clangSema.a \
            clangStaticAnalyzerFrontend.a clangStaticAnalyzerCheckers.a \
            clangStaticAnalyzerCore.a \
            clangAnalysis.a clangIndex.a clangARCMigrate.a clangRewrite.a \
-           clangAST.a clangLex.a clangBasic.a
+           clangAST.a clangLex.a clangBasic.a \
+           sc-support.a addchecks.a debuginstr.a optchecks.a oob.a
 
 include $(CLANG_LEVEL)/Makefile
 
