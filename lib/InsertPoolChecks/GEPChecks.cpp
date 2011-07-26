@@ -1,6 +1,6 @@
 //===- GEPChecks.cpp - Insert GEP run-time checks ------------------------- --//
 // 
-//                          The SAFECode Compiler 
+//                     The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -14,13 +14,12 @@
 
 #define DEBUG_TYPE "safecode"
 
-#include "safecode/SAFECode.h"
-#include "safecode/InsertChecks.h"
-#include "SCUtils.h"
-
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/CommandLine.h"
+#include "safecode/GEPChecks.h"
+#include "safecode/Utility.h"
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char InsertGEPChecks::ID = 0;
 
@@ -39,7 +38,9 @@ cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
 // Pass Statistics
 namespace {
   STATISTIC (GEPChecks, "Bounds Checks Added");
+#if 0
   STATISTIC (SafeGEP,   "GEPs proven safe by SAFECode");
+#endif
 }
 
 //
@@ -54,10 +55,12 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   //
   // Determine if the GEP is safe.  If it is, then don't do anything.
   //
+#if 0
   if (abcPass->isGEPSafe(&GEP)) {
     ++SafeGEP;
     return;
   }
+#endif
 
   //
   // If this only indexes into a structure, ignore it.
@@ -92,7 +95,7 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   std::vector<Value *> args(1, PH);
   args.push_back (SrcPtr);
   args.push_back (ResultPtr);
-  CallInst::Create (PoolCheckArrayUI, args.begin(), args.end(), "", InsertPt);
+  CallInst::Create (PoolCheckArrayUI, args, "", InsertPt);
 
   //
   // Update the statistics.
@@ -101,18 +104,49 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   return;
 }
 
+//
+// Method: doInitialization()
+//
+// Description:
+//  Perform module-level initialization before the pass is run.  For this
+//  pass, we need to create a function prototype for the GEP check function.
+//
+// Inputs:
+//  M - A reference to the LLVM module to modify.
+//
+// Return value:
+//  true - This LLVM module has been modified.
+//
+bool
+InsertGEPChecks::doInitialization (Module & M) {
+  //
+  // Create a function prototype for the function that performs incomplete
+  // pointer arithmetic (GEP) checks.
+  //
+  Type * VoidPtrTy = getVoidPtrType (M.getContext());
+  M.getOrInsertFunction ("boundscheckui",
+                         VoidPtrTy,
+                         VoidPtrTy,
+                         VoidPtrTy,
+                         VoidPtrTy,
+                         NULL);
+  return true;
+}
+
 bool
 InsertGEPChecks::runOnFunction (Function & F) {
   //
   // Get pointers to required analysis passes.
   //
   TD      = &getAnalysis<TargetData>();
+#if 0
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
+#endif
 
   //
   // Get a pointer to the run-time check function.
   //
-  PoolCheckArrayUI 	= F.getParent()->getFunction ("sc.boundscheckui");
+  PoolCheckArrayUI = F.getParent()->getFunction ("boundscheckui");
 
   //
   // Visit all of the instructions in the function.
@@ -121,5 +155,5 @@ InsertGEPChecks::runOnFunction (Function & F) {
   return true;
 }
 
-NAMESPACE_SC_END
+}
 

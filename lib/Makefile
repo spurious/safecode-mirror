@@ -1,13 +1,13 @@
 LEVEL = ..
 
 PARALLEL_DIRS = \
+               InsertPoolChecks \
 #               Support \
 #               ArrayBoundChecks \
 #               BaggyBoundsChecks \
 #               ConvertUnsafeAllocas \
 #               CStdLib \
 #               FormatStrings \
-#               InsertPoolChecks \
 #               OptimizeChecks \
 #               StackSafety \
 #               SpeculativeChecking \
