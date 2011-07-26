@@ -1,11 +1,11 @@
 LEVEL = ..
 
 PARALLEL_DIRS = \
+               Support \
                InsertPoolChecks \
                OptimizeChecks \
                RewriteOOB \
                DebugInstrumentation \
-#               Support \
 #               ArrayBoundChecks \
 #               BaggyBoundsChecks \
 #               ConvertUnsafeAllocas \
