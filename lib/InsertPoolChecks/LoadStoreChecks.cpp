@@ -53,7 +53,14 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
   // Create the call to the run-time check.  Place it *before* the load
   // instruction.
   //
-  CallInst::Create (PoolCheckUI, args, "", &LI);
+  CallInst * CI = CallInst::Create (PoolCheckUI, args, "", &LI);
+
+  //
+  // If there's debug information on the load instruction, add it to the
+  // run-time check.
+  //
+  if (MDNode * MD = LI.getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
 
   //
   // Update the statistics.
@@ -84,7 +91,14 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
   // Create the call to the run-time check.  Place it *before* the store
   // instruction.
   //
-  CallInst::Create (PoolCheckUI, args, "", &SI);
+  CallInst * CI = CallInst::Create (PoolCheckUI, args, "", &SI);
+
+  //
+  // If there's debug information on the load instruction, add it to the
+  // run-time check.
+  //
+  if (MDNode * MD = SI.getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
 
   //
   // Update the statistics.

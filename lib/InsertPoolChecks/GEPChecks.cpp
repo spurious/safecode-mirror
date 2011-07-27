@@ -95,7 +95,13 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   std::vector<Value *> args(1, PH);
   args.push_back (SrcPtr);
   args.push_back (ResultPtr);
-  CallInst::Create (PoolCheckArrayUI, args, "", InsertPt);
+  CallInst * CI = CallInst::Create (PoolCheckArrayUI, args, "", InsertPt);
+
+  //
+  // Add debugging info metadata to the run-time check.
+  //
+  if (MDNode * MD = GEP.getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
 
   //
   // Update the statistics.
