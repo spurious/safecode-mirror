@@ -40,8 +40,6 @@ def ext_bcpl_comment : Extension<
   InGroup<Comment>;
 def ext_no_newline_eof : Extension<"no newline at end of file">, 
   InGroup<DiagGroup<"newline-eof">>;
-def ext_backslash_newline_eof : Extension<"backslash-newline at end of file">,
-  InGroup<DiagGroup<"newline-eof">>;
 def ext_dollar_in_identifier : Extension<"'$' in identifier">;
 def charize_microsoft_ext : Extension<"@# is a microsoft extension">;
 
@@ -79,8 +77,8 @@ def err_invalid_suffix_integer_constant : Error<
   "invalid suffix '%0' on integer constant">;
 def err_invalid_suffix_float_constant : Error<
   "invalid suffix '%0' on floating constant">;
-def warn_extraneous_wide_char_constant : Warning<
-  "extraneous characters in wide character constant ignored">;
+def warn_extraneous_char_constant : Warning<
+  "extraneous characters in character constant ignored">;
 def warn_char_constant_too_large : Warning<
   "character constant too long for its type">;
 def err_exponent_has_no_digits : Error<"exponent has no digits">;
@@ -104,6 +102,8 @@ def warn_ucn_escape_too_large : ExtWarn<
   "character unicode escape sequence too long for its type">;
 def warn_ucn_not_valid_in_c89 : ExtWarn<
   "unicode escape sequences are only valid in C99 or C++">;
+def err_unsupported_string_concat : Error<
+  "unsupported non-standard concatenation of string literals">;
   
 //===----------------------------------------------------------------------===//
 // PTH Diagnostics

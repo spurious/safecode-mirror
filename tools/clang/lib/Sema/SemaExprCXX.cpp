@@ -1840,24 +1840,32 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
         << Type << Ex.get()->getSourceRange());
 
     QualType Pointee = Type->getAs<PointerType>()->getPointeeType();
+    QualType PointeeElem = Context.getBaseElementType(Pointee);
+
+    if (unsigned AddressSpace = Pointee.getAddressSpace())
+      return Diag(Ex.get()->getLocStart(), 
+                  diag::err_address_space_qualified_delete)
+               << Pointee.getUnqualifiedType() << AddressSpace;
+
+    CXXRecordDecl *PointeeRD = 0;
     if (Pointee->isVoidType() && !isSFINAEContext()) {
       // The C++ standard bans deleting a pointer to a non-object type, which
       // effectively bans deletion of "void*". However, most compilers support
       // this, so we treat it as a warning unless we're in a SFINAE context.
       Diag(StartLoc, diag::ext_delete_void_ptr_operand)
         << Type << Ex.get()->getSourceRange();
-    } else if (Pointee->isFunctionType() || Pointee->isVoidType())
+    } else if (Pointee->isFunctionType() || Pointee->isVoidType()) {
       return ExprError(Diag(StartLoc, diag::err_delete_operand)
         << Type << Ex.get()->getSourceRange());
-    else if (!Pointee->isDependentType() &&
-             RequireCompleteType(StartLoc, Pointee,
-                                 PDiag(diag::warn_delete_incomplete)
-                                   << Ex.get()->getSourceRange()))
-      return ExprError();
-    else if (unsigned AddressSpace = Pointee.getAddressSpace())
-      return Diag(Ex.get()->getLocStart(), 
-                  diag::err_address_space_qualified_delete)
-               << Pointee.getUnqualifiedType() << AddressSpace;
+    } else if (!Pointee->isDependentType()) {
+      if (!RequireCompleteType(StartLoc, Pointee,
+                               PDiag(diag::warn_delete_incomplete)
+                                 << Ex.get()->getSourceRange())) {
+        if (const RecordType *RT = PointeeElem->getAs<RecordType>())
+          PointeeRD = cast<CXXRecordDecl>(RT->getDecl());
+      }
+    }
+
     // C++ [expr.delete]p2:
     //   [Note: a pointer to a const type can be the operand of a
     //   delete-expression; it is not necessary to cast away the constness
@@ -1877,12 +1885,10 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
     DeclarationName DeleteName = Context.DeclarationNames.getCXXOperatorName(
                                       ArrayForm ? OO_Array_Delete : OO_Delete);
 
-    QualType PointeeElem = Context.getBaseElementType(Pointee);
-    if (const RecordType *RT = PointeeElem->getAs<RecordType>()) {
-      CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
-
+    if (PointeeRD) {
       if (!UseGlobal &&
-          FindDeallocationFunction(StartLoc, RD, DeleteName, OperatorDelete))
+          FindDeallocationFunction(StartLoc, PointeeRD, DeleteName,
+                                   OperatorDelete))
         return ExprError();
 
       // If we're allocating an array of records, check whether the
@@ -1900,8 +1906,8 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
           UsualArrayDeleteWantsSize = (OperatorDelete->getNumParams() == 2);
       }
 
-      if (!RD->hasTrivialDestructor())
-        if (CXXDestructorDecl *Dtor = LookupDestructor(RD)) {
+      if (!PointeeRD->hasTrivialDestructor())
+        if (CXXDestructorDecl *Dtor = LookupDestructor(PointeeRD)) {
           MarkDeclarationReferenced(StartLoc,
                                     const_cast<CXXDestructorDecl*>(Dtor));
           DiagnoseUseOfDecl(Dtor, StartLoc);
@@ -1915,10 +1921,20 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
       //   behavior is undefined.
       //
       // Note: a final class cannot be derived from, no issue there
-      if (!ArrayForm && RD->isPolymorphic() && !RD->hasAttr<FinalAttr>()) {
-        CXXDestructorDecl *dtor = RD->getDestructor();
-        if (!dtor || !dtor->isVirtual())
-          Diag(StartLoc, diag::warn_delete_non_virtual_dtor) << PointeeElem;
+      if (PointeeRD->isPolymorphic() && !PointeeRD->hasAttr<FinalAttr>()) {
+        CXXDestructorDecl *dtor = PointeeRD->getDestructor();
+        if (dtor && !dtor->isVirtual()) {
+          if (PointeeRD->isAbstract()) {
+            // If the class is abstract, we warn by default, because we're
+            // sure the code has undefined behavior.
+            Diag(StartLoc, diag::warn_delete_abstract_non_virtual_dtor)
+                << PointeeElem;
+          } else if (!ArrayForm) {
+            // Otherwise, if this is not an array delete, it's a bit suspect,
+            // but not necessarily wrong.
+            Diag(StartLoc, diag::warn_delete_non_virtual_dtor) << PointeeElem;
+          }
+        }
       }
 
     } else if (getLangOptions().ObjCAutoRefCount &&
@@ -1944,9 +1960,8 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
     MarkDeclarationReferenced(StartLoc, OperatorDelete);
     
     // Check access and ambiguity of operator delete and destructor.
-    if (const RecordType *RT = PointeeElem->getAs<RecordType>()) {
-      CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
-      if (CXXDestructorDecl *Dtor = LookupDestructor(RD)) {
+    if (PointeeRD) {
+      if (CXXDestructorDecl *Dtor = LookupDestructor(PointeeRD)) {
           CheckDestructorAccess(Ex.get()->getExprLoc(), Dtor, 
                       PDiag(diag::err_access_dtor) << PointeeElem);
       }
@@ -2026,12 +2041,20 @@ Sema::IsStringLiteralToNonConstPointerConversion(Expr *From, QualType ToType) {
           = ToPtrType->getPointeeType()->getAs<BuiltinType>()) {
         // This conversion is considered only when there is an
         // explicit appropriate pointer target type (C++ 4.2p2).
-        if (!ToPtrType->getPointeeType().hasQualifiers() &&
-            ((StrLit->isWide() && ToPointeeType->isWideCharType()) ||
-             (!StrLit->isWide() &&
-              (ToPointeeType->getKind() == BuiltinType::Char_U ||
-               ToPointeeType->getKind() == BuiltinType::Char_S))))
-          return true;
+        if (!ToPtrType->getPointeeType().hasQualifiers()) {
+          switch (StrLit->getKind()) {
+            case StringLiteral::UTF8:
+            case StringLiteral::UTF16:
+            case StringLiteral::UTF32:
+              // We don't allow UTF literals to be implicitly converted
+              break;
+            case StringLiteral::Ascii:
+              return (ToPointeeType->getKind() == BuiltinType::Char_U ||
+                      ToPointeeType->getKind() == BuiltinType::Char_S);
+            case StringLiteral::Wide:
+              return ToPointeeType->isWideCharType();
+          }
+        }
       }
 
   return false;

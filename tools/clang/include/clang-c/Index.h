@@ -1102,12 +1102,14 @@ enum CXTUResourceUsageKind {
   CXTUResourceUsage_ExternalASTSource_Membuffer_MMap = 10, 
   CXTUResourceUsage_Preprocessor = 11,
   CXTUResourceUsage_PreprocessingRecord = 12,
+  CXTUResourceUsage_SourceManager_DataStructures = 13,
+  CXTUResourceUsage_Preprocessor_HeaderSearch = 14,
   CXTUResourceUsage_MEMORY_IN_BYTES_BEGIN = CXTUResourceUsage_AST,
   CXTUResourceUsage_MEMORY_IN_BYTES_END =
-    CXTUResourceUsage_PreprocessingRecord,
+    CXTUResourceUsage_Preprocessor_HeaderSearch,
 
   CXTUResourceUsage_First = CXTUResourceUsage_AST,
-  CXTUResourceUsage_Last = CXTUResourceUsage_PreprocessingRecord
+  CXTUResourceUsage_Last = CXTUResourceUsage_Preprocessor_HeaderSearch
 };
 
 /**

@@ -2464,6 +2464,21 @@ def err_empty_scalar_initializer : Error<"scalar initializer cannot be empty">;
 def err_illegal_initializer : Error<
   "illegal initializer (only variables can be initialized)">;
 def err_illegal_initializer_type : Error<"illegal initializer type %0">;
+def err_init_list_variable_narrowing : Error<
+  "non-constant-expression cannot be narrowed from type %0 to %1 in "
+  "initializer list">;
+def err_init_list_constant_narrowing : Error<
+  "constant expression evaluates to %0 which cannot be narrowed to type %1">;
+def warn_init_list_variable_narrowing : Warning<
+  "non-constant-expression cannot be narrowed from type %0 to %1 in "
+  "initializer list in C++0x">,
+  InGroup<CXX0xNarrowing>, DefaultIgnore;
+def warn_init_list_constant_narrowing : Warning<
+  "constant expression evaluates to %0 which cannot be narrowed to type %1 in "
+  "C++0x">,
+  InGroup<CXX0xNarrowing>, DefaultIgnore;
+def note_init_list_narrowing_override : Note<
+  "override this message by inserting an explicit cast">;
 def err_init_objc_class : Error<
   "cannot initialize Objective-C class type %0">;
 def err_implicit_empty_initializer : Error<
@@ -2627,7 +2642,7 @@ def err_arc_objc_object_in_struct : Error<
   "ARC forbids Objective-C objects in structs or unions">;
 def err_arc_objc_property_default_assign_on_object : Error<
   "ARC forbids synthesizing a property of an Objective-C object "
-  "with unspecified storage attribute">;
+  "with unspecified ownership or storage attribute">;
 def err_arc_illegal_selector : Error<
   "ARC forbids use of %0 in a @selector">;
 def err_arc_illegal_method_def : Error<
@@ -2700,6 +2715,8 @@ def err_arc_may_not_respond : Error<
   "selector %1">;
 def err_arc_receiver_forward_instance : Error<
   "receiver type %0 for instance message is a forward declaration">;
+def err_arc_collection_forward : Error<
+  "collection expression type %0 is a forward declaration">;
 def err_arc_multiple_method_decl : Error< 
   "multiple methods named %0 found with mismatched result, "
   "parameter type or attributes">;
@@ -3364,7 +3381,7 @@ def err_ambiguous_delete_operand : Error<"ambiguous conversion of delete "
                                          "expression of type %0 to a pointer">;
 def warn_delete_incomplete : Warning<
   "deleting pointer to incomplete type %0 may cause undefined behaviour">;
-def err_delete_incomplete_class_type : Warning<
+def err_delete_incomplete_class_type : Error<
   "deleting incomplete class type %0; no conversions to pointer type">;
 def warn_delete_array_type : Warning<
   "'delete' applied to a pointer-to-array type %0 treated as delete[]">;
@@ -3406,6 +3423,9 @@ def warn_non_virtual_dtor : Warning<
 def warn_delete_non_virtual_dtor : Warning<
   "delete called on %0 that has virtual functions but non-virtual destructor">,
   InGroup<DeleteNonVirtualDtor>, DefaultIgnore;
+def warn_delete_abstract_non_virtual_dtor : Warning<
+  "delete called on %0 that is abstract but has non-virtual destructor">,
+  InGroup<DeleteNonVirtualDtor>;
 def warn_overloaded_virtual : Warning<
   "%q0 hides overloaded virtual %select{function|functions}1">,
   InGroup<OverloadedVirtual>, DefaultIgnore;
