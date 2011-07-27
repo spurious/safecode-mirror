@@ -307,6 +307,14 @@ poolcheckui_debug (DebugPoolTy *Pool,
 	}
 
   //
+  // If it's a rewrite pointer, convert it back into its original value so
+  // that we can print the real faulting address.
+  //
+  if (isRewritePtr (Node)) {
+    Node = pchk_getActualValue (Pool, Node);
+  }
+
+  //
   // The node is not found or is not within bounds.  Report a warning but keep
   // going.
   //
