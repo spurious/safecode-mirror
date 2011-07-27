@@ -30,8 +30,10 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
+
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/Utility.h"
 
@@ -75,6 +77,53 @@ namespace {
 // Static Functions
 ///////////////////////////////////////////////////////////////////////////
 
+//
+// Function: copyToDefaultSection()
+//
+// Description:
+//  This function examines the specified LLVM value and determines if it is
+//  a GEP into a global value in a special section.  If it is, it makes a copy
+//  of the global in the default section and returns a pointer to it.
+//
+// Inputs:
+//  V - The value to process.
+//
+// Return value:
+//  Either V is returned or a pointer to a new GlobalVariable in the default
+//  section is returned.
+//
+static inline Value *
+copyToDefaultSection (Value * V) {
+  if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(V)) {
+    if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
+      if (GV->hasSection()) {
+        //
+        // Get the module in which this value belongs.
+        //
+        Module * M = GV->getParent();
+
+        //
+        // Get the element type of the global variable.
+        //
+        Type * Ty = GV->getType()->getElementType();
+        GlobalVariable * SrcGV = new GlobalVariable (*M,
+                                                     Ty,
+                                                     GV->isConstant(),
+                                                     GV->getLinkage(),
+                                                     GV->getInitializer(),
+                                                     GV->getName(),
+                                                     0,
+                                                     GV->isThreadLocal(),
+                                                     0);
+        SrcGV->copyAttributesFrom (GV);
+        SrcGV->setSection ("");
+        return SrcGV;
+      }
+    }
+  }
+
+  return V;
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // Class Methods
@@ -267,6 +316,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
 
+#if 0
   //
   // Give the function a body.  This is used for ensuring that SAFECode plays
   // nicely with LLVM's bugpoint tool.  By having a body, the program will link
@@ -286,6 +336,7 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
       ReturnInst::Create (Context, retValue, entryBB);
     }
   }
+#endif
 
   //
   // Create a set of call instructions that must be modified.
@@ -301,9 +352,12 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   //
   // Process all call instructions in the worklist.
   //
-  while (Worklist.size()) {
-    CallInst * CI = Worklist.back();
-    Worklist.pop_back();
+  for (unsigned index = 0; index < Worklist.size(); ++index) {
+    //
+    // Get a call instruction off of the work list.
+    //
+    CallInst * CI = Worklist[index];
+    CallSite CS (CI);
 
     //
     // Get the line number and source file information for the call.
@@ -318,35 +372,16 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
     // If the source filename is in the meta-data section, make a copy of it in
     // the default section.  This ensures that it gets code generated.
     //
-    if (ConstantExpr * GEP = dyn_cast<ConstantExpr>(SourceFile)) {
-      if (GlobalVariable * GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
-        if (GV->hasSection()) {
-          GlobalVariable * SrcGV = new GlobalVariable (*(F->getParent()),
-                                                       GV->getType()->getElementType(),
-                                                       GV->isConstant(),
-                                                       GV->getLinkage(),
-                                                       GV->getInitializer(),
-                                                       GV->getName(),
-                                                       0,
-                                                       GV->isThreadLocal(),
-                                                       0);
-          SrcGV->copyAttributesFrom (GV);
-          SrcGV->setSection ("");
-          SourceFile = SrcGV;
-        }
-      }
-    }
+    SourceFile = copyToDefaultSection (SourceFile);
 
     //
     // Transform the function call.
     //
-    std::vector<Value *> args (CI->op_begin(), CI->op_end());
-    args.erase (args.begin());
+    std::vector<Value *> args;
+    args.insert (args.end(), CS.arg_begin(), CS.arg_end());
     args.push_back (ConstantInt::get(Int32Type, tagCounter++));
-
     args.push_back (castTo (SourceFile, VoidPtrTy, "", CI));
     args.push_back (LineNumber);
-
     CallInst * NewCall = CallInst::Create (FDebug,
                                            args,
                                            CI->getName(),
@@ -391,25 +426,25 @@ DebugInstrument::runOnModule (Module &M) {
   LocationSourceInfo LInfo (dbgKind);
   VariableSourceInfo VInfo (dbgKind);
 
-  // FIXME: Technically it should user intrinsic everywhere..
+  // Allocation, check, and registration functions
   transformFunction (M.getFunction ("poolalloc"), LInfo);
   transformFunction (M.getFunction ("poolcalloc"), LInfo);
   transformFunction (M.getFunction ("poolrealloc"), LInfo);
   transformFunction (M.getFunction ("poolstrdup"), LInfo);
   transformFunction (M.getFunction ("poolfree"), LInfo);
-  transformFunction (M.getFunction ("sc.lscheck"), VInfo);
-  transformFunction (M.getFunction ("sc.lscheckui"), VInfo);
-  transformFunction (M.getFunction ("sc.lscheckalign"), VInfo);
-  transformFunction (M.getFunction ("sc.lscheckalignui"), VInfo);
-  transformFunction (M.getFunction ("sc.boundscheck"), VInfo);
-  transformFunction (M.getFunction ("sc.boundscheckui"), VInfo);
-  transformFunction (M.getFunction ("sc.exactcheck2"), VInfo);
-  transformFunction (M.getFunction ("sc.pool_register"), VInfo);
-  transformFunction (M.getFunction ("sc.pool_register_stack"), VInfo);
-  transformFunction (M.getFunction ("sc.pool_unregister"), VInfo);
-  transformFunction (M.getFunction ("sc.pool_unregister_stack"), VInfo);
+  transformFunction (M.getFunction ("poolcheck"), VInfo);
+  transformFunction (M.getFunction ("poolcheckui"), VInfo);
+  transformFunction (M.getFunction ("poolcheckalign"), VInfo);
+  transformFunction (M.getFunction ("poolcheckalignui"), VInfo);
+  transformFunction (M.getFunction ("boundscheck"), VInfo);
+  transformFunction (M.getFunction ("boundscheckui"), VInfo);
+  transformFunction (M.getFunction ("exactcheck2"), VInfo);
+  transformFunction (M.getFunction ("pool_register"), VInfo);
+  transformFunction (M.getFunction ("pool_register_stack"), VInfo);
+  transformFunction (M.getFunction ("pool_unregister"), VInfo);
+  transformFunction (M.getFunction ("pool_unregister_stack"), VInfo);
 
-  // CStdLib
+  // Standard C library functions
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
   transformFunction(M.getFunction("pool_strncpy"), LInfo);
   transformFunction(M.getFunction("pool_strlen"),  LInfo);
