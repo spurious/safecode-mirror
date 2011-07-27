@@ -170,7 +170,7 @@ LocationSourceInfo::operator() (CallInst * CI) {
   //
   if (MDNode *Dbg = CI->getMetadata(dbgKind)) {
     DILocation Loc (Dbg);
-    filename = Loc.getDirectory().str() + Loc.getFilename().str();
+    filename = Loc.getDirectory().str() + "/" + Loc.getFilename().str();
     lineno   = Loc.getLineNumber();
     ++FoundSrcInfo;
   }
@@ -246,7 +246,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
         if (DIGlobalVariable(NMD->getOperand(i)).getGlobal() == GV) {
           DIGlobalVariable Var(NMD->getOperand(i));
           LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
-          filename = Var.getCompileUnit().getDirectory().str() + Var.getCompileUnit().getFilename().str();
+          filename = Var.getCompileUnit().getDirectory().str() + "/" + Var.getCompileUnit().getFilename().str();
         }
       }
     }
@@ -254,7 +254,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
     if (Instruction *I = dyn_cast<Instruction>(V))
       if (MDNode *Dbg = I->getMetadata(dbgKind)) {
         DILocation Loc (Dbg);
-        filename = Loc.getDirectory().str() + Loc.getFilename().str();
+        filename = Loc.getDirectory().str() + "/" + Loc.getFilename().str();
         LineNumber = ConstantInt::get (Int32Type, Loc.getLineNumber());
       }
   }
