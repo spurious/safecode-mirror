@@ -3,7 +3,7 @@ LEVEL = ../../
 
 LIBRARYNAME=optchecks
 
-SOURCES := ExactCheckOpt.cpp
+SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp
 
 include $(LEVEL)/Makefile.common
 

@@ -18,6 +18,7 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
+
 #include "safecode/CheckInfo.h"
 #include "safecode/AllocatorInfo.h"
 
@@ -54,6 +55,33 @@ struct ExactCheckOpt : public ModulePass {
     void rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
                              Value * ResultPointer, Value * Bounds);
     std::vector<CallInst*> checkingIntrinsicsToBeRemoved;
+};
+
+//
+// Pass: OptimizeChecks
+//
+// Description:
+//  This pass examines the run-time checks that SAFECode has inserted into a
+//  program and attempts to remove checks that are unnecessary.
+//
+struct OptimizeChecks : public ModulePass {
+  private:
+    // Private methods
+    bool processFunction (Module & M, const struct CheckInfo & Info);
+    bool onlyUsedInCompares (Value * Val);
+
+  public:
+    static char ID;
+    OptimizeChecks() : ModulePass(ID) {}
+    virtual bool runOnModule (Module & M);
+
+    const char *getPassName() const {
+      return "Optimize SAFECode Run-time Checks";
+    }
+
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesCFG();
+    }
 };
 
 }

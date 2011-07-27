@@ -60,4 +60,26 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"funccheck",      1, true}
 };
 
+//
+// Function: isRuntimeCheck()
+//
+// Description:
+//  Determine whether the function is one of the run-time checking functions.
+//
+// Return value:
+//  true  - The function is a run-time check.
+//  false - The function is not a run-time check.
+//
+static inline bool
+isRuntimeCheck (const Function * F) {
+  if (F->hasName()) {
+    for (unsigned index = 0; index < numChecks; ++index) {
+      if (F->getName() == RuntimeChecks[index].name) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 #endif

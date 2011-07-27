@@ -207,6 +207,7 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new InsertLSChecks());
     MPM->add (new InsertGEPChecks());
     MPM->add (new ExactCheckOpt());
+    MPM->add (new OptimizeChecks());
     MPM->add (new DebugInstrument());
     MPM->add (new RewriteOOB());
   }

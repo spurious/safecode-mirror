@@ -19,23 +19,21 @@
 #include "llvm/Instructions.h"
 
 #include "safecode/OptimizeChecks.h"
-#include "SCUtils.h"
-
-#include "dsa/DSSupport.h"
+#include "safecode/Utility.h"
 
 #include <iostream>
 #include <set>
 
-char NAMESPACE_SC::OptimizeChecks::ID = 0;
+char llvm::OptimizeChecks::ID = 0;
 
 namespace {
   STATISTIC (Removed, "Number of Bounds Checks Removed");
 }
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
-static RegisterPass<OptimizeChecks> X ("opt-checks", "Optimize run-time checks", true);
-
+static RegisterPass<OptimizeChecks>
+X ("opt-checks", "Optimize run-time checks", true);
 
 //
 // Function: onlyUsedInCompares()
@@ -47,10 +45,6 @@ static RegisterPass<OptimizeChecks> X ("opt-checks", "Optimize run-time checks",
 // Return value:
 //  true  - The instruction is only used in comparisons.
 //  false - The instruction has some other use besides comparisons.
-//
-// Preconditions:
-//  This function requires that the intrinPass and GEPCheckingFunctions
-//  variables be initialized.
 //
 bool
 OptimizeChecks::onlyUsedInCompares (Value * Val) {
@@ -86,23 +80,27 @@ OptimizeChecks::onlyUsedInCompares (Value * Val) {
     //
     for (Value::use_iterator U = V->use_begin(); U != V->use_end(); ++U) {
       // Compares are okay
-      if (isa<CmpInst>(U)) continue;
+      if (isa<CmpInst>(*U)) continue;
 
       // Casts, Phi nodes, and GEPs require that we check the result, too.
-      if (isa<CastInst>(U) ||
-          isa<PHINode>(U)  ||
-          isa<BinaryOperator>(U)  ||
-          isa<SelectInst>(U)  ||
-          isa<SwitchInst>(U)  ||
-          isa<GetElementPtrInst>(U)) {
+      if (isa<CastInst>(*U) ||
+          isa<PHINode>(*U)  ||
+          isa<BinaryOperator>(*U)  ||
+          isa<SelectInst>(*U)  ||
+          isa<SwitchInst>(*U)  ||
+          isa<GetElementPtrInst>(*U)) {
         Worklist.push_back(*U);
         continue;
       }
 
       // Calls to run-time functions are okay; others are not.
-      if (CallInst * CI = dyn_cast<CallInst>(U)) {
-        if (Value * V = dyn_cast<Value>(CI))
-          if (intrinPass->isSCIntrinsicWithFlags(V, InsertSCIntrinsic::SC_INTRINSIC_CHECK)) continue;
+      if (CallInst * CI = dyn_cast<CallInst>(*U)) {
+        Value * CV = CI->getCalledValue()->stripPointerCasts();
+        if (Function * F = dyn_cast<Function>(CV)) {
+          if (isRuntimeCheck (F)) {
+            continue;
+          }
+        }
       }
 
       //
@@ -127,14 +125,23 @@ OptimizeChecks::onlyUsedInCompares (Value * Val) {
 //  if possible.
 //
 // Inputs:
-//  F - The function for the SAFECode run-time check.
+//  M    - A reference to the LLVM module.
+//  Info - Information about the SAFECode run-time check.
 //
 // Return value:
 //  false - No modifications were made to the Module.
 //  true  - One or more modifications were made to the module.
 //
 bool
-OptimizeChecks::processFunction (Function * F) {
+OptimizeChecks::processFunction (Module & M, const CheckInfo & Info) {
+  //
+  // Get the runtime function in the code.  If no calls to the run-time
+  // function were added to the code, do nothing.
+  //
+  Function * F = M.getFunction (Info.name);
+  if (!F)
+    return false;
+
   //
   // Iterate though all calls to the function and search for pointers that are
   // checked but only used in comparisons.  If so, then schedule the check
@@ -147,7 +154,7 @@ OptimizeChecks::processFunction (Function * F) {
     // We are only concerned about call instructions; any other use is of
     // no interest to the organization.
     //
-    if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
       //
       // If the call instruction has any uses, we cannot remove it.
       //
@@ -159,8 +166,7 @@ OptimizeChecks::processFunction (Function * F) {
       // one because a call instruction's first operand is the function to
       // call.
       //
-      std::set<Value *> Chain;
-      Value * Operand = peelCasts (intrinPass->getValuePointer (CI), Chain);
+      Value * Operand = Info.getCheckedPointer (CI)->stripPointerCasts();
 
       //
       // If the operand is only used in comparisons, mark the run-time check
@@ -182,10 +188,8 @@ OptimizeChecks::processFunction (Function * F) {
   //
   // Remove all of the instructions that we found to be unnecessary.
   //
-  while (CallsToDelete.size()) {
-    Instruction * I = CallsToDelete.back();
-    CallsToDelete.pop_back();
-    I->eraseFromParent();
+  for (unsigned index = 0; index < CallsToDelete.size(); ++index) {
+    CallsToDelete[index]->eraseFromParent();
   }
 
   return modified;
@@ -194,33 +198,20 @@ OptimizeChecks::processFunction (Function * F) {
 bool
 OptimizeChecks::runOnModule (Module & M) {
   //
-  // Get prerequisite analysis results.
-  //
-  intrinPass = &getAnalysis<InsertSCIntrinsic>();
-
-  InsertSCIntrinsic::intrinsic_const_iterator i, e;
-  for (i = intrinPass->intrinsic_begin(), e = intrinPass->intrinsic_end(); i != e; ++i) {
-    if (i->flag & InsertSCIntrinsic::SC_INTRINSIC_BOUNDSCHECK)
-      GEPCheckingFunctions.push_back (i->F);
-  }
-
-  //
   // Optimize all of the run-time GEP checks.
   //
   bool modified = false;
-  while (GEPCheckingFunctions.size()) {
-    // Remove a function from the set of functions to process
-    Function * F = GEPCheckingFunctions.back();
-    GEPCheckingFunctions.pop_back();
-
-    //
-    // Transform the function into its debug version.
-    //
-    modified |= processFunction (F);
+  for (unsigned index = 0; index < numChecks; ++index) {
+    if (!(RuntimeChecks[index].isMemcheck)) {
+      //
+      // Analyze calls to this run-time check and remove them if possible.
+      //
+      modified |= processFunction (M, RuntimeChecks[index]);
+    }
   }
 
   return modified;
 }
 
-NAMESPACE_SC_END
+}
 
