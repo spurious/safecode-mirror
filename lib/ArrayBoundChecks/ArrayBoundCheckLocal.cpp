@@ -15,15 +15,13 @@
 
 #define DEBUG_TYPE "abc-local"
 
-#include "ArrayBoundsCheck.h"
-#include "safecode/SAFECodeConfig.h"
-#include "safecode/Support/AllocatorInfo.h"
+#include "safecode/ArrayBoundsCheck.h"
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 
-using namespace llvm;
-
+#include <set>
+#include <queue>
 
 namespace {
   STATISTIC (allGEPs ,    "Total Number of GEPs Queried");
@@ -31,45 +29,67 @@ namespace {
   STATISTIC (unsafeGEPs , "Number of GEPs Proven Unsafe Statically");
 }
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
-namespace {
-  RegisterPass<ArrayBoundsCheckLocal> X ("abc-local", "Local Array Bounds Check pass");
-  RegisterAnalysisGroup<ArrayBoundsCheckGroup> ABCGroup(X);
-}
+RegisterPass<ArrayBoundsCheckLocal>
+X ("abc-local", "Local Array Bounds Check pass");
+
+static RegisterAnalysisGroup<ArrayBoundsCheckGroup>
+ABCGroup (X);
 
 char ArrayBoundsCheckLocal::ID = 0;
 
-bool
-ArrayBoundsCheckLocal::runOnFunction(Function & F) {
-  intrinsicPass = &getAnalysis<InsertSCIntrinsic>();
-  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-  TD = &getAnalysis<TargetData>();
-  SE = &getAnalysis<ScalarEvolution>();
-  return false;
+//
+// Function: findObject()
+//
+// Description:
+//  Find the singular memory object to which this pointer points (if such a
+//  singular object exists and is easy to find).
+//
+static Value *
+findObject (Value * obj) {
+  std::set<Value *> exploredObjects;
+  std::set<Value *> objects;
+  std::queue<Value *> queue;
+
+  queue.push(obj);
+  while (!queue.empty()) {
+    Value * o = queue.front();
+    queue.pop();
+    if (exploredObjects.count(o)) continue;
+
+    exploredObjects.insert(o);
+
+    if (isa<CastInst>(o)) {
+      queue.push(cast<CastInst>(o)->getOperand(0));
+    } else if (isa<GetElementPtrInst>(o)) {
+      queue.push(cast<GetElementPtrInst>(o)->getPointerOperand());
+    } else if (isa<PHINode>(o)) {
+      PHINode * p = cast<PHINode>(o);
+      for(unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
+        queue.push(p->getIncomingValue(i));
+      }
+    } else {
+      objects.insert(o);
+    }
+  }
+  return objects.size() == 1 ? *(objects.begin()) : NULL;
 }
 
 //
-// Function: isGEPSafe()
+// Method: visitGetElementPtrInst()
 //
 // Description:
-//  Determine whether the GEP will always generate a pointer that lands within
-//  the bounds of the object.
+//  This visitor method determines whether the specified GEP always stays
+//  within the bounds of an allocated object.
 //
-// Inputs:
-//  TD  - The TargetData pass which should be used for finding type-sizes and
-//        offsets of elements within a derived type.
-//  GEP - The getelementptr instruction to check.
-//
-// Return value:
-//  true  - The GEP never generates a pointer outside the bounds of the object.
-//  false - The GEP may generate a pointer outside the bounds of the object.
-//          There may also be cases where we know that the GEP *will* return an
-//          out-of-bounds pointer; we let pointer rewriting take care of those
-//          cases.
-//
-bool
-ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
+void
+ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
+  //
+  // Get information about allocators.
+  //
+  AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
+
   //
   // Update the count of GEPs queried.
   //
@@ -80,10 +100,13 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   // originates.  If we can't find the memory object, let some other static
   // array bounds checking pass have a crack at it.
   //
-  Value * PointerOperand = GEP->getPointerOperand();
-  Value * objSize = intrinsicPass->getObjectSize(PointerOperand);
+  Value * PointerOperand = GEP.getPointerOperand();
+  Value * memObject = findObject (PointerOperand);
+  if (!memObject)
+    return;
+  Value * objSize = AIP.getObjectSize(memObject);
   if (!objSize)
-    return abcPass->isGEPSafe(GEP);
+    return;
 
   //
   // Calculate the:
@@ -96,8 +119,8 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   // Therefore, use an integer size equal to the pointer size.
   //
   const SCEV * GEPBase = SE->getSCEV(PointerOperand);
-  const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(GEP), GEPBase);
-  const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(getGlobalContext())));
+  const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(&GEP), GEPBase);
+  const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(GEP.getContext())));
 
   //
   // Create an SCEV describing the bounds of the object.  On 64-bit platforms,
@@ -119,7 +142,7 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   //
   if (SE->getSMaxExpr(offset, zero) == zero && offset != zero) {
     ++unsafeGEPs;
-    return false;
+    return;
   }
 
   //
@@ -128,15 +151,54 @@ ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   //
   if (SE->getSMaxExpr(diff, zero) == diff) {
     ++safeGEPs;
-    return true;
+    SafeGEPs.insert (&GEP);
+    return;
   }
   
   //
-  // We cannot statically prove that the GEP is safe.  Ask another array bounds
-  // checking pass to prove the GEP safe.
+  // We cannot statically prove that the GEP is safe.
   //
-  return abcPass->isGEPSafe(GEP);
+  return;
 }
 
+bool
+ArrayBoundsCheckLocal::runOnFunction(Function & F) {
+  //
+  // Get required analysis passes.
+  //
+  TD = &getAnalysis<TargetData>();
+  SE = &getAnalysis<ScalarEvolution>();
 
-NAMESPACE_SC_END
+  //
+  // Look for all GEPs in the function and try to prove that they're safe.
+  //
+  visit (F);
+
+  //
+  // We modify nothing; return false.
+  //
+  return false;
+}
+
+//
+// Function: isGEPSafe()
+//
+// Description:
+//  Determine whether the GEP will always generate a pointer that lands within
+//  the bounds of the object.
+//
+// Inputs:
+//  GEP - The getelementptr instruction to check.
+//
+// Return value:
+//  true  - The GEP never generates a pointer outside the bounds of the object.
+//  false - The GEP may generate a pointer outside the bounds of the object.
+//          There may also be cases where we know that the GEP *will* return an
+//          out-of-bounds pointer; we let pointer rewriting take care of those
+//          cases.
+//
+bool
+ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
+  return ((SafeGEPs.count(GEP)) > 0);
+}
+}

@@ -1,11 +1,15 @@
 
 LEVEL = ../../
 
-LIBRARYNAME=arrayboundcheck
+LIBRARYNAME=abc
 
-SOURCES := AffineExpressions.cpp BottomUpCallGraph.cpp \
-BreakConstantGEPs.cpp ArrayBoundCheckDummy.cpp \
-ArrayBoundCheckLocal.cpp ArrayBoundCheckStruct.cpp
+SOURCES := \
+            ArrayBoundCheckDummy.cpp \
+            ArrayBoundCheckLocal.cpp \
+            #ArrayBoundCheckStruct.cpp
+            #BreakConstantGEPs.cpp \
+            #AffineExpressions.cpp \
+            #BottomUpCallGraph.cpp
 
 #ABCPreProcess.cpp ArrayBoundCheck.cpp 
 

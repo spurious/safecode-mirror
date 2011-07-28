@@ -12,23 +12,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ArrayBoundsCheck.h"
+#include "safecode/ArrayBoundsCheck.h"
 
-NAMESPACE_SC_BEGIN
-
-using namespace llvm;
-
-// FIXME: I put the definition from ArrayBoundsCheckGroup here instead of a
-// separate file, because ArrayBoundsCheck.cpp is used by the interprocedural
-// analysis pass. Have to rename it before moving things around.
+namespace llvm {
 
 char ArrayBoundsCheckGroup::ID = 0;
 char ArrayBoundsCheckDummy::ID = 0;
 
-static RegisterPass<ArrayBoundsCheckDummy> X ("abc-none", "Dummy Array Bounds Check pass");
-static RegisterAnalysisGroup<ArrayBoundsCheckGroup, true> ABCGroup(X);
+static RegisterPass<ArrayBoundsCheckDummy>
+X ("abc-none", "Dummy Array Bounds Check pass");
+
+static RegisterAnalysisGroup<ArrayBoundsCheckGroup, true>
+ABCGroup (X);
 
 ArrayBoundsCheckGroup::~ArrayBoundsCheckGroup() {}
 
-
-NAMESPACE_SC_END
+}

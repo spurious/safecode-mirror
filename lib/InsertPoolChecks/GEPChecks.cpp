@@ -38,9 +38,7 @@ cl::opt<bool> DisableStructChecks ("disable-structgepchecks", cl::Hidden,
 // Pass Statistics
 namespace {
   STATISTIC (GEPChecks, "Bounds Checks Added");
-#if 0
   STATISTIC (SafeGEP,   "GEPs proven safe by SAFECode");
-#endif
 }
 
 //
@@ -55,12 +53,10 @@ InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   //
   // Determine if the GEP is safe.  If it is, then don't do anything.
   //
-#if 0
   if (abcPass->isGEPSafe(&GEP)) {
     ++SafeGEP;
     return;
   }
-#endif
 
   //
   // If this only indexes into a structure, ignore it.
@@ -145,9 +141,7 @@ InsertGEPChecks::runOnFunction (Function & F) {
   // Get pointers to required analysis passes.
   //
   TD      = &getAnalysis<TargetData>();
-#if 0
-  abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-#endif
+  abcPass = &getAnalysis<ArrayBoundsCheckLocal>();
 
   //
   // Get a pointer to the run-time check function.

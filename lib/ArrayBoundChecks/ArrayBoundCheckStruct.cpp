@@ -17,8 +17,8 @@
 
 #define DEBUG_TYPE "abc-struct"
 
-#include "ArrayBoundsCheck.h"
 #include "SCUtils.h"
+#include "safecode/ArrayBoundsCheck.h"
 #include "safecode/SAFECodeConfig.h"
 #include "safecode/Support/AllocatorInfo.h"
 

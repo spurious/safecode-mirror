@@ -32,6 +32,7 @@
 #include "llvm/Target/TargetRegistry.h"
 #include "llvm/Transforms/Instrumentation.h"
 
+#include "safecode/ArrayBoundsCheck.h"
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
@@ -205,6 +206,8 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new RegisterRuntimeInitializer());
     MPM->add (new DebugInstrument());
     MPM->add (new InsertLSChecks());
+    MPM->add (new ScalarEvolution());
+    MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());
     MPM->add (new ExactCheckOpt());
     MPM->add (new OptimizeChecks());

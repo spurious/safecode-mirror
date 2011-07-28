@@ -24,6 +24,8 @@
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Target/TargetData.h"
 
+#include "safecode/ArrayBoundsCheck.h"
+
 namespace llvm {
 
 //
@@ -42,6 +44,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
       AU.addRequired<TargetData>();
+      AU.addRequired<ArrayBoundsCheckLocal>();
 
       // Preserved passes
       AU.setPreservesCFG();
@@ -53,9 +56,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
   protected:
     // Pointers to required passes
     TargetData * TD;
-#if 0
-    ArrayBoundsCheckGroup * abcPass;
-#endif
+    ArrayBoundsCheckLocal * abcPass;
 
     // Pointer to GEP run-time check function
     Function * PoolCheckArrayUI;
