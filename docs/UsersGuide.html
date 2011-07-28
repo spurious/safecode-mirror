@@ -18,7 +18,7 @@ SAFECode Users Guide
 <!-- ********************************************************************** -->
 <ul>
   <li><a href="#overview">Overview</a></li>
-  <li><a href="#lto">SAFECode/LLVM-GCC Integration</a></li>
+  <li><a href="#clang">SAFECode with Clang</a></li>
   <li><a href="#sc">The sc tool</a></li>
 </ul>
 
@@ -40,69 +40,61 @@ SAFECode Users Guide
 
 <p>
 This manual provides information on using the tools that come with the SAFECode
-compiler.  There are two primary methods in which to use SAFECode: it
-can be integreated into the system linker via a plugin, or it can be run
-explicitly on a program using the sc tool.  The first method is the easiest to
-use when compiling large programs with SAFECode; it lets llvm-gcc take care of
-compiling files into a single bitcode file and performs the SAFECode compiler
-transformations right before code generation within the linker.
-The second method requires that
-you first compile your program to a single LLVM bitcode file before feeding it
-into the sc tool; it is harder to use in that you must determine, on your own,
-how to get your program compiled into a single LLVM bitcode file.  However, on
-the plus side, the sc tool is easier to control with its vast array of
-command-line options.
+compiler.  There are two primary methods in which to use SAFECode: it is
+integrated in a version of the Clang C/C++ front-end that is included with
+SAFECode, or it can be run explicitly on an LLVM bitcode file using the sc tool.
+The first method is the easiest to use when compiling large programs with
+SAFECode; you merely add the -memsafety option to the compile-time
+command-line, link with the SAFECode run-time libraries, and you're done.
+The second method requires that you first compile your program to a single LLVM
+bitcode file before feeding it into the sc tool; it is harder to use in that
+you must determine, on your own, how to get your program compiled into a single
+LLVM bitcode file.
 </p>
 </div>
 
 <!-- *********************************************************************** -->
 <div class="doc_section">
-  <a name="lto"><b>SAFECode/LLVM-GCC Integration</b></a>
+  <a name="clang"><b>SAFECode with Clang</b></a>
 </div>
 <!-- *********************************************************************** -->
 
 <div class="doc_text">
 
 <p>
-The easiest way to use SAFECode is to use the SAFECode libLTO plugin that
-integrates with the linker (the Mac OS X and Gold linker are currently
-supported).  When used in this way, the SAFECode transforms are performed
-transparently by the linker when it creates the final executable.
+The easiest way to use SAFECode is to use the modified version of Clang that
+comes in the SAFECode distribution.  When used in this way, the SAFECode
+transforms are performed transparently by the Clang compiler.
 </p>
 
 <p>
-To install the SAFECode libLTO linker, follow the steps below:
+To activate the SAFECode transforms during compilation, add the
+<i>-memsafety</i> command-line option to the Clang command line:
+
+<ul>
+  <li><tt>clang -memsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
+</ul>
+
+... and add the SAFECode libraries to the link command line (note that you may
+need a <tt>-L</tt> option to indicate where the libraries are located:
+
+<ul>
+  <li><tt>clang -memsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
+  -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++</tt></li>
+</ul>
 </p>
 
-<ol>
-<li>
-Make a backup of your system's currently existing libLTO.so or libLTO.dylib.
-</li>
-
-<li>
-Copy the SAFECode libLTO.so (Linux) or libLTO.dylib (Mac OS X) over your
-system's libLTO.so (or libLTO.dylib, as appropriate).
-</li>
-
-<li>
-Make a directory somewhere.  We'll refer to it as $PREFIX.  Make a symbolic
-link from $PREFIX/gcc to llvm-gcc; do the same for $PREFIX/g++ and llvm-g++.
-This step is needed for some versions of libtool that don't understand 
-that llvm-gcc is a compiler driver.
-</li>
-</ol>
-
+<ul>
+</ul>
 <p>
-That's it!  Now, when you want to compile a program with SAFECode, you simply
-use the <tt>-O4</tt> option to llvm-gcc and link in the SAFECode run-time
-libraries.  To configure an autoconf-based software package to use SAFECode, do
+That's it!  To configure an autoconf-based software package to use SAFECode, do
 the following:
 </p>
 
 <ol>
-<li> Set the environment variable CC to $PREFIX/gcc.</li>
-<li> Set the environment variable CXX to $PREFIX/g++.</li>
-<li> Set the environment variable CFLAGS to "-O4"</li>
+<li> Set the environment variable CC to $PREFIX/clang.</li>
+<li> Set the environment variable CXX to $PREFIX/clang++.</li>
+<li> Set the environment variable CFLAGS to "-g -memsafety"</li>
 <li> Set the environment variable LDFLAGS to
      "-L$SAFECODE/$CONFIG/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where:
     <ol>
