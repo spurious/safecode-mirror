@@ -1666,3 +1666,91 @@ void test58b(void) {
   __attribute__((objc_precise_lifetime)) Test58 *ptr = test58_helper();
   char *c = [ptr interior];
 }
+
+// rdar://problem/9842343
+void test59(void) {
+  extern id test59_getlock(void);
+  extern void test59_body(void);
+  @synchronized (test59_getlock()) {
+    test59_body();
+  }
+
+  // CHECK:    define void @test59()
+  // CHECK:      [[T0:%.*]] = call i8* @test59_getlock()
+  // CHECK-NEXT: [[T1:%.*]] = call i8* @objc_retainAutoreleasedReturnValue(i8* [[T0]])
+  // CHECK-NEXT: call void @objc_sync_enter(i8* [[T1]])
+  // CHECK-NEXT: call void @test59_body()
+  // CHECK-NEXT: call void @objc_sync_exit(i8* [[T1]])
+  // CHECK-NEXT: call void @objc_release(i8* [[T1]])
+  // CHECK-NEXT: ret void
+}
+
+// rdar://problem/9814099
+// Test that we correctly initialize __block variables
+// when the initialization captures the variable.
+void test60a(void) {
+  __block void (^block)(void) = ^{ block(); };
+  // CHECK:    define void @test60a()
+  // CHECK:      [[BYREF:%.*]] = alloca [[BYREF_T:%.*]],
+
+  // Zero-initialization before running the initializer.
+  // CHECK:      [[T0:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 6
+  // CHECK-NEXT: store void ()* null, void ()** [[T0]], align 8
+
+  // Run the initializer as an assignment.
+  // CHECK:      [[T0:%.*]] = bitcast void ()* {{%.*}} to i8*
+  // CHECK-NEXT: [[T1:%.*]] = call i8* @objc_retainBlock(i8* [[T0]])
+  // CHECK-NEXT: [[T2:%.*]] = bitcast i8* [[T1]] to void ()*
+  // CHECK-NEXT: [[T3:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 1
+  // CHECK-NEXT: [[T4:%.*]] = load [[BYREF_T]]** [[T3]]
+  // CHECK-NEXT: [[T5:%.*]] = getelementptr inbounds [[BYREF_T]]* [[T4]], i32 0, i32 6
+  // CHECK-NEXT: [[T6:%.*]] = load void ()** [[T5]], align 8
+  // CHECK-NEXT: store void ()* {{%.*}}, void ()** [[T5]], align 8
+  // CHECK-NEXT: [[T7:%.*]] = bitcast void ()* [[T6]] to i8*
+  // CHECK-NEXT: call void @objc_release(i8* [[T7]])
+
+  // Destroy at end of function.
+  // CHECK-NEXT: [[SLOT:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 6
+  // CHECK-NEXT: [[T0:%.*]] = bitcast [[BYREF_T]]* [[BYREF]] to i8*
+  // CHECK-NEXT: call void @_Block_object_dispose(i8* [[T0]], i32 8)
+  // CHECK-NEXT: [[T1:%.*]] = load void ()** [[SLOT]]
+  // CHECK-NEXT: [[T2:%.*]] = bitcast void ()* [[T1]] to i8*
+  // CHECK-NEXT: call void @objc_release(i8* [[T2]])
+  // CHECK-NEXT: ret void
+}
+
+// Test that we correctly assign to __block variables when the
+// assignment captures the variable.
+void test60b(void) {
+  __block void (^block)(void);
+  block = ^{ block(); };
+
+  // CHECK:    define void @test60b()
+  // CHECK:      [[BYREF:%.*]] = alloca [[BYREF_T:%.*]],
+
+  // Zero-initialize.
+  // CHECK:      [[T0:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 6
+  // CHECK-NEXT: store void ()* null, void ()** [[T0]], align 8
+
+  // CHECK-NEXT: [[SLOT:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 6
+
+  // The assignment.
+  // CHECK:      [[T0:%.*]] = bitcast void ()* {{%.*}} to i8*
+  // CHECK-NEXT: [[T1:%.*]] = call i8* @objc_retainBlock(i8* [[T0]])
+  // CHECK-NEXT: [[T2:%.*]] = bitcast i8* [[T1]] to void ()*
+  // CHECK-NEXT: [[T3:%.*]] = getelementptr inbounds [[BYREF_T]]* [[BYREF]], i32 0, i32 1
+  // CHECK-NEXT: [[T4:%.*]] = load [[BYREF_T]]** [[T3]]
+  // CHECK-NEXT: [[T5:%.*]] = getelementptr inbounds [[BYREF_T]]* [[T4]], i32 0, i32 6
+  // CHECK-NEXT: [[T6:%.*]] = load void ()** [[T5]], align 8
+  // CHECK-NEXT: store void ()* {{%.*}}, void ()** [[T5]], align 8
+  // CHECK-NEXT: [[T7:%.*]] = bitcast void ()* [[T6]] to i8*
+  // CHECK-NEXT: call void @objc_release(i8* [[T7]])
+
+  // Destroy at end of function.
+  // CHECK-NEXT: [[T0:%.*]] = bitcast [[BYREF_T]]* [[BYREF]] to i8*
+  // CHECK-NEXT: call void @_Block_object_dispose(i8* [[T0]], i32 8)
+  // CHECK-NEXT: [[T1:%.*]] = load void ()** [[SLOT]]
+  // CHECK-NEXT: [[T2:%.*]] = bitcast void ()* [[T1]] to i8*
+  // CHECK-NEXT: call void @objc_release(i8* [[T2]])
+  // CHECK-NEXT: ret void
+}

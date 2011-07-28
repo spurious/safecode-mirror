@@ -1272,6 +1272,10 @@ namespace {
     ASTWriter &Writer;
     HeaderSearch &HS;
     
+    // Keep track of the framework names we've used during serialization.
+    SmallVector<char, 128> FrameworkStringData;
+    llvm::StringMap<unsigned> FrameworkNameOffset;
+    
   public:
     HeaderFileInfoTrait(ASTWriter &Writer, HeaderSearch &HS) 
       : Writer(Writer), HS(HS) { }
@@ -1295,7 +1299,7 @@ namespace {
                       data_type_ref Data) {
       unsigned StrLen = strlen(path);
       clang::io::Emit16(Out, StrLen);
-      unsigned DataLen = 1 + 2 + 4;
+      unsigned DataLen = 1 + 2 + 4 + 4;
       clang::io::Emit8(Out, DataLen);
       return std::make_pair(StrLen + 1, DataLen);
     }
@@ -1309,10 +1313,11 @@ namespace {
       using namespace clang::io;
       uint64_t Start = Out.tell(); (void)Start;
       
-      unsigned char Flags = (Data.isImport << 4)
-                          | (Data.isPragmaOnce << 3)
-                          | (Data.DirInfo << 1)
-                          | Data.Resolved;
+      unsigned char Flags = (Data.isImport << 5)
+                          | (Data.isPragmaOnce << 4)
+                          | (Data.DirInfo << 2)
+                          | (Data.Resolved << 1)
+                          | Data.IndexHeaderMapHeader;
       Emit8(Out, (uint8_t)Flags);
       Emit16(Out, (uint16_t) Data.NumIncludes);
       
@@ -1320,8 +1325,29 @@ namespace {
         Emit32(Out, (uint32_t)Data.ControllingMacroID);
       else
         Emit32(Out, (uint32_t)Writer.getIdentifierRef(Data.ControllingMacro));
+      
+      unsigned Offset = 0;
+      if (!Data.Framework.empty()) {
+        // If this header refers into a framework, save the framework name.
+        llvm::StringMap<unsigned>::iterator Pos
+          = FrameworkNameOffset.find(Data.Framework);
+        if (Pos == FrameworkNameOffset.end()) {
+          Offset = FrameworkStringData.size() + 1;
+          FrameworkStringData.append(Data.Framework.begin(), 
+                                     Data.Framework.end());
+          FrameworkStringData.push_back(0);
+          
+          FrameworkNameOffset[Data.Framework] = Offset;
+        } else
+          Offset = Pos->second;
+      }
+      Emit32(Out, Offset);
+      
       assert(Out.tell() - Start == DataLen && "Wrong data length");
     }
+    
+    const char *strings_begin() const { return FrameworkStringData.begin(); }
+    const char *strings_end() const { return FrameworkStringData.end(); }
   };
 } // end anonymous namespace
 
@@ -1381,14 +1407,17 @@ void ASTWriter::WriteHeaderSearch(HeaderSearch &HS, StringRef isysroot) {
   Abbrev->Add(BitCodeAbbrevOp(HEADER_SEARCH_TABLE));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32));
+  Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
   unsigned TableAbbrev = Stream.EmitAbbrev(Abbrev);
   
-  // Write the stat cache
+  // Write the header search table
   RecordData Record;
   Record.push_back(HEADER_SEARCH_TABLE);
   Record.push_back(BucketOffset);
   Record.push_back(NumHeaderSearchEntries);
+  Record.push_back(TableData.size());
+  TableData.append(GeneratorTrait.strings_begin(),GeneratorTrait.strings_end());
   Stream.EmitRecordWithBlob(TableAbbrev, Record, TableData.str());
   
   // Free all of the strings we had to duplicate.
@@ -2777,6 +2806,15 @@ void ASTWriter::WriteAST(Sema &SemaRef, MemorizeStatCalls *StatCalls,
     WriteASTCore(SemaRef, StatCalls, isysroot, OutputFile);
 }
 
+template<typename Vector>
+static void AddLazyVectorDecls(ASTWriter &Writer, Vector &Vec,
+                               ASTWriter::RecordData &Record) {
+  for (typename Vector::iterator I = Vec.begin(0, true), E = Vec.end();
+       I != E; ++I)  {
+    Writer.AddDeclRef(*I, Record);
+  }
+}
+
 void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
                              StringRef isysroot,
                              const std::string &OutputFile) {
@@ -2805,24 +2843,19 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   // TentativeDefinitions order.  Generally, this record will be empty for
   // headers.
   RecordData TentativeDefinitions;
-  for (unsigned i = 0, e = SemaRef.TentativeDefinitions.size(); i != e; ++i) {
-    AddDeclRef(SemaRef.TentativeDefinitions[i], TentativeDefinitions);
-  }
-
+  AddLazyVectorDecls(*this, SemaRef.TentativeDefinitions, TentativeDefinitions);
+  
   // Build a record containing all of the file scoped decls in this file.
   RecordData UnusedFileScopedDecls;
-  for (unsigned i=0, e = SemaRef.UnusedFileScopedDecls.size(); i !=e; ++i)
-    AddDeclRef(SemaRef.UnusedFileScopedDecls[i], UnusedFileScopedDecls);
+  AddLazyVectorDecls(*this, SemaRef.UnusedFileScopedDecls, 
+                     UnusedFileScopedDecls);
 
   RecordData DelegatingCtorDecls;
-  for (unsigned i=0, e = SemaRef.DelegatingCtorDecls.size(); i != e; ++i)
-    AddDeclRef(SemaRef.DelegatingCtorDecls[i], DelegatingCtorDecls);
+  AddLazyVectorDecls(*this, SemaRef.DelegatingCtorDecls, DelegatingCtorDecls);
 
   RecordData WeakUndeclaredIdentifiers;
   if (!SemaRef.WeakUndeclaredIdentifiers.empty()) {
-    WeakUndeclaredIdentifiers.push_back(
-                                      SemaRef.WeakUndeclaredIdentifiers.size());
-    for (llvm::DenseMap<IdentifierInfo*,Sema::WeakInfo>::iterator
+    for (llvm::DenseMap<IdentifierInfo*,WeakInfo>::iterator
          I = SemaRef.WeakUndeclaredIdentifiers.begin(),
          E = SemaRef.WeakUndeclaredIdentifiers.end(); I != E; ++I) {
       AddIdentifierRef(I->first, WeakUndeclaredIdentifiers);
@@ -2841,18 +2874,18 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   for (llvm::DenseMap<DeclarationName, NamedDecl *>::iterator
          TD = SemaRef.LocallyScopedExternalDecls.begin(),
          TDEnd = SemaRef.LocallyScopedExternalDecls.end();
-       TD != TDEnd; ++TD)
-    AddDeclRef(TD->second, LocallyScopedExternalDecls);
-
+       TD != TDEnd; ++TD) {
+    if (TD->second->getPCHLevel() == 0)
+      AddDeclRef(TD->second, LocallyScopedExternalDecls);
+  }
+  
   // Build a record containing all of the ext_vector declarations.
   RecordData ExtVectorDecls;
-  for (unsigned I = 0, N = SemaRef.ExtVectorDecls.size(); I != N; ++I)
-    AddDeclRef(SemaRef.ExtVectorDecls[I], ExtVectorDecls);
+  AddLazyVectorDecls(*this, SemaRef.ExtVectorDecls, ExtVectorDecls);
 
   // Build a record containing all of the VTable uses information.
   RecordData VTableUses;
   if (!SemaRef.VTableUses.empty()) {
-    VTableUses.push_back(SemaRef.VTableUses.size());
     for (unsigned I = 0, N = SemaRef.VTableUses.size(); I != N; ++I) {
       AddDeclRef(SemaRef.VTableUses[I].first, VTableUses);
       AddSourceLocation(SemaRef.VTableUses[I].second, VTableUses);
@@ -2862,8 +2895,7 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
 
   // Build a record containing all of dynamic classes declarations.
   RecordData DynamicClasses;
-  for (unsigned I = 0, N = SemaRef.DynamicClasses.size(); I != N; ++I)
-    AddDeclRef(SemaRef.DynamicClasses[I], DynamicClasses);
+  AddLazyVectorDecls(*this, SemaRef.DynamicClasses, DynamicClasses);
 
   // Build a record containing all of pending implicit instantiations.
   RecordData PendingInstantiations;
@@ -3072,32 +3104,22 @@ void ASTWriter::WriteASTChain(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   // Build a record containing all of the new tentative definitions in this
   // file, in TentativeDefinitions order.
   RecordData TentativeDefinitions;
-  for (unsigned i = 0, e = SemaRef.TentativeDefinitions.size(); i != e; ++i) {
-    if (SemaRef.TentativeDefinitions[i]->getPCHLevel() == 0)
-      AddDeclRef(SemaRef.TentativeDefinitions[i], TentativeDefinitions);
-  }
-
+  AddLazyVectorDecls(*this, SemaRef.TentativeDefinitions, TentativeDefinitions);
+  
   // Build a record containing all of the file scoped decls in this file.
   RecordData UnusedFileScopedDecls;
-  for (unsigned i=0, e = SemaRef.UnusedFileScopedDecls.size(); i !=e; ++i) {
-    if (SemaRef.UnusedFileScopedDecls[i]->getPCHLevel() == 0)
-      AddDeclRef(SemaRef.UnusedFileScopedDecls[i], UnusedFileScopedDecls);
-  }
+  AddLazyVectorDecls(*this, SemaRef.UnusedFileScopedDecls, 
+                     UnusedFileScopedDecls);
 
   // Build a record containing all of the delegating constructor decls in this
   // file.
   RecordData DelegatingCtorDecls;
-  for (unsigned i=0, e = SemaRef.DelegatingCtorDecls.size(); i != e; ++i) {
-    if (SemaRef.DelegatingCtorDecls[i]->getPCHLevel() == 0)
-      AddDeclRef(SemaRef.DelegatingCtorDecls[i], DelegatingCtorDecls);
-  }
+  AddLazyVectorDecls(*this, SemaRef.DelegatingCtorDecls, DelegatingCtorDecls);
 
   // We write the entire table, overwriting the tables from the chain.
   RecordData WeakUndeclaredIdentifiers;
   if (!SemaRef.WeakUndeclaredIdentifiers.empty()) {
-    WeakUndeclaredIdentifiers.push_back(
-                                      SemaRef.WeakUndeclaredIdentifiers.size());
-    for (llvm::DenseMap<IdentifierInfo*,Sema::WeakInfo>::iterator
+    for (llvm::DenseMap<IdentifierInfo*,WeakInfo>::iterator
          I = SemaRef.WeakUndeclaredIdentifiers.begin(),
          E = SemaRef.WeakUndeclaredIdentifiers.end(); I != E; ++I) {
       AddIdentifierRef(I->first, WeakUndeclaredIdentifiers);
@@ -3123,17 +3145,13 @@ void ASTWriter::WriteASTChain(Sema &SemaRef, MemorizeStatCalls *StatCalls,
 
   // Build a record containing all of the ext_vector declarations.
   RecordData ExtVectorDecls;
-  for (unsigned I = 0, N = SemaRef.ExtVectorDecls.size(); I != N; ++I) {
-    if (SemaRef.ExtVectorDecls[I]->getPCHLevel() == 0)
-      AddDeclRef(SemaRef.ExtVectorDecls[I], ExtVectorDecls);
-  }
+  AddLazyVectorDecls(*this, SemaRef.ExtVectorDecls, ExtVectorDecls);
 
   // Build a record containing all of the VTable uses information.
   // We write everything here, because it's too hard to determine whether
   // a use is new to this part.
   RecordData VTableUses;
   if (!SemaRef.VTableUses.empty()) {
-    VTableUses.push_back(SemaRef.VTableUses.size());
     for (unsigned I = 0, N = SemaRef.VTableUses.size(); I != N; ++I) {
       AddDeclRef(SemaRef.VTableUses[I].first, VTableUses);
       AddSourceLocation(SemaRef.VTableUses[I].second, VTableUses);
@@ -3143,9 +3161,7 @@ void ASTWriter::WriteASTChain(Sema &SemaRef, MemorizeStatCalls *StatCalls,
 
   // Build a record containing all of dynamic classes declarations.
   RecordData DynamicClasses;
-  for (unsigned I = 0, N = SemaRef.DynamicClasses.size(); I != N; ++I)
-    if (SemaRef.DynamicClasses[I]->getPCHLevel() == 0)
-      AddDeclRef(SemaRef.DynamicClasses[I], DynamicClasses);
+  AddLazyVectorDecls(*this, SemaRef.DynamicClasses, DynamicClasses);
 
   // Build a record containing all of pending implicit instantiations.
   RecordData PendingInstantiations;

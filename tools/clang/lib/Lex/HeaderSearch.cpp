@@ -18,6 +18,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Capacity.h"
 #include <cstdio>
 using namespace clang;
 
@@ -279,7 +280,23 @@ const FileEntry *HeaderSearch::LookupFile(
     return FileMgr.getFile(Filename, /*openFile=*/true);
   }
 
-  // Step #0, unless disabled, check to see if the file is in the #includer's
+  // If we are including a file with a quoted include "foo.h" from inside
+  // a header in a framework that is currently being built, change the include
+  // to <Foo/foo.h>, where "Foo" is the name of the framework in which the
+  // including header was found.
+  llvm::SmallString<128> ScratchFilename;
+  if (CurFileEnt && !isAngled && Filename.find('/') == StringRef::npos) {
+    HeaderFileInfo &IncludingHFI = getFileInfo(CurFileEnt);
+    if (IncludingHFI.IndexHeaderMapHeader) {
+      isAngled = true;
+      ScratchFilename += IncludingHFI.Framework;
+      ScratchFilename += '/';
+      ScratchFilename += Filename;
+      Filename = ScratchFilename;
+    }
+  }
+
+  // Unless disabled, check to see if the file is in the #includer's
   // directory.  This has to be based on CurFileEnt, not CurDir, because
   // CurFileEnt could be a #include of a subdirectory (#include "foo/bar.h") and
   // a subsequent include of "baz.h" should resolve to "whatever/foo/baz.h".
@@ -352,8 +369,20 @@ const FileEntry *HeaderSearch::LookupFile(
     CurDir = &SearchDirs[i];
 
     // This file is a system header or C++ unfriendly if the dir is.
-    getFileInfo(FE).DirInfo = CurDir->getDirCharacteristic();
+    HeaderFileInfo &HFI = getFileInfo(FE);
+    HFI.DirInfo = CurDir->getDirCharacteristic();
 
+    // If this file is found in a header map and uses the framework style of
+    // includes, then this header is part of a framework we're building.
+    if (CurDir->isIndexHeaderMap()) {
+      size_t SlashPos = Filename.find('/');
+      if (SlashPos != StringRef::npos) {
+        HFI.IndexHeaderMapHeader = 1;
+        HFI.Framework = getUniqueFrameworkName(StringRef(Filename.begin(), 
+                                                         SlashPos));
+      }
+    }
+    
     // Remember this location for the next lookup we do.
     CacheLookup.second = i;
     return FE;
@@ -544,8 +573,12 @@ bool HeaderSearch::ShouldEnterIncludeFile(const FileEntry *File, bool isImport){
 
 size_t HeaderSearch::getTotalMemory() const {
   return SearchDirs.capacity()
-    + FileInfo.capacity()
-    + HeaderMaps.capacity()
+    + llvm::capacity_in_bytes(FileInfo)
+    + llvm::capacity_in_bytes(HeaderMaps)
     + LookupFileCache.getAllocator().getTotalMemory()
     + FrameworkMap.getAllocator().getTotalMemory();
+}
+
+StringRef HeaderSearch::getUniqueFrameworkName(StringRef Framework) {
+  return FrameworkNames.GetOrCreateValue(Framework).getKey();
 }

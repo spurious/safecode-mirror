@@ -24,6 +24,8 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PreprocessingRecord.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/FileSystemOptions.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/APFloat.h"
@@ -296,11 +298,15 @@ public:
   /// This pointer points into a memory buffer, where the on-disk hash
   /// table for header file information actually lives.
   const char *HeaderFileInfoTableData;
-  
+    
   /// \brief The on-disk hash table that contains information about each of
   /// the header files.
   void *HeaderFileInfoTable;
   
+  /// \brief Actual data for the list of framework names used in the header
+  /// search information.
+  const char *HeaderFileFrameworkStrings;
+
   // === Selectors ===
   
   /// \brief The number of selectors new to this file.
@@ -323,10 +329,6 @@ public:
   /// This hash table provides the IDs of all selectors, and the associated
   /// instance and factory methods.
   void *SelectorLookupTable;
-  
-  /// \brief Method selectors used in a @selector expression. Used for
-  /// implementation of -Wselector.
-  SmallVector<uint64_t, 64> ReferencedSelectorsData;
   
   // === Declarations ===
   
@@ -395,7 +397,11 @@ class ModuleManager {
   SmallVector<Module*, 2> Chain;
 
   /// \brief All loaded modules, indexed by name.
-  llvm::StringMap<Module*> Modules;
+  llvm::DenseMap<const FileEntry *, Module *> Modules;
+
+  /// \brief FileManager that handles translating between filenames and
+  /// FileEntry *.
+  FileManager FileMgr;
 
 public:
   typedef SmallVector<Module*, 2>::iterator ModuleIterator;
@@ -403,6 +409,7 @@ public:
   typedef SmallVector<Module*, 2>::reverse_iterator ModuleReverseIterator;
   typedef std::pair<uint32_t, StringRef> ModuleOffset;
 
+  ModuleManager(const FileSystemOptions &FSO);
   ~ModuleManager();
 
   /// \brief Forward iterator to traverse all loaded modules
@@ -436,7 +443,7 @@ public:
   Module &operator[](unsigned Index) const { return *Chain[Index]; }
 
   /// \brief Returns the module associated with the given name
-  Module *lookup(StringRef Name) { return Modules.lookup(Name); }
+  Module *lookup(StringRef Name);
 
   /// \brief Number of modules loaded
   unsigned size() const { return Chain.size(); }
@@ -743,6 +750,10 @@ private:
   /// \brief A list of all the delegating constructors we've seen, to diagnose
   /// cycles.
   SmallVector<uint64_t, 4> DelegatingCtorDecls;
+  
+  /// \brief Method selectors used in a @selector expression. Used for
+  /// implementation of -Wselector.
+  SmallVector<uint64_t, 64> ReferencedSelectorsData;
 
   /// \brief A snapshot of Sema's weak undeclared identifier tracking, for
   /// generating warnings.
@@ -1371,6 +1382,30 @@ public:
   virtual void ReadKnownNamespaces(
                            SmallVectorImpl<NamespaceDecl *> &Namespaces);
 
+  virtual void ReadTentativeDefinitions(
+                 SmallVectorImpl<VarDecl *> &TentativeDefs);
+
+  virtual void ReadUnusedFileScopedDecls(
+                 SmallVectorImpl<const DeclaratorDecl *> &Decls);
+
+  virtual void ReadDelegatingConstructors(
+                 SmallVectorImpl<CXXConstructorDecl *> &Decls);
+
+  virtual void ReadExtVectorDecls(SmallVectorImpl<TypedefNameDecl *> &Decls);
+
+  virtual void ReadDynamicClasses(SmallVectorImpl<CXXRecordDecl *> &Decls);
+
+  virtual void ReadLocallyScopedExternalDecls(
+                 SmallVectorImpl<NamedDecl *> &Decls);
+  
+  virtual void ReadReferencedSelectors(
+                 SmallVectorImpl<std::pair<Selector, SourceLocation> > &Sels);
+
+  virtual void ReadWeakUndeclaredIdentifiers(
+                 SmallVectorImpl<std::pair<IdentifierInfo *, WeakInfo> > &WI);
+
+  virtual void ReadUsedVTables(SmallVectorImpl<ExternalVTableUse> &VTables);
+
   /// \brief Load a selector from disk, registering its ID if it exists.
   void LoadSelector(Selector Sel);
 
@@ -1395,17 +1430,27 @@ public:
     return DecodeIdentifierInfo(ID);
   }
 
+  unsigned getGlobalIdentifierID(Module &M, unsigned LocalID) {
+    // FIXME: Remap local -> global identifier IDs
+    return LocalID;
+  }
+                                 
   /// \brief Read the source location entry with index ID.
   virtual bool ReadSLocEntry(int ID);
 
   Selector DecodeSelector(unsigned Idx);
 
-  virtual Selector GetExternalSelector(uint32_t ID);
+  virtual Selector GetExternalSelector(serialization::SelectorID ID);
   uint32_t GetNumExternalSelectors();
 
   Selector GetSelector(const RecordData &Record, unsigned &Idx) {
     return DecodeSelector(Record[Idx++]);
   }
+  
+  /// \brief Retrieve the global selector ID that corresponds to this
+  /// the local selector ID in a given module.
+  serialization::SelectorID getGlobalSelectorID(Module &F, 
+                                                unsigned LocalID) const;
 
   /// \brief Read a declaration name.
   DeclarationName ReadDeclarationName(Module &F, 

@@ -1647,6 +1647,8 @@ namespace {
   /// inode numbers, so that the search can cope with non-normalized path names
   /// and symlinks.
   class HeaderFileInfoTrait {
+    HeaderSearch *HS;
+    const char *FrameworkStrings;
     const char *SearchPath;
     struct stat SearchPathStatBuf;
     llvm::Optional<int> SearchPathStatResult;
@@ -1669,7 +1671,10 @@ namespace {
     
     typedef HeaderFileInfo data_type;
     
-    HeaderFileInfoTrait(const char *SearchPath = 0) : SearchPath(SearchPath) { }
+    HeaderFileInfoTrait(HeaderSearch *HS,
+                        const char *FrameworkStrings,
+                        const char *SearchPath = 0) 
+      : HS(HS), FrameworkStrings(FrameworkStrings), SearchPath(SearchPath) { }
     
     static unsigned ComputeHash(const char *path) {
       return llvm::HashString(llvm::sys::path::filename(path));
@@ -1704,21 +1709,29 @@ namespace {
       return (const char *)d;
     }
     
-    static data_type ReadData(const internal_key_type, const unsigned char *d,
-                              unsigned DataLen) {
+    data_type ReadData(const internal_key_type, const unsigned char *d,
+                       unsigned DataLen) {
       const unsigned char *End = d + DataLen;
       using namespace clang::io;
       HeaderFileInfo HFI;
       unsigned Flags = *d++;
-      HFI.isImport = (Flags >> 4) & 0x01;
-      HFI.isPragmaOnce = (Flags >> 3) & 0x01;
-      HFI.DirInfo = (Flags >> 1) & 0x03;
-      HFI.Resolved = Flags & 0x01;
+      HFI.isImport = (Flags >> 5) & 0x01;
+      HFI.isPragmaOnce = (Flags >> 4) & 0x01;
+      HFI.DirInfo = (Flags >> 2) & 0x03;
+      HFI.Resolved = (Flags >> 1) & 0x01;
+      HFI.IndexHeaderMapHeader = Flags & 0x01;
       HFI.NumIncludes = ReadUnalignedLE16(d);
       HFI.ControllingMacroID = ReadUnalignedLE32(d);
+      if (unsigned FrameworkOffset = ReadUnalignedLE32(d)) {
+        // The framework offset is 1 greater than the actual offset, 
+        // since 0 is used as an indicator for "no framework name".
+        StringRef FrameworkName(FrameworkStrings + FrameworkOffset - 1);
+        HFI.Framework = HS->getUniqueFrameworkName(FrameworkName);
+      }
+      
       assert(End == d && "Wrong data length in HeaderFileInfo deserialization");
       (void)End;
-      
+            
       // This HeaderFileInfo was externally loaded.
       HFI.External = true;
       return HFI;
@@ -2049,7 +2062,7 @@ ASTReader::ReadASTBlock(Module &F) {
         &F,
         /* No visible information */ 0,
         reinterpret_cast<const KindDeclIDPair *>(BlobStart),
-        BlobLen / sizeof(KindDeclIDPair)
+        static_cast<unsigned int>(BlobLen / sizeof(KindDeclIDPair))
       };
       DeclContextOffsets[Context ? Context->getTranslationUnitDecl() : 0]
         .push_back(Info);
@@ -2149,8 +2162,25 @@ ASTReader::ReadASTBlock(Module &F) {
       break;
 
     case WEAK_UNDECLARED_IDENTIFIERS:
-      // Later blocks overwrite earlier ones.
-      WeakUndeclaredIdentifiers.swap(Record);
+      if (Record.size() % 4 != 0) {
+        Error("invalid weak identifiers record");
+        return Failure;
+      }
+        
+      // FIXME: Ignore weak undeclared identifiers from non-original PCH 
+      // files. This isn't the way to do it :)
+      WeakUndeclaredIdentifiers.clear();
+        
+      // Translate the weak, undeclared identifiers into global IDs.
+      for (unsigned I = 0, N = Record.size(); I < N; /* in loop */) {
+        WeakUndeclaredIdentifiers.push_back(
+          getGlobalIdentifierID(F, Record[I++]));
+        WeakUndeclaredIdentifiers.push_back(
+          getGlobalIdentifierID(F, Record[I++]));
+        WeakUndeclaredIdentifiers.push_back(
+          ReadSourceLocation(F, Record, I).getRawEncoding());
+        WeakUndeclaredIdentifiers.push_back(Record[I++]);
+      }
       break;
 
     case LOCALLY_SCOPED_EXTERNAL_DECLS:
@@ -2183,7 +2213,14 @@ ASTReader::ReadASTBlock(Module &F) {
       break;
 
     case REFERENCED_SELECTOR_POOL:
-      F.ReferencedSelectorsData.swap(Record);
+      if (!Record.empty()) {
+        for (unsigned Idx = 0, N = Record.size() - 1; Idx < N; /* in loop */) {
+          ReferencedSelectorsData.push_back(getGlobalSelectorID(F, 
+                                                                Record[Idx++]));
+          ReferencedSelectorsData.push_back(ReadSourceLocation(F, Record, Idx).
+                                              getRawEncoding());
+        }
+      }
       break;
 
     case PP_COUNTER_VALUE:
@@ -2273,11 +2310,22 @@ ASTReader::ReadASTBlock(Module &F) {
       break;
 
     case VTABLE_USES:
+      if (Record.size() % 3 != 0) {
+        Error("Invalid VTABLE_USES record");
+        return Failure;
+      }
+        
       // Later tables overwrite earlier ones.
-      // FIXME: Modules will have some trouble with this.
+      // FIXME: Modules will have some trouble with this. This is clearly not
+      // the right way to do this.
       VTableUses.clear();
-      for (unsigned I = 0, N = Record.size(); I != N; ++I)
-        VTableUses.push_back(getGlobalDeclID(F, Record[I]));
+        
+      for (unsigned Idx = 0, N = Record.size(); Idx != N; /* In loop */) {
+        VTableUses.push_back(getGlobalDeclID(F, Record[Idx++]));
+        VTableUses.push_back(
+          ReadSourceLocation(F, Record, Idx).getRawEncoding());
+        VTableUses.push_back(Record[Idx++]);
+      }
       break;
 
     case DYNAMIC_CLASSES:
@@ -2424,19 +2472,23 @@ ASTReader::ReadASTBlock(Module &F) {
         CUDASpecialDeclRefs.push_back(getGlobalDeclID(F, Record[I]));
       break;
 
-    case HEADER_SEARCH_TABLE:
+    case HEADER_SEARCH_TABLE: {
       F.HeaderFileInfoTableData = BlobStart;
       F.LocalNumHeaderFileInfos = Record[1];
+      F.HeaderFileFrameworkStrings = BlobStart + Record[2];
       if (Record[0]) {
         F.HeaderFileInfoTable
           = HeaderFileInfoLookupTable::Create(
                    (const unsigned char *)F.HeaderFileInfoTableData + Record[0],
-                   (const unsigned char *)F.HeaderFileInfoTableData);
+                   (const unsigned char *)F.HeaderFileInfoTableData,
+                   HeaderFileInfoTrait(PP? &PP->getHeaderSearchInfo() : 0,
+                                       BlobStart + Record[2]));
         if (PP)
           PP->getHeaderSearchInfo().SetExternalSource(this);
       }
       break;
-
+    }
+        
     case FP_PRAGMA_OPTIONS:
       // Later tables overwrite earlier ones.
       FPPragmaOptions.swap(Record);
@@ -2560,7 +2612,7 @@ ASTReader::ASTReadResult ASTReader::ReadAST(const std::string &FileName,
   PreloadSLocEntries.clear();
   
   // Check the predefines buffers.
-  if (!DisableValidation && CheckPredefinesBuffers())
+  if (!DisableValidation && Type != MK_Module && CheckPredefinesBuffers())
     return IgnorePCH;
 
   if (PP) {
@@ -2576,6 +2628,11 @@ ASTReader::ASTReadResult ASTReader::ReadAST(const std::string &FileName,
     // since de-serializing declarations or macro definitions can add
     // new entries into the identifier table, invalidating the
     // iterators.
+    //
+    // FIXME: We need a lazier way to load this information, e.g., by marking
+    // the identifier data as 'dirty', so that it will be looked up in the
+    // AST file(s) if it is uttered in the source. This could save us some
+    // module load time.
     SmallVector<IdentifierInfo *, 128> Identifiers;
     for (IdentifierTable::iterator Id = PP->getIdentifierTable().begin(),
                                 IdEnd = PP->getIdentifierTable().end();
@@ -3071,9 +3128,13 @@ PreprocessedEntity *ASTReader::ReadPreprocessedEntityAtOffset(uint64_t Offset) {
 }
 
 HeaderFileInfo ASTReader::GetHeaderFileInfo(const FileEntry *FE) {
-  HeaderFileInfoTrait Trait(FE->getName());
   for (ModuleIterator I = ModuleMgr.begin(), E = ModuleMgr.end(); I != E; ++I) {
     Module &F = *(*I);
+
+    HeaderFileInfoTrait Trait(&PP->getHeaderSearchInfo(),
+                              F.HeaderFileFrameworkStrings,
+                              FE->getName());
+    
     HeaderFileInfoLookupTable *Table
       = static_cast<HeaderFileInfoLookupTable *>(F.HeaderFileInfoTable);
     if (!Table)
@@ -4323,72 +4384,14 @@ void ASTReader::InitializeSema(Sema &S) {
   }
   PreloadedDecls.clear();
 
-  // If there were any tentative definitions, deserialize them and add
-  // them to Sema's list of tentative definitions.
-  for (unsigned I = 0, N = TentativeDefinitions.size(); I != N; ++I) {
-    VarDecl *Var = cast<VarDecl>(GetDecl(TentativeDefinitions[I]));
-    SemaObj->TentativeDefinitions.push_back(Var);
-  }
-
-  // If there were any unused file scoped decls, deserialize them and add to
-  // Sema's list of unused file scoped decls.
-  for (unsigned I = 0, N = UnusedFileScopedDecls.size(); I != N; ++I) {
-    DeclaratorDecl *D = cast<DeclaratorDecl>(GetDecl(UnusedFileScopedDecls[I]));
-    SemaObj->UnusedFileScopedDecls.push_back(D);
-  }
-
-  // If there were any delegating constructors, add them to Sema's list
-  for (unsigned I = 0, N = DelegatingCtorDecls.size(); I != N; ++I) {
-    CXXConstructorDecl *D
-     = cast<CXXConstructorDecl>(GetDecl(DelegatingCtorDecls[I]));
-    SemaObj->DelegatingCtorDecls.push_back(D);
-  }
-
-  // If there were any locally-scoped external declarations,
-  // deserialize them and add them to Sema's table of locally-scoped
-  // external declarations.
-  for (unsigned I = 0, N = LocallyScopedExternalDecls.size(); I != N; ++I) {
-    NamedDecl *D = cast<NamedDecl>(GetDecl(LocallyScopedExternalDecls[I]));
-    SemaObj->LocallyScopedExternalDecls[D->getDeclName()] = D;
-  }
-
-  // If there were any ext_vector type declarations, deserialize them
-  // and add them to Sema's vector of such declarations.
-  for (unsigned I = 0, N = ExtVectorDecls.size(); I != N; ++I)
-    SemaObj->ExtVectorDecls.push_back(
-                             cast<TypedefNameDecl>(GetDecl(ExtVectorDecls[I])));
-
-  // FIXME: Do VTable uses and dynamic classes deserialize too much ?
-  // Can we cut them down before writing them ?
-
-  // If there were any dynamic classes declarations, deserialize them
-  // and add them to Sema's vector of such declarations.
-  for (unsigned I = 0, N = DynamicClasses.size(); I != N; ++I)
-    SemaObj->DynamicClasses.push_back(
-                               cast<CXXRecordDecl>(GetDecl(DynamicClasses[I])));
-
   // Load the offsets of the declarations that Sema references.
   // They will be lazily deserialized when needed.
   if (!SemaDeclRefs.empty()) {
     assert(SemaDeclRefs.size() == 2 && "More decl refs than expected!");
-    SemaObj->StdNamespace = SemaDeclRefs[0];
-    SemaObj->StdBadAlloc = SemaDeclRefs[1];
-  }
-
-  for (Module *F = &ModuleMgr.getPrimaryModule(); F; F = F->NextInSource) {
-
-    // If there are @selector references added them to its pool. This is for
-    // implementation of -Wselector.
-    if (!F->ReferencedSelectorsData.empty()) {
-      unsigned int DataSize = F->ReferencedSelectorsData.size()-1;
-      unsigned I = 0;
-      while (I < DataSize) {
-        Selector Sel = DecodeSelector(F->ReferencedSelectorsData[I++]);
-        SourceLocation SelLoc = ReadSourceLocation(
-                                    *F, F->ReferencedSelectorsData, I);
-        SemaObj->ReferencedSelectors.insert(std::make_pair(Sel, SelLoc));
-      }
-    }
+    if (!SemaObj->StdNamespace)
+      SemaObj->StdNamespace = SemaDeclRefs[0];
+    if (!SemaObj->StdBadAlloc)
+      SemaObj->StdBadAlloc = SemaDeclRefs[1];
   }
 
   // The special data sets below always come from the most recent PCH,
@@ -4403,34 +4406,6 @@ void ASTReader::InitializeSema(Sema &S) {
     ValueDecl *D=cast<ValueDecl>(GetDecl(F.PendingInstantiations[Idx++]));
     SourceLocation Loc = ReadSourceLocation(F, F.PendingInstantiations,Idx);
     SemaObj->PendingInstantiations.push_back(std::make_pair(D, Loc));
-  }
-
-  // If there were any weak undeclared identifiers, deserialize them and add to
-  // Sema's list of weak undeclared identifiers.
-  if (!WeakUndeclaredIdentifiers.empty()) {
-    unsigned Idx = 0;
-    for (unsigned I = 0, N = WeakUndeclaredIdentifiers[Idx++]; I != N; ++I) {
-      IdentifierInfo *WeakId = GetIdentifierInfo(WeakUndeclaredIdentifiers,Idx);
-      IdentifierInfo *AliasId= GetIdentifierInfo(WeakUndeclaredIdentifiers,Idx);
-      SourceLocation Loc = ReadSourceLocation(F, WeakUndeclaredIdentifiers,Idx);
-      bool Used = WeakUndeclaredIdentifiers[Idx++];
-      Sema::WeakInfo WI(AliasId, Loc);
-      WI.setUsed(Used);
-      SemaObj->WeakUndeclaredIdentifiers.insert(std::make_pair(WeakId, WI));
-    }
-  }
-
-  // If there were any VTable uses, deserialize the information and add it
-  // to Sema's vector and map of VTable uses.
-  if (!VTableUses.empty()) {
-    unsigned Idx = 0;
-    for (unsigned I = 0, N = VTableUses[Idx++]; I != N; ++I) {
-      CXXRecordDecl *Class = cast<CXXRecordDecl>(GetDecl(VTableUses[Idx++]));
-      SourceLocation Loc = ReadSourceLocation(F, VTableUses, Idx);
-      bool DefinitionRequired = VTableUses[Idx++];
-      SemaObj->VTableUses.push_back(std::make_pair(Class, Loc));
-      SemaObj->VTablesUsed[Class] = DefinitionRequired;
-    }
   }
 
   if (!FPPragmaOptions.empty()) {
@@ -4566,6 +4541,119 @@ void ASTReader::ReadKnownNamespaces(
   }
 }
 
+void ASTReader::ReadTentativeDefinitions(
+                  SmallVectorImpl<VarDecl *> &TentativeDefs) {
+  for (unsigned I = 0, N = TentativeDefinitions.size(); I != N; ++I) {
+    VarDecl *Var = dyn_cast_or_null<VarDecl>(GetDecl(TentativeDefinitions[I]));
+    if (Var)
+      TentativeDefs.push_back(Var);
+  }
+  TentativeDefinitions.clear();
+}
+
+void ASTReader::ReadUnusedFileScopedDecls(
+                               SmallVectorImpl<const DeclaratorDecl *> &Decls) {
+  for (unsigned I = 0, N = UnusedFileScopedDecls.size(); I != N; ++I) {
+    DeclaratorDecl *D
+      = dyn_cast_or_null<DeclaratorDecl>(GetDecl(UnusedFileScopedDecls[I]));
+    if (D)
+      Decls.push_back(D);
+  }
+  UnusedFileScopedDecls.clear();
+}
+
+void ASTReader::ReadDelegatingConstructors(
+                                 SmallVectorImpl<CXXConstructorDecl *> &Decls) {
+  for (unsigned I = 0, N = DelegatingCtorDecls.size(); I != N; ++I) {
+    CXXConstructorDecl *D
+      = dyn_cast_or_null<CXXConstructorDecl>(GetDecl(DelegatingCtorDecls[I]));
+    if (D)
+      Decls.push_back(D);
+  }
+  DelegatingCtorDecls.clear();
+}
+
+void ASTReader::ReadExtVectorDecls(SmallVectorImpl<TypedefNameDecl *> &Decls) {
+  for (unsigned I = 0, N = ExtVectorDecls.size(); I != N; ++I) {
+    TypedefNameDecl *D
+      = dyn_cast_or_null<TypedefNameDecl>(GetDecl(ExtVectorDecls[I]));
+    if (D)
+      Decls.push_back(D);
+  }
+  ExtVectorDecls.clear();
+}
+
+void ASTReader::ReadDynamicClasses(SmallVectorImpl<CXXRecordDecl *> &Decls) {
+  for (unsigned I = 0, N = DynamicClasses.size(); I != N; ++I) {
+    CXXRecordDecl *D
+      = dyn_cast_or_null<CXXRecordDecl>(GetDecl(DynamicClasses[I]));
+    if (D)
+      Decls.push_back(D);
+  }
+  DynamicClasses.clear();
+}
+
+void 
+ASTReader::ReadLocallyScopedExternalDecls(SmallVectorImpl<NamedDecl *> &Decls) {
+  for (unsigned I = 0, N = LocallyScopedExternalDecls.size(); I != N; ++I) {
+    NamedDecl *D 
+      = dyn_cast_or_null<NamedDecl>(GetDecl(LocallyScopedExternalDecls[I]));
+    if (D)
+      Decls.push_back(D);
+  }
+  LocallyScopedExternalDecls.clear();
+}
+
+void ASTReader::ReadReferencedSelectors(
+       SmallVectorImpl<std::pair<Selector, SourceLocation> > &Sels) {
+  if (ReferencedSelectorsData.empty())
+    return;
+  
+  // If there are @selector references added them to its pool. This is for
+  // implementation of -Wselector.
+  unsigned int DataSize = ReferencedSelectorsData.size()-1;
+  unsigned I = 0;
+  while (I < DataSize) {
+    Selector Sel = DecodeSelector(ReferencedSelectorsData[I++]);
+    SourceLocation SelLoc
+      = SourceLocation::getFromRawEncoding(ReferencedSelectorsData[I++]);
+    Sels.push_back(std::make_pair(Sel, SelLoc));
+  }
+  ReferencedSelectorsData.clear();
+}
+
+void ASTReader::ReadWeakUndeclaredIdentifiers(
+       SmallVectorImpl<std::pair<IdentifierInfo *, WeakInfo> > &WeakIDs) {
+  if (WeakUndeclaredIdentifiers.empty())
+    return;
+
+  for (unsigned I = 0, N = WeakUndeclaredIdentifiers.size(); I < N; /*none*/) {
+    IdentifierInfo *WeakId 
+      = DecodeIdentifierInfo(WeakUndeclaredIdentifiers[I++]);
+    IdentifierInfo *AliasId 
+      = DecodeIdentifierInfo(WeakUndeclaredIdentifiers[I++]);
+    SourceLocation Loc
+      = SourceLocation::getFromRawEncoding(WeakUndeclaredIdentifiers[I++]);
+    bool Used = WeakUndeclaredIdentifiers[I++];
+    WeakInfo WI(AliasId, Loc);
+    WI.setUsed(Used);
+    WeakIDs.push_back(std::make_pair(WeakId, WI));
+  }
+  WeakUndeclaredIdentifiers.clear();
+}
+
+void ASTReader::ReadUsedVTables(SmallVectorImpl<ExternalVTableUse> &VTables) {
+  for (unsigned Idx = 0, N = VTableUses.size(); Idx < N; /* In loop */) {
+    ExternalVTableUse VT;
+    VT.Record = dyn_cast_or_null<CXXRecordDecl>(GetDecl(VTableUses[Idx++]));
+    VT.Location = SourceLocation::getFromRawEncoding(VTableUses[Idx++]);
+    VT.DefinitionRequired = VTableUses[Idx++];
+    VTables.push_back(VT);
+  }
+  
+  VTableUses.clear();
+}
+
 void ASTReader::LoadSelector(Selector Sel) {
   // It would be complicated to avoid reading the methods anyway. So don't.
   ReadMethodPool(Sel);
@@ -4690,13 +4778,19 @@ Selector ASTReader::DecodeSelector(unsigned ID) {
   return SelectorsLoaded[ID - 1];
 }
 
-Selector ASTReader::GetExternalSelector(uint32_t ID) {
+Selector ASTReader::GetExternalSelector(serialization::SelectorID ID) {
   return DecodeSelector(ID);
 }
 
 uint32_t ASTReader::GetNumExternalSelectors() {
   // ID 0 (the null selector) is considered an external selector.
   return getTotalNumSelectors() + 1;
+}
+
+serialization::SelectorID 
+ASTReader::getGlobalSelectorID(Module &F, unsigned LocalID) const {
+  // FIXME: Perform local -> global remapping
+  return LocalID;
 }
 
 DeclarationName
@@ -5262,7 +5356,8 @@ ASTReader::ASTReader(Preprocessor &PP, ASTContext *Context,
   : Listener(new PCHValidator(PP, *this)), DeserializationListener(0),
     SourceMgr(PP.getSourceManager()), FileMgr(PP.getFileManager()),
     Diags(PP.getDiagnostics()), SemaObj(0), PP(&PP), Context(Context),
-    Consumer(0), RelocatablePCH(false), isysroot(isysroot),
+    Consumer(0), ModuleMgr(FileMgr.getFileSystemOptions()),
+    RelocatablePCH(false), isysroot(isysroot),
     DisableValidation(DisableValidation),
     DisableStatCache(DisableStatCache), NumStatHits(0), NumStatMisses(0), 
     NumSLocEntriesRead(0), TotalNumSLocEntries(0), 
@@ -5281,7 +5376,8 @@ ASTReader::ASTReader(SourceManager &SourceMgr, FileManager &FileMgr,
                      Diagnostic &Diags, StringRef isysroot,
                      bool DisableValidation, bool DisableStatCache)
   : DeserializationListener(0), SourceMgr(SourceMgr), FileMgr(FileMgr),
-    Diags(Diags), SemaObj(0), PP(0), Context(0), Consumer(0),
+    Diags(Diags), SemaObj(0), PP(0), Context(0),
+    Consumer(0), ModuleMgr(FileMgr.getFileSystemOptions()),
     RelocatablePCH(false), isysroot(isysroot), 
     DisableValidation(DisableValidation), DisableStatCache(DisableStatCache), 
     NumStatHits(0), NumStatMisses(0), NumSLocEntriesRead(0), 
@@ -5327,6 +5423,7 @@ Module::Module(ModuleKind Kind)
     IdentifierLookupTable(0), LocalNumMacroDefinitions(0),
     MacroDefinitionOffsets(0), LocalNumHeaderFileInfos(0), 
     HeaderFileInfoTableData(0), HeaderFileInfoTable(0),
+    HeaderFileFrameworkStrings(0),
     LocalNumSelectors(0), SelectorOffsets(0),
     SelectorLookupTableData(0), SelectorLookupTable(0), LocalNumDecls(0),
     DeclOffsets(0), LocalNumCXXBaseSpecifiers(0), CXXBaseSpecifiersOffsets(0),
@@ -5340,6 +5437,11 @@ Module::~Module() {
   delete static_cast<ASTSelectorLookupTable *>(SelectorLookupTable);
 }
 
+Module *ModuleManager::lookup(StringRef Name) {
+  const FileEntry *Entry = FileMgr.getFile(Name);
+  return Modules[Entry];
+}
+
 /// \brief Creates a new module and adds it to the list of known modules
 Module &ModuleManager::addModule(StringRef FileName, ModuleKind Type) {
   Module *Prev = !size() ? 0 : &getLastModule();
@@ -5348,7 +5450,8 @@ Module &ModuleManager::addModule(StringRef FileName, ModuleKind Type) {
   Current->FileName = FileName.str();
 
   Chain.push_back(Current);
-  Modules[FileName.str()] = Current;
+  const FileEntry *Entry = FileMgr.getFile(FileName);
+  Modules[Entry] = Current;
 
   if (Prev)
     Prev->NextInSource = Current;
@@ -5360,14 +5463,15 @@ Module &ModuleManager::addModule(StringRef FileName, ModuleKind Type) {
 /// \brief Exports the list of loaded modules with their corresponding names
 void ModuleManager::exportLookup(SmallVector<ModuleOffset, 16> &Target) {
   Target.reserve(size());
-  for (llvm::StringMap<Module*>::const_iterator
-           I = Modules.begin(), E = Modules.end();
+  for (ModuleConstIterator I = Chain.begin(), E = Chain.end();
        I != E; ++I) {
-    Target.push_back(ModuleOffset(I->getValue()->SLocEntryBaseOffset,
-                                   I->getKey()));
+    Target.push_back(ModuleOffset((*I)->SLocEntryBaseOffset,
+                                  (*I)->FileName));
   }
   std::sort(Target.begin(), Target.end());
 }
+
+ModuleManager::ModuleManager(const FileSystemOptions &FSO) : FileMgr(FSO) { }
 
 ModuleManager::~ModuleManager() {
   for (unsigned i = 0, e = Chain.size(); i != e; ++i)

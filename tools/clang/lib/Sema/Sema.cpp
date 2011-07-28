@@ -398,6 +398,22 @@ static void checkUndefinedInternals(Sema &S) {
   }
 }
 
+void Sema::LoadExternalWeakUndeclaredIdentifiers() {
+  if (!ExternalSource)
+    return;
+  
+  SmallVector<std::pair<IdentifierInfo *, WeakInfo>, 4> WeakIDs;
+  ExternalSource->ReadWeakUndeclaredIdentifiers(WeakIDs);
+  for (unsigned I = 0, N = WeakIDs.size(); I != N; ++I) {
+    llvm::DenseMap<IdentifierInfo*,WeakInfo>::iterator Pos
+      = WeakUndeclaredIdentifiers.find(WeakIDs[I].first);
+    if (Pos != WeakUndeclaredIdentifiers.end())
+      continue;
+    
+    WeakUndeclaredIdentifiers.insert(WeakIDs[I]);
+  }
+}
+
 /// ActOnEndOfTranslationUnit - This is called at the very end of the
 /// translation unit when EOF is reached and all but the top-level scope is
 /// popped.
@@ -408,14 +424,15 @@ void Sema::ActOnEndOfTranslationUnit() {
     // If any dynamic classes have their key function defined within
     // this translation unit, then those vtables are considered "used" and must
     // be emitted.
-    for (unsigned I = 0, N = DynamicClasses.size(); I != N; ++I) {
-      assert(!DynamicClasses[I]->isDependentType() &&
+    for (DynamicClassesType::iterator I = DynamicClasses.begin(ExternalSource),
+                                      E = DynamicClasses.end();
+         I != E; ++I) {
+      assert(!(*I)->isDependentType() &&
              "Should not see dependent types here!");
-      if (const CXXMethodDecl *KeyFunction
-          = Context.getKeyFunction(DynamicClasses[I])) {
+      if (const CXXMethodDecl *KeyFunction = Context.getKeyFunction(*I)) {
         const FunctionDecl *Definition = 0;
         if (KeyFunction->hasBody(Definition))
-          MarkVTableUsed(Definition->getLocation(), DynamicClasses[I], true);
+          MarkVTableUsed(Definition->getLocation(), *I, true);
       }
     }
 
@@ -438,7 +455,8 @@ void Sema::ActOnEndOfTranslationUnit() {
   }
   
   // Remove file scoped decls that turned out to be used.
-  UnusedFileScopedDecls.erase(std::remove_if(UnusedFileScopedDecls.begin(),
+  UnusedFileScopedDecls.erase(std::remove_if(UnusedFileScopedDecls.begin(0, 
+                                                                         true),
                                              UnusedFileScopedDecls.end(),
                               std::bind1st(std::ptr_fun(ShouldRemoveFromUnused),
                                            this)),
@@ -452,6 +470,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   // Check for #pragma weak identifiers that were never declared
   // FIXME: This will cause diagnostics to be emitted in a non-determinstic
   // order!  Iterating over a densemap like this is bad.
+  LoadExternalWeakUndeclaredIdentifiers();
   for (llvm::DenseMap<IdentifierInfo*,WeakInfo>::iterator
        I = WeakUndeclaredIdentifiers.begin(),
        E = WeakUndeclaredIdentifiers.end(); I != E; ++I) {
@@ -473,8 +492,12 @@ void Sema::ActOnEndOfTranslationUnit() {
   //   identifier, with the composite type as of the end of the
   //   translation unit, with an initializer equal to 0.
   llvm::SmallSet<VarDecl *, 32> Seen;
-  for (unsigned i = 0, e = TentativeDefinitions.size(); i != e; ++i) {
-    VarDecl *VD = TentativeDefinitions[i]->getActingDefinition();
+  for (TentativeDefinitionsType::iterator 
+            T = TentativeDefinitions.begin(ExternalSource),
+         TEnd = TentativeDefinitions.end();
+       T != TEnd; ++T) 
+  {
+    VarDecl *VD = (*T)->getActingDefinition();
 
     // If the tentative definition was completed, getActingDefinition() returns
     // null. If we've already seen this variable before, insert()'s second
@@ -517,9 +540,12 @@ void Sema::ActOnEndOfTranslationUnit() {
   // noise.
   if (!Diags.hasErrorOccurred()) {
     // Output warning for unused file scoped decls.
-    for (SmallVectorImpl<const DeclaratorDecl*>::iterator
-           I = UnusedFileScopedDecls.begin(),
+    for (UnusedFileScopedDeclsType::iterator
+           I = UnusedFileScopedDecls.begin(ExternalSource),
            E = UnusedFileScopedDecls.end(); I != E; ++I) {
+      if (ShouldRemoveFromUnused(this, *I))
+        continue;
+      
       if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(*I)) {
         const FunctionDecl *DiagD;
         if (!FD->hasBody(DiagD))

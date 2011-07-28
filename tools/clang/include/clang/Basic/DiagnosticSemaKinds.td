@@ -1195,6 +1195,8 @@ def err_attribute_address_space_too_high : Error<
   "address space is larger than the maximum supported (%0)">;
 def err_attribute_address_multiple_qualifiers : Error<
   "multiple address spaces specified for type">;
+def err_attribute_address_function_type : Error<
+  "function type may not be qualified with an address space">;
 def err_as_qualified_auto_decl : Error<
   "automatic variable qualified with an address space">;
 def err_arg_with_address_space : Error<
@@ -1247,7 +1249,7 @@ def warn_attribute_wrong_decl_type : Warning<
   "parameters and methods|functions, methods and blocks|"
   "classes and virtual methods|functions, methods, and parameters|"
   "classes|virtual methods|class members|variables|methods|"
-  "variables, functions and labels}1">;
+  "variables, functions and labels|fields and global variables}1">;
 def err_attribute_wrong_decl_type : Error<
   "%0 attribute only applies to %select{functions|unions|"
   "variables and functions|functions and methods|parameters|"
@@ -1285,6 +1287,9 @@ def warn_objc_precise_lifetime_meaningless : Error<
 def warn_label_attribute_not_unused : Warning<
   "The only valid attribute for labels is 'unused'">;
 def err_invalid_pcs : Error<"Invalid PCS type">;
+def err_attribute_can_be_applied_only_to_value_decl : Error<
+  "%0 attribute can only be applied to value declarations">;
+
 
 // Availability attribute
 def warn_availability_unknown_platform : Warning<
