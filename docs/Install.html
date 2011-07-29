@@ -214,16 +214,13 @@ object tree:
 <div class="doc_text">
 
 <p>
-To build SAFECode, first compile the LLVM tools, then Automatic Pool
-Allocation, and then SAFECode itself:
+To build SAFECode, first compile the LLVM tools and then SAFECode itself:
 </p>
 
 <ul>
   <li><tt>cd <i>LLVM-object-directory</i></tt></li>
   <li><tt>make tools-only</tt></li>
-  <li><tt>cd projects/poolalloc</tt></li>
-  <li><tt>make</tt></li>
-  <li><tt>cd ../safecode</tt></li>
+  <li><tt>cd projects/safecode</tt></li>
   <li><tt>make</tt></li>
 </ul>
 
