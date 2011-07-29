@@ -47,6 +47,12 @@ namespace clang {
     /// should be increased.
     const unsigned VERSION_MINOR = 0;
 
+    /// \brief An ID number that refers to an identifier in an AST file.
+    /// 
+    /// The ID numbers of identifiers are consecutive (in order of discovery)
+    /// and start at 1. 0 is reserved for NULL.
+    typedef uint32_t IdentifierID;
+    
     /// \brief An ID number that refers to a declaration in an AST file.
     ///
     /// The ID numbers of declarations are consecutive (in order of
@@ -127,6 +133,10 @@ namespace clang {
     /// \brief An ID number that refers to a set of CXXBaseSpecifiers in an 
     /// AST file.
     typedef uint32_t CXXBaseSpecifiersID;
+    
+    /// \brief An ID number that refers to an entity in the detailed
+    /// preprocessing record.
+    typedef uint32_t PreprocessedEntityID;
     
     /// \brief Describes the various kinds of blocks that occur within
     /// an AST file.

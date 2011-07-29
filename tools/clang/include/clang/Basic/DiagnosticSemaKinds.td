@@ -409,6 +409,9 @@ def warn_non_contravariant_param_types : Warning<
 def warn_conflicting_variadic :Warning<
   "conflicting variadic declaration of method and its "
   "%select{implementation|declaration}0">;
+def warn_category_method_impl_match:Warning<
+  "category is implementing a method which will also be implemented"
+  " by its primary class">, InGroup<ObjCProtocolMethodImpl>;
 
 def warn_implements_nscopying : Warning<
 "default assign attribute on property %0 which implements "
@@ -1128,6 +1131,8 @@ def err_attribute_wrong_number_arguments : Error<
   ":requires exactly %0 arguments}0">;
 def err_attribute_too_many_arguments : Error<
   "attribute takes no more than %0 argument%s0">;
+def err_attribute_too_few_arguments : Error<
+  "attribute takes at least %0 argument%s0">;
 def err_iboutletcollection_type : Error<
   "invalid type %0 as argument of iboutletcollection attribute">;
 def err_iboutletcollection_object_type : Error<
@@ -3547,7 +3552,11 @@ def err_typecheck_convert_incompatible : Error<
   "%select{from incompatible type|to parameter of incompatible type|"
   "from a function with incompatible result type|to incompatible type|"
   "with an expression of incompatible type|to parameter of incompatible type|"
-  "to incompatible type}2 %1">;
+  "to incompatible type}2 %1; "
+  "%select{|dereference with *|"
+  "take the address with &|"
+  "remove *|"
+  "remove &}3">;
 def warn_incompatible_qualified_id : Warning<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
@@ -3560,13 +3569,21 @@ def ext_typecheck_convert_pointer_int : ExtWarn<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
   "%select{from|to parameter of type|from a function with result type|to type|"
-  "with an expression of type|to parameter of type|to type}2 %1">;
+  "with an expression of type|to parameter of type|to type}2 %1; "
+  "%select{|dereference with *|"
+  "take the address with &|"
+  "remove *|"
+  "remove &}3">;
 def ext_typecheck_convert_int_pointer : ExtWarn<
   "incompatible integer to pointer conversion "
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
   "%select{from|to parameter of type|from a function with result type|to type|"
-  "with an expression of type|to parameter of type|to type}2 %1">;
+  "with an expression of type|to parameter of type|to type}2 %1; "
+  "%select{|dereference with *|"
+  "take the address with &|"
+  "remove *|"
+  "remove &}3">;
 def ext_typecheck_convert_pointer_void_func : Extension<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
@@ -3585,7 +3602,11 @@ def ext_typecheck_convert_incompatible_pointer : ExtWarn<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
   "%select{from|to parameter of type|from a function with result type|to type|"
-  "with an expression of type|to parameter of type|to type}2 %1">,
+  "with an expression of type|to parameter of type|to type}2 %1"
+  "%select{|dereference with *|"
+  "take the address with &|"
+  "remove *|"
+  "remove &}3">,
   InGroup<DiagGroup<"incompatible-pointer-types">>;
 def ext_typecheck_convert_discards_qualifiers : ExtWarn<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
@@ -3675,11 +3696,11 @@ def err_typecheck_call_too_few_args_at_least : Error<
 def err_typecheck_call_too_many_args : Error<
   "too many arguments to %select{function|block|method}0 call, "
   "expected %1, have %2">;
-def note_typecheck_call_too_many_args : Note<
-  "%0 declared here">;
 def err_typecheck_call_too_many_args_at_most : Error<
   "too many arguments to %select{function|block|method}0 call, "
   "expected at most %1, have %2">;
+def note_callee_decl : Note<
+  "%0 declared here">;
 def warn_call_wrong_number_of_arguments : Warning<
   "too %select{few|many}0 arguments in call to %1">;
 def err_atomic_builtin_must_be_pointer : Error<

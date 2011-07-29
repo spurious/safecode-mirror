@@ -1,6 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -analyze -analyzer-checker=core,osx.coreFoundation.CFRetainRelease,osx.cocoa.ClassRelease -analyzer-store=basic -fblocks -verify %s
 // RUN: %clang_cc1 -triple x86_64-apple-darwin10 -analyze -analyzer-checker=core,osx.coreFoundation.CFRetainRelease,osx.cocoa.ClassRelease -analyzer-store=region -fblocks -verify %s
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -analyze -analyzer-checker=core,osx.coreFoundation.CFRetainRelease,osx.cocoa.ClassRelease -analyzer-store=basic -fblocks -verify -x objective-c++ %s
 // RUN: %clang_cc1 -triple x86_64-apple-darwin10 -analyze -analyzer-checker=core,osx.coreFoundation.CFRetainRelease,osx.cocoa.ClassRelease -analyzer-store=region -fblocks -verify -x objective-c++ %s
 
 #if __has_feature(attribute_ns_returns_retained)
@@ -1446,7 +1444,7 @@ static void rdar_8724287(CFErrorRef error)
     while (error_to_dump != ((void*)0)) {
         CFDictionaryRef info;
 
-        info = CFErrorCopyUserInfo(error_to_dump); // expected-warning{{Potential leak of an object allocated on line 1449 and stored into 'info'}}
+        info = CFErrorCopyUserInfo(error_to_dump); // expected-warning{{Potential leak of an object allocated on line 1447 and stored into 'info'}}
 
         if (info != ((void*)0)) {
         }
@@ -1554,3 +1552,16 @@ CFArrayRef camel_copymachine() {
   return [F18 alloc];
 }
 @end
+
+// Radar 6582778.
+void rdar6582778(void) {
+  CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
+  CFTypeRef vals[] = { CFDateCreate(0, t) }; // expected-warning {{leak}}
+}
+
+CFTypeRef global;
+
+void rdar6582778_2(void) {
+  CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
+  global = CFDateCreate(0, t); // no-warning
+}

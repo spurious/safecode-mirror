@@ -244,7 +244,7 @@ void ExprEngine::ProcessStmt(const CFGStmt S, StmtNodeBuilder& builder) {
 
   // Create the cleaned state.
   const LocationContext *LC = EntryNode->getLocationContext();
-  SymbolReaper SymReaper(LC, currentStmt, SymMgr);
+  SymbolReaper SymReaper(LC, currentStmt, SymMgr, getStoreManager());
 
   if (AMgr.shouldPurgeDead()) {
     const GRState *St = EntryNode->getState();
@@ -705,7 +705,7 @@ void ExprEngine::Visit(const Stmt* S, ExplodedNode* Pred,
       const MaterializeTemporaryExpr *Materialize
                                             = cast<MaterializeTemporaryExpr>(S);
       if (!Materialize->getType()->isRecordType())
-        CreateCXXTemporaryObject(Materialize->GetTemporaryExpr(), Pred, Dst);
+        CreateCXXTemporaryObject(Materialize, Pred, Dst);
       else
         Visit(Materialize->GetTemporaryExpr(), Pred, Dst);
       break;

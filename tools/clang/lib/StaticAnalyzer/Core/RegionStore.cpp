@@ -307,6 +307,8 @@ public: // Part of public interface to class.
   void decrementReferenceCount(Store store) {
     GetRegionBindings(store).manualRelease();
   }
+  
+  bool includedInBindings(Store store, const MemRegion *region) const;
 
   //===------------------------------------------------------------------===//
   // Loading values from regions.
@@ -1042,6 +1044,10 @@ SVal RegionStoreManager::RetrieveElement(Store store,
     SVal Idx = R->getIndex();
     if (nonloc::ConcreteInt *CI = dyn_cast<nonloc::ConcreteInt>(&Idx)) {
       int64_t i = CI->getValue().getSExtValue();
+      // Abort on string underrun.  This can be possible by arbitrary
+      // clients of RetrieveElement().
+      if (i < 0)
+        return UndefinedVal();
       int64_t byteLength = Str->getByteLength();
       // Technically, only i == byteLength is guaranteed to be null.
       // However, such overflows should be caught before reaching this point;
@@ -1278,6 +1284,23 @@ SVal RegionStoreManager::RetrieveStruct(Store store, const TypedRegion* R) {
 SVal RegionStoreManager::RetrieveArray(Store store, const TypedRegion * R) {
   assert(Ctx.getAsConstantArrayType(R->getValueType()));
   return svalBuilder.makeLazyCompoundVal(StoreRef(store, *this), R);
+}
+
+bool RegionStoreManager::includedInBindings(Store store,
+                                            const MemRegion *region) const {
+  RegionBindings B = GetRegionBindings(store);
+  region = region->getBaseRegion();
+  
+  for (RegionBindings::iterator it = B.begin(), ei = B.end(); it != ei; ++it) {
+    const BindingKey &K = it.getKey();
+    if (region == K.getRegion())
+      return true;
+    const SVal &D = it.getData();
+    if (const MemRegion *r = D.getAsRegion())
+      if (r == region)
+        return true;
+  }
+  return false;
 }
 
 //===----------------------------------------------------------------------===//

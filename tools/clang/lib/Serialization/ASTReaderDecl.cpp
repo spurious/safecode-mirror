@@ -650,7 +650,7 @@ void ASTDeclReader::VisitObjCImplDecl(ObjCImplDecl *D) {
 
 void ASTDeclReader::VisitObjCCategoryImplDecl(ObjCCategoryImplDecl *D) {
   VisitObjCImplDecl(D);
-  D->setIdentifier(Reader.GetIdentifierInfo(Record, Idx));
+  D->setIdentifier(Reader.GetIdentifierInfo(F, Record, Idx));
 }
 
 void ASTDeclReader::VisitObjCImplementationDecl(ObjCImplementationDecl *D) {
@@ -1406,8 +1406,8 @@ ASTReader::DeclCursorForIndex(unsigned Index, DeclID ID) {
 
   GlobalDeclMapType::iterator I = GlobalDeclMap.find(ID);
   assert(I != GlobalDeclMap.end() && "Corrupted global declaration map");
-  return RecordLocation(I->second.first, 
-                        I->second.first->DeclOffsets[Index + I->second.second]);
+  Module *M = I->second;
+  return RecordLocation(M, M->DeclOffsets[Index - M->BaseDeclID]);
 }
 
 ASTReader::RecordLocation ASTReader::getLocalBitOffset(uint64_t GlobalOffset) {
