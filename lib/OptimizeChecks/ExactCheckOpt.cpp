@@ -232,15 +232,13 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   //
   // Cast the operands to the correct type.
   //
-  if (BasePointer->getType() != VoidPtrType)
-    BasePointer = castTo (BasePointer, VoidPtrType,
-                          BasePointer->getName()+".ec.casted",
-                          CI);
+  BasePointer = castTo (BasePointer, VoidPtrType,
+                        BasePointer->getName()+".ec.casted",
+                        CI);
 
-  if (ResultPointer->getType() != VoidPtrType)
-    ResultPointer = castTo (ResultPointer, VoidPtrType,
-                            ResultPointer->getName()+".ec.casted",
-                            CI);
+  ResultPointer = castTo (ResultPointer, VoidPtrType,
+                          ResultPointer->getName()+".ec.casted",
+                          CI);
 
   Value * CastBounds = Bounds;
   if (Bounds->getType() != Int32Type) {
@@ -258,14 +256,22 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   std::vector<Value *> args(1, BasePointer);
   args.push_back(ResultPointer);
   args.push_back(CastBounds);
-
   CallInst * ExactCheckCI = CallInst::Create (ExactCheck2, args, "", CI);
+
+  //
+  // Copy the debug metadata from the original check to the exactcheck.
+  //
+  if (MDNode * MD = CI->getMetadata ("dbg"))
+    ExactCheckCI->setMetadata ("dbg", MD);
+
+  //
   // boundscheck / exactcheck return an out of bound pointer when REWRITE_OOB is
   // enabled. We need to replace all uses to make the optimization correct, but
   // we don't need do anything for load / store checks.
   //
   // We can test the condition above by simply testing the return types of the
   // checking functions.
+  //
   if (ExactCheckCI->getType() == CI->getType()) {
     CI->replaceAllUsesWith(ExactCheckCI);
   }
