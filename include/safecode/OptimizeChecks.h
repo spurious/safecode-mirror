@@ -51,8 +51,10 @@ struct ExactCheckOpt : public ModulePass {
  private:
     // References to required analysis passes
     Function *ExactCheck2;
+    Function *FastLSCheck;
     bool visitCheckingIntrinsic(CallInst * CI, const struct CheckInfo & Info);
-    void rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
+    void rewriteToExactCheck(bool isMemCheck, CallInst * CI,
+                             Value * BasePointer, 
                              Value * ResultPointer, Value * Bounds);
     std::vector<CallInst*> checkingIntrinsicsToBeRemoved;
 };

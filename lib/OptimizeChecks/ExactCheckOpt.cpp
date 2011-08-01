@@ -52,14 +52,22 @@ ExactCheckOpt::runOnModule(Module & M) {
   //
   // Add a prototype for the exactcheck function.
   //
+  Type * VoidTy    = Type::getVoidTy (M.getContext());
   Type * VoidPtrTy = getVoidPtrType (M.getContext());
   Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
-  ExactCheck2 = (Function *) M.getOrInsertFunction ("exactcheck2",
-                                                    VoidPtrTy,
-                                                    VoidPtrTy,
-                                                    VoidPtrTy,
-                                                    Int32Type,
-                                                    NULL);
+  ExactCheck2 = cast<Function>(M.getOrInsertFunction ("exactcheck2",
+                                                      VoidPtrTy,
+                                                      VoidPtrTy,
+                                                      VoidPtrTy,
+                                                      Int32Type,
+                                                      NULL));
+
+  FastLSCheck = cast<Function>(M.getOrInsertFunction ("fastlscheck",
+                                                      VoidTy,
+                                                      VoidPtrTy,
+                                                      VoidPtrTy,
+                                                      Int32Type,
+                                                      NULL));
 
   //
   // Scan through all the intrinsics and process those that perform run-time
@@ -193,7 +201,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, const struct CheckInfo & I
     //
     AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
     if (Value * Size = AIP.getObjectSize(BasePtr)) {
-      rewriteToExactCheck(CI, BasePtr, CheckPtr, Size);
+      rewriteToExactCheck(Info.isMemcheck, CI, BasePtr, CheckPtr, Size);
       return true;
     }
   }
@@ -211,12 +219,14 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, const struct CheckInfo & I
 //  Rewrite a check into an exact check
 //
 // Inputs:
+//  isMemCheck    - Flags if we are replacing a load/store check.
 //  BasePointer   - An LLVM Value representing the base of the object to check.
 //  Result        - An LLVM Value representing the pointer to check.
 //  Bounds        - An LLVM Value representing the bounds of the check.
 //
 void
-ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer, 
+ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
+                                   Value * BasePointer, 
                                    Value * ResultPointer, Value * Bounds) {
   // The LLVM type for a void *
   Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
@@ -256,7 +266,8 @@ ExactCheckOpt::rewriteToExactCheck(CallInst * CI, Value * BasePointer,
   std::vector<Value *> args(1, BasePointer);
   args.push_back(ResultPointer);
   args.push_back(CastBounds);
-  CallInst * ExactCheckCI = CallInst::Create (ExactCheck2, args, "", CI);
+  Function * Check = (isMemCheck) ? FastLSCheck : ExactCheck2;
+  CallInst * ExactCheckCI = CallInst::Create (Check, args, "", CI);
 
   //
   // Copy the debug metadata from the original check to the exactcheck.

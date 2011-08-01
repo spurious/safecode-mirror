@@ -241,6 +241,11 @@ extern "C" {
   void * exactcheck2 (const char *base, const char *result, unsigned size);
   void * exactcheck2_debug (const char *base, const char *result, unsigned size,
                             TAG, SRC_INFO);
+  void fastlscheck (const char *base, const char *result, unsigned size);
+  void fastlscheck_debug (const char *base, const char *result, unsigned size,
+                          unsigned tag,
+                          const char * SourceFile,
+                          unsigned lineno);
 
   void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
   void * pchk_getActualValue (PPOOL, void * src);

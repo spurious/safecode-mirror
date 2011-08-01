@@ -310,7 +310,11 @@ poolcheckui_debug (DebugPoolTy *Pool,
   // If it's a rewrite pointer, convert it back into its original value so
   // that we can print the real faulting address.
   //
+  const void * ObjStart = 0;
+  const void * ObjEnd = 0;
   if (isRewritePtr (Node)) {
+    ObjStart = RewrittenObjs[Node].first;
+    ObjEnd   = RewrittenObjs[Node].second;
     Node = pchk_getActualValue (Pool, Node);
   }
 
@@ -327,15 +331,27 @@ poolcheckui_debug (DebugPoolTy *Pool,
   //
   // Report a potential (but not certain) load/store violation.
   //
-  DebugViolationInfo v;
-  v.type = ViolationInfo::WARN_LOAD_STORE,
-    v.faultPC = __builtin_return_address(0),
-    v.faultPtr = Node,
-    v.SourceFile = SourceFilep,
-    v.lineNo = lineno,
-    v.PoolHandle = Pool;
-
-  ReportMemoryViolation(&v);
+  if (ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::WARN_LOAD_STORE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = Node,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.PoolHandle = Pool;
+      v.objStart = ObjStart;
+      v.objLen = (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1;
+    ReportMemoryViolation(&v);
+  } else {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::WARN_LOAD_STORE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = Node,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.PoolHandle = Pool;
+    ReportMemoryViolation(&v);
+  }
 
   return;
 }

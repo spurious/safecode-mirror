@@ -29,6 +29,87 @@ static void *
 exactcheck_check (const void * ObjStart, const void * ObjEnd,
                   const void * Dest, const char * SourceFile,
                   unsigned int lineno) __attribute__((noinline));
+
+static void
+failLSCheck (const char *base,
+             const char *result,
+             unsigned size,
+             const char * SourceFile,
+             unsigned int lineno) __attribute__((noinline));
+
+void
+failLSCheck (const char *base,
+             const char *result,
+             unsigned size,
+             const char * SourceFile,
+             unsigned int lineno) {
+  DebugViolationInfo v;
+  v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = result,
+    v.PoolHandle = 0,
+    v.dbgMetaData = NULL,
+    v.SourceFile = SourceFile,
+    v.lineNo = lineno;
+  
+  ReportMemoryViolation(&v);
+}
+
+/*
+ * Function: fastlscheck()
+ *
+ * Description:
+ *  This function performs a fast load/store check.  If the check fails, it
+ *  will *not* attempt to do pointer rewriting.
+ *
+ * Inputs:
+ *  base   - The address of the first byte of a memory object.
+ *  result - The pointer that is being checked.
+ *  size   - The size of the object in bytes.
+ */
+void
+fastlscheck (const char *base, const char *result, unsigned size) {
+  /*
+   * If the pointer is within the object, the check passes.  Return the checked
+   * pointer.
+   */
+  if ((result >= base) && (result < (base + size))) {
+    return;
+  }
+
+  failLSCheck (base, result, size, "unknown", 0);
+  return;
+}
+
+/*
+ * Function: fastlscheck_debug()
+ *
+ * Description:
+ *  This function performs a fast load/store check.  If the check fails, it
+ *  will *not* attempt to do pointer rewriting.
+ *
+ * Inputs:
+ *  base   - The address of the first byte of a memory object.
+ *  result - The pointer that is being checked.
+ *  size   - The size of the object in bytes.
+ */
+void
+fastlscheck_debug (const char *base, const char *result, unsigned size,
+                   unsigned tag,
+                   const char * SourceFile,
+                   unsigned lineno) {
+  /*
+   * If the pointer is within the object, the check passes.  Return the checked
+   * pointer.
+   */
+  if ((result >= base) && (result < (base + size))) {
+    return;
+  }
+
+  failLSCheck (base, result, size, SourceFile, lineno);
+  return;
+}
+
 /*
  * Function: exactcheck2()
  *

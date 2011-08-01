@@ -47,6 +47,8 @@ extern uintptr_t InvalidLower;
 extern llvm::DenseMap<void *, const char*>  RewriteSourcefile;
 extern llvm::DenseMap<void *, unsigned>     RewriteLineno;
 extern std::map<const void *, const void *> RewrittenPointers;
+extern llvm::DenseMap<void *,
+                      std::pair<const void *, const void * > > RewrittenObjs;
 
 //
 // Function: isRewritePtr()
