@@ -61,11 +61,6 @@ X4 ("reg-byval-args", "Register byval arguments for functions", true);
 void
 RegisterGlobalVariables::registerGV (GlobalVariable * GV,
                                      Instruction * InsertBefore) {
-  // Don't bother to register external global variables
-  if (GV->isDeclaration()) {
-    return;
-  } 
-
   //
   // Get the pool into which the global should be registered.
   //
