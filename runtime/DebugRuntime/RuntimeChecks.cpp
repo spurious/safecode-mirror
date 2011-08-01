@@ -329,7 +329,8 @@ poolcheckui_debug (DebugPoolTy *Pool,
   }
 
   //
-  // Report a potential (but not certain) load/store violation.
+  // Report a potential (but not certain) load/store violation if we find that
+  // the value is a rewrite pointer.
   //
   if (ObjStart) {
     OutOfBoundsViolation v;
@@ -341,15 +342,6 @@ poolcheckui_debug (DebugPoolTy *Pool,
       v.PoolHandle = Pool;
       v.objStart = ObjStart;
       v.objLen = (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1;
-    ReportMemoryViolation(&v);
-  } else {
-    DebugViolationInfo v;
-    v.type = ViolationInfo::WARN_LOAD_STORE,
-      v.faultPC = __builtin_return_address(0),
-      v.faultPtr = Node,
-      v.SourceFile = SourceFilep,
-      v.lineNo = lineno,
-      v.PoolHandle = Pool;
     ReportMemoryViolation(&v);
   }
 

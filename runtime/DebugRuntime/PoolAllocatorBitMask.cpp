@@ -900,7 +900,9 @@ pool_unregister_debug (DebugPoolTy *Pool,
                        TAG,
                        const char * SourceFilep,
                        unsigned lineno) {
+#if 0
   checkForBadFrees (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
+#endif
   _internal_poolunregister (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   return;
 }
@@ -917,7 +919,9 @@ pool_unregister_stack_debug (DebugPoolTy *Pool,
                                      TAG,
                                      const char * SourceFilep,
                                      unsigned lineno) {
+#if 0
   checkForBadFrees (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
+#endif
   _internal_poolunregister (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   return;
 }
