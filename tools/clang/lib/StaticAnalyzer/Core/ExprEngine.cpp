@@ -727,7 +727,7 @@ void ExprEngine::Visit(const Stmt* S, ExplodedNode* Pred,
       break;
 
     case Stmt::ObjCMessageExprClass:
-      VisitObjCMessageExpr(cast<ObjCMessageExpr>(S), Pred, Dst);
+      VisitObjCMessage(cast<ObjCMessageExpr>(S), Pred, Dst);
       break;
 
     case Stmt::ObjCAtThrowStmtClass: {
@@ -1335,63 +1335,51 @@ void ExprEngine::VisitLvalArraySubscriptExpr(const ArraySubscriptExpr* A,
   const Expr* Base = A->getBase()->IgnoreParens();
   const Expr* Idx  = A->getIdx()->IgnoreParens();
   
-  // Evaluate the base.
-  ExplodedNodeSet Tmp;
-  Visit(Base, Pred, Tmp);
 
-  for (ExplodedNodeSet::iterator I1=Tmp.begin(), E1=Tmp.end(); I1!=E1; ++I1) {
-    ExplodedNodeSet Tmp2;
-    Visit(Idx, *I1, Tmp2);     // Evaluate the index.
-    ExplodedNodeSet Tmp3;
-    getCheckerManager().runCheckersForPreStmt(Tmp3, Tmp2, A, *this);
+  ExplodedNodeSet checkerPreStmt;
+  getCheckerManager().runCheckersForPreStmt(checkerPreStmt, Pred, A, *this);
 
-    for (ExplodedNodeSet::iterator I2=Tmp3.begin(),E2=Tmp3.end();I2!=E2; ++I2) {
-      const GRState* state = GetState(*I2);
-      SVal V = state->getLValue(A->getType(), state->getSVal(Idx),
-                                state->getSVal(Base));
-      assert(A->isLValue());
-      MakeNode(Dst, A, *I2, state->BindExpr(A, V), ProgramPoint::PostLValueKind);
-    }
+  for (ExplodedNodeSet::iterator it = checkerPreStmt.begin(),
+                                 ei = checkerPreStmt.end(); it != ei; ++it) {
+    const GRState* state = GetState(*it);
+    SVal V = state->getLValue(A->getType(), state->getSVal(Idx),
+                              state->getSVal(Base));
+    assert(A->isLValue());
+    MakeNode(Dst, A, *it, state->BindExpr(A, V), ProgramPoint::PostLValueKind);
   }
 }
 
 /// VisitMemberExpr - Transfer function for member expressions.
-void ExprEngine::VisitMemberExpr(const MemberExpr* M, ExplodedNode* Pred,
+void ExprEngine::VisitMemberExpr(const MemberExpr* M, ExplodedNode *Pred,
                                  ExplodedNodeSet& Dst) {
-
-  Expr *baseExpr = M->getBase()->IgnoreParens();
-  ExplodedNodeSet dstBase;
-  Visit(baseExpr, Pred, dstBase);
 
   FieldDecl *field = dyn_cast<FieldDecl>(M->getMemberDecl());
   if (!field) // FIXME: skipping member expressions for non-fields
     return;
 
-  for (ExplodedNodeSet::iterator I = dstBase.begin(), E = dstBase.end();
-    I != E; ++I) {
-    const GRState* state = GetState(*I);
-    SVal baseExprVal = state->getSVal(baseExpr);
-    if (isa<nonloc::LazyCompoundVal>(baseExprVal) ||
-        isa<nonloc::CompoundVal>(baseExprVal) ||
-        // FIXME: This can originate by conjuring a symbol for an unknown
-        // temporary struct object, see test/Analysis/fields.c:
-        // (p = getit()).x
-        isa<nonloc::SymbolVal>(baseExprVal)) {
-      MakeNode(Dst, M, *I, state->BindExpr(M, UnknownVal()));
-      continue;
-    }
-
-    // FIXME: Should we insert some assumption logic in here to determine
-    // if "Base" is a valid piece of memory?  Before we put this assumption
-    // later when using FieldOffset lvals (which we no longer have).
-
-    // For all other cases, compute an lvalue.    
-    SVal L = state->getLValue(field, baseExprVal);
-    if (M->isLValue())
-      MakeNode(Dst, M, *I, state->BindExpr(M, L), ProgramPoint::PostLValueKind);
-    else
-      evalLoad(Dst, M, *I, state, L);
+  Expr *baseExpr = M->getBase()->IgnoreParens();
+  const GRState* state = GetState(Pred);
+  SVal baseExprVal = state->getSVal(baseExpr);
+  if (isa<nonloc::LazyCompoundVal>(baseExprVal) ||
+      isa<nonloc::CompoundVal>(baseExprVal) ||
+      // FIXME: This can originate by conjuring a symbol for an unknown
+      // temporary struct object, see test/Analysis/fields.c:
+      // (p = getit()).x
+      isa<nonloc::SymbolVal>(baseExprVal)) {
+    MakeNode(Dst, M, Pred, state->BindExpr(M, UnknownVal()));
+    return;
   }
+
+  // FIXME: Should we insert some assumption logic in here to determine
+  // if "Base" is a valid piece of memory?  Before we put this assumption
+  // later when using FieldOffset lvals (which we no longer have).
+
+  // For all other cases, compute an lvalue.    
+  SVal L = state->getLValue(field, baseExprVal);
+  if (M->isLValue())
+    MakeNode(Dst, M, Pred, state->BindExpr(M, L), ProgramPoint::PostLValueKind);
+  else
+    evalLoad(Dst, M, Pred, state, L);
 }
 
 /// evalBind - Handle the semantics of binding a value to a specific location.
@@ -1471,9 +1459,8 @@ void ExprEngine::evalStore(ExplodedNodeSet& Dst, const Expr *AssignE,
 
   if (isa<loc::ObjCPropRef>(location)) {
     loc::ObjCPropRef prop = cast<loc::ObjCPropRef>(location);
-    ExplodedNodeSet src = Pred;
     return VisitObjCMessage(ObjCPropertySetter(prop.getPropRefExpr(),
-                                               StoreE, Val), src, Dst);
+                                               StoreE, Val), Pred, Dst);
   }
 
   // Evaluate the location (checks for bad dereferences).
@@ -1501,9 +1488,8 @@ void ExprEngine::evalLoad(ExplodedNodeSet& Dst, const Expr *Ex,
 
   if (isa<loc::ObjCPropRef>(location)) {
     loc::ObjCPropRef prop = cast<loc::ObjCPropRef>(location);
-    ExplodedNodeSet src = Pred;
     return VisitObjCMessage(ObjCPropertyGetter(prop.getPropRefExpr(), Ex),
-                            src, Dst);
+                            Pred, Dst);
   }
 
   // Are we loading from a region?  This actually results in two loads; one
@@ -1675,36 +1661,9 @@ bool ExprEngine::InlineCall(ExplodedNodeSet &Dst, const CallExpr *CE,
 
 void ExprEngine::VisitCallExpr(const CallExpr* CE, ExplodedNode* Pred,
                                ExplodedNodeSet& dst) {
-
-  // Determine the type of function we're calling (if available).
-  const FunctionProtoType *Proto = NULL;
-  QualType FnType = CE->getCallee()->IgnoreParens()->getType();
-  if (const PointerType *FnTypePtr = FnType->getAs<PointerType>())
-    Proto = FnTypePtr->getPointeeType()->getAs<FunctionProtoType>();
-
-  // Should the first argument be evaluated as an lvalue?
-  bool firstArgumentAsLvalue = false;
-  switch (CE->getStmtClass()) {
-    case Stmt::CXXOperatorCallExprClass:
-      firstArgumentAsLvalue = true;
-      break;
-    default:
-      break;
-  }
-  
-  // Evaluate the arguments.
-  ExplodedNodeSet dstArgsEvaluated;
-  evalArguments(CE->arg_begin(), CE->arg_end(), Proto, Pred, dstArgsEvaluated,
-                firstArgumentAsLvalue);
-
-  // Evaluate the callee.
-  ExplodedNodeSet dstCalleeEvaluated;
-  evalCallee(CE, dstArgsEvaluated, dstCalleeEvaluated);
-
   // Perform the previsit of the CallExpr.
   ExplodedNodeSet dstPreVisit;
-  getCheckerManager().runCheckersForPreStmt(dstPreVisit, dstCalleeEvaluated,
-                                            CE, *this);
+  getCheckerManager().runCheckersForPreStmt(dstPreVisit, Pred, CE, *this);
     
   // Now evaluate the call itself.
   class DefaultEval : public GraphExpander {
@@ -1763,25 +1722,7 @@ void ExprEngine::VisitCallExpr(const CallExpr* CE, ExplodedNode* Pred,
 void ExprEngine::VisitObjCPropertyRefExpr(const ObjCPropertyRefExpr *Ex,
                                           ExplodedNode *Pred,
                                           ExplodedNodeSet &Dst) {
-  ExplodedNodeSet dstBase;
-
-  // Visit the receiver (if any).
-  if (Ex->isObjectReceiver())
-    Visit(Ex->getBase(), Pred, dstBase);
-  else
-    dstBase = Pred;
-
-  ExplodedNodeSet dstPropRef;
-
-  // Using the base, compute the lvalue of the instance variable.
-  for (ExplodedNodeSet::iterator I = dstBase.begin(), E = dstBase.end();
-       I!=E; ++I) {
-    ExplodedNode *nodeBase = *I;
-    const GRState *state = GetState(nodeBase);
-    MakeNode(dstPropRef, Ex, *I, state->BindExpr(Ex, loc::ObjCPropRef(Ex)));
-  }
-  
-  Dst.insert(dstPropRef);
+  MakeNode(Dst, Ex, Pred, GetState(Pred)->BindExpr(Ex, loc::ObjCPropRef(Ex)));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1836,16 +1777,9 @@ void ExprEngine::evalEagerlyAssume(ExplodedNodeSet &Dst, ExplodedNodeSet &Src,
 //===----------------------------------------------------------------------===//
 
 void ExprEngine::VisitObjCAtSynchronizedStmt(const ObjCAtSynchronizedStmt *S,
-                                               ExplodedNode *Pred,
-                                               ExplodedNodeSet &Dst) {
-
-  // The mutex expression is a CFGElement, so we don't need to explicitly
-  // visit it since it will already be processed.
-
-  // Pre-visit the ObjCAtSynchronizedStmt.
-  ExplodedNodeSet Tmp;
-  Tmp.Add(Pred);
-  getCheckerManager().runCheckersForPreStmt(Dst, Tmp, S, *this);
+                                             ExplodedNode *Pred,
+                                             ExplodedNodeSet &Dst) {
+  getCheckerManager().runCheckersForPreStmt(Dst, Pred, S, *this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1856,23 +1790,12 @@ void ExprEngine::VisitLvalObjCIvarRefExpr(const ObjCIvarRefExpr* Ex,
                                           ExplodedNode* Pred,
                                           ExplodedNodeSet& Dst) {
 
-  // Visit the base expression, which is needed for computing the lvalue
-  // of the ivar.
-  ExplodedNodeSet dstBase;
-  const Expr *baseExpr = Ex->getBase();
-  Visit(baseExpr, Pred, dstBase);
+  const GRState *state = GetState(Pred);
+  SVal baseVal = state->getSVal(Ex->getBase());
+  SVal location = state->getLValue(Ex->getDecl(), baseVal);
 
   ExplodedNodeSet dstIvar;
-
-  // Using the base, compute the lvalue of the instance variable.
-  for (ExplodedNodeSet::iterator I = dstBase.begin(), E = dstBase.end();
-       I!=E; ++I) {
-    ExplodedNode *nodeBase = *I;
-    const GRState *state = GetState(nodeBase);
-    SVal baseVal = state->getSVal(baseExpr);
-    SVal location = state->getLValue(Ex->getDecl(), baseVal);
-    MakeNode(dstIvar, Ex, *I, state->BindExpr(Ex, location));
-  }
+  MakeNode(dstIvar, Ex, Pred, state->BindExpr(Ex, location));
 
   // Perform the post-condition check of the ObjCIvarRefExpr and store
   // the created nodes in 'Dst'.
@@ -1912,50 +1835,39 @@ void ExprEngine::VisitObjCForCollectionStmt(const ObjCForCollectionStmt* S,
   //    result in state splitting.
 
   const Stmt* elem = S->getElement();
-  SVal ElementV;
+  const GRState *state = GetState(Pred);
+  SVal elementV;
 
   if (const DeclStmt* DS = dyn_cast<DeclStmt>(elem)) {
-    const VarDecl* ElemD = cast<VarDecl>(DS->getSingleDecl());
-    assert (ElemD->getInit() == 0);
-    ElementV = GetState(Pred)->getLValue(ElemD, Pred->getLocationContext());
-    VisitObjCForCollectionStmtAux(S, Pred, Dst, ElementV);
-    return;
+    const VarDecl* elemD = cast<VarDecl>(DS->getSingleDecl());
+    assert(elemD->getInit() == 0);
+    elementV = state->getLValue(elemD, Pred->getLocationContext());
   }
-
-  ExplodedNodeSet Tmp;
-  Visit(cast<Expr>(elem), Pred, Tmp);
-  for (ExplodedNodeSet::iterator I = Tmp.begin(), E = Tmp.end(); I!=E; ++I) {
-    const GRState* state = GetState(*I);
-    VisitObjCForCollectionStmtAux(S, *I, Dst, state->getSVal(elem));
+  else {
+    elementV = state->getSVal(elem);
   }
-}
+  
+  ExplodedNodeSet dstLocation;
+  evalLocation(dstLocation, elem, Pred, state, elementV, NULL, false);
 
-void ExprEngine::VisitObjCForCollectionStmtAux(const ObjCForCollectionStmt* S,
-                                       ExplodedNode* Pred, ExplodedNodeSet& Dst,
-                                                 SVal ElementV) {
-
-  // Check if the location we are writing back to is a null pointer.
-  const Stmt* elem = S->getElement();
-  ExplodedNodeSet Tmp;
-  evalLocation(Tmp, elem, Pred, GetState(Pred), ElementV, NULL, false);
-
-  if (Tmp.empty())
+  if (dstLocation.empty())
     return;
-
-  for (ExplodedNodeSet::iterator NI=Tmp.begin(), NE=Tmp.end(); NI!=NE; ++NI) {
+  
+  for (ExplodedNodeSet::iterator NI = dstLocation.begin(),
+                                 NE = dstLocation.end(); NI!=NE; ++NI) {
     Pred = *NI;
     const GRState *state = GetState(Pred);
-
+    
     // Handle the case where the container still has elements.
     SVal TrueV = svalBuilder.makeTruthVal(1);
     const GRState *hasElems = state->BindExpr(S, TrueV);
-
+    
     // Handle the case where the container has no elements.
     SVal FalseV = svalBuilder.makeTruthVal(0);
     const GRState *noElems = state->BindExpr(S, FalseV);
-
-    if (loc::MemRegionVal* MV = dyn_cast<loc::MemRegionVal>(&ElementV))
-      if (const TypedRegion* R = dyn_cast<TypedRegion>(MV->getRegion())) {
+    
+    if (loc::MemRegionVal *MV = dyn_cast<loc::MemRegionVal>(&elementV))
+      if (const TypedRegion *R = dyn_cast<TypedRegion>(MV->getRegion())) {
         // FIXME: The proper thing to do is to really iterate over the
         //  container.  We will do this with dispatch logic to the store.
         //  For now, just 'conjure' up a symbolic value.
@@ -1964,13 +1876,13 @@ void ExprEngine::VisitObjCForCollectionStmtAux(const ObjCForCollectionStmt* S,
         unsigned Count = Builder->getCurrentBlockCount();
         SymbolRef Sym = SymMgr.getConjuredSymbol(elem, T, Count);
         SVal V = svalBuilder.makeLoc(Sym);
-        hasElems = hasElems->bindLoc(ElementV, V);
-
+        hasElems = hasElems->bindLoc(elementV, V);
+        
         // Bind the location to 'nil' on the false branch.
         SVal nilV = svalBuilder.makeIntVal(0, T);
-        noElems = noElems->bindLoc(ElementV, nilV);
+        noElems = noElems->bindLoc(elementV, nilV);
       }
-
+    
     // Create the new nodes.
     MakeNode(Dst, S, Pred, hasElems);
     MakeNode(Dst, S, Pred, noElems);
@@ -1981,78 +1893,19 @@ void ExprEngine::VisitObjCForCollectionStmtAux(const ObjCForCollectionStmt* S,
 // Transfer function: Objective-C message expressions.
 //===----------------------------------------------------------------------===//
 
-namespace {
-class ObjCMsgWLItem {
-public:
-  ObjCMessageExpr::const_arg_iterator I;
-  ExplodedNode *N;
-
-  ObjCMsgWLItem(const ObjCMessageExpr::const_arg_iterator &i, ExplodedNode *n)
-    : I(i), N(n) {}
-};
-} // end anonymous namespace
-
-void ExprEngine::VisitObjCMessageExpr(const ObjCMessageExpr* ME, 
-                                        ExplodedNode* Pred,
-                                        ExplodedNodeSet& Dst){
-
-  // Create a worklist to process both the arguments.
-  SmallVector<ObjCMsgWLItem, 20> WL;
-
-  // But first evaluate the receiver (if any).
-  ObjCMessageExpr::const_arg_iterator AI = ME->arg_begin(), AE = ME->arg_end();
-  if (const Expr *Receiver = ME->getInstanceReceiver()) {
-    ExplodedNodeSet Tmp;
-    Visit(Receiver, Pred, Tmp);
-
-    if (Tmp.empty())
-      return;
-
-    for (ExplodedNodeSet::iterator I=Tmp.begin(), E=Tmp.end(); I!=E; ++I)
-      WL.push_back(ObjCMsgWLItem(AI, *I));
-  }
-  else
-    WL.push_back(ObjCMsgWLItem(AI, Pred));
-
-  // Evaluate the arguments.
-  ExplodedNodeSet ArgsEvaluated;
-  while (!WL.empty()) {
-    ObjCMsgWLItem Item = WL.back();
-    WL.pop_back();
-
-    if (Item.I == AE) {
-      ArgsEvaluated.insert(Item.N);
-      continue;
-    }
-
-    // Evaluate the subexpression.
-    ExplodedNodeSet Tmp;
-
-    // FIXME: [Objective-C++] handle arguments that are references
-    Visit(*Item.I, Item.N, Tmp);
-
-    // Enqueue evaluating the next argument on the worklist.
-    ++(Item.I);
-    for (ExplodedNodeSet::iterator NI=Tmp.begin(), NE=Tmp.end(); NI!=NE; ++NI)
-      WL.push_back(ObjCMsgWLItem(Item.I, *NI));
-  }
-
-  // Now that the arguments are processed, handle the ObjC message.
-  VisitObjCMessage(ME, ArgsEvaluated, Dst);
-}
-
 void ExprEngine::VisitObjCMessage(const ObjCMessage &msg,
-                                  ExplodedNodeSet &Src, ExplodedNodeSet& Dst) {
+                                  ExplodedNode *Pred, ExplodedNodeSet& Dst) {
 
   // Handle the previsits checks.
-  ExplodedNodeSet DstPrevisit;
-  getCheckerManager().runCheckersForPreObjCMessage(DstPrevisit, Src, msg,*this);
+  ExplodedNodeSet dstPrevisit;
+  getCheckerManager().runCheckersForPreObjCMessage(dstPrevisit, Pred, 
+                                                   msg, *this);
 
   // Proceed with evaluate the message expression.
   ExplodedNodeSet dstEval;
 
-  for (ExplodedNodeSet::iterator DI = DstPrevisit.begin(),
-                                 DE = DstPrevisit.end(); DI != DE; ++DI) {
+  for (ExplodedNodeSet::iterator DI = dstPrevisit.begin(),
+                                 DE = dstPrevisit.end(); DI != DE; ++DI) {
 
     ExplodedNode *Pred = *DI;
     bool RaisesException = false;
@@ -2159,14 +2012,13 @@ void ExprEngine::VisitObjCMessage(const ObjCMessage &msg,
 void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex, 
                            ExplodedNode *Pred, ExplodedNodeSet &Dst) {
   
-  ExplodedNodeSet S1;
-  Visit(Ex, Pred, S1);
-  ExplodedNodeSet S2;
-  getCheckerManager().runCheckersForPreStmt(S2, S1, CastE, *this);
+  ExplodedNodeSet dstPreStmt;
+  getCheckerManager().runCheckersForPreStmt(dstPreStmt, Pred, CastE, *this);
   
   if (CastE->getCastKind() == CK_LValueToRValue ||
       CastE->getCastKind() == CK_GetObjCProperty) {
-    for (ExplodedNodeSet::iterator I = S2.begin(), E = S2.end(); I!=E; ++I) {
+    for (ExplodedNodeSet::iterator I = dstPreStmt.begin(), E = dstPreStmt.end();
+         I!=E; ++I) {
       ExplodedNode *subExprNode = *I;
       const GRState *state = GetState(subExprNode);
       evalLoad(Dst, CastE, subExprNode, state, state->getSVal(Ex));
@@ -2181,7 +2033,9 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
   if (const ExplicitCastExpr *ExCast=dyn_cast_or_null<ExplicitCastExpr>(CastE))
     T = ExCast->getTypeAsWritten();
 
-  for (ExplodedNodeSet::iterator I = S2.begin(), E = S2.end(); I != E; ++I) {
+  for (ExplodedNodeSet::iterator I = dstPreStmt.begin(), E = dstPreStmt.end();
+       I != E; ++I) {
+
     Pred = *I;
 
     switch (CastE->getCastKind()) {
@@ -2285,55 +2139,49 @@ void ExprEngine::VisitCompoundLiteralExpr(const CompoundLiteralExpr* CL,
                                             ExplodedNodeSet& Dst) {
   const InitListExpr* ILE 
     = cast<InitListExpr>(CL->getInitializer()->IgnoreParens());
-  ExplodedNodeSet Tmp;
-  Visit(ILE, Pred, Tmp);
+  
+  const GRState* state = GetState(Pred);
+  SVal ILV = state->getSVal(ILE);
 
-  for (ExplodedNodeSet::iterator I = Tmp.begin(), EI = Tmp.end(); I!=EI; ++I) {
-    const GRState* state = GetState(*I);
-    SVal ILV = state->getSVal(ILE);
-    const LocationContext *LC = (*I)->getLocationContext();
-    state = state->bindCompoundLiteral(CL, LC, ILV);
+  const LocationContext *LC = Pred->getLocationContext();
+  state = state->bindCompoundLiteral(CL, LC, ILV);
 
-    if (CL->isLValue()) {
-      MakeNode(Dst, CL, *I, state->BindExpr(CL, state->getLValue(CL, LC)));
-    }
-    else
-      MakeNode(Dst, CL, *I, state->BindExpr(CL, ILV));
+  if (CL->isLValue()) {
+    MakeNode(Dst, CL, Pred, state->BindExpr(CL, state->getLValue(CL, LC)));
   }
+  else
+    MakeNode(Dst, CL, Pred, state->BindExpr(CL, ILV));
 }
 
 void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
                                  ExplodedNodeSet& Dst) {
 
-  // The CFG has one DeclStmt per Decl.
+  // FIXME: static variables may have an initializer, but the second
+  //  time a function is called those values may not be current.
+  //  This may need to be reflected in the CFG.
+  
+  // Assumption: The CFG has one DeclStmt per Decl.
   const Decl* D = *DS->decl_begin();
 
   if (!D || !isa<VarDecl>(D))
     return;
 
-  const VarDecl* VD = dyn_cast<VarDecl>(D);
-  const Expr* InitEx = VD->getInit();
 
-  // FIXME: static variables may have an initializer, but the second
-  //  time a function is called those values may not be current.
-  ExplodedNodeSet Tmp;
+  ExplodedNodeSet dstPreVisit;
+  getCheckerManager().runCheckersForPreStmt(dstPreVisit, Pred, DS, *this);
 
-  if (InitEx)
-    Visit(InitEx, Pred, Tmp);
-  else
-    Tmp.Add(Pred);
+  const VarDecl *VD = dyn_cast<VarDecl>(D);
 
-  ExplodedNodeSet Tmp2;
-  getCheckerManager().runCheckersForPreStmt(Tmp2, Tmp, DS, *this);
-
-  for (ExplodedNodeSet::iterator I=Tmp2.begin(), E=Tmp2.end(); I!=E; ++I) {
+  for (ExplodedNodeSet::iterator I = dstPreVisit.begin(), E = dstPreVisit.end();
+       I!=E; ++I)
+  {
     ExplodedNode *N = *I;
     const GRState *state = GetState(N);
 
     // Decls without InitExpr are not initialized explicitly.
     const LocationContext *LC = N->getLocationContext();
 
-    if (InitEx) {
+    if (const Expr *InitEx = VD->getInit()) {
       SVal InitVal = state->getSVal(InitEx);
 
       // We bound the temp obj region to the CXXConstructExpr. Now recover
@@ -2353,12 +2201,11 @@ void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
                                                Builder->getCurrentBlockCount());
       }
 
-      evalBind(Dst, DS, *I, state,
+      evalBind(Dst, DS, N, state,
                loc::MemRegionVal(state->getRegion(VD, LC)), InitVal, true);
     }
     else {
-      state = state->bindDeclWithNoInit(state->getRegion(VD, LC));
-      MakeNode(Dst, DS, *I, state);
+      MakeNode(Dst, DS, N, state->bindDeclWithNoInit(state->getRegion(VD, LC)));
     }
   }
 }

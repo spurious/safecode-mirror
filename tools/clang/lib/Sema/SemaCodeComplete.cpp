@@ -1933,6 +1933,28 @@ static void MaybeAddSentinel(ASTContext &Context, NamedDecl *FunctionOrMethod,
     }
 }
 
+static void appendWithSpace(std::string &Result, StringRef Text) {
+  if (!Result.empty())
+    Result += ' ';
+  Result += Text.str();
+}
+static std::string formatObjCParamQualifiers(unsigned ObjCQuals) {
+  std::string Result;
+  if (ObjCQuals & Decl::OBJC_TQ_In)
+    appendWithSpace(Result, "in");
+  else if (ObjCQuals & Decl::OBJC_TQ_Inout)
+    appendWithSpace(Result, "inout");
+  else if (ObjCQuals & Decl::OBJC_TQ_Out)
+    appendWithSpace(Result, "out");
+  if (ObjCQuals & Decl::OBJC_TQ_Bycopy)
+    appendWithSpace(Result, "bycopy");
+  else if (ObjCQuals & Decl::OBJC_TQ_Byref)
+    appendWithSpace(Result, "byref");
+  if (ObjCQuals & Decl::OBJC_TQ_Oneway)
+    appendWithSpace(Result, "oneway");
+  return Result;
+}
+
 static std::string FormatFunctionParameter(ASTContext &Context,
                                            ParmVarDecl *Param,
                                            bool SuppressName = false) {
@@ -1953,8 +1975,8 @@ static std::string FormatFunctionParameter(ASTContext &Context,
     Param->getType().getAsStringInternal(Result, Policy);
     
     if (ObjCMethodParam) {
-      Result = "(" + Result;
-      Result += ")";
+      Result = "(" + formatObjCParamQualifiers(Param->getObjCDeclQualifier())
+             + Result + ")";
       if (Param->getIdentifier() && !SuppressName)
         Result += Param->getIdentifier()->getName();
     }
@@ -2003,8 +2025,8 @@ static std::string FormatFunctionParameter(ASTContext &Context,
     Param->getType().getUnqualifiedType().getAsStringInternal(Result, Policy);
     
     if (ObjCMethodParam) {
-      Result = "(" + Result;
-      Result += ")";
+      Result = "(" + formatObjCParamQualifiers(Param->getObjCDeclQualifier())
+             + Result + ")";
       if (Param->getIdentifier())
         Result += Param->getIdentifier()->getName();
     }
@@ -2346,19 +2368,24 @@ CodeCompletionResult::CreateCodeCompletionString(Sema &S,
     
     // Format a function-like macro with placeholders for the arguments.
     Result.AddChunk(Chunk(CodeCompletionString::CK_LeftParen));
-    for (MacroInfo::arg_iterator A = MI->arg_begin(), AEnd = MI->arg_end();
-         A != AEnd; ++A) {
+    bool CombineVariadicArgument = false;
+    MacroInfo::arg_iterator A = MI->arg_begin(), AEnd = MI->arg_end();
+    if (MI->isVariadic() && AEnd - A > 1) {
+      AEnd -= 2;
+      CombineVariadicArgument = true;
+    }
+    for (MacroInfo::arg_iterator A = MI->arg_begin(); A != AEnd; ++A) {
       if (A != MI->arg_begin())
         Result.AddChunk(Chunk(CodeCompletionString::CK_Comma));
       
-      if (!MI->isVariadic() || A != AEnd - 1) {
+      if (!MI->isVariadic() || A + 1 != AEnd) {
         // Non-variadic argument.
         Result.AddPlaceholderChunk(
                             Result.getAllocator().CopyString((*A)->getName()));
         continue;
       }
       
-      // Variadic argument; cope with the different between GNU and C99
+      // Variadic argument; cope with the difference between GNU and C99
       // variadic macros, providing a single placeholder for the rest of the
       // arguments.
       if ((*A)->isStr("__VA_ARGS__"))
@@ -2368,6 +2395,18 @@ CodeCompletionResult::CreateCodeCompletionString(Sema &S,
         Arg += "...";
         Result.AddPlaceholderChunk(Result.getAllocator().CopyString(Arg));
       }
+    }
+     
+    if (CombineVariadicArgument) {
+      // Handle the next-to-last argument, combining it with the variadic
+      // argument.
+      std::string LastArg = (*A)->getName();
+      ++A;
+      if ((*A)->isStr("__VA_ARGS__"))
+        LastArg += ", ...";
+      else
+        LastArg += ", " + (*A)->getName().str() + "...";
+      Result.AddPlaceholderChunk(Result.getAllocator().CopyString(LastArg));
     }
     Result.AddChunk(Chunk(CodeCompletionString::CK_RightParen));
     return Result.TakeString();
@@ -2508,7 +2547,8 @@ CodeCompletionResult::CreateCodeCompletionString(Sema &S,
         Arg = FormatFunctionParameter(S.Context, *P, true);
       else {
         (*P)->getType().getAsStringInternal(Arg, Policy);
-        Arg = "(" + Arg + ")";
+        Arg = "(" + formatObjCParamQualifiers((*P)->getObjCDeclQualifier()) 
+            + Arg + ")";
         if (IdentifierInfo *II = (*P)->getIdentifier())
           if (DeclaringEntity || AllParametersAreInformative)
             Arg += II->getName();
@@ -3660,6 +3700,61 @@ void Sema::CodeCompleteReturn(Scope *S) {
     CodeCompleteOrdinaryName(S, PCC_Expression);
   else
     CodeCompleteExpression(S, ResultType);
+}
+
+void Sema::CodeCompleteAfterIf(Scope *S) {
+  typedef CodeCompletionResult Result;
+  ResultBuilder Results(*this, CodeCompleter->getAllocator(),
+                        mapCodeCompletionContext(*this, PCC_Statement));
+  Results.setFilter(&ResultBuilder::IsOrdinaryName);
+  Results.EnterNewScope();
+  
+  CodeCompletionDeclConsumer Consumer(Results, CurContext);
+  LookupVisibleDecls(S, LookupOrdinaryName, Consumer,
+                     CodeCompleter->includeGlobals());
+  
+  AddOrdinaryNameResults(PCC_Statement, S, *this, Results);
+  
+  // "else" block
+  CodeCompletionBuilder Builder(Results.getAllocator());
+  Builder.AddTypedTextChunk("else");
+  Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+  Builder.AddChunk(CodeCompletionString::CK_LeftBrace);
+  Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+  Builder.AddPlaceholderChunk("statements");
+  Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+  Builder.AddChunk(CodeCompletionString::CK_RightBrace);
+  Results.AddResult(Builder.TakeString());
+
+  // "else if" block
+  Builder.AddTypedTextChunk("else");
+  Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+  Builder.AddTextChunk("if");
+  Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+  Builder.AddChunk(CodeCompletionString::CK_LeftParen);
+  if (getLangOptions().CPlusPlus)
+    Builder.AddPlaceholderChunk("condition");
+  else
+    Builder.AddPlaceholderChunk("expression");
+  Builder.AddChunk(CodeCompletionString::CK_RightParen);
+  Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+  Builder.AddChunk(CodeCompletionString::CK_LeftBrace);
+  Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+  Builder.AddPlaceholderChunk("statements");
+  Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+  Builder.AddChunk(CodeCompletionString::CK_RightBrace);
+  Results.AddResult(Builder.TakeString());
+
+  Results.ExitScope();
+  
+  if (S->getFnParent())
+    AddPrettyFunctionResults(PP.getLangOptions(), Results);        
+  
+  if (CodeCompleter->includeMacros())
+    AddMacroResults(PP, Results);
+  
+  HandleCodeCompleteResults(this, CodeCompleter, Results.getCompletionContext(),
+                            Results.data(),Results.size());
 }
 
 void Sema::CodeCompleteAssignmentRHS(Scope *S, ExprTy *LHS) {
@@ -5325,21 +5420,23 @@ void Sema::CodeCompleteObjCInterfaceDecl(Scope *S) {
                         CodeCompletionContext::CCC_Other);
   Results.EnterNewScope();
   
-  // Add all classes.
-  AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, true,
-                      false, Results);
-
+  if (CodeCompleter->includeGlobals()) {
+    // Add all classes.
+    AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, false,
+                        false, Results);
+  }
+  
   Results.ExitScope();
-  // FIXME: Use cached global completion results.
+
   HandleCodeCompleteResults(this, CodeCompleter,
-                            CodeCompletionContext::CCC_Other,
+                            CodeCompletionContext::CCC_ObjCInterfaceName,
                             Results.data(),Results.size());
 }
 
 void Sema::CodeCompleteObjCSuperclass(Scope *S, IdentifierInfo *ClassName,
                                       SourceLocation ClassNameLoc) { 
   ResultBuilder Results(*this, CodeCompleter->getAllocator(),
-                        CodeCompletionContext::CCC_ObjCSuperclass);
+                        CodeCompletionContext::CCC_ObjCInterfaceName);
   Results.EnterNewScope();
   
   // Make sure that we ignore the class we're currently defining.
@@ -5348,14 +5445,16 @@ void Sema::CodeCompleteObjCSuperclass(Scope *S, IdentifierInfo *ClassName,
   if (CurClass && isa<ObjCInterfaceDecl>(CurClass))
     Results.Ignore(CurClass);
 
-  // Add all classes.
-  AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, false,
-                      false, Results);
-
+  if (CodeCompleter->includeGlobals()) {
+    // Add all classes.
+    AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, false,
+                        false, Results);
+  }
+  
   Results.ExitScope();
-  // FIXME: Use cached global completion results.
+
   HandleCodeCompleteResults(this, CodeCompleter, 
-                            CodeCompletionContext::CCC_ObjCSuperclass,
+                            CodeCompletionContext::CCC_ObjCInterfaceName,
                             Results.data(),Results.size());
 }
 
@@ -5364,14 +5463,16 @@ void Sema::CodeCompleteObjCImplementationDecl(Scope *S) {
                         CodeCompletionContext::CCC_Other);
   Results.EnterNewScope();
 
-  // Add all unimplemented classes.
-  AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, false,
-                      true, Results);
-
+  if (CodeCompleter->includeGlobals()) {
+    // Add all unimplemented classes.
+    AddInterfaceResults(Context.getTranslationUnitDecl(), CurContext, false,
+                        true, Results);
+  }
+  
   Results.ExitScope();
-  // FIXME: Use cached global completion results.
+
   HandleCodeCompleteResults(this, CodeCompleter, 
-                            CodeCompletionContext::CCC_Other,
+                            CodeCompletionContext::CCC_ObjCInterfaceName,
                             Results.data(),Results.size());
 }
 

@@ -2299,9 +2299,11 @@ def note_unavailable_here : Note<
   "%select{declaration|function}0 has been explicitly marked "
   "%select{unavailable|deleted|deprecated}1 here">;
 def warn_not_enough_argument : Warning<
-  "not enough variable arguments in %0 declaration to fit a sentinel">;
+  "not enough variable arguments in %0 declaration to fit a sentinel">,
+  InGroup<Sentinel>;
 def warn_missing_sentinel : Warning <
-  "missing sentinel in %select{function call|method dispatch|block call}0">;
+  "missing sentinel in %select{function call|method dispatch|block call}0">,
+  InGroup<Sentinel>;
 def note_sentinel_here : Note<
   "%select{function|method|block}0 has been explicitly marked sentinel here">;
 def warn_missing_prototype : Warning<
@@ -4274,6 +4276,9 @@ def err_second_parameter_to_va_arg_abstract: Error<
   "second argument to 'va_arg' is of abstract type %0">;
 def warn_second_parameter_to_va_arg_not_pod : Warning<
   "second argument to 'va_arg' is of non-POD type %0">,
+  InGroup<DiagGroup<"non-pod-varargs">>, DefaultError;
+def warn_second_parameter_to_va_arg_ownership_qualified : Warning<
+  "second argument to 'va_arg' is of ARC ownership-qualified type %0">,
   InGroup<DiagGroup<"non-pod-varargs">>, DefaultError;
 def warn_second_parameter_to_va_arg_never_compatible : Warning<
   "second argument to 'va_arg' is of promotable type %0; this va_arg has "

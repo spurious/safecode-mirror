@@ -315,14 +315,7 @@ public:
   void VisitObjCForCollectionStmt(const ObjCForCollectionStmt* S, 
                                   ExplodedNode* Pred, ExplodedNodeSet& Dst);
 
-  void VisitObjCForCollectionStmtAux(const ObjCForCollectionStmt* S, 
-                                     ExplodedNode* Pred,
-                                     ExplodedNodeSet& Dst, SVal ElementV);
-
-  /// VisitObjCMessageExpr - Transfer function for ObjC message expressions.
-  void VisitObjCMessageExpr(const ObjCMessageExpr* ME, ExplodedNode* Pred, 
-                            ExplodedNodeSet& Dst);
-  void VisitObjCMessage(const ObjCMessage &msg, ExplodedNodeSet &Src,
+  void VisitObjCMessage(const ObjCMessage &msg, ExplodedNode *Pred,
                         ExplodedNodeSet& Dst);
 
   /// VisitReturnStmt - Transfer function logic for return statements.
