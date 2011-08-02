@@ -248,6 +248,7 @@ extern "C" {
                           unsigned lineno);
 
   void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
+  void funccheckui (void *f, void * targets[]);
   void * pchk_getActualValue (PPOOL, void * src);
 
   // Change memory protections to detect dangling pointers

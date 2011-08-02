@@ -788,7 +788,6 @@ boundscheckui_debug (DebugPoolTy * Pool,
   }
 }
 
-
 //
 // Function: funccheck()
 //
@@ -823,6 +822,25 @@ __sc_dbg_funccheck (unsigned num, void *f, void *g, ...) {
   abort();
 }
 
+//
+// Function: funccheckui()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.  However, the list may be incomplete.
+//
+// Inputs:
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
+//
+void
+funccheckui (void *f, void * targets[]) {
+  //
+  // For now, do nothing.  If the list could be incomplete, we don't know when
+  // a target is valid.
+  //
+  return;
+}
 
 /// Stubs
 

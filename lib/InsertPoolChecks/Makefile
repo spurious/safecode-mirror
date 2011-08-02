@@ -6,6 +6,7 @@ LIBRARYNAME=addchecks
 
 SOURCES = GEPChecks.cpp \
           LoadStoreChecks.cpp \
+          CFIChecks.cpp \
           RegisterBounds.cpp \
           RegisterRuntimeInitializer.cpp \
           RegisterStackObjPass.cpp \
