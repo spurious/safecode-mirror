@@ -15,6 +15,7 @@
 #ifndef _SC_CHECKINFO_H_
 #define _SC_CHECKINFO_H_
 
+#include "llvm/Function.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Instructions.h"
 
@@ -32,11 +33,17 @@ struct CheckInfo {
   // The name of the function implementing the run-time check
   const char * name;
 
+  // The name of the complete version of the check
+  const char * completeName;
+
   // The argument of the checked pointer.
   unsigned char argno;
 
   // A boolean indicating whether it is a memory check or a bounds check
   bool isMemcheck;
+
+  // A boolean indicating whether the check is complete
+  bool isComplete;
 
   Value * getCheckedPointer (CallInst * CI) const {
     CallSite CS(CI);
@@ -48,27 +55,29 @@ struct CheckInfo {
 //
 // Create a table describing all of the SAFECode run-time checks.
 //
-static const unsigned numChecks = 16;
+static const unsigned numChecks = 18;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
-  {"lscheck",        1, true},
-  {"lscheckui",      1, true},
-  {"lscheckalign",   1, true},
-  {"lscheckuialign", 1, true},
-  {"boundscheck",    2, false},
-  {"boundscheckui",  2, false},
-  {"exactcheck2",    1, false},
-  {"funccheck",      1, true},
+  {"lscheck",        "lscheck",      1, true,  true},
+  {"lscheckui",      "lscheck",      1, true,  false},
+  {"lscheckalign",   "lscheckalign", 1, true,  true},
+  {"lscheckalignui", "lscheckalign", 1, true,  false},
+  {"boundscheck",    "boundscheck",  2, false, true},
+  {"boundscheckui",  "boundscheck",  2, false, false},
+  {"exactcheck2",    "exactcheck2",  1, false, true},
+  {"funccheck",      "funccheck",    0, true,  true},
+  {"funccheckui",    "funccheck",    0, true,  false},
 
   // Debug versions of the above
-  {"lscheck_debug",        1, true},
-  {"lscheckui_debug",      1, true},
-  {"lscheckalign_debug",   1, true},
-  {"lscheckuialign_debug", 1, true},
-  {"boundscheck_debug",    2, false},
-  {"boundscheckui_debug",  2, false},
-  {"exactcheck2_debug",    1, false},
-  {"funccheck_debug",      1, true}
+  {"lscheck_debug",        "lscheck_debug",      1, true,  true},
+  {"lscheckui_debug",      "lscheck_debug",      1, true,  false},
+  {"lscheckalign_debug",   "lscheckalign_debug", 1, true,  true},
+  {"lscheckalignui_debug", "lscheckalign_debug", 1, true,  false},
+  {"boundscheck_debug",    "boundscheck_debug",  2, false, true},
+  {"boundscheckui_debug",  "boundscheck_debug",  2, false, false},
+  {"exactcheck2_debug",    "exactcheck2_debug",  1, false, true},
+  {"funccheck_debug",      "funccheck_debug",    1, true,  true},
+  {"funccheckui_debug",    "funccheck_debug",    1, true,  false}
 };
 
 //

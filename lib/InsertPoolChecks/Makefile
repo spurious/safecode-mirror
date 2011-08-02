@@ -10,10 +10,10 @@ SOURCES = GEPChecks.cpp \
           RegisterBounds.cpp \
           RegisterRuntimeInitializer.cpp \
           RegisterStackObjPass.cpp \
+          CompleteChecks.cpp \
           #AlignmentChecks.cpp \
           #MonotonicLoopOpt.cpp \
           #ClearCheckAttributes.cpp \
-          #CompleteChecks.cpp \
           #insert.cpp
 
 include $(LEVEL)/Makefile.common

@@ -16,14 +16,12 @@
 #ifndef _SAFECODE_COMPLETE_CHECKS_H_
 #define _SAFECODE_COMPLETE_CHECKS_H_
 
-#include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
-
-#include "poolalloc/PoolAllocate.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 
 #include "llvm/Pass.h"
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 //
 // Pass: CompleteChecks
@@ -36,30 +34,25 @@ NAMESPACE_SC_BEGIN
 struct CompleteChecks : public ModulePass {
   public:
     static char ID;
-    CompleteChecks () : ModulePass ((intptr_t) &ID) { }
+    CompleteChecks () : ModulePass (ID) { }
     const char *getPassName() const { return "Complete Run-time Checks"; }
     virtual bool runOnModule (Module & M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
       AU.addRequired<TargetData>();
-      AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<EQTDDataStructures>();
 
       // Preserved passes
-      AU.addPreserved<InsertSCIntrinsic>();
       AU.setPreservesCFG();
     };
 
   protected:
-    // Pointers to required passes
-    InsertSCIntrinsic * intrinsic;
-
     // Protected methods
     DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
-    void makeComplete (Function * Complete, Function * Incomplete);
+    void makeComplete (Module & M, const struct CheckInfo & CheckInfo);
     void makeCStdLibCallsComplete(Function *, unsigned);
     void makeFSParameterCallsComplete(Module &M);
 };
 
-NAMESPACE_SC_END
+}
 #endif
