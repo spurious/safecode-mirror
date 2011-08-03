@@ -782,14 +782,12 @@ public:
     case DeclarationName::ObjCMultiArgSelector:
       ID.AddInteger(serialization::ComputeHash(Selector(Key.Data)));
       break;
-    case DeclarationName::CXXConstructorName:
-    case DeclarationName::CXXDestructorName:
-    case DeclarationName::CXXConversionFunctionName:
-      ID.AddInteger((TypeID)Key.Data);
-      break;
     case DeclarationName::CXXOperatorName:
       ID.AddInteger((OverloadedOperatorKind)Key.Data);
       break;
+    case DeclarationName::CXXConstructorName:
+    case DeclarationName::CXXDestructorName:
+    case DeclarationName::CXXConversionFunctionName:
     case DeclarationName::CXXUsingDirective:
       break;
     }
@@ -809,18 +807,17 @@ public:
     case DeclarationName::ObjCMultiArgSelector:
       Key.Data = (uint64_t)Name.getObjCSelector().getAsOpaquePtr();
       break;
-    case DeclarationName::CXXConstructorName:
-    case DeclarationName::CXXDestructorName:
-    case DeclarationName::CXXConversionFunctionName:
-      Key.Data = Reader.GetTypeID(Name.getCXXNameType());
-      break;
     case DeclarationName::CXXOperatorName:
       Key.Data = Name.getCXXOverloadedOperator();
       break;
     case DeclarationName::CXXLiteralOperatorName:
       Key.Data = (uint64_t)Name.getCXXLiteralIdentifier();
       break;
+    case DeclarationName::CXXConstructorName:
+    case DeclarationName::CXXDestructorName:
+    case DeclarationName::CXXConversionFunctionName:
     case DeclarationName::CXXUsingDirective:
+      Key.Data = 0;
       break;
     }
 
@@ -889,18 +886,17 @@ public:
          (uint64_t)Reader.getLocalSelector(F, ReadUnalignedLE32(d))
                      .getAsOpaquePtr();
       break;
-    case DeclarationName::CXXConstructorName:
-    case DeclarationName::CXXDestructorName:
-    case DeclarationName::CXXConversionFunctionName:
-      Key.Data = Reader.getGlobalTypeID(F, ReadUnalignedLE32(d)); // TypeID
-      break;
     case DeclarationName::CXXOperatorName:
       Key.Data = *d++; // OverloadedOperatorKind
       break;
     case DeclarationName::CXXLiteralOperatorName:
       Key.Data = (uint64_t)Reader.getLocalIdentifier(F, ReadUnalignedLE32(d));
       break;
+    case DeclarationName::CXXConstructorName:
+    case DeclarationName::CXXDestructorName:
+    case DeclarationName::CXXConversionFunctionName:
     case DeclarationName::CXXUsingDirective:
+      Key.Data = 0;
       break;
     }
 
@@ -2049,21 +2045,29 @@ ASTReader::ReadASTBlock(Module &F) {
       break;
     }
 
-    case TYPE_OFFSET:
+    case TYPE_OFFSET: {
       if (F.LocalNumTypes != 0) {
         Error("duplicate TYPE_OFFSET record in AST file");
         return Failure;
       }
       F.TypeOffsets = (const uint32_t *)BlobStart;
       F.LocalNumTypes = Record[0];
-      F.BaseTypeID = getTotalNumTypes();
+      unsigned LocalBaseTypeIndex = Record[1];
+      F.BaseTypeIndex = getTotalNumTypes();
         
-      // Introduce the global -> local mapping for types within this
-      // AST file.
-      GlobalTypeMap.insert(std::make_pair(getTotalNumTypes() + 1, &F));
-      TypesLoaded.resize(TypesLoaded.size() + F.LocalNumTypes);
+      if (F.LocalNumTypes > 0) {
+        // Introduce the global -> local mapping for types within this module.
+        GlobalTypeMap.insert(std::make_pair(getTotalNumTypes(), &F));
+        
+        // Introduce the local -> global mapping for types within this module.
+        F.TypeRemap.insert(std::make_pair(LocalBaseTypeIndex, 
+                             F.BaseTypeIndex - LocalBaseTypeIndex));
+        
+        TypesLoaded.resize(TypesLoaded.size() + F.LocalNumTypes);
+      }
       break;
-
+    }
+        
     case DECL_OFFSET:
       if (F.LocalNumDecls != 0) {
         Error("duplicate DECL_OFFSET record in AST file");
@@ -2278,7 +2282,8 @@ ASTReader::ReadASTBlock(Module &F) {
       
       // Continuous range maps we may be updating in our module.
       ContinuousRangeMap<uint32_t, int, 2>::Builder SLocRemap(F.SLocRemap);
-      
+      ContinuousRangeMap<uint32_t, int, 2>::Builder TypeRemap(F.TypeRemap);
+
       while(Data < DataEnd) {
         uint16_t Len = io::ReadUnalignedLE16(Data);
         StringRef Name = StringRef((const char*)Data, Len);
@@ -2296,7 +2301,7 @@ ASTReader::ReadASTBlock(Module &F) {
         uint32_t SelectorIDOffset = io::ReadUnalignedLE32(Data);
         uint32_t DeclIDOffset = io::ReadUnalignedLE32(Data);
         uint32_t CXXBaseSpecifiersIDOffset = io::ReadUnalignedLE32(Data);
-        uint32_t TypeIDOffset = io::ReadUnalignedLE32(Data);
+        uint32_t TypeIndexOffset = io::ReadUnalignedLE32(Data);
         
         // Source location offset is mapped to OM->SLocEntryBaseOffset.
         SLocRemap.insert(std::make_pair(SLocOffset,
@@ -2309,7 +2314,9 @@ ASTReader::ReadASTBlock(Module &F) {
         (void)SelectorIDOffset;
         (void)DeclIDOffset;
         (void)CXXBaseSpecifiersIDOffset;
-        (void)TypeIDOffset;
+        
+        TypeRemap.insert(std::make_pair(TypeIndexOffset, 
+                                    OM->BaseTypeIndex - TypeIndexOffset));
       }
       break;
     }
@@ -2749,9 +2756,8 @@ ASTReader::ASTReadResult ASTReader::ReadASTCore(StringRef FileName,
     if (CurrentDir.empty()) CurrentDir = ".";
   }
 
-  if (!ASTBuffers.empty()) {
-    F.Buffer.reset(ASTBuffers.back());
-    ASTBuffers.pop_back();
+  if (llvm::MemoryBuffer *Buffer = ModuleMgr.lookupBuffer(FileName)) {
+    F.Buffer.reset(Buffer);
     assert(F.Buffer && "Passed null buffer");
   } else {
     // Open the AST file.
@@ -3231,10 +3237,10 @@ void ASTReader::ReadPragmaDiagnosticMappings(Diagnostic &Diag) {
 
 /// \brief Get the correct cursor and offset for loading a type.
 ASTReader::RecordLocation ASTReader::TypeCursorForIndex(unsigned Index) {
-  GlobalTypeMapType::iterator I = GlobalTypeMap.find(Index+1);
+  GlobalTypeMapType::iterator I = GlobalTypeMap.find(Index);
   assert(I != GlobalTypeMap.end() && "Corrupted global type map");
   Module *M = I->second;
-  return RecordLocation(M, M->TypeOffsets[Index - M->BaseTypeID]);
+  return RecordLocation(M, M->TypeOffsets[Index - M->BaseTypeIndex]);
 }
 
 /// \brief Read and return the type with the given index..
@@ -3964,7 +3970,6 @@ QualType ASTReader::GetType(TypeID ID) {
       return QualType();
 
     TypesLoaded[Index]->setFromAST();
-    TypeIdxs[TypesLoaded[Index]] = TypeIdx::fromTypeID(ID);
     if (DeserializationListener)
       DeserializationListener->TypeRead(TypeIdx::fromTypeID(ID),
                                         TypesLoaded[Index]);
@@ -3979,29 +3984,18 @@ QualType ASTReader::getLocalType(Module &F, unsigned LocalID) {
 
 serialization::TypeID 
 ASTReader::getGlobalTypeID(Module &F, unsigned LocalID) const {
-  // FIXME: Map from local type ID to global type ID.
-  return LocalID;
-}
+  unsigned FastQuals = LocalID & Qualifiers::FastMask;
+  unsigned LocalIndex = LocalID >> Qualifiers::FastWidth;
+  
+  if (LocalIndex < NUM_PREDEF_TYPE_IDS)
+    return LocalID;
 
-TypeID ASTReader::GetTypeID(QualType T) const {
-  return MakeTypeID(T,
-              std::bind1st(std::mem_fun(&ASTReader::GetTypeIdx), this));
-}
-
-TypeIdx ASTReader::GetTypeIdx(QualType T) const {
-  if (T.isNull())
-    return TypeIdx();
-  assert(!T.getLocalFastQualifiers());
-
-  TypeIdxMap::const_iterator I = TypeIdxs.find(T);
-  // GetTypeIdx is mostly used for computing the hash of DeclarationNames and
-  // comparing keys of ASTDeclContextNameLookupTable.
-  // If the type didn't come from the AST file use a specially marked index
-  // so that any hash/key comparison fail since no such index is stored
-  // in a AST file.
-  if (I == TypeIdxs.end())
-    return TypeIdx(-1);
-  return I->second;
+  ContinuousRangeMap<uint32_t, int, 2>::iterator I
+    = F.TypeRemap.find(LocalIndex - NUM_PREDEF_TYPE_IDS);
+  assert(I != F.TypeRemap.end() && "Invalid index into type index remap");
+  
+  unsigned GlobalIndex = LocalIndex + I->second;
+  return (GlobalIndex << Qualifiers::FastWidth) | FastQuals;
 }
 
 TemplateArgumentLocInfo
@@ -4212,8 +4206,25 @@ ASTReader::FindExternalVisibleDeclsByName(const DeclContext *DC,
       continue;
 
     ASTDeclContextNameLookupTrait::data_type Data = *Pos;
-    for (; Data.first != Data.second; ++Data.first)
-      Decls.push_back(GetLocalDeclAs<NamedDecl>(*I->F, *Data.first));
+    for (; Data.first != Data.second; ++Data.first) {
+      NamedDecl *ND = GetLocalDeclAs<NamedDecl>(*I->F, *Data.first);
+      if (!ND)
+        continue;
+      
+      if (ND->getDeclName() != Name) {
+        assert(!Name.getCXXNameType().isNull() && 
+               "Name mismatch without a type");
+        continue;
+      }
+      
+      Decls.push_back(ND);
+    }
+    
+    // If we rejected all of the declarations we found, e.g., because the
+    // name didn't actually match, continue looking through DeclContexts.
+    if (Decls.empty())
+      continue;
+    
     break;
   }
 
@@ -5473,7 +5484,7 @@ Module::Module(ModuleKind Kind)
     DeclOffsets(0), BaseDeclID(0),
     LocalNumCXXBaseSpecifiers(0), CXXBaseSpecifiersOffsets(0),
     BaseCXXBaseSpecifiersID(0),
-    LocalNumTypes(0), TypeOffsets(0), BaseTypeID(0), StatCache(0),
+    LocalNumTypes(0), TypeOffsets(0), BaseTypeIndex(0), StatCache(0),
     NumPreallocatedPreprocessingEntities(0)
 {}
 
@@ -5515,11 +5526,19 @@ void Module::dump() {
   llvm::errs() << "  Base source location offset: " << SLocEntryBaseOffset 
                << '\n';
   dumpLocalRemap("Source location offset map", SLocRemap);
+  llvm::errs() << "  Base type ID: " << BaseTypeIndex << '\n'
+               << "  Number of types: " << LocalNumTypes << '\n';
+  dumpLocalRemap("Type ID map", TypeRemap);
 }
 
 Module *ModuleManager::lookup(StringRef Name) {
   const FileEntry *Entry = FileMgr.getFile(Name);
   return Modules[Entry];
+}
+
+llvm::MemoryBuffer *ModuleManager::lookupBuffer(StringRef Name) {
+  const FileEntry *Entry = FileMgr.getFile(Name);
+  return InMemoryBuffers[Entry];
 }
 
 /// \brief Creates a new module and adds it to the list of known modules
@@ -5541,6 +5560,13 @@ Module &ModuleManager::addModule(StringRef FileName, ModuleKind Type) {
   return *Current;
 }
 
+void ModuleManager::addInMemoryBuffer(StringRef FileName, 
+  llvm::MemoryBuffer *Buffer) {
+  
+  const FileEntry *Entry = FileMgr.getVirtualFile(FileName, 
+    Buffer->getBufferSize(), 0);
+  InMemoryBuffers[Entry] = Buffer;
+}
 /// \brief Exports the list of loaded modules with their corresponding names
 void ModuleManager::exportLookup(SmallVector<ModuleOffset, 16> &Target) {
   Target.reserve(size());

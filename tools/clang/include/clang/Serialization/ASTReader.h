@@ -380,9 +380,13 @@ public:
   /// type ID, or the representation of a Type*.
   const uint32_t *TypeOffsets;
   
-  /// \brief Base type ID for types local to this module.
-  serialization::TypeID BaseTypeID;
+  /// \brief Base type ID for types local to this module as represented in 
+  /// the global type ID space.
+  serialization::TypeID BaseTypeIndex;
   
+  /// \brief Remapping table for type IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> TypeRemap;
+
   // === Miscellaneous ===
   
   /// \brief Diagnostic IDs and their mappings that the user changed.
@@ -419,6 +423,9 @@ class ModuleManager {
   /// \brief FileManager that handles translating between filenames and
   /// FileEntry *.
   FileManager FileMgr;
+  
+  /// \brief A lookup of in-memory (virtual file) buffers
+  llvm::DenseMap<const FileEntry *, llvm::MemoryBuffer *> InMemoryBuffers;
 
 public:
   typedef SmallVector<Module*, 2>::iterator ModuleIterator;
@@ -464,12 +471,18 @@ public:
 
   /// \brief Returns the module associated with the given name
   Module *lookup(StringRef Name);
+  
+  /// \brief Returns the in-memory (virtual file) buffer with the given name
+  llvm::MemoryBuffer *lookupBuffer(StringRef Name);
 
   /// \brief Number of modules loaded
   unsigned size() const { return Chain.size(); }
 
   /// \brief Creates a new module and adds it to the list of known modules
   Module &addModule(StringRef FileName, ModuleKind Type);
+  
+  /// \brief Add an in-memory buffer the list of known buffers
+  void addInMemoryBuffer(StringRef FileName, llvm::MemoryBuffer *Buffer);
 
   /// \brief Exports the list of loaded modules with their corresponding names
   void exportLookup(SmallVector<ModuleOffset, 16> &Target);
@@ -542,10 +555,6 @@ private:
   /// \brief The AST consumer.
   ASTConsumer *Consumer;
 
-  /// \brief AST buffers for chained PCHs created and stored in memory.
-  /// First (not depending on another) PCH in chain is in front.
-  std::vector<llvm::MemoryBuffer *> ASTBuffers;
-
   /// \brief The module manager which manages modules and their dependencies
   ModuleManager ModuleMgr;
 
@@ -572,17 +581,6 @@ private:
   /// type resides along with the offset that should be added to the
   /// global type ID to produce a local ID.
   GlobalTypeMapType GlobalTypeMap;
-
-  /// \brief Map that provides the ID numbers of each type within the
-  /// output stream, plus those deserialized from a chained PCH.
-  ///
-  /// The ID numbers of types are consecutive (in order of discovery)
-  /// and start at 1. 0 is reserved for NULL. When types are actually
-  /// stored in the stream, the ID number is shifted by 2 bits to
-  /// allow for the const/volatile qualifiers.
-  ///
-  /// Keys in the map never have const/volatile qualifiers.
-  serialization::TypeIdxMap TypeIdxs;
 
   /// \brief Declarations that have already been loaded from the chain.
   ///
@@ -1121,11 +1119,9 @@ public:
   /// \brief Sets and initializes the given Context.
   void InitializeContext(ASTContext &Context);
 
-  /// \brief Set AST buffers for chained PCHs created and stored in memory.
-  /// First (not depending on another) PCH in chain is first in array.
-  void setASTMemoryBuffers(llvm::MemoryBuffer **bufs, unsigned numBufs) {
-    ASTBuffers.clear();
-    ASTBuffers.insert(ASTBuffers.begin(), bufs, bufs + numBufs);
+  /// \brief Add in-memory (virtual file) buffer.
+  void addInMemoryBuffer(StringRef &FileName, llvm::MemoryBuffer *Buffer) {
+    ModuleMgr.addInMemoryBuffer(FileName, Buffer);
   }
 
   /// \brief Retrieve the name of the named (primary) AST file
@@ -1242,16 +1238,6 @@ public:
     return getLocalType(F, Record[Idx++]);
   }
   
-  /// \brief Returns the type ID associated with the given type.
-  /// If the type didn't come from the AST file the ID that is returned is
-  /// marked as "doesn't exist in AST".
-  serialization::TypeID GetTypeID(QualType T) const;
-
-  /// \brief Returns the type index associated with the given type.
-  /// If the type didn't come from the AST file the index that is returned is
-  /// marked as "doesn't exist in AST".
-  serialization::TypeIdx GetTypeIdx(QualType T) const;
-
   /// \brief Map from a local declaration ID within a given module to a 
   /// global declaration ID.
   serialization::DeclID getGlobalDeclID(Module &F, unsigned LocalID) const;
