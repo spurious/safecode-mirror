@@ -58,10 +58,10 @@ struct CheckInfo {
 static const unsigned numChecks = 18;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
-  {"lscheck",        "lscheck",      1, true,  true},
-  {"lscheckui",      "lscheck",      1, true,  false},
-  {"lscheckalign",   "lscheckalign", 1, true,  true},
-  {"lscheckalignui", "lscheckalign", 1, true,  false},
+  {"poolcheck",        "lscheck",      1, true,  true},
+  {"poolcheckui",      "lscheck",      1, true,  false},
+  {"poolcheckalign",   "lscheckalign", 1, true,  true},
+  {"poolcheckalignui", "lscheckalign", 1, true,  false},
   {"boundscheck",    "boundscheck",  2, false, true},
   {"boundscheckui",  "boundscheck",  2, false, false},
   {"exactcheck2",    "exactcheck2",  1, false, true},
@@ -69,10 +69,10 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"funccheckui",    "funccheck",    0, true,  false},
 
   // Debug versions of the above
-  {"lscheck_debug",        "lscheck_debug",      1, true,  true},
-  {"lscheckui_debug",      "lscheck_debug",      1, true,  false},
-  {"lscheckalign_debug",   "lscheckalign_debug", 1, true,  true},
-  {"lscheckalignui_debug", "lscheckalign_debug", 1, true,  false},
+  {"poolcheck_debug",        "lscheck_debug",      1, true,  true},
+  {"poolcheckui_debug",      "lscheck_debug",      1, true,  false},
+  {"poolcheckalign_debug",   "lscheckalign_debug", 1, true,  true},
+  {"poolcheckalignui_debug", "lscheckalign_debug", 1, true,  false},
   {"boundscheck_debug",    "boundscheck_debug",  2, false, true},
   {"boundscheckui_debug",  "boundscheck_debug",  2, false, false},
   {"exactcheck2_debug",    "exactcheck2_debug",  1, false, true},
