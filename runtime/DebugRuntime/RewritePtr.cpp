@@ -36,7 +36,7 @@ llvm::DenseMap<void *, unsigned>     RewriteLineno;
 std::map<const void *, const void *> RewrittenPointers;
 
 // Record from which object an OOB pointer originates
-llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
+llvm::DenseMap<void *, std::pair<void *, void * > > RewrittenObjs;
 
 //
 // Function: rewrite_ptr()
@@ -58,8 +58,8 @@ llvm::DenseMap<void *, std::pair<const void *, const void * > > RewrittenObjs;
 void *
 rewrite_ptr (DebugPoolTy * Pool,
              const void * p,
-             const void * ObjStart,
-             const void * ObjEnd,
+             void * ObjStart,
+             void * ObjEnd,
              const char * SourceFile,
              unsigned lineno) {
 

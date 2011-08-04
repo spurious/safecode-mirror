@@ -26,7 +26,7 @@ extern FILE * ReportLog;
 using namespace llvm;
 
 static void *
-exactcheck_check (const void * ObjStart, const void * ObjEnd,
+exactcheck_check (void * ObjStart, void * ObjEnd,
                   const void * Dest, const char * SourceFile,
                   unsigned int lineno) __attribute__((noinline));
 
@@ -127,7 +127,7 @@ fastlscheck_debug (const char *base, const char *result, unsigned size,
  *  error is returned or a rewritten Out-of-Bounds (OOB) pointer is returned.
  */
 void *
-exactcheck2 (const char *base, const char *result, unsigned size) {
+exactcheck2 (char *base, char *result, unsigned size) {
   /*
    * If the pointer is within the object, the check passes.  Return the checked
    * pointer.
@@ -158,8 +158,8 @@ exactcheck2 (const char *base, const char *result, unsigned size) {
  *  optimizations dead-code eliminated it).
  */
 void *
-exactcheck2_debug (const char *base,
-                   const char *result,
+exactcheck2_debug (char *base,
+                   char *result,
                    unsigned size,
                    unsigned tag,
                    const char * SourceFile,
@@ -190,8 +190,8 @@ exactcheck2_debug (const char *base,
  *  lineno     - The line number within the file in which the check occurs.
  */
 void *
-exactcheck_check (const void * ObjStart,
-                  const void * ObjEnd,
+exactcheck_check (void * ObjStart,
+                  void * ObjEnd,
                   const void * Dest,
                   const char * SourceFile,
                   unsigned int lineno) {

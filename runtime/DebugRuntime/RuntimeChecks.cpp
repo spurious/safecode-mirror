@@ -310,8 +310,8 @@ poolcheckui_debug (DebugPoolTy *Pool,
   // If it's a rewrite pointer, convert it back into its original value so
   // that we can print the real faulting address.
   //
-  const void * ObjStart = 0;
-  const void * ObjEnd = 0;
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
   if (isRewritePtr (Node)) {
     ObjStart = RewrittenObjs[Node].first;
     ObjEnd   = RewrittenObjs[Node].second;
@@ -333,8 +333,16 @@ poolcheckui_debug (DebugPoolTy *Pool,
   // the value is a rewrite pointer.
   //
   if (ObjStart) {
+    //
+    // Attempt to get information on where the memory object was allocated.
+    //
+    void * start;
+    void * end;
+    PDebugMetaData debugmetadataptr;
+    int fs =dummyPool.DPTree.find (ObjStart, start, end, debugmetadataptr);
+
     OutOfBoundsViolation v;
-    v.type = ViolationInfo::WARN_LOAD_STORE,
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = Node,
       v.SourceFile = SourceFilep,
@@ -342,6 +350,9 @@ poolcheckui_debug (DebugPoolTy *Pool,
       v.PoolHandle = Pool;
       v.objStart = ObjStart;
       v.objLen = (unsigned)((char*) ObjEnd - (char*)(ObjStart)) + 1;
+    if (fs) {
+      v.dbgMetaData = debugmetadataptr;
+    }
     ReportMemoryViolation(&v);
   }
 

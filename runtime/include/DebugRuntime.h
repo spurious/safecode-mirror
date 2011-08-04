@@ -97,8 +97,8 @@ struct DebugPoolTy : public BitmapPoolTy {
   unsigned char cacheIndex;
 };
 
-void * rewrite_ptr (DebugPoolTy * Pool, const void * p, const void * ObjStart,
-const void * ObjEnd, const char * SourceFile, unsigned lineno);
+void * rewrite_ptr (DebugPoolTy * Pool, const void * p, void * ObjStart,
+void * ObjEnd, const char * SourceFile, unsigned lineno);
 void installAllocHooks (void);
 
 }
@@ -238,8 +238,8 @@ extern "C" {
 #endif
 
   // Exact checks
-  void * exactcheck2 (const char *base, const char *result, unsigned size);
-  void * exactcheck2_debug (const char *base, const char *result, unsigned size,
+  void * exactcheck2 (char *base, char *result, unsigned size);
+  void * exactcheck2_debug (char *base, char *result, unsigned size,
                             TAG, SRC_INFO);
   void fastlscheck (const char *base, const char *result, unsigned size);
   void fastlscheck_debug (const char *base, const char *result, unsigned size,

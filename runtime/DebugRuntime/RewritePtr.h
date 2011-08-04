@@ -48,7 +48,7 @@ extern llvm::DenseMap<void *, const char*>  RewriteSourcefile;
 extern llvm::DenseMap<void *, unsigned>     RewriteLineno;
 extern std::map<const void *, const void *> RewrittenPointers;
 extern llvm::DenseMap<void *,
-                      std::pair<const void *, const void * > > RewrittenObjs;
+                      std::pair<void *, void * > > RewrittenObjs;
 
 //
 // Function: isRewritePtr()
@@ -91,7 +91,7 @@ isRewritePtr (void * p) {
 static inline bool
 getOOBObject (void * p, void * & start, void * & end) {
   // Record from which object an OOB pointer originates
-  extern llvm::DenseMap<void *, std::pair<const void *, const void * > >
+  extern llvm::DenseMap<void *, std::pair<void *, void * > >
   RewrittenObjs;
 
   if (isRewritePtr (p)) {
