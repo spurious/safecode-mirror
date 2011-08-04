@@ -255,6 +255,9 @@ public:
   /// \brief Base identifier ID for identifiers local to this module.
   serialization::IdentID BaseIdentifierID;
 
+  /// \brief Remapping table for identifier IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> IdentifierRemap;
+
   /// \brief Actual data for the on-disk hash table of identifiers.
   ///
   /// This pointer points into a memory buffer, where the on-disk hash
@@ -332,6 +335,9 @@ public:
   /// \brief Base selector ID for selectors local to this module.
   serialization::SelectorID BaseSelectorID;
 
+  /// \brief Remapping table for selector IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> SelectorRemap;
+
   /// \brief A pointer to the character data that comprises the selector table
   ///
   /// The SelectorOffsets table refers into this memory.
@@ -361,15 +367,15 @@ public:
   /// \brief Base declaration ID for declarations local to this module.
   serialization::DeclID BaseDeclID;
 
+  /// \brief Remapping table for declaration IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> DeclRemap;
+
   /// \brief The number of C++ base specifier sets in this AST file.
   unsigned LocalNumCXXBaseSpecifiers;
   
   /// \brief Offset of each C++ base specifier set within the bitstream,
   /// indexed by the C++ base specifier set ID (-1).
   const uint32_t *CXXBaseSpecifiersOffsets;
-
-  /// \brief Base base specifier ID for base specifiers local to this module.
-  serialization::CXXBaseSpecifiersID BaseCXXBaseSpecifiersID;
 
   // === Types ===
   
@@ -628,7 +634,7 @@ private:
   // TU, and when we read those update records, the actual context will not
   // be available yet (unless it's the TU), so have this pending map using the
   // ID as a key. It will be realized when the context is actually loaded.
-  typedef SmallVector<void *, 1> DeclContextVisibleUpdates;
+  typedef SmallVector<std::pair<void *, Module*>, 1> DeclContextVisibleUpdates;
   typedef llvm::DenseMap<serialization::DeclID, DeclContextVisibleUpdates>
       DeclContextVisibleUpdatesPending;
 
@@ -714,14 +720,6 @@ private:
   /// added to the global preprocessing entitiy ID to produce a local ID.
   GlobalPreprocessedEntityMapType GlobalPreprocessedEntityMap;
   
-  typedef ContinuousRangeMap<serialization::CXXBaseSpecifiersID, Module *, 4>
-    GlobalCXXBaseSpecifiersMapType;
-
-  /// \brief Mapping from global CXX base specifier IDs to the module in which
-  /// the CXX base specifier resides along with the offset that should be added
-  /// to the global CXX base specifer ID to produce a local ID.
-  GlobalCXXBaseSpecifiersMapType GlobalCXXBaseSpecifiersMap;
-
   /// \name CodeGen-relevant special data
   /// \brief Fields containing data that is relevant to CodeGen.
   //@{
@@ -1023,9 +1021,11 @@ private:
   QualType readTypeRecord(unsigned Index);
   RecordLocation TypeCursorForIndex(unsigned Index);
   void LoadedDecl(unsigned Index, Decl *D);
-  Decl *ReadDeclRecord(unsigned Index, serialization::DeclID ID);
-  RecordLocation DeclCursorForIndex(unsigned Index, serialization::DeclID ID);
+  Decl *ReadDeclRecord(serialization::DeclID ID);
+  RecordLocation DeclCursorForID(serialization::DeclID ID);
+  
   RecordLocation getLocalBitOffset(uint64_t GlobalOffset);
+  uint64_t getGlobalBitOffset(Module &M, uint32_t LocalOffset);
   
   void PassInterestingDeclsToConsumer();
 
@@ -1247,12 +1247,12 @@ public:
   Decl *GetDecl(serialization::DeclID ID);
   virtual Decl *GetExternalDecl(uint32_t ID);
 
-  /// \brief Reads a declaration with the given local ID in the give module.
+  /// \brief Reads a declaration with the given local ID in the given module.
   Decl *GetLocalDecl(Module &F, uint32_t LocalID) {
     return GetDecl(getGlobalDeclID(F, LocalID));
   }
 
-  /// \brief Reads a declaration with the given local ID in the give module.
+  /// \brief Reads a declaration with the given local ID in the given module.
   ///
   /// \returns The requested declaration, casted to the given return type.
   template<typename T>
@@ -1283,9 +1283,10 @@ public:
     return cast_or_null<T>(GetDecl(ReadDeclID(F, R, I)));
   }
 
-  /// \brief Resolve a CXXBaseSpecifiers ID into an offset into the chain
-  /// of loaded AST files.
-  uint64_t GetCXXBaseSpecifiersOffset(serialization::CXXBaseSpecifiersID ID);
+  /// \brief Read a CXXBaseSpecifiers ID form the given record and
+  /// return its global bit offset.
+  uint64_t readCXXBaseSpecifiers(Module &M, const RecordData &Record, 
+                                 unsigned &Idx);
       
   virtual CXXBaseSpecifier *GetExternalCXXBaseSpecifiers(uint64_t Offset);
       

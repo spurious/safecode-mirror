@@ -1785,7 +1785,8 @@ public:
                           ObjCInterfaceDecl *IDecl);
 
   typedef llvm::DenseSet<Selector, llvm::DenseMapInfo<Selector> > SelectorSet;
-
+  typedef llvm::DenseMap<Selector, ObjCMethodDecl*> ProtocolsMethodsMap;
+                         
   /// CheckProtocolMethodDefs - This routine checks unimplemented
   /// methods declared in protocol, and those referenced by it.
   /// \param IDecl - Used for checking for methods which may have been
@@ -2235,7 +2236,8 @@ public:
                               const TemplateArgumentListInfo *&TemplateArgs);
 
   bool DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
-                           CorrectTypoContext CTC = CTC_Unknown);
+                           CorrectTypoContext CTC = CTC_Unknown,
+                           Expr **Args = 0, unsigned NumArgs = 0);
 
   ExprResult LookupInObjCMethod(LookupResult &R, Scope *S, IdentifierInfo *II,
                                 bool AllowBuiltinCreation=false);

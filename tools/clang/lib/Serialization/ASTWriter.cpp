@@ -1928,7 +1928,7 @@ void ASTWriter::WriteCXXBaseSpecifiersOffsets() {
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
   unsigned BaseSpecifierOffsetAbbrev = Stream.EmitAbbrev(Abbrev);
   
-  // Write the selector offsets table.
+  // Write the base specifier offsets table.
   Record.clear();
   Record.push_back(CXX_BASE_SPECIFIER_OFFSETS);
   Record.push_back(CXXBaseSpecifiersOffsets.size());
@@ -2033,11 +2033,13 @@ void ASTWriter::WriteTypeDeclOffsets() {
   Abbrev = new BitCodeAbbrev();
   Abbrev->Add(BitCodeAbbrevOp(DECL_OFFSET));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // # of declarations
+  Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // base decl ID
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // declarations block
   unsigned DeclOffsetAbbrev = Stream.EmitAbbrev(Abbrev);
   Record.clear();
   Record.push_back(DECL_OFFSET);
   Record.push_back(DeclOffsets.size());
+  Record.push_back(FirstDeclID - NUM_PREDEF_DECL_IDS);
   Stream.EmitRecordWithBlob(DeclOffsetAbbrev, Record, data(DeclOffsets));
 }
 
@@ -2217,6 +2219,7 @@ void ASTWriter::WriteSelectors(Sema &SemaRef) {
     Abbrev = new BitCodeAbbrev();
     Abbrev->Add(BitCodeAbbrevOp(SELECTOR_OFFSETS));
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // size
+    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // first ID
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
     unsigned SelectorOffsetAbbrev = Stream.EmitAbbrev(Abbrev);
 
@@ -2224,6 +2227,7 @@ void ASTWriter::WriteSelectors(Sema &SemaRef) {
     Record.clear();
     Record.push_back(SELECTOR_OFFSETS);
     Record.push_back(SelectorOffsets.size());
+    Record.push_back(FirstSelectorID - NUM_PREDEF_SELECTOR_IDS);
     Stream.EmitRecordWithBlob(SelectorOffsetAbbrev, Record,
                               data(SelectorOffsets));
   }
@@ -2420,12 +2424,14 @@ void ASTWriter::WriteIdentifierTable(Preprocessor &PP) {
   BitCodeAbbrev *Abbrev = new BitCodeAbbrev();
   Abbrev->Add(BitCodeAbbrevOp(IDENTIFIER_OFFSET));
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // # of identifiers
+  Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // first ID
   Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
   unsigned IdentifierOffsetAbbrev = Stream.EmitAbbrev(Abbrev);
 
   RecordData Record;
   Record.push_back(IDENTIFIER_OFFSET);
   Record.push_back(IdentifierOffsets.size());
+  Record.push_back(FirstIdentID - NUM_PREDEF_IDENT_IDS);
   Stream.EmitRecordWithBlob(IdentifierOffsetAbbrev, Record,
                             data(IdentifierOffsets));
 }
@@ -2738,14 +2744,15 @@ void ASTWriter::SetSelectorOffset(Selector Sel, uint32_t Offset) {
 
 ASTWriter::ASTWriter(llvm::BitstreamWriter &Stream)
   : Stream(Stream), Chain(0), SerializationListener(0), 
-    FirstDeclID(1), NextDeclID(FirstDeclID),
+    FirstDeclID(NUM_PREDEF_DECL_IDS), NextDeclID(FirstDeclID),
     FirstTypeID(NUM_PREDEF_TYPE_IDS), NextTypeID(FirstTypeID),
-    FirstIdentID(1), NextIdentID(FirstIdentID), FirstSelectorID(1),
-    NextSelectorID(FirstSelectorID), FirstMacroID(1), NextMacroID(FirstMacroID),
+    FirstIdentID(NUM_PREDEF_IDENT_IDS), NextIdentID(FirstIdentID), 
+    FirstSelectorID(NUM_PREDEF_SELECTOR_IDS), NextSelectorID(FirstSelectorID),
+    FirstMacroID(1), NextMacroID(FirstMacroID),
     CollectedStmts(&StmtsToEmit),
     NumStatements(0), NumMacros(0), NumLexicalDeclContexts(0),
     NumVisibleDeclContexts(0),
-    FirstCXXBaseSpecifiersID(1), NextCXXBaseSpecifiersID(1),
+    NextCXXBaseSpecifiersID(1),
     DeclParmVarAbbrev(0), DeclContextLexicalAbbrev(0),
     DeclContextVisibleLookupAbbrev(0), UpdateVisibleAbbrev(0),
     DeclRefExprAbbrev(0), CharacterLiteralAbbrev(0),
@@ -3070,7 +3077,6 @@ void ASTWriter::WriteASTChain(Sema &SemaRef, MemorizeStatCalls *StatCalls,
       io::Emit32(Out, (*M)->BaseMacroDefinitionID);
       io::Emit32(Out, (*M)->BaseSelectorID);
       io::Emit32(Out, (*M)->BaseDeclID);
-      io::Emit32(Out, (*M)->BaseCXXBaseSpecifiersID);
       io::Emit32(Out, (*M)->BaseTypeIndex);
     }
   }
@@ -3872,7 +3878,7 @@ void ASTWriter::FlushCXXBaseSpecifiers() {
     Record.clear();
     
     // Record the offset of this base-specifier set.
-    unsigned Index = CXXBaseSpecifiersToWrite[I].ID - FirstCXXBaseSpecifiersID;
+    unsigned Index = CXXBaseSpecifiersToWrite[I].ID - 1;
     if (Index == CXXBaseSpecifiersOffsets.size())
       CXXBaseSpecifiersOffsets.push_back(Stream.GetCurrentBitNo());
     else {
@@ -3991,7 +3997,6 @@ void ASTWriter::ReaderInitialized(ASTReader *Reader) {
          FirstIdentID == NextIdentID &&
          FirstSelectorID == NextSelectorID &&
          FirstMacroID == NextMacroID &&
-         FirstCXXBaseSpecifiersID == NextCXXBaseSpecifiersID &&
          "Setting chain after writing has started.");
 
   Chain = Reader;
@@ -4001,13 +4006,11 @@ void ASTWriter::ReaderInitialized(ASTReader *Reader) {
   FirstIdentID += Chain->getTotalNumIdentifiers();
   FirstSelectorID += Chain->getTotalNumSelectors();
   FirstMacroID += Chain->getTotalNumMacroDefinitions();
-  FirstCXXBaseSpecifiersID += Chain->getTotalNumCXXBaseSpecifiers();
   NextDeclID = FirstDeclID;
   NextTypeID = FirstTypeID;
   NextIdentID = FirstIdentID;
   NextSelectorID = FirstSelectorID;
   NextMacroID = FirstMacroID;
-  NextCXXBaseSpecifiersID = FirstCXXBaseSpecifiersID;
 }
 
 void ASTWriter::IdentifierRead(IdentID ID, IdentifierInfo *II) {
