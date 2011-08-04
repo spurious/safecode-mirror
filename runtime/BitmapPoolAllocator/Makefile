@@ -9,7 +9,7 @@ BYTECODE_LIBRARY=1
 #
 ifneq ($(OS),Cygwin)
 ifneq ($(OS),MingW)
-SHARED_LIBRARY=1
+#SHARED_LIBRARY=1
 endif
 endif
 
