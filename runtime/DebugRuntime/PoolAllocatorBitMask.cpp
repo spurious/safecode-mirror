@@ -1154,6 +1154,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
         // FIXME: Make sure there is no off by one error in the line below
         v.objLen = (char *)(end) - (char *)(start);
 
+        if (dummyPool.DPTree.find (start, start, end, debugmetadataptr))
+          v.dbgMetaData = debugmetadataptr;
       ReportMemoryViolation(&v);
     } else {
       //
