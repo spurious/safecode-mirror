@@ -164,7 +164,7 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
 #if !defined(__linux__)
   const unsigned invalidsize = 1 * 1024 * 1024 * 1024;
-  void * Addr = mmap (0, invalidsize, 0, MAP_SHARED | MAP_ANON, -1, 0);
+  void * Addr = mmap (0, invalidsize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
   if (Addr == MAP_FAILED) {
      perror ("mmap:");
      fflush (stdout);
