@@ -100,9 +100,11 @@ ViolationInfo::print(std::ostream & OS) const {
 void
 ReportMemoryViolation(const ViolationInfo *v) {
 	v->print(std::cerr);
+#if 0
   static unsigned count = 20;
   --count;
   if (!count) abort();
+#endif
   return;
 }
 
