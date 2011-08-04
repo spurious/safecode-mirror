@@ -440,9 +440,9 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("boundscheckui"), LInfo);
   transformFunction (M.getFunction ("exactcheck2"), LInfo);
   transformFunction (M.getFunction ("pool_register"), LInfo);
-  transformFunction (M.getFunction ("pool_register_stack"), VInfo);
-  transformFunction (M.getFunction ("pool_unregister"), VInfo);
-  transformFunction (M.getFunction ("pool_unregister_stack"), VInfo);
+  transformFunction (M.getFunction ("pool_register_stack"), LInfo);
+  transformFunction (M.getFunction ("pool_unregister"), LInfo);
+  transformFunction (M.getFunction ("pool_unregister_stack"), LInfo);
 
   // Standard C library functions
   transformFunction(M.getFunction("pool_strcpy"),  LInfo);
