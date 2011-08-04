@@ -18,8 +18,7 @@ SAFECode Users Guide
 <!-- ********************************************************************** -->
 <ul>
   <li><a href="#overview">Overview</a></li>
-  <li><a href="#clang">SAFECode with Clang</a></li>
-  <li><a href="#sc">The sc tool</a></li>
+  <li><a href="#compile">Compiling a Program with SAFECode</a></li>
 </ul>
 
 <!-- ********************************************************************** -->
@@ -39,23 +38,29 @@ SAFECode Users Guide
 <div class="doc_text">
 
 <p>
-This manual provides information on using the tools that come with the SAFECode
-compiler.  There are two primary methods in which to use SAFECode: it is
-integrated in a version of the Clang C/C++ front-end that is included with
-SAFECode, or it can be run explicitly on an LLVM bitcode file using the sc tool.
-The first method is the easiest to use when compiling large programs with
-SAFECode; you merely add the -memsafety option to the compile-time
-command-line, link with the SAFECode run-time libraries, and you're done.
-The second method requires that you first compile your program to a single LLVM
-bitcode file before feeding it into the sc tool; it is harder to use in that
-you must determine, on your own, how to get your program compiled into a single
-LLVM bitcode file.
+The SAFECode compiler is a memory safety compiler built using the LLVM Compiler
+Infrastructure and the Clang compiler driver.  A memory safety compiler is a
+compiler that inserts run-time checks into a program during compilation to
+catch memory safety errors at run-time.  Such errors can include buffer
+overflows, invalid frees, and dangling pointer dereferences.
+</p>
+
+<p>
+With additional instrumentation to track debugging information, a memory safety
+compiler can be used to find and diagnose memory safety errors in programs
+(this functionality is similar to what
+<a href="http://valgrind.org/">Valgrind</a> does).
+</p>
+
+<p>
+This manual will show how to compile a program with the SAFECode compiler and
+how to read the diagnostic output when a memory safety error occurs.
 </p>
 </div>
 
 <!-- *********************************************************************** -->
 <div class="doc_section">
-  <a name="clang"><b>SAFECode with Clang</b></a>
+  <a name="compile"><b>Compiling a Program with SAFECode</b></a>
 </div>
 <!-- *********************************************************************** -->
 
@@ -72,7 +77,7 @@ To activate the SAFECode transforms during compilation, add the
 <i>-memsafety</i> command-line option to the Clang command line:
 
 <ul>
-  <li><tt>clang -memsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
+  <li><tt>clang -g -memsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
 </ul>
 
 ... and add the SAFECode libraries to the link command line (note that you may
@@ -84,10 +89,14 @@ need a <tt>-L</tt> option to indicate where the libraries are located:
 </ul>
 </p>
 
-<ul>
-</ul>
 <p>
-That's it!  To configure an autoconf-based software package to use SAFECode, do
+That's it!  Note the use of the <tt>-g</tt> option; that generates debugging
+information that the SAFECode transforms can use to enhance its run-time
+checks.
+</p>
+
+<p>
+To configure an autoconf-based software package to use SAFECode, do
 the following:
 </p>
 
@@ -105,225 +114,138 @@ the following:
 <li> Run the configure script</li>
 <li> Type "make" to compile the source code.</li>
 </ol>
-
 </div>
 
 <!-- *********************************************************************** -->
 <div class="doc_section">
-  <a name="sc"><b>The sc Tool</b></a>
+  <a name="sample"><b>Sample Debugging with SAFECode</b></a>
 </div>
 <!-- *********************************************************************** -->
 
 <div class="doc_text">
+<p>
+Let's say that we have the following C program:
+</p>
+
+<pre>
+  1 #include "stdio.h"
+  2 #include "stdlib.h"
+  3 
+  4 int
+  5 foo (char * bar) {
+  6   for (unsigned index = 0; index < 10; ++index)
+  7     bar[index] = 'a';
+  8   return 0;
+  9 }
+ 10 
+ 11 int
+ 12 main (int argc, char ** argv) {
+ 13   char * array[100];
+ 14   int max = atoi (argv[1]);
+ 15 
+ 16   for (int index = max; index >= 0; --index) {
+ 17     array[index] = malloc (index+1);
+ 18   }
+ 19 
+ 20   for (int index = max; index >= 0; --index) {
+ 21     foo (array[index]);
+ 22   }
+ 23 
+ 24   exit (0);
+ 25 }
+</pre>
 
 <p>
-The sc tool is the SAFECode compiler.  It takes a whole program in LLVM bitcode
-form, transforms it to be memory safe, and outputs instrumented LLVM bitcode.
-The output of the sc tool can be converted to native code via the LLVM llc tool
-and linked with the SAFECode run-time library.
+Lines 16-18 allocate character arrays of decreasing size, starting with the
+argument plus one specified by the user down to an array of one character.
+Lines 20-22 then call the function <tt>foo()</tt> which accesses elements 0-9
+of the array.
 </p>
 
 <p>
-The sc tool utilizes <i>whole-program analysis</i>: this
-means that you <i><b>must</b></i> compile your program into separate LLVM
-bitcode files, link these files together into a single bitcode file, process
-the complete bitcode file with sc, and then generate native code.
-You <i><b>cannot</b></i> run individiual bitcode object files through sc and
-then link them together.
-</p>
-
-<p>
-The steps for compiling a program with SAFECode are as follows:
-</p>
-
-<ol>
-  <li>
-  Compile the program into a single LLVM bitcode file:
-  <ol>
-    <li>Compile the program's source file into LLVM bitcode.</li>
-    <li>Link the LLVM bitcode files together into a single bitcode file.</li>
-  </ol>
-  </li>
-  <li>Process the single bitcode file with the sc tool.</li>
-  <li>Generate native code for the program.</li>
-  <li>Link the native code with the SAFECode run-time library.</li>
-</ol>
-</div>
-
-<!-- *********************************************************************** -->
-<div class="doc_subsection">
-  <a name="sc"><b>Compiling a Program Into a Single Bitcode File</b></a>
-</div>
-<!-- *********************************************************************** -->
-
-<div class="doc_text">
-
-<p>
-Compiling a program into a single bitcode file requires that one first compile
-each source file into an LLVM bitcode file and then link these bitcode files
-together into a single bitcode file.  To compile source files into an LLVM
-bitcode file instead of into a native object file, using the -emit-llvm option
-to llvm-gcc:
-</p>
-
+If we compile this program with SAFECode and execute it:
 <ul>
-  <li><tt>llvm-gcc -emit-llvm -c <i>srcfilename</i>.c</tt></li>
+  <li><tt>clang -g -memsafety -o <i>test</i> <i>test.c</i></tt></li>
+  <li><tt>./test 10</tt></li>
 </ul>
 
+We'll get the following error report:
+</p>
+
+<pre>
+=======+++++++    SAFECODE RUNTIME ALERT +++++++=======
+= Error type                            :       Load/Store Error
+= Faulting pointer                      :       0x100100679
+= Program counter                       :       0x100002fa6
+= Fault PC Source                       :       /Users/criswell/tmp/safecode/test/test.c:7
+=
+= Object allocated at PC                :       0x100003600
+= Allocated in Source File              :       main:1
+= Object allocation sequence number     :       3
+= Object start                          :       0x100100670
+= Object length                         :       0x9
+</pre>
+
 <p>
-Once all of the the source files have been compiled, they can be linked
-together into a single bitcode file.  The llvm-ld tool can be used to do this.
-<!--
-  other options include the new Gold linker and extensions to the Mac OS X
-  linker (both of these have been extended to link together LLVM bitcode files).
--->
+The first thing to note is the error type.  SAFECode is reporting a load/store
+error, meaning that some memory access is trying to access a memory location
+that it should not.  The second thing to note is the faulting pointer field
+(<tt>0x100100679</tt>) which tells us the pointer value that was invalid.
+SAFECode reports that the error occured on line 7 of test.c; this is what we
+expect because that is the line in <tt>foo()</tt> that accesses out-of-bounds
+memory.
 </p>
 
 <p>
-To link files together using llvm-ld, do the following:
+Now look at the "Object start" and "Object length" fields in the report:
 </p>
 
-<ul>
-  <li><tt>llvm-ld -o <i>output_filename</i>.bc <i>file1</i>.bc <i>file2</i>.bc
-...</tt></li>
-</ul>
+<pre>
+= Object start                          :       0x100100670
+= Object length                         :       0x9
+</pre>
+
+<p>
+Because this is a load/store error, SAFECode is telling us that a pointer
+started out within the bounds of the memory object starting at 0x100100670 with
+length 0x9 but that it went out of bounds to 0x100100679 and was subsequently
+dereferenced.  SAFECode can do this using a technique called pointer rewriting;
+when a pointer goes out of bounds, SAFECode changes it to point to a reserved,
+unmapped region in the program's virtual address space.  SAFECode tracks enough
+metadata about memory objects that if it ever detects a dereference of a
+rewritten pointer (like the example above), it can report the bounds of the
+original object from which the pointer came.  Not only that, it attempts to
+print the source line information about the location at which the memory object
+was allocated:
+
+<pre>
+= Allocated in Source File              :       main:1
+</pre>
+
+Unfortunately, in this example, SAFECode can't find enough debugging
+information to report the source line information, so it print the function
+which allocated the memory object and a unique tag for the allocation site as
+a second-best result.
+</p>
+
+<p>
+Finally, notice the allocation sequence number:
+</p>
+
+<pre>
+= Object allocation sequence number     :       3
+</pre>
+
+<p>
+A particular source line may be executed multiple times and allocate many
+objects.  The sequence number above tells us that the memory object was the
+third memory object allocated at the allocation site in <tt>main()</tt>.  This
+information could be used, for example, to set a breakpoint at the memory
+allocation site that doesn't trigger until the memory object experiencing the
+error is actually allocated.
+</p>
 
 </div>
-
-<!-- *********************************************************************** -->
-<div class="doc_subsection">
-  <a name="sc"><b>Using the sc Tool</b></a>
-</div>
-<!-- *********************************************************************** -->
-
-<div class="doc_text">
-
-<p>
-The sc tool takes as input a bitcode file representing a whole program and
-outputs an instrumented bitcode file.  Invoke the sc tool as follows:
-</p>
-
-<ul>
-  <li><tt>sc <i>options</i> -o <i>output_filename</i>.bc
-<i>input_filename</i>.bc</tt></li>
-</ul>
-
-Options to the sc tool include:
-
-<ul>
-  <li>
-  <tt>-f</tt>:
-  Overwrite the output file if it already exists.  By default, the sc tool will
-  not overwrite a pre-existing file.
-  </li>
-
-  <li>
-  <tt>-terminate</tt>:
-  By default, SAFECode reports errors in a separate log file and permits the
-  application to continue execution.  This option will cause the generated
-  program to terminate on the first memory safety error.
-  </li>
-
-  <li>
-  <tt>-pa</tt>:
-  Indicates which type of pool allocation the sc tool should use.  Options
-  include:
-  <ul>
-    <li>
-    -pa=simple<br>
-    This option uses a single pool to record bounds information for memory
-    objects.
-    </li>
-
-    <li>
-    -pa=multi<br>
-    This option uses multiple context-insensitive pools to store bounds
-    information on memory objects.
-    </li>
-
-    <li>
-    -pa=apa<br>
-    This option uses full-blown, context-sensitive, pools to store information
-    on memory objects.
-    </li>
-  </ul>
-  </li>
-
-  <li>
-  <tt>-rewrite-oob</tt>:
-  Permit Out of Bounds (OOB) pointers to be created as long as they are not
-  dereferenced.  By default, SAFECode only permits pointers to move one byte
-  past the end of the object provided that the pointer is not dereferenced
-  (this behavior is consistent with the C programming language standard); all
-  other Out of Bounds pointers are flagged as an error.  With this option
-  enabled, arbitrary Out of Bounds pointers are permitted as long as they are
-  not dereferenced.  This option eases the restrictions on pointer indexing for
-  programs that are memory safe but do not follow the C standard strictly.
-  </li>
-
-  <li>
-  <tt>-dpchecks</tt>:
-  Enable dangling pointer detection.  By default, the sc tool outputs a program
-  that <i>tolerates</i> dangling pointer dereferences.  This option ensures,
-  with additional run-time overhead, that dangling pointer dereferences are
-  detected at run-time.
-  </li>
-
-  <li>
-  <tt>-disable-debuginfo</tt>:
-  Disable debug information.  By default, if the program has debug information
-  compiled into it (i.e., the -g option was used on the llvm-gcc command line
-  when creating the bitcode input files), then memory safety errors reported at
-  run-time will attempt to print out the source file name and line number of
-  where the error occurred.  With this option, the processed program will still
-  catch memory errors but will not attempt to provide detailed information to
-  help diagnose the error.
-  </li>
-
-  <li>
-  <tt>-help</tt>:
-  Prints available options.
-  </li>
-</ul>
-
-</div>
-
-<!-- *********************************************************************** -->
-<div class="doc_subsection">
-  <a name="link"><b>Creating an Executable</b></a>
-</div>
-<!-- *********************************************************************** -->
-
-<div class="doc_text">
-
-<p>
-Creating an executable from the output of the sc tool requires that one
-generate the native code for the output bitcode and link in the run-time
-libraries implementing the memory allocator and the SAFECode run-time checks.
-Generating native code can be done using the LLVM llc tool:
-</p>
-
-<ul>
-  <li><tt>llc -f -o <i>output_filename.s</i> <i>output_from_sc</i>.bc</tt></li>
-</ul>
-
-<p>
-Creating the final executable can be done using GCC.  At a minimum, you need to
-link in the two SAFECode run-time libraries and the C++ standard library.  You
-will also need to link in any additional native code libraries that were not
-linked in as LLVM bitcode libraries.
-
-Below is an example of creating the final executable.  In the example,
-<i>Configuration</i> is either Release, Debug, or Profile depending upon
-whether you built a Release, Debug, or Profile version of SAFECode:
-</p>
-
-<ul>
-  <li>
-  <tt>gcc -o <i>executable</i> <i>output_from_llc</i>.s
-  <i>Configuration</i>/lib/libsc_dbg_rt.a
-  <i>Configuration</i>/lib/libpoolalloc_bitmap.a
-  -lstdc++
-  </li>
-</ul>
+</body>
+</html>
 
