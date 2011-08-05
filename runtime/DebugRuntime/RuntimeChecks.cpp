@@ -338,7 +338,7 @@ poolcheckui_debug (DebugPoolTy *Pool,
     //
     void * start;
     void * end;
-    PDebugMetaData debugmetadataptr;
+    PDebugMetaData debugmetadataptr = 0;
     int fs =dummyPool.DPTree.find (ObjStart, start, end, debugmetadataptr);
 
     OutOfBoundsViolation v;
