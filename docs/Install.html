@@ -19,7 +19,15 @@ SAFECode Install Guide
 <ul>
   <li><a href="#overview">Overview</a></li>
   <li><a href="#requirements">Requirements</a></li>
+  <ul>
+    <li><a href="#dependencies">Software and Build Tool Dependencies</a>
+    <li><a href="#platforms">Supported Platforms</a>
+  </ul>
   <li><a href="#download">Getting the Source Code</a></li>
+  <ul>
+    <li><a href="#direct">Source TAR Archive</a>
+    <li><a href="#svn">Subversion Repository Download</a>
+  </ul>
   <li><a href="#configure">Configuring the Source Code</a></li>
   <li><a href="#compile">Compiling SAFECode</a></li>
 </ul>
@@ -67,9 +75,10 @@ provided with the directions on downloading SAFECode.
 </p>
 
 <p>
-SAFECode comes only as source code; you will need the proper tools (namely GCC
-and GNU make) to compile it.  The necessary requirements are those needed by
-LLVM and are listed
+SAFECode comes pre-compiled for some architectures, but the best way to get it
+is as as source code.  If building from source, you will need the proper tools
+(namely GCC and GNU make) to compile it.  The necessary requirements are those
+needed by LLVM and are listed
 <a href="http://llvm.org/docs/GettingStarted.html#requirements">here</a>.
 </p>
 </div>
@@ -92,6 +101,32 @@ processors.
 <!-- *********************************************************************** -->
 
 <div class="doc_text">
+<p>
+There are two ways to get SAFECode: downloading the tar archive or downloading
+it from the public Subversion repository.
+</p>
+</div>
+
+<div class="doc_subsection">
+  <a name="direct"><b>Source TAR Archive</b></a>
+</div>
+
+<div class="doc_text">
+<p>
+Complete source TAR archives of SAFECode can be found
+<a href="http://safecode.cs.illinois.edu/downloads.html">here</a>.  These
+archives include LLVM as well as the Automatic Pool Allocation and SAFECode
+projects located within the <tt>llvm/projects</tt> directory.  You will need
+GNU Zip (<tt>gunzip</tt>) and the tar utility (<tt>tar</tt>) to unpack the
+archive (these are available on practically all Unix systems today).
+</p>
+</div>
+
+<div class="doc_subsection">
+  <a name="svn"><b>Subversion Repository Download</b></a>
+</div>
+
+<div class="doc_text">
 
 <p>
 SAFECode, the Automatic Pool Allocation project, and LLVM are all stored in
@@ -102,7 +137,7 @@ for these projects using a standard Subversion client as described below.
 <p>
 By default, you should put Automatic Pool Allocation and SAFECode into the
 projects subdirectory of the LLVM source distribution.  The following commands
-should down all of the source code into the appropriate places:
+should download all of the source code into the appropriate places:
 </p>
 
 <ul>
@@ -148,12 +183,19 @@ LLVM Getting Started Guide
 <div class="doc_text">
 
 <p>
-Once you have the source code checked out, you should be able to configure LLVM
-and the poolalloc project using just the top level LLVM configure script.  You
-can then configure SAFECode separately (currently, the LLVM configure script
-does not configure SAFECode automatically).  You may need to add the following
-options to the command line when running <tt>configure</tt> in order to
-configure Automatic Pool Allocation and SAFECode correctly:
+Once you have the source code checked out, you should be able to configure
+LLVM, the poolalloc project, and the SAFECode project using just the top level
+LLVM configure script (the LLVM <tt>configure</tt> script configures the
+poolalloc and safecode projects automatically if they're present in the
+<tt>projects</tt> subdirectory).  Simply configure LLVM as you normally would
+(e.g., run <tt>./configure</tt> in the LLVM source tree), and SAFECode will be
+configured automatically for you.
+</p>
+
+<p>
+If you have any problems configuring SAFECode (or you're doing something
+unconventional), you can try adding the following options to the command line
+when running <tt>configure</tt>:
 </p>
 
 <ul>
@@ -185,10 +227,15 @@ Additional options for the SAFECode configure script include:
 <ul>
   <li><tt>--with-poolalloc-srcdir</tt>:
   Specifies the location of the source code for Automatic Pool Allocation.
+  This should only be necessary if the either the poolalloc source tree or
+  safecode source tree is not within <tt>llvm/projects</tt>.
   </li>
 
   <li><tt>--with-poolalloc-objdir</tt>:
   Specifies the location of the object code for Automatic Pool Allocation.
+  This should only be necessary if the either the poolalloc object tree or
+  safecode object tree is not within the <tt>projects</tt> subdirectory of the
+  LLVM object tree.
   </li>
 </ul>
 
@@ -199,8 +246,6 @@ object tree:
 <ul>
   <li><tt>cd <i>LLVM-object-directory</i></tt></li>
   <li><tt><i>LLVM-source-directory</i>/configure [options]</tt></li>
-  <li><tt>cd projects/safecode</tt></li>
-  <li><tt><i>SAFECode-source-directory</i>/configure [options]</tt></li>
 </ul>
 
 </div>
@@ -220,7 +265,9 @@ To build SAFECode, first compile the LLVM tools and then SAFECode itself:
 <ul>
   <li><tt>cd <i>LLVM-object-directory</i></tt></li>
   <li><tt>make tools-only</tt></li>
-  <li><tt>cd projects/safecode</tt></li>
+  <li><tt>cd projects/poolalloc</tt></li>
+  <li><tt>make</tt></li>
+  <li><tt>cd ../safecode</tt></li>
   <li><tt>make</tt></li>
 </ul>
 
