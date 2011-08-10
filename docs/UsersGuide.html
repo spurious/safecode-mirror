@@ -82,7 +82,8 @@ To activate the SAFECode transforms during compilation, add the
 </ul>
 
 ... and add the SAFECode libraries to the link command line (note that you may
-need a <tt>-L</tt> option to indicate where the libraries are located):
+need a <tt>-L$PREFIX/lib</tt> option to indicate where the libraries are
+located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed):
 
 <ul>
   <li><tt>clang -memsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
@@ -106,12 +107,8 @@ the following:
 <li> Set the environment variable CXX to $PREFIX/clang++.</li>
 <li> Set the environment variable CFLAGS to "-g -memsafety"</li>
 <li> Set the environment variable LDFLAGS to
-     "-L$SAFECODE/$CONFIG/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where:
-    <ol>
-    <li> $SAFECODE is the root of the SAFECode object tree.</li>
-    <li> $CONFIG is the type of build (Debug, Release, or Profile).</li>
-    </ol>
-</li>
+     "-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where
+     $PREFIX is the directory into which SAFECode was installed.
 <li> Run the configure script</li>
 <li> Type "make" to compile the source code.</li>
 </ol>
