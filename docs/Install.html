@@ -30,6 +30,7 @@ SAFECode Install Guide
   </ul>
   <li><a href="#configure">Configuring the Source Code</a></li>
   <li><a href="#compile">Compiling SAFECode</a></li>
+  <li><a href="#install">Installing SAFECode</a></li>
 </ul>
 
 <!-- ********************************************************************** -->
@@ -308,5 +309,33 @@ If you only want to use SAFECode, use a Release build.  If you are doing
 development work on SAFECode, use the Debug or Profile builds as appropriate.
 </p>
 
+</div>
+
+<!-- *********************************************************************** -->
+<div class="doc_section">
+  <a name="install"><b>Installing SAFECode</b></a>
+</div>
+<!-- *********************************************************************** -->
+
+<div class="doc_text">
+<p>
+Once SAFECode has been built, you can install it using the following commands:
+</p>
+
+<ul>
+  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
+  <li><tt>make install</tt></li>
+  <li><tt>cd projects/poolalloc</tt></li>
+  <li><tt>make install</tt></li>
+  <li><tt>cd ../safecode</tt></li>
+  <li><tt>make install</tt></li>
+</ul>
+
+Like LLVM, installing SAFECode is not necessary for using it; however,
+performing the installation may place the SAFECode binaries and libraries into
+directories that are more convenient.  By default, clang and clang++ are
+installed into <tt>/usr/local/bin</tt>, and the libraries are installed in
+<tt>/usr/local/lib</tt>; however, these locations can be changed by using the
+<tt>--prefix</tt> option to the LLVM configure script.
 </div>
 
