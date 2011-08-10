@@ -497,7 +497,8 @@ def error_synthesize_weak_non_arc_or_gc : Error<
 def err_arc_perform_selector_retains : Error<
   "performSelector names a selector which retains the object">;
 def warn_arc_perform_selector_leaks : Warning<
-  "performSelector may cause a leak because its selector is unknown">;
+  "performSelector may cause a leak because its selector is unknown">,
+  InGroup<DiagGroup<"arc-performSelector-leaks">>;
 
 def error_synthesized_ivar_yet_not_supported : Error<
   "instance variable synthesis not yet supported"
@@ -1141,6 +1142,10 @@ def err_attribute_bad_neon_vector_size : Error<
   "Neon vector size must be 64 or 128 bits">;
 def err_attribute_argument_not_int : Error<
   "'%0' attribute requires integer constant">;
+def err_attribute_argument_not_class : Error<
+  "%0 attribute requires arguments that are class type or point to class type">;
+def err_attribute_first_argument_not_int_or_bool : Error<
+  "%0 attribute first argument must be of int or bool type">;
 def err_attribute_argument_outof_range : Error<
   "init_priority attribute requires integer constant between "
   "101 and 65535 inclusive">;
@@ -1299,6 +1304,21 @@ def warn_availability_version_ordering : Warning<
   "feature cannot be %select{introduced|deprecated|obsoleted}0 in %1 version "
   "%2 before it was %select{introduced|deprecated|obsoleted}3 in version %4; "
   "attribute ignored">;
+  
+// Thread Safety Attributes
+// Errors when parsing the attributes
+def err_attribute_argument_out_of_range : Error<
+  "%0 attribute parameter %1 is out of bounds: "
+  "%plural{0:no parameters to index into|"
+  "1:can only be 1, since there is one parameter|"
+  ":must be between 1 and %2}2">;
+def err_attribute_argument_not_lockable : Error<
+  "%0 attribute requires arguments whose type is annotated "
+  "with 'lockable' attribute">;
+def err_attribute_decl_not_lockable : Error<
+  "%0 attribute can only be applied in a context annotated "
+  "with 'lockable' attribute">;
+
 
 def warn_impcast_vector_scalar : Warning<
   "implicit conversion turns vector to scalar: %0 to %1">,
@@ -2971,6 +2991,9 @@ def warn_member_extra_qualification : Warning<
 def err_member_qualification : Error<
   "non-friend class member %0 cannot have a qualified name">;  
 def note_member_def_close_match : Note<"member declaration nearly matches">;
+def note_member_def_close_param_match : Note<
+  "type of %ordinal0 parameter of member declaration does not match "
+  "definition (%1 vs %2)">;
 def err_typecheck_ivar_variable_size : Error<
   "instance variables must have a constant size">;
 def err_ivar_reference_type : Error<
@@ -3780,6 +3803,9 @@ def warn_unused_property_expr : Warning<
 def warn_unused_call : Warning<
   "ignoring return value of function declared with %0 attribute">,
   InGroup<UnusedValue>;
+def warn_unused_result : Warning<
+  "ignoring return value of function declared with warn_unused_result "
+  "attribute">, InGroup<DiagGroup<"unused-result">>;
 
 def err_incomplete_type_used_in_type_trait_expr : Error<
   "incomplete type %0 used in type trait expression">;
@@ -4079,12 +4105,19 @@ def err_out_of_line_default_deletes : Error<
 def err_defaulted_move_unsupported : Error<
   "defaulting move functions not yet supported">;
 
+def warn_ptr_arith_precedes_bounds : Warning<
+  "the pointer decremented by %0 refers before the beginning of the array">,
+  InGroup<DiagGroup<"array-bounds-pointer-arithmetic">>, DefaultIgnore;
+def warn_ptr_arith_exceeds_bounds : Warning<
+  "the pointer incremented by %0 refers past the end of the array (that "
+  "contains %1 element%s2)">,
+  InGroup<DiagGroup<"array-bounds-pointer-arithmetic">>, DefaultIgnore;
 def warn_array_index_precedes_bounds : Warning<
   "array index of '%0' indexes before the beginning of the array">,
   InGroup<DiagGroup<"array-bounds">>;
 def warn_array_index_exceeds_bounds : Warning<
-  "array index of '%0' indexes past the end of an array (that contains %1 elements)">,
-  InGroup<DiagGroup<"array-bounds">>;
+  "array index of '%0' indexes past the end of an array (that contains %1 "
+  "element%s2)">, InGroup<DiagGroup<"array-bounds">>;
 def note_array_index_out_of_bounds : Note<
   "array %0 declared here">;
 
@@ -4151,15 +4184,20 @@ def warn_scanf_scanlist_incomplete : Warning<
   
 // CHECK: returning address/reference of stack memory
 def warn_ret_stack_addr : Warning<
-  "address of stack memory associated with local variable %0 returned">;
+  "address of stack memory associated with local variable %0 returned">,
+  InGroup<DiagGroup<"return-stack-address">>;
 def warn_ret_stack_ref : Warning<
-  "reference to stack memory associated with local variable %0 returned">;
+  "reference to stack memory associated with local variable %0 returned">,
+  InGroup<DiagGroup<"return-stack-address">>;
 def warn_ret_local_temp_addr : Warning<
-  "returning address of local temporary object">;
+  "returning address of local temporary object">,
+  InGroup<DiagGroup<"return-stack-address">>;
 def warn_ret_local_temp_ref : Warning<
-  "returning reference to local temporary object">;
+  "returning reference to local temporary object">,
+  InGroup<DiagGroup<"return-stack-address">>;
 def warn_ret_addr_label : Warning<
-  "returning address of label, which is local">;
+  "returning address of label, which is local">,
+  InGroup<DiagGroup<"return-stack-address">>;
 def err_ret_local_block : Error<
   "returning block that lives on the local stack">;
 def note_ref_var_local_bind : Note<
@@ -4462,6 +4500,8 @@ def err_unknown_any_addrof : Error<
   "can only be cast to a pointer type">;
 def err_unknown_any_var_function_type : Error<
   "variable %0 with unknown type cannot be given a function type">;
+def err_unknown_any_function : Error<
+  "function %0 with unknown type must be given a function type">;
 
 def err_filter_expression_integral : Error<
   "filter expression type should be an integral value not %0">;

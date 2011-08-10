@@ -322,6 +322,7 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   //   A glvalue of a non-function, non-array type T can be
   //   converted to a prvalue.
   if (!E->isGLValue()) return Owned(E);
+
   QualType T = E->getType();
   assert(!T.isNull() && "r-value conversion on typeless expression?");
 
@@ -364,8 +365,6 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   //   type of the lvalue.    
   if (T.hasQualifiers())
     T = T.getUnqualifiedType();
-
-  CheckArrayAccess(E);
   
   return Owned(ImplicitCastExpr::Create(Context, T, CK_LValueToRValue,
                                         E, 0, VK_RValue));
@@ -1364,8 +1363,9 @@ Sema::DecomposeUnqualifiedId(const UnqualifiedId &Id,
 ///
 /// \return false if new lookup candidates were found
 bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
-                               CorrectTypoContext CTC, Expr **Args,
-                               unsigned NumArgs) {
+                               CorrectTypoContext CTC,
+                               TemplateArgumentListInfo *ExplicitTemplateArgs,
+                               Expr **Args, unsigned NumArgs) {
   DeclarationName Name = R.getLookupName();
 
   unsigned diagnostic = diag::err_undeclared_var_use;
@@ -1457,19 +1457,22 @@ bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
         for (TypoCorrection::decl_iterator CD = Corrected.begin(),
                                         CDEnd = Corrected.end();
              CD != CDEnd; ++CD) {
-          if (FunctionDecl *FD = dyn_cast<FunctionDecl>(*CD))
-            AddOverloadCandidate(FD, DeclAccessPair::make(*CD, AS_none),
-                                 Args, NumArgs, OCS);
-          // TODO: Handle FunctionTemplateDecl and other Decl types that
-          // support overloading and could be corrected by CorrectTypo.
+          if (FunctionTemplateDecl *FTD =
+                   dyn_cast<FunctionTemplateDecl>(*CD))
+            AddTemplateOverloadCandidate(
+                FTD, DeclAccessPair::make(FTD, AS_none), ExplicitTemplateArgs,
+                Args, NumArgs, OCS);
+          else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(*CD))
+            if (!ExplicitTemplateArgs || ExplicitTemplateArgs->size() == 0)
+              AddOverloadCandidate(FD, DeclAccessPair::make(FD, AS_none),
+                                   Args, NumArgs, OCS);
         }
         switch (OCS.BestViableFunction(*this, R.getNameLoc(), Best)) {
           case OR_Success:
             ND = Best->Function;
             break;
           default:
-            // Don't try to recover; it won't work.
-            return true;
+            break;
         }
       }
       R.addDecl(ND);
@@ -3394,6 +3397,12 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc,
 
       Arg = ArgExpr.takeAs<Expr>();
     }
+
+    // Check for array bounds violations for each argument to the call. This
+    // check only triggers warnings when the argument isn't a more complex Expr
+    // with its own checking, such as a BinaryOperator.
+    CheckArrayAccess(Arg);
+
     AllArgs.push_back(Arg);
   }
 
@@ -5932,6 +5941,9 @@ QualType Sema::CheckAdditionOperands( // C99 6.5.6
         return QualType();
       }
 
+      // Check array bounds for pointer arithemtic
+      CheckArrayAccess(PExp, IExp);
+
       if (CompLHSTy) {
         QualType LHSTy = Context.isPromotableBitField(lex.get());
         if (LHSTy.isNull()) {
@@ -5987,6 +5999,12 @@ QualType Sema::CheckSubtractionOperands(ExprResult &lex, ExprResult &rex,
     if (rex.get()->getType()->isIntegerType()) {
       if (!checkArithmeticOpPointerOperand(*this, Loc, lex.get()))
         return QualType();
+
+      Expr *IExpr = rex.get()->IgnoreParenCasts();
+      UnaryOperator negRex(IExpr, UO_Minus, IExpr->getType(), VK_RValue,
+                           OK_Ordinary, IExpr->getExprLoc());
+      // Check array bounds for pointer arithemtic
+      CheckArrayAccess(lex.get()->IgnoreParenCasts(), &negRex);
 
       if (CompLHSTy) *CompLHSTy = lex.get()->getType();
       return lex.get()->getType();
@@ -6981,9 +6999,7 @@ QualType Sema::CheckAssignmentOperands(Expr *LHS, ExprResult &RHS,
     return QualType();
 
   CheckForNullPointerDereference(*this, LHS);
-  // Check for trivial buffer overflows.
-  CheckArrayAccess(LHS->IgnoreParenCasts());
-  
+
   // C99 6.5.16p3: The type of an assignment expression is the type of the
   // left operand unless the left operand has qualified type, in which case
   // it is the unqualified version of the type of the left operand.
@@ -7718,6 +7734,11 @@ ExprResult Sema::CreateBuiltinBinOp(SourceLocation OpLoc,
   }
   if (ResultTy.isNull() || lhs.isInvalid() || rhs.isInvalid())
     return ExprError();
+
+  // Check for array bounds violations for both sides of the BinaryOperator
+  CheckArrayAccess(lhs.get());
+  CheckArrayAccess(rhs.get());
+
   if (CompResultTy.isNull())
     return Owned(new (Context) BinaryOperator(lhs.take(), rhs.take(), Opc,
                                               ResultTy, VK, OK, OpLoc));
@@ -8067,6 +8088,13 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
   }
   if (resultType.isNull() || Input.isInvalid())
     return ExprError();
+
+  // Check for array bounds violations in the operand of the UnaryOperator,
+  // except for the '*' and '&' operators that have to be handled specially
+  // by CheckArrayAccess (as there are special cases like &array[arraysize]
+  // that are explicitly defined as valid by the standard).
+  if (Opc != UO_AddrOf && Opc != UO_Deref)
+    CheckArrayAccess(Input.get());
 
   return Owned(new (Context) UnaryOperator(Input.take(), Opc, resultType,
                                            VK, OK, OpLoc));
@@ -9791,9 +9819,19 @@ ExprResult RebuildUnknownAnyExpr::resolveDecl(Expr *expr, ValueDecl *decl) {
 
   //  - functions
   if (FunctionDecl *fn = dyn_cast<FunctionDecl>(decl)) {
-    // This is true because FunctionDecls must always have function
-    // type, so we can't be resolving the entire thing at once.
-    assert(type->isFunctionType());
+    if (const PointerType *ptr = type->getAs<PointerType>()) {
+      DestType = ptr->getPointeeType();
+      ExprResult result = resolveDecl(expr, decl);
+      if (result.isInvalid()) return ExprError();
+      return S.ImpCastExprToType(result.take(), type,
+                                 CK_FunctionToPointerDecay, VK_RValue);
+    }
+
+    if (!type->isFunctionType()) {
+      S.Diag(expr->getExprLoc(), diag::err_unknown_any_function)
+        << decl << expr->getSourceRange();
+      return ExprError();
+    }
 
     if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(fn))
       if (method->isInstance()) {

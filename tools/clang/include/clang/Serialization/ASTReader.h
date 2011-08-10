@@ -290,6 +290,9 @@ public:
   /// this module.
   serialization::PreprocessedEntityID BasePreprocessedEntityID;
   
+  /// \brief Remapping table for preprocessed entity IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> PreprocessedEntityRemap;
+
   /// \brief The number of macro definitions in this file.
   unsigned LocalNumMacroDefinitions;
   
@@ -300,6 +303,9 @@ public:
   /// \brief Base macro definition ID for macro definitions local to this 
   /// module.
   serialization::MacroID BaseMacroDefinitionID;
+
+  /// \brief Remapping table for macro definition IDs in this module.
+  ContinuousRangeMap<uint32_t, int, 2> MacroDefinitionRemap;
 
   // === Header search information ===
   
@@ -1586,7 +1592,7 @@ public:
   Expr *ReadSubExpr();
 
   /// \brief Reads the macro record located at the given offset.
-  PreprocessedEntity *ReadMacroRecord(Module &F, uint64_t Offset);
+  void ReadMacroRecord(Module &F, uint64_t Offset);
 
   /// \brief Reads the preprocessed entity located at the current stream
   /// position.

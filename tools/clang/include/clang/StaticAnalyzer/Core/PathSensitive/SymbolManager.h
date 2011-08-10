@@ -389,6 +389,9 @@ public:
 
   const SymbolExtent *getExtentSymbol(const SubRegion *R);
 
+  /// Creates a metadata symbol associated with a specific region.
+  /// VisitCount can be used to differentiate regions corresponding to
+  /// different loop iterations, thus, making the symbol path-dependent.
   const SymbolMetadata* getMetadataSymbol(const MemRegion* R, const Stmt* S,
                                           QualType T, unsigned VisitCount,
                                           const void* SymbolTag = 0);
@@ -413,11 +416,15 @@ public:
 };
 
 class SymbolReaper {
-  typedef llvm::DenseSet<SymbolRef> SetTy;
+  typedef llvm::DenseSet<SymbolRef> SymbolSetTy;
+  typedef llvm::DenseSet<const MemRegion *> RegionSetTy;
 
-  SetTy TheLiving;
-  SetTy MetadataInUse;
-  SetTy TheDead;
+  SymbolSetTy TheLiving;
+  SymbolSetTy MetadataInUse;
+  SymbolSetTy TheDead;
+
+  RegionSetTy RegionRoots;
+  
   const LocationContext *LCtx;
   const Stmt *Loc;
   SymbolManager& SymMgr;
@@ -435,6 +442,7 @@ public:
   const Stmt *getCurrentStatement() const { return Loc; }
 
   bool isLive(SymbolRef sym);
+  bool isLiveRegion(const MemRegion *region);
   bool isLive(const Stmt *ExprVal) const;
   bool isLive(const VarRegion *VR, bool includeStoreBindings = false) const;
 
@@ -455,13 +463,17 @@ public:
   //  Returns true if the symbol is dead, false if live.
   bool maybeDead(SymbolRef sym);
 
-  typedef SetTy::const_iterator dead_iterator;
+  typedef SymbolSetTy::const_iterator dead_iterator;
   dead_iterator dead_begin() const { return TheDead.begin(); }
   dead_iterator dead_end() const { return TheDead.end(); }
 
   bool hasDeadSymbols() const {
     return !TheDead.empty();
   }
+  
+  typedef RegionSetTy::const_iterator region_iterator;
+  region_iterator region_begin() const { return RegionRoots.begin(); }
+  region_iterator region_end() const { return RegionRoots.end(); }
 
   /// isDead - Returns whether or not a symbol has been confirmed dead. This
   ///  should only be called once all marking of dead symbols has completed.
@@ -469,6 +481,8 @@ public:
   bool isDead(SymbolRef sym) const {
     return TheDead.count(sym);
   }
+  
+  void markLive(const MemRegion *region);
   
   /// Set to the value of the symbolic store after
   /// StoreManager::removeDeadBindings has been called.
@@ -481,6 +495,7 @@ public:
   //  GRStateManager::scanReachableSymbols.  The method returns \c true if
   //  symbols should continue be scanned and \c false otherwise.
   virtual bool VisitSymbol(SymbolRef sym) = 0;
+  virtual bool VisitMemRegion(const MemRegion *region) { return true; };
   virtual ~SymbolVisitor();
 };
 

@@ -3,9 +3,11 @@
 int foo() {
   int x[2]; // expected-note 4 {{array 'x' declared here}}
   int y[2]; // expected-note 2 {{array 'y' declared here}}
+  int z[1]; // expected-note {{array 'z' declared here}}
   int *p = &y[2]; // no-warning
   (void) sizeof(x[2]); // no-warning
   y[2] = 2; // expected-warning {{array index of '2' indexes past the end of an array (that contains 2 elements)}}
+  z[1] = 'x'; // expected-warning {{array index of '1' indexes past the end of an array (that contains 1 element)}}
   return x[2] +  // expected-warning {{array index of '2' indexes past the end of an array (that contains 2 elements)}}
          y[-1] + // expected-warning {{array index of '-1' indexes before the beginning of the array}}
          x[sizeof(x)] +  // expected-warning {{array index of '8' indexes past the end of an array (that contains 2 elements)}}
@@ -35,11 +37,16 @@ void test() {
   s2.a[3] = 0; // no warning for 0-sized array
 
   union {
-    short a[2]; // expected-note {{declared here}}
+    short a[2]; // expected-note 4 {{declared here}}
     char c[4];
   } u;
   u.a[3] = 1; // expected-warning {{array index of '3' indexes past the end of an array (that contains 2 elements)}}
   u.c[3] = 1; // no warning
+  short *p = &u.a[2]; // no warning
+  p = &u.a[3]; // expected-warning {{array index of '3' indexes past the end of an array (that contains 2 elements)}}
+  *(&u.a[2]) = 1; // expected-warning {{array index of '2' indexes past the end of an array (that contains 2 elements)}}
+  *(&u.a[3]) = 1; // expected-warning {{array index of '3' indexes past the end of an array (that contains 2 elements)}}
+  *(&u.c[3]) = 1; // no warning
 
   const int const_subscript = 3;
   int array[2]; // expected-note {{declared here}}
@@ -151,8 +158,7 @@ void test_switch() {
 enum enumA { enumA_A, enumA_B, enumA_C, enumA_D, enumA_E };
 enum enumB { enumB_X, enumB_Y, enumB_Z };
 static enum enumB myVal = enumB_X;
-void test_nested_switch()
-{
+void test_nested_switch() {
   switch (enumA_E) { // expected-warning {{no case matching constant}}
     switch (myVal) { // expected-warning {{enumeration values 'enumB_X' and 'enumB_Z' not handled in switch}}
       case enumB_Y: ;
@@ -176,11 +182,35 @@ void test_all_enums_covered(enum Values v) {
 
 namespace tailpad {
   struct foo {
+    char c1[1]; // expected-note {{declared here}}
     int x;
-    char c[1];
+    char c2[1];
   };
   
   char bar(struct foo *F) {
-    return F->c[3];  // no warning, foo could have tail padding allocated.
+    return F->c1[3]; // expected-warning {{array index of '3' indexes past the end of an array (that contains 1 element)}}
+    return F->c2[3]; // no warning, foo could have tail padding allocated.
   }
+}
+
+namespace metaprogramming {
+#define ONE 1
+  struct foo { char c[ONE]; }; // expected-note {{declared here}}
+  template <int N> struct bar { char c[N]; }; // expected-note {{declared here}}
+
+  char test(foo *F, bar<1> *B) {
+    return F->c[3] + // expected-warning {{array index of '3' indexes past the end of an array (that contains 1 element)}}
+           B->c[3]; // expected-warning {{array index of '3' indexes past the end of an array (that contains 1 element)}}
+  }
+}
+
+void bar(int x) {}
+int test_more() {
+  int foo[5]; // expected-note 5 {{array 'foo' declared here}}
+  bar(foo[5]); // expected-warning {{array index of '5' indexes past the end of an array (that contains 5 elements)}}
+  ++foo[5]; // expected-warning {{array index of '5' indexes past the end of an array (that contains 5 elements)}}
+  if (foo[6]) // expected-warning {{array index of '6' indexes past the end of an array (that contains 5 elements)}}
+    return --foo[6]; // expected-warning {{array index of '6' indexes past the end of an array (that contains 5 elements)}}
+  else
+    return foo[5]; // expected-warning {{array index of '5' indexes past the end of an array (that contains 5 elements)}}
 }

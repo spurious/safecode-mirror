@@ -222,8 +222,8 @@ ASTContext::ASTContext(const LangOptions& LOpts, SourceManager &SM,
   DependentTemplateSpecializationTypes(this_()),
   SubstTemplateTemplateParmPacks(this_()),
   GlobalNestedNameSpecifier(0), IsInt128Installed(false),
-  CFConstantStringTypeDecl(0), NSConstantStringTypeDecl(0),
-  ObjCFastEnumerationStateTypeDecl(0), FILEDecl(0), 
+  CFConstantStringTypeDecl(0),
+  FILEDecl(0), 
   jmp_bufDecl(0), sigjmp_bufDecl(0), BlockDescriptorType(0), 
   BlockDescriptorExtendedType(0), cudaConfigureCallDecl(0),
   NullTypeSourceInfo(QualType()),
@@ -556,35 +556,33 @@ void ASTContext::setInstantiatedFromUnnamedFieldDecl(FieldDecl *Inst,
 bool ASTContext::ZeroBitfieldFollowsNonBitfield(const FieldDecl *FD, 
                                     const FieldDecl *LastFD) const {
   return (FD->isBitField() && LastFD && !LastFD->isBitField() &&
-          FD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue() == 0);
-  
+          FD->getBitWidth()->EvaluateAsInt(*this).getZExtValue() == 0);
 }
 
 bool ASTContext::ZeroBitfieldFollowsBitfield(const FieldDecl *FD,
                                              const FieldDecl *LastFD) const {
   return (FD->isBitField() && LastFD && LastFD->isBitField() &&
-          FD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue() == 0 &&
-          LastFD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue() != 0);
-
+          FD->getBitWidth()->EvaluateAsInt(*this).getZExtValue() == 0 &&
+          LastFD->getBitWidth()->EvaluateAsInt(*this).getZExtValue() != 0);
 }
 
 bool ASTContext::BitfieldFollowsBitfield(const FieldDecl *FD,
                                          const FieldDecl *LastFD) const {
   return (FD->isBitField() && LastFD && LastFD->isBitField() &&
-          FD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue() &&
-          LastFD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue());  
+          FD->getBitWidth()->EvaluateAsInt(*this).getZExtValue() &&
+          LastFD->getBitWidth()->EvaluateAsInt(*this).getZExtValue());
 }
 
-bool ASTContext::NoneBitfieldFollowsBitfield(const FieldDecl *FD,
+bool ASTContext::NonBitfieldFollowsBitfield(const FieldDecl *FD,
                                          const FieldDecl *LastFD) const {
   return (!FD->isBitField() && LastFD && LastFD->isBitField() &&
-          LastFD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue());  
+          LastFD->getBitWidth()->EvaluateAsInt(*this).getZExtValue());  
 }
 
-bool ASTContext::BitfieldFollowsNoneBitfield(const FieldDecl *FD,
+bool ASTContext::BitfieldFollowsNonBitfield(const FieldDecl *FD,
                                              const FieldDecl *LastFD) const {
   return (FD->isBitField() && LastFD && !LastFD->isBitField() &&
-          FD->getBitWidth()-> EvaluateAsInt(*this).getZExtValue());  
+          FD->getBitWidth()->EvaluateAsInt(*this).getZExtValue());  
 }
 
 ASTContext::overridden_cxx_method_iterator
@@ -3641,82 +3639,6 @@ void ASTContext::setCFConstantStringType(QualType T) {
   CFConstantStringTypeDecl = Rec->getDecl();
 }
 
-// getNSConstantStringType - Return the type used for constant NSStrings.
-QualType ASTContext::getNSConstantStringType() const {
-  if (!NSConstantStringTypeDecl) {
-    NSConstantStringTypeDecl =
-    CreateRecordDecl(*this, TTK_Struct, TUDecl,
-                     &Idents.get("__builtin_NSString"));
-    NSConstantStringTypeDecl->startDefinition();
-    
-    QualType FieldTypes[3];
-    
-    // const int *isa;
-    FieldTypes[0] = getPointerType(IntTy.withConst());
-    // const char *str;
-    FieldTypes[1] = getPointerType(CharTy.withConst());
-    // unsigned int length;
-    FieldTypes[2] = UnsignedIntTy;
-    
-    // Create fields
-    for (unsigned i = 0; i < 3; ++i) {
-      FieldDecl *Field = FieldDecl::Create(*this, NSConstantStringTypeDecl,
-                                           SourceLocation(),
-                                           SourceLocation(), 0,
-                                           FieldTypes[i], /*TInfo=*/0,
-                                           /*BitWidth=*/0,
-                                           /*Mutable=*/false,
-                                           /*HasInit=*/false);
-      Field->setAccess(AS_public);
-      NSConstantStringTypeDecl->addDecl(Field);
-    }
-    
-    NSConstantStringTypeDecl->completeDefinition();
-  }
-  
-  return getTagDeclType(NSConstantStringTypeDecl);
-}
-
-void ASTContext::setNSConstantStringType(QualType T) {
-  const RecordType *Rec = T->getAs<RecordType>();
-  assert(Rec && "Invalid NSConstantStringType");
-  NSConstantStringTypeDecl = Rec->getDecl();
-}
-
-QualType ASTContext::getObjCFastEnumerationStateType() const {
-  if (!ObjCFastEnumerationStateTypeDecl) {
-    ObjCFastEnumerationStateTypeDecl =
-      CreateRecordDecl(*this, TTK_Struct, TUDecl,
-                       &Idents.get("__objcFastEnumerationState"));
-    ObjCFastEnumerationStateTypeDecl->startDefinition();
-
-    QualType FieldTypes[] = {
-      UnsignedLongTy,
-      getPointerType(ObjCIdTypedefType),
-      getPointerType(UnsignedLongTy),
-      getConstantArrayType(UnsignedLongTy,
-                           llvm::APInt(32, 5), ArrayType::Normal, 0)
-    };
-
-    for (size_t i = 0; i < 4; ++i) {
-      FieldDecl *Field = FieldDecl::Create(*this,
-                                           ObjCFastEnumerationStateTypeDecl,
-                                           SourceLocation(),
-                                           SourceLocation(), 0,
-                                           FieldTypes[i], /*TInfo=*/0,
-                                           /*BitWidth=*/0,
-                                           /*Mutable=*/false,
-                                           /*HasInit=*/false);
-      Field->setAccess(AS_public);
-      ObjCFastEnumerationStateTypeDecl->addDecl(Field);
-    }
-
-    ObjCFastEnumerationStateTypeDecl->completeDefinition();
-  }
-
-  return getTagDeclType(ObjCFastEnumerationStateTypeDecl);
-}
-
 QualType ASTContext::getBlockDescriptorType() const {
   if (BlockDescriptorType)
     return getTagDeclType(BlockDescriptorType);
@@ -3754,12 +3676,6 @@ QualType ASTContext::getBlockDescriptorType() const {
   BlockDescriptorType = T;
 
   return getTagDeclType(BlockDescriptorType);
-}
-
-void ASTContext::setBlockDescriptorType(QualType T) {
-  const RecordType *Rec = T->getAs<RecordType>();
-  assert(Rec && "Invalid BlockDescriptorType");
-  BlockDescriptorType = Rec->getDecl();
 }
 
 QualType ASTContext::getBlockDescriptorExtendedType() const {
@@ -3803,12 +3719,6 @@ QualType ASTContext::getBlockDescriptorExtendedType() const {
   BlockDescriptorExtendedType = T;
 
   return getTagDeclType(BlockDescriptorExtendedType);
-}
-
-void ASTContext::setBlockDescriptorExtendedType(QualType T) {
-  const RecordType *Rec = T->getAs<RecordType>();
-  assert(Rec && "Invalid BlockDescriptorType");
-  BlockDescriptorExtendedType = Rec->getDecl();
 }
 
 bool ASTContext::BlockRequiresCopying(QualType Ty) const {
@@ -3885,12 +3795,6 @@ ASTContext::BuildByRefType(StringRef DeclName, QualType Ty) const {
   return getPointerType(getTagDeclType(T));
 }
 
-void ASTContext::setObjCFastEnumerationStateType(QualType T) {
-  const RecordType *Rec = T->getAs<RecordType>();
-  assert(Rec && "Invalid ObjCFAstEnumerationStateType");
-  ObjCFastEnumerationStateTypeDecl = Rec->getDecl();
-}
-
 // This returns true if a type has been typedefed to BOOL:
 // typedef <type> BOOL;
 static bool isTypeTypedefedAsBOOL(QualType T) {
@@ -3950,7 +3854,6 @@ std::string ASTContext::getObjCEncodingForBlock(const BlockExpr *Expr) const {
   S += charUnitsToString(ParmOffset);
   // Block pointer and offset.
   S += "@?0";
-  ParmOffset = PtrSize;
   
   // Argument types.
   ParmOffset = PtrSize;

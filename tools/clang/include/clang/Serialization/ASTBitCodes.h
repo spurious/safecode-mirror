@@ -125,6 +125,9 @@ namespace clang {
     /// \brief An ID number that refers to a macro in an AST file.
     typedef uint32_t MacroID;
 
+    /// \brief The number of predefined macro IDs.
+    const unsigned int NUM_PREDEF_MACRO_IDS = 1;
+    
     /// \brief An ID number that refers to an ObjC selctor in an AST file.
     typedef uint32_t SelectorID;
 
@@ -138,7 +141,10 @@ namespace clang {
     /// \brief An ID number that refers to an entity in the detailed
     /// preprocessing record.
     typedef uint32_t PreprocessedEntityID;
-    
+
+    /// \brief The number of predefined preprocessed entity IDs.
+    const unsigned int NUM_PREDEF_PP_ENTITY_IDS = 1;
+
     /// \brief Describes the various kinds of blocks that occur within
     /// an AST file.
     enum BlockIDs {
@@ -524,7 +530,11 @@ namespace clang {
       /// \brief The 'unknown any' placeholder type.
       PREDEF_TYPE_UNKNOWN_ANY   = 29,
       /// \brief The placeholder type for bound member functions.
-      PREDEF_TYPE_BOUND_MEMBER  = 30
+      PREDEF_TYPE_BOUND_MEMBER  = 30,
+      /// \brief The "auto" deduction type.
+      PREDEF_TYPE_AUTO_DEDUCT   = 31,
+      /// \brief The "auto &&" deduction type.
+      PREDEF_TYPE_AUTO_RREF_DEDUCT = 32
     };
 
     /// \brief The number of predefined type IDs that are reserved for
@@ -640,32 +650,20 @@ namespace clang {
       SPECIAL_TYPE_OBJC_CLASS                  = 4,
       /// \brief CFConstantString type
       SPECIAL_TYPE_CF_CONSTANT_STRING          = 5,
-      /// \brief Objective-C fast enumeration state type
-      SPECIAL_TYPE_OBJC_FAST_ENUMERATION_STATE = 6,
       /// \brief C FILE typedef type
-      SPECIAL_TYPE_FILE                        = 7,
+      SPECIAL_TYPE_FILE                        = 6,
       /// \brief C jmp_buf typedef type
-      SPECIAL_TYPE_jmp_buf                     = 8,
+      SPECIAL_TYPE_jmp_buf                     = 7,
       /// \brief C sigjmp_buf typedef type
-      SPECIAL_TYPE_sigjmp_buf                  = 9,
+      SPECIAL_TYPE_sigjmp_buf                  = 8,
       /// \brief Objective-C "id" redefinition type
-      SPECIAL_TYPE_OBJC_ID_REDEFINITION        = 10,
+      SPECIAL_TYPE_OBJC_ID_REDEFINITION        = 9,
       /// \brief Objective-C "Class" redefinition type
-      SPECIAL_TYPE_OBJC_CLASS_REDEFINITION     = 11,
-      /// \brief Block descriptor type for Blocks CodeGen
-      SPECIAL_TYPE_BLOCK_DESCRIPTOR            = 12,
-      /// \brief Block extedned descriptor type for Blocks CodeGen
-      SPECIAL_TYPE_BLOCK_EXTENDED_DESCRIPTOR   = 13,
+      SPECIAL_TYPE_OBJC_CLASS_REDEFINITION     = 10,
       /// \brief Objective-C "SEL" redefinition type
-      SPECIAL_TYPE_OBJC_SEL_REDEFINITION       = 14,
-      /// \brief NSConstantString type
-      SPECIAL_TYPE_NS_CONSTANT_STRING          = 15,
+      SPECIAL_TYPE_OBJC_SEL_REDEFINITION       = 11,
       /// \brief Whether __[u]int128_t identifier is installed.
-      SPECIAL_TYPE_INT128_INSTALLED            = 16,
-      /// \brief Cached "auto" deduction type.
-      SPECIAL_TYPE_AUTO_DEDUCT                 = 17,
-      /// \brief Cached "auto &&" deduction type.
-      SPECIAL_TYPE_AUTO_RREF_DEDUCT            = 18
+      SPECIAL_TYPE_INT128_INSTALLED            = 12
     };
 
     /// \brief Predefined declaration IDs.

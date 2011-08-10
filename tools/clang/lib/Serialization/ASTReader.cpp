@@ -1413,7 +1413,7 @@ bool ASTReader::ReadBlockAbbrevs(llvm::BitstreamCursor &Cursor,
   }
 }
 
-PreprocessedEntity *ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
+void ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
   assert(PP && "Forgot to set Preprocessor ?");
   llvm::BitstreamCursor &Stream = F.MacroCursor;
 
@@ -1430,14 +1430,14 @@ PreprocessedEntity *ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
     unsigned Code = Stream.ReadCode();
     switch (Code) {
     case llvm::bitc::END_BLOCK:
-      return 0;
+      return;
 
     case llvm::bitc::ENTER_SUBBLOCK:
       // No known subblocks, always skip them.
       Stream.ReadSubBlockID();
       if (Stream.SkipBlock()) {
         Error("malformed block record in AST file");
-        return 0;
+        return;
       }
       continue;
 
@@ -1461,12 +1461,12 @@ PreprocessedEntity *ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
       // of the definition of the macro we were looking for. We're
       // done.
       if (Macro)
-        return 0;
+        return;
 
       IdentifierInfo *II = getLocalIdentifier(F, Record[0]);
       if (II == 0) {
         Error("macro must have a name in AST file");
-        return 0;
+        return;
       }
       SourceLocation Loc = ReadSourceLocation(F, Record[1]);
       bool isUsed = Record[2];
@@ -1530,7 +1530,7 @@ PreprocessedEntity *ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
   }
   }
   
-  return 0;
+  return;
 }
 
 PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
@@ -1568,7 +1568,7 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
   switch (RecType) {
   case PPD_MACRO_EXPANSION: {
     PreprocessedEntityID GlobalID = getGlobalPreprocessedEntityID(F, Record[0]);
-    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID))
+    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID-1))
       return PE;
     
     MacroExpansion *ME =
@@ -1576,13 +1576,13 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
                                  SourceRange(ReadSourceLocation(F, Record[1]),
                                              ReadSourceLocation(F, Record[2])),
                                  getLocalMacroDefinition(F, Record[4]));
-    PPRec.setLoadedPreallocatedEntity(GlobalID, ME);
+    PPRec.setLoadedPreallocatedEntity(GlobalID - 1, ME);
     return ME;
   }
       
   case PPD_MACRO_DEFINITION: {
     PreprocessedEntityID GlobalID = getGlobalPreprocessedEntityID(F, Record[0]);
-    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID))
+    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID-1))
       return PE;
 
     unsigned MacroDefID = getGlobalMacroDefinitionID(F, Record[1]);
@@ -1602,7 +1602,7 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
                                             ReadSourceLocation(F, Record[2]),
                                             ReadSourceLocation(F, Record[3])));
       
-      PPRec.setLoadedPreallocatedEntity(GlobalID, MD);
+      PPRec.setLoadedPreallocatedEntity(GlobalID - 1, MD);
       MacroDefinitionsLoaded[MacroDefID - 1] = MD;
       
       if (DeserializationListener)
@@ -1614,7 +1614,7 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
       
   case PPD_INCLUSION_DIRECTIVE: {
     PreprocessedEntityID GlobalID = getGlobalPreprocessedEntityID(F, Record[0]);
-    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID))
+    if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID-1))
       return PE;
     
     const char *FullFileNameStart = BlobStart + Record[3];
@@ -1632,7 +1632,7 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
                                        File,
                                  SourceRange(ReadSourceLocation(F, Record[1]),
                                              ReadSourceLocation(F, Record[2])));
-    PPRec.setLoadedPreallocatedEntity(GlobalID, ID);
+    PPRec.setLoadedPreallocatedEntity(GlobalID - 1, ID);
     return ID;
   }
   }
@@ -1643,8 +1643,12 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
 
 PreprocessedEntityID 
 ASTReader::getGlobalPreprocessedEntityID(Module &M, unsigned LocalID) {
-  // FIXME: Local-to-global mapping
-  return LocalID;
+  ContinuousRangeMap<uint32_t, int, 2>::iterator 
+    I = M.PreprocessedEntityRemap.find(LocalID - NUM_PREDEF_PP_ENTITY_IDS);
+  assert(I != M.PreprocessedEntityRemap.end() 
+         && "Invalid index into preprocessed entity index remap");
+  
+  return LocalID + I->second;
 }
 
 namespace {
@@ -1875,8 +1879,15 @@ const FileEntry *ASTReader::getFileEntry(StringRef filenameStrRef) {
 }
 
 MacroID ASTReader::getGlobalMacroDefinitionID(Module &M, unsigned LocalID) {
-  // FIXME: Local-to-global mapping
-  return LocalID;
+  if (LocalID < NUM_PREDEF_MACRO_IDS)
+    return LocalID;
+  
+  ContinuousRangeMap<uint32_t, int, 2>::iterator I
+    = M.MacroDefinitionRemap.find(LocalID - NUM_PREDEF_MACRO_IDS);
+  assert(I != M.MacroDefinitionRemap.end() && 
+         "Invalid index into macro definition ID remap");
+  
+  return LocalID + I->second;
 }
 
 /// \brief If we are loading a relocatable PCH file, and the filename is
@@ -2316,6 +2327,10 @@ ASTReader::ReadASTBlock(Module &F) {
       ContinuousRangeMap<uint32_t, int, 2>::Builder 
         IdentifierRemap(F.IdentifierRemap);
       ContinuousRangeMap<uint32_t, int, 2>::Builder 
+        PreprocessedEntityRemap(F.PreprocessedEntityRemap);
+      ContinuousRangeMap<uint32_t, int, 2>::Builder 
+        MacroDefinitionRemap(F.MacroDefinitionRemap);
+      ContinuousRangeMap<uint32_t, int, 2>::Builder 
         SelectorRemap(F.SelectorRemap);
       ContinuousRangeMap<uint32_t, int, 2>::Builder DeclRemap(F.DeclRemap);
       ContinuousRangeMap<uint32_t, int, 2>::Builder TypeRemap(F.TypeRemap);
@@ -2341,13 +2356,15 @@ ASTReader::ReadASTBlock(Module &F) {
         // Source location offset is mapped to OM->SLocEntryBaseOffset.
         SLocRemap.insert(std::make_pair(SLocOffset,
           static_cast<int>(OM->SLocEntryBaseOffset - SLocOffset)));
-        
-        // FIXME: Map other locations
         IdentifierRemap.insert(
           std::make_pair(IdentifierIDOffset, 
                          OM->BaseIdentifierID - IdentifierIDOffset));
-        (void)PreprocessedEntityIDOffset;
-        (void)MacroDefinitionIDOffset;
+        PreprocessedEntityRemap.insert(
+          std::make_pair(PreprocessedEntityIDOffset, 
+            OM->BasePreprocessedEntityID - PreprocessedEntityIDOffset));
+        MacroDefinitionRemap.insert(
+          std::make_pair(MacroDefinitionIDOffset,
+                         OM->BaseMacroDefinitionID - MacroDefinitionIDOffset));
         SelectorRemap.insert(std::make_pair(SelectorIDOffset, 
                                OM->BaseSelectorID - SelectorIDOffset));
         DeclRemap.insert(std::make_pair(DeclIDOffset, 
@@ -2474,10 +2491,10 @@ ASTReader::ReadASTBlock(Module &F) {
     case MACRO_DEFINITION_OFFSETS: {
       F.MacroDefinitionOffsets = (const uint32_t *)BlobStart;
       F.NumPreallocatedPreprocessingEntities = Record[0];
-      F.LocalNumMacroDefinitions = Record[1];
-
-      // Introduce the global -> local mapping for preprocessed entities within 
-      // this AST file.
+      unsigned LocalBasePreprocessedEntityID = Record[1];
+      F.LocalNumMacroDefinitions = Record[2];
+      unsigned LocalBaseMacroID = Record[3];
+      
       unsigned StartingID;
       if (PP) {
         if (!PP->getPreprocessingRecord())
@@ -2490,19 +2507,41 @@ ASTReader::ReadASTBlock(Module &F) {
       } else {
         // FIXME: We'll eventually want to kill this path, since it assumes
         // a particular allocation strategy in the preprocessing record.
-        StartingID = getTotalNumPreprocessedEntities();
+        StartingID = getTotalNumPreprocessedEntities() 
+                   - F.NumPreallocatedPreprocessingEntities;
       }
-      
       F.BaseMacroDefinitionID = getTotalNumMacroDefinitions();
       F.BasePreprocessedEntityID = StartingID;
 
-      // Introduce the global -> local mapping for macro definitions within 
-      // this AST file.
-      GlobalPreprocessedEntityMap.insert(std::make_pair(StartingID, &F));
-      GlobalMacroDefinitionMap.insert(
-        std::make_pair(getTotalNumMacroDefinitions() + 1, &F));
-      MacroDefinitionsLoaded.resize(
+      if (F.NumPreallocatedPreprocessingEntities > 0) {
+        // Introduce the global -> local mapping for preprocessed entities in
+        // this module.
+        GlobalPreprocessedEntityMap.insert(std::make_pair(StartingID, &F));
+       
+        // Introduce the local -> global mapping for preprocessed entities in
+        // this module.
+        F.PreprocessedEntityRemap.insert(
+          std::make_pair(LocalBasePreprocessedEntityID,
+            F.BasePreprocessedEntityID - LocalBasePreprocessedEntityID));
+      }
+      
+
+      if (F.LocalNumMacroDefinitions > 0) {
+        // Introduce the global -> local mapping for macro definitions within 
+        // this module.
+        GlobalMacroDefinitionMap.insert(
+          std::make_pair(getTotalNumMacroDefinitions() + 1, &F));
+        
+        // Introduce the local -> global mapping for macro definitions within
+        // this module.
+        F.MacroDefinitionRemap.insert(
+          std::make_pair(LocalBaseMacroID,
+                         F.BaseMacroDefinitionID - LocalBaseMacroID));
+        
+        MacroDefinitionsLoaded.resize(
                     MacroDefinitionsLoaded.size() + F.LocalNumMacroDefinitions);
+      }
+      
       break;
     }
         
@@ -2921,95 +2960,83 @@ void ASTReader::InitializeContext(ASTContext &Ctx) {
   // Load the translation unit declaration
   GetTranslationUnitDecl();
 
-  // Load the special types.
-  Context->setBuiltinVaListType(
-    GetType(SpecialTypes[SPECIAL_TYPE_BUILTIN_VA_LIST]));
-  if (unsigned Id = SpecialTypes[SPECIAL_TYPE_OBJC_ID])
-    Context->setObjCIdType(GetType(Id));
-  if (unsigned Sel = SpecialTypes[SPECIAL_TYPE_OBJC_SELECTOR])
-    Context->setObjCSelType(GetType(Sel));
-  if (unsigned Proto = SpecialTypes[SPECIAL_TYPE_OBJC_PROTOCOL])
-    Context->setObjCProtoType(GetType(Proto));
-  if (unsigned Class = SpecialTypes[SPECIAL_TYPE_OBJC_CLASS])
-    Context->setObjCClassType(GetType(Class));
+  // FIXME: Find a better way to deal with built-in types
+  if (Context->getBuiltinVaListType().isNull()) {
+    // Load the special types.
+    Context->setBuiltinVaListType(
+      GetType(SpecialTypes[SPECIAL_TYPE_BUILTIN_VA_LIST]));
+    if (unsigned Id = SpecialTypes[SPECIAL_TYPE_OBJC_ID])
+      Context->setObjCIdType(GetType(Id));
+    if (unsigned Sel = SpecialTypes[SPECIAL_TYPE_OBJC_SELECTOR])
+      Context->setObjCSelType(GetType(Sel));
+    if (unsigned Proto = SpecialTypes[SPECIAL_TYPE_OBJC_PROTOCOL])
+      Context->setObjCProtoType(GetType(Proto));
+    if (unsigned Class = SpecialTypes[SPECIAL_TYPE_OBJC_CLASS])
+      Context->setObjCClassType(GetType(Class));
 
-  if (unsigned String = SpecialTypes[SPECIAL_TYPE_CF_CONSTANT_STRING])
-    Context->setCFConstantStringType(GetType(String));
-  if (unsigned FastEnum
-        = SpecialTypes[SPECIAL_TYPE_OBJC_FAST_ENUMERATION_STATE])
-    Context->setObjCFastEnumerationStateType(GetType(FastEnum));
-  if (unsigned File = SpecialTypes[SPECIAL_TYPE_FILE]) {
-    QualType FileType = GetType(File);
-    if (FileType.isNull()) {
-      Error("FILE type is NULL");
-      return;
-    }
-    if (const TypedefType *Typedef = FileType->getAs<TypedefType>())
-      Context->setFILEDecl(Typedef->getDecl());
-    else {
-      const TagType *Tag = FileType->getAs<TagType>();
-      if (!Tag) {
-        Error("Invalid FILE type in AST file");
+    if (unsigned String = SpecialTypes[SPECIAL_TYPE_CF_CONSTANT_STRING])
+      Context->setCFConstantStringType(GetType(String));
+    if (unsigned File = SpecialTypes[SPECIAL_TYPE_FILE]) {
+      QualType FileType = GetType(File);
+      if (FileType.isNull()) {
+        Error("FILE type is NULL");
         return;
       }
-      Context->setFILEDecl(Tag->getDecl());
+      if (const TypedefType *Typedef = FileType->getAs<TypedefType>())
+        Context->setFILEDecl(Typedef->getDecl());
+      else {
+        const TagType *Tag = FileType->getAs<TagType>();
+        if (!Tag) {
+          Error("Invalid FILE type in AST file");
+          return;
+        }
+        Context->setFILEDecl(Tag->getDecl());
+      }
     }
-  }
-  if (unsigned Jmp_buf = SpecialTypes[SPECIAL_TYPE_jmp_buf]) {
-    QualType Jmp_bufType = GetType(Jmp_buf);
-    if (Jmp_bufType.isNull()) {
-      Error("jmp_buf type is NULL");
-      return;
-    }
-    if (const TypedefType *Typedef = Jmp_bufType->getAs<TypedefType>())
-      Context->setjmp_bufDecl(Typedef->getDecl());
-    else {
-      const TagType *Tag = Jmp_bufType->getAs<TagType>();
-      if (!Tag) {
-        Error("Invalid jmp_buf type in AST file");
+    if (unsigned Jmp_buf = SpecialTypes[SPECIAL_TYPE_jmp_buf]) {
+      QualType Jmp_bufType = GetType(Jmp_buf);
+      if (Jmp_bufType.isNull()) {
+        Error("jmp_buf type is NULL");
         return;
       }
-      Context->setjmp_bufDecl(Tag->getDecl());
+      if (const TypedefType *Typedef = Jmp_bufType->getAs<TypedefType>())
+        Context->setjmp_bufDecl(Typedef->getDecl());
+      else {
+        const TagType *Tag = Jmp_bufType->getAs<TagType>();
+        if (!Tag) {
+          Error("Invalid jmp_buf type in AST file");
+          return;
+        }
+        Context->setjmp_bufDecl(Tag->getDecl());
+      }
     }
-  }
-  if (unsigned Sigjmp_buf = SpecialTypes[SPECIAL_TYPE_sigjmp_buf]) {
-    QualType Sigjmp_bufType = GetType(Sigjmp_buf);
-    if (Sigjmp_bufType.isNull()) {
-      Error("sigjmp_buf type is NULL");
-      return;
+    if (unsigned Sigjmp_buf = SpecialTypes[SPECIAL_TYPE_sigjmp_buf]) {
+      QualType Sigjmp_bufType = GetType(Sigjmp_buf);
+      if (Sigjmp_bufType.isNull()) {
+        Error("sigjmp_buf type is NULL");
+        return;
+      }
+      if (const TypedefType *Typedef = Sigjmp_bufType->getAs<TypedefType>())
+        Context->setsigjmp_bufDecl(Typedef->getDecl());
+      else {
+        const TagType *Tag = Sigjmp_bufType->getAs<TagType>();
+        assert(Tag && "Invalid sigjmp_buf type in AST file");
+        Context->setsigjmp_bufDecl(Tag->getDecl());
+      }
     }
-    if (const TypedefType *Typedef = Sigjmp_bufType->getAs<TypedefType>())
-      Context->setsigjmp_bufDecl(Typedef->getDecl());
-    else {
-      const TagType *Tag = Sigjmp_bufType->getAs<TagType>();
-      assert(Tag && "Invalid sigjmp_buf type in AST file");
-      Context->setsigjmp_bufDecl(Tag->getDecl());
-    }
-  }
-  if (unsigned ObjCIdRedef
-        = SpecialTypes[SPECIAL_TYPE_OBJC_ID_REDEFINITION])
-    Context->ObjCIdRedefinitionType = GetType(ObjCIdRedef);
-  if (unsigned ObjCClassRedef
-      = SpecialTypes[SPECIAL_TYPE_OBJC_CLASS_REDEFINITION])
-    Context->ObjCClassRedefinitionType = GetType(ObjCClassRedef);
-  if (unsigned String = SpecialTypes[SPECIAL_TYPE_BLOCK_DESCRIPTOR])
-    Context->setBlockDescriptorType(GetType(String));
-  if (unsigned String
-      = SpecialTypes[SPECIAL_TYPE_BLOCK_EXTENDED_DESCRIPTOR])
-    Context->setBlockDescriptorExtendedType(GetType(String));
-  if (unsigned ObjCSelRedef
-      = SpecialTypes[SPECIAL_TYPE_OBJC_SEL_REDEFINITION])
-    Context->ObjCSelRedefinitionType = GetType(ObjCSelRedef);
-  if (unsigned String = SpecialTypes[SPECIAL_TYPE_NS_CONSTANT_STRING])
-    Context->setNSConstantStringType(GetType(String));
+    if (unsigned ObjCIdRedef
+          = SpecialTypes[SPECIAL_TYPE_OBJC_ID_REDEFINITION])
+      Context->ObjCIdRedefinitionType = GetType(ObjCIdRedef);
+    if (unsigned ObjCClassRedef
+        = SpecialTypes[SPECIAL_TYPE_OBJC_CLASS_REDEFINITION])
+      Context->ObjCClassRedefinitionType = GetType(ObjCClassRedef);
+    if (unsigned ObjCSelRedef
+        = SpecialTypes[SPECIAL_TYPE_OBJC_SEL_REDEFINITION])
+      Context->ObjCSelRedefinitionType = GetType(ObjCSelRedef);
 
-  if (SpecialTypes[SPECIAL_TYPE_INT128_INSTALLED])
-    Context->setInt128Installed();
-
-  if (unsigned AutoDeduct = SpecialTypes[SPECIAL_TYPE_AUTO_DEDUCT])
-    Context->AutoDeductTy = GetType(AutoDeduct);
-  if (unsigned AutoRRefDeduct = SpecialTypes[SPECIAL_TYPE_AUTO_RREF_DEDUCT])
-    Context->AutoRRefDeductTy = GetType(AutoRRefDeduct);
+    if (SpecialTypes[SPECIAL_TYPE_INT128_INSTALLED])
+      Context->setInt128Installed();
+  }
 
   ReadPragmaDiagnosticMappings(Context->getDiagnostics());
 
@@ -3186,6 +3213,7 @@ bool ASTReader::ParseLanguageOptions(
     PARSE_LANGOPT(SpellChecking);
     PARSE_LANGOPT(MRTD);
     PARSE_LANGOPT(ObjCAutoRefCount);
+    PARSE_LANGOPT(ObjCInferRelatedReturnType);
   #undef PARSE_LANGOPT
 
     return Listener->ReadLanguageOptions(LangOpts);
@@ -3990,6 +4018,11 @@ QualType ASTReader::GetType(TypeID ID) {
     case PREDEF_TYPE_OBJC_ID:       T = Context->ObjCBuiltinIdTy;    break;
     case PREDEF_TYPE_OBJC_CLASS:    T = Context->ObjCBuiltinClassTy; break;
     case PREDEF_TYPE_OBJC_SEL:      T = Context->ObjCBuiltinSelTy;   break;
+    case PREDEF_TYPE_AUTO_DEDUCT:   T = Context->getAutoDeductType(); break;
+        
+    case PREDEF_TYPE_AUTO_RREF_DEDUCT: 
+      T = Context->getAutoRRefDeductType(); 
+      break;
     }
 
     assert(!T.isNull() && "Unknown predefined type");
@@ -5581,16 +5614,37 @@ void Module::dump() {
   // Remapping tables.
   llvm::errs() << "  Base source location offset: " << SLocEntryBaseOffset 
                << '\n';
-  dumpLocalRemap("Source location offset map", SLocRemap);
+  dumpLocalRemap("Source location offset local -> global map", SLocRemap);
+  
   llvm::errs() << "  Base identifier ID: " << BaseIdentifierID << '\n'
-               << "Number of identifiers: " << LocalNumIdentifiers << '\n';
-  dumpLocalRemap("Identifier ID map", IdentifierRemap);
+               << "  Number of identifiers: " << LocalNumIdentifiers << '\n';
+  dumpLocalRemap("Identifier ID local -> global map", IdentifierRemap);
+  
+  llvm::errs() << "  Base selector ID: " << BaseSelectorID << '\n'
+               << "  Number of selectors: " << LocalNumSelectors << '\n';
+  dumpLocalRemap("Selector ID local -> global map", SelectorRemap);
+  
+  llvm::errs() << "  Base preprocessed entity ID: " << BasePreprocessedEntityID
+               << '\n'  
+               << "Number of preprocessed entities: " 
+               << NumPreallocatedPreprocessingEntities << '\n';
+  dumpLocalRemap("Preprocessed entity ID local -> global map", 
+                 PreprocessedEntityRemap);
+  
+  llvm::errs() << "  Base macro definition ID: " << BaseMacroDefinitionID 
+               << '\n'
+               << "  Number of macro definitions: " << LocalNumMacroDefinitions
+               << '\n';
+  dumpLocalRemap("Macro definition ID local -> global map", 
+                 MacroDefinitionRemap);
+
   llvm::errs() << "  Base type index: " << BaseTypeIndex << '\n'
                << "  Number of types: " << LocalNumTypes << '\n';
-  dumpLocalRemap("Type index map", TypeRemap);
+  dumpLocalRemap("Type index local -> global map", TypeRemap);
+    
   llvm::errs() << "  Base decl ID: " << BaseDeclID << '\n'
                << "  Number of decls: " << LocalNumDecls << '\n';
-  dumpLocalRemap("Decl ID map", DeclRemap);
+  dumpLocalRemap("Decl ID local -> global map", DeclRemap);
 }
 
 Module *ModuleManager::lookup(StringRef Name) {

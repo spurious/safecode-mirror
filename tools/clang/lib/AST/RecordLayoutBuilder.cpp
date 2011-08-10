@@ -1270,8 +1270,8 @@ void RecordLayoutBuilder::LayoutFields(const RecordDecl *D) {
         continue;
       // FIXME. streamline these conditions into a simple one.
       else if (Context.BitfieldFollowsBitfield(FD, LastFD) ||
-               Context.BitfieldFollowsNoneBitfield(FD, LastFD) ||
-               Context.NoneBitfieldFollowsBitfield(FD, LastFD)) {
+               Context.BitfieldFollowsNonBitfield(FD, LastFD) ||
+               Context.NonBitfieldFollowsBitfield(FD, LastFD)) {
         // 1) Adjacent bit fields are packed into the same 1-, 2-, or
         // 4-byte allocation unit if the integral types are the same
         // size and if the next bit field fits into the current
@@ -1348,12 +1348,12 @@ void RecordLayoutBuilder::LayoutFields(const RecordDecl *D) {
       }
       LastFD = FD;
     }
-    else if (Context.Target.useZeroLengthBitfieldAlignment() &&
-             !Context.Target.useBitFieldTypeAlignment()) {
+    else if (!Context.Target.useBitFieldTypeAlignment() &&
+             Context.Target.useZeroLengthBitfieldAlignment()) {             
       FieldDecl *FD =  (*Field);
-      if (Context.ZeroBitfieldFollowsBitfield(FD, LastFD))
+      if (FD->isBitField() && 
+          FD->getBitWidth()->EvaluateAsInt(Context).getZExtValue() == 0)
         ZeroLengthBitfield = FD;
-      LastFD = FD;
     }
     LayoutField(*Field);
   }
@@ -1411,8 +1411,8 @@ void RecordLayoutBuilder::LayoutWideBitField(uint64_t FieldSize,
     setDataSize(std::max(getDataSizeInBits(), FieldSize));
     FieldOffset = 0;
   } else {
-    // The bitfield is allocated starting at the next offset aligned appropriately
-    // for T', with length n bits.
+    // The bitfield is allocated starting at the next offset aligned 
+    // appropriately for T', with length n bits.
     FieldOffset = llvm::RoundUpToAlignment(getDataSizeInBits(), 
                                            Context.toBits(TypeAlign));
 
@@ -1451,19 +1451,30 @@ void RecordLayoutBuilder::LayoutBitField(const FieldDecl *D) {
     FieldAlign = TypeSize;
 
   if (ZeroLengthBitfield) {
-    // If a zero-length bitfield is inserted after a bitfield,
-    // and the alignment of the zero-length bitfield is
-    // greater than the member that follows it, `bar', `bar' 
-    // will be aligned as the type of the zero-length bitfield.
-    if (ZeroLengthBitfield != D) {
-      std::pair<uint64_t, unsigned> FieldInfo = 
-        Context.getTypeInfo(ZeroLengthBitfield->getType());
-      unsigned ZeroLengthBitfieldAlignment = FieldInfo.second;
-      // Ignore alignment of subsequent zero-length bitfields.
-      if ((ZeroLengthBitfieldAlignment > FieldAlign) || (FieldSize == 0))
-        FieldAlign = ZeroLengthBitfieldAlignment;
-      if (FieldSize)
-        ZeroLengthBitfield = 0;
+    std::pair<uint64_t, unsigned> FieldInfo;
+    unsigned ZeroLengthBitfieldAlignment;
+    if (IsMsStruct) {
+      // If a zero-length bitfield is inserted after a bitfield,
+      // and the alignment of the zero-length bitfield is
+      // greater than the member that follows it, `bar', `bar' 
+      // will be aligned as the type of the zero-length bitfield.
+      if (ZeroLengthBitfield != D) {
+        FieldInfo = Context.getTypeInfo(ZeroLengthBitfield->getType());
+        ZeroLengthBitfieldAlignment = FieldInfo.second;
+        // Ignore alignment of subsequent zero-length bitfields.
+        if ((ZeroLengthBitfieldAlignment > FieldAlign) || (FieldSize == 0))
+          FieldAlign = ZeroLengthBitfieldAlignment;
+        if (FieldSize)
+          ZeroLengthBitfield = 0;
+      }
+    } else {
+      // The alignment of a zero-length bitfield affects the alignment
+      // of the next member.  The alignment is the max of the zero 
+      // length bitfield's alignment and a target specific fixed value.
+      unsigned ZeroLengthBitfieldBoundary =
+        Context.Target.getZeroLengthBitfieldBoundary();
+      if (ZeroLengthBitfieldBoundary > FieldAlign)
+        FieldAlign = ZeroLengthBitfieldBoundary;
     }
   }
 
@@ -1476,10 +1487,11 @@ void RecordLayoutBuilder::LayoutBitField(const FieldDecl *D) {
   // was unnecessary (-Wpacked).
   unsigned UnpackedFieldAlign = FieldAlign;
   uint64_t UnpackedFieldOffset = FieldOffset;
-  if (!Context.Target.useBitFieldTypeAlignment())
+  if (!Context.Target.useBitFieldTypeAlignment() && !ZeroLengthBitfield)
     UnpackedFieldAlign = 1;
 
-  if (FieldPacked || !Context.Target.useBitFieldTypeAlignment())
+  if (FieldPacked || 
+      (!Context.Target.useBitFieldTypeAlignment() && !ZeroLengthBitfield))
     FieldAlign = 1;
   FieldAlign = std::max(FieldAlign, D->getMaxAlignment());
   UnpackedFieldAlign = std::max(UnpackedFieldAlign, D->getMaxAlignment());
@@ -1500,9 +1512,13 @@ void RecordLayoutBuilder::LayoutBitField(const FieldDecl *D) {
     UnpackedFieldOffset = llvm::RoundUpToAlignment(UnpackedFieldOffset,
                                                    UnpackedFieldAlign);
 
-  // Padding members don't affect overall alignment.
-  if (!D->getIdentifier())
+  // Padding members don't affect overall alignment, unless zero length bitfield
+  // alignment is enabled.
+  if (!D->getIdentifier() && !Context.Target.useZeroLengthBitfieldAlignment())
     FieldAlign = UnpackedFieldAlign = 1;
+
+  if (!IsMsStruct)
+    ZeroLengthBitfield = 0;
 
   // Place this field at the current location.
   FieldOffsets.push_back(FieldOffset);
@@ -1581,12 +1597,11 @@ void RecordLayoutBuilder::LayoutField(const FieldDecl *D) {
         CharUnits ZeroLengthBitfieldAlignment = FieldInfo.second;        
         if (ZeroLengthBitfieldAlignment > FieldAlign)
           FieldAlign = ZeroLengthBitfieldAlignment;
-      }
-      else if (ZeroLengthBitfieldBoundary > FieldAlign) {
+      } else if (ZeroLengthBitfieldBoundary > FieldAlign) {
         // Align 'bar' based on a fixed alignment specified by the target.
-        assert (Context.Target.useZeroLengthBitfieldAlignment() &&
-                "ZeroLengthBitfieldBoundary should only be used in conjunction"
-                "with useZeroLengthBitfieldAlignment.");
+        assert(Context.Target.useZeroLengthBitfieldAlignment() &&
+               "ZeroLengthBitfieldBoundary should only be used in conjunction"
+               " with useZeroLengthBitfieldAlignment.");
         FieldAlign = ZeroLengthBitfieldBoundary;
       }
       ZeroLengthBitfield = 0;

@@ -780,11 +780,14 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(DIAG_PRAGMA_MAPPINGS);
   RECORD(CUDA_SPECIAL_DECL_REFS);
   RECORD(HEADER_SEARCH_TABLE);
+  RECORD(ORIGINAL_PCH_DIR);
   RECORD(FP_PRAGMA_OPTIONS);
   RECORD(OPENCL_EXTENSIONS);
   RECORD(DELEGATING_CTORS);
   RECORD(FILE_SOURCE_LOCATION_OFFSETS);
   RECORD(KNOWN_NAMESPACES);
+  RECORD(MODULE_OFFSET_MAP);
+  RECORD(SOURCE_MANAGER_LINE_TABLE);
   
   // SourceManager Block.
   BLOCK(SOURCE_MANAGER_BLOCK);
@@ -1793,12 +1796,16 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
     InclusionAbbrev = Stream.EmitAbbrev(Abbrev);
   }
   
-  unsigned IndexBase = Chain ? PPRec.getNumLoadedPreprocessedEntities() : 0;
+  unsigned FirstPreprocessorEntityID 
+    = (Chain ? PPRec.getNumLoadedPreprocessedEntities() : 0) 
+    + NUM_PREDEF_PP_ENTITY_IDS;
+  unsigned NextPreprocessorEntityID = FirstPreprocessorEntityID;
   RecordData Record;
   uint64_t BitsInChain = Chain? Chain->TotalModulesSizeInBits : 0;
   for (PreprocessingRecord::iterator E = PPRec.begin(Chain),
                                   EEnd = PPRec.end(Chain);
-       E != EEnd; ++E) {
+       E != EEnd; 
+       (void)++E, ++NumPreprocessingRecords, ++NextPreprocessorEntityID) {
     Record.clear();
 
     if (MacroDefinition *MD = dyn_cast<MacroDefinition>(*E)) {
@@ -1823,7 +1830,7 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
       } else
         MacroDefinitionOffsets.push_back(Stream.GetCurrentBitNo());
       
-      Record.push_back(IndexBase + NumPreprocessingRecords++);
+      Record.push_back(NextPreprocessorEntityID);
       Record.push_back(ID);
       AddSourceLocation(MD->getSourceRange().getBegin(), Record);
       AddSourceLocation(MD->getSourceRange().getEnd(), Record);
@@ -1839,7 +1846,7 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
         BitsInChain + Stream.GetCurrentBitNo());
 
     if (MacroExpansion *ME = dyn_cast<MacroExpansion>(*E)) {
-      Record.push_back(IndexBase + NumPreprocessingRecords++);
+      Record.push_back(NextPreprocessorEntityID);
       AddSourceLocation(ME->getSourceRange().getBegin(), Record);
       AddSourceLocation(ME->getSourceRange().getEnd(), Record);
       AddIdentifierRef(ME->getName(), Record);
@@ -1850,7 +1857,7 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
 
     if (InclusionDirective *ID = dyn_cast<InclusionDirective>(*E)) {
       Record.push_back(PPD_INCLUSION_DIRECTIVE);
-      Record.push_back(IndexBase + NumPreprocessingRecords++);
+      Record.push_back(NextPreprocessorEntityID);
       AddSourceLocation(ID->getSourceRange().getBegin(), Record);
       AddSourceLocation(ID->getSourceRange().getEnd(), Record);
       Record.push_back(ID->getFileName().size());
@@ -1874,14 +1881,18 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
     BitCodeAbbrev *Abbrev = new BitCodeAbbrev();
     Abbrev->Add(BitCodeAbbrevOp(MACRO_DEFINITION_OFFSETS));
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // # of records
+    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // first pp entity
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // # of macro defs
+    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // first macro def
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
     unsigned MacroDefOffsetAbbrev = Stream.EmitAbbrev(Abbrev);
 
     Record.clear();
     Record.push_back(MACRO_DEFINITION_OFFSETS);
     Record.push_back(NumPreprocessingRecords);
+    Record.push_back(FirstPreprocessorEntityID - NUM_PREDEF_PP_ENTITY_IDS);
     Record.push_back(MacroDefinitionOffsets.size());
+    Record.push_back(FirstMacroID - NUM_PREDEF_MACRO_IDS);
     Stream.EmitRecordWithBlob(MacroDefOffsetAbbrev, Record,
                               data(MacroDefinitionOffsets));
   }
@@ -2743,12 +2754,12 @@ void ASTWriter::SetSelectorOffset(Selector Sel, uint32_t Offset) {
 }
 
 ASTWriter::ASTWriter(llvm::BitstreamWriter &Stream)
-  : Stream(Stream), Chain(0), SerializationListener(0), 
+  : Stream(Stream), Context(0), Chain(0), SerializationListener(0), 
     FirstDeclID(NUM_PREDEF_DECL_IDS), NextDeclID(FirstDeclID),
     FirstTypeID(NUM_PREDEF_TYPE_IDS), NextTypeID(FirstTypeID),
     FirstIdentID(NUM_PREDEF_IDENT_IDS), NextIdentID(FirstIdentID), 
     FirstSelectorID(NUM_PREDEF_SELECTOR_IDS), NextSelectorID(FirstSelectorID),
-    FirstMacroID(1), NextMacroID(FirstMacroID),
+    FirstMacroID(NUM_PREDEF_MACRO_IDS), NextMacroID(FirstMacroID),
     CollectedStmts(&StmtsToEmit),
     NumStatements(0), NumMacros(0), NumLexicalDeclContexts(0),
     NumVisibleDeclContexts(0),
@@ -2774,10 +2785,12 @@ void ASTWriter::WriteAST(Sema &SemaRef, MemorizeStatCalls *StatCalls,
 
   WriteBlockInfoBlock();
 
+  Context = &SemaRef.Context;
   if (Chain)
     WriteASTChain(SemaRef, StatCalls, isysroot);
   else
     WriteASTCore(SemaRef, StatCalls, isysroot, OutputFile);
+  Context = 0;
 }
 
 template<typename Vector>
@@ -2921,19 +2934,13 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   AddTypeRef(Context.getObjCProtoType(), SpecialTypes);
   AddTypeRef(Context.getObjCClassType(), SpecialTypes);
   AddTypeRef(Context.getRawCFConstantStringType(), SpecialTypes);
-  AddTypeRef(Context.getRawObjCFastEnumerationStateType(), SpecialTypes);
   AddTypeRef(Context.getFILEType(), SpecialTypes);
   AddTypeRef(Context.getjmp_bufType(), SpecialTypes);
   AddTypeRef(Context.getsigjmp_bufType(), SpecialTypes);
   AddTypeRef(Context.ObjCIdRedefinitionType, SpecialTypes);
   AddTypeRef(Context.ObjCClassRedefinitionType, SpecialTypes);
-  AddTypeRef(Context.getRawBlockdescriptorType(), SpecialTypes);
-  AddTypeRef(Context.getRawBlockdescriptorExtendedType(), SpecialTypes);
   AddTypeRef(Context.ObjCSelRedefinitionType, SpecialTypes);
-  AddTypeRef(Context.getRawNSConstantStringType(), SpecialTypes);
   SpecialTypes.push_back(Context.isInt128Installed());
-  AddTypeRef(Context.AutoDeductTy, SpecialTypes);
-  AddTypeRef(Context.AutoRRefDeductTy, SpecialTypes);
 
   // Keep writing types and declarations until all types and
   // declarations have been written.
@@ -3489,13 +3496,13 @@ void ASTWriter::AddTypeRef(QualType T, RecordDataImpl &Record) {
   Record.push_back(GetOrCreateTypeID(T));
 }
 
-TypeID ASTWriter::GetOrCreateTypeID(QualType T) {
-  return MakeTypeID(T,
+TypeID ASTWriter::GetOrCreateTypeID( QualType T) {
+  return MakeTypeID(*Context, T,
               std::bind1st(std::mem_fun(&ASTWriter::GetOrCreateTypeIdx), this));
 }
 
 TypeID ASTWriter::getTypeID(QualType T) const {
-  return MakeTypeID(T,
+  return MakeTypeID(*Context, T,
               std::bind1st(std::mem_fun(&ASTWriter::getTypeIdx), this));
 }
 
