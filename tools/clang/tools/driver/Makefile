@@ -42,7 +42,7 @@ USEDLIBS = clangFrontendTool.a clangFrontend.a clangDriver.a \
            clangStaticAnalyzerCore.a \
            clangAnalysis.a clangIndex.a clangARCMigrate.a clangRewrite.a \
            clangAST.a clangLex.a clangBasic.a \
-           sc-support.a addchecks.a debuginstr.a optchecks.a oob.a abc.a
+           addchecks.a debuginstr.a optchecks.a oob.a abc.a sc-support.a 
 
 include $(CLANG_LEVEL)/Makefile
 
