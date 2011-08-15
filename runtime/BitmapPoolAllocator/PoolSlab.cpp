@@ -14,6 +14,7 @@
 #include "PoolSlab.h"
 
 #include <cstdio>
+#include <cstdlib>
 
 namespace llvm {
 
