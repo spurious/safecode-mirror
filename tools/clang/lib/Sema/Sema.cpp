@@ -60,79 +60,17 @@ void Sema::ActOnTranslationUnitScope(Scope *S) {
 
   VAListTagName = PP.getIdentifierInfo("__va_list_tag");
 
-  if (!Context.isInt128Installed() && // May be set by ASTReader.
-      PP.getTargetInfo().getPointerWidth(0) >= 64) {
-    TypeSourceInfo *TInfo;
-
-    // Install [u]int128_t for 64-bit targets.
-    TInfo = Context.getTrivialTypeSourceInfo(Context.Int128Ty);
-    PushOnScopeChains(TypedefDecl::Create(Context, CurContext,
-                                          SourceLocation(),
-                                          SourceLocation(),
-                                          &Context.Idents.get("__int128_t"),
-                                          TInfo), TUScope);
-
-    TInfo = Context.getTrivialTypeSourceInfo(Context.UnsignedInt128Ty);
-    PushOnScopeChains(TypedefDecl::Create(Context, CurContext,
-                                          SourceLocation(),
-                                          SourceLocation(),
-                                          &Context.Idents.get("__uint128_t"),
-                                          TInfo), TUScope);
-    Context.setInt128Installed();
+  if (PP.getLangOptions().ObjC1) {
+    // Synthesize "@class Protocol;
+    if (Context.getObjCProtoType().isNull()) {
+      ObjCInterfaceDecl *ProtocolDecl =
+        ObjCInterfaceDecl::Create(Context, CurContext, SourceLocation(),
+                                  &Context.Idents.get("Protocol"),
+                                  SourceLocation(), true);
+      Context.setObjCProtoType(Context.getObjCInterfaceType(ProtocolDecl));
+      PushOnScopeChains(ProtocolDecl, TUScope, false);
+    }  
   }
-
-
-  if (!PP.getLangOptions().ObjC1) return;
-
-  // Built-in ObjC types may already be set by ASTReader (hence isNull checks).
-  if (Context.getObjCSelType().isNull()) {
-    // Create the built-in typedef for 'SEL'.
-    QualType SelT = Context.getPointerType(Context.ObjCBuiltinSelTy);
-    TypeSourceInfo *SelInfo = Context.getTrivialTypeSourceInfo(SelT);
-    TypedefDecl *SelTypedef
-      = TypedefDecl::Create(Context, CurContext,
-                            SourceLocation(), SourceLocation(),
-                            &Context.Idents.get("SEL"), SelInfo);
-    PushOnScopeChains(SelTypedef, TUScope);
-    Context.setObjCSelType(Context.getTypeDeclType(SelTypedef));
-    Context.ObjCSelRedefinitionType = Context.getObjCSelType();
-  }
-
-  // Synthesize "@class Protocol;
-  if (Context.getObjCProtoType().isNull()) {
-    ObjCInterfaceDecl *ProtocolDecl =
-      ObjCInterfaceDecl::Create(Context, CurContext, SourceLocation(),
-                                &Context.Idents.get("Protocol"),
-                                SourceLocation(), true);
-    Context.setObjCProtoType(Context.getObjCInterfaceType(ProtocolDecl));
-    PushOnScopeChains(ProtocolDecl, TUScope, false);
-  }
-  // Create the built-in typedef for 'id'.
-  if (Context.getObjCIdType().isNull()) {
-    QualType T = Context.getObjCObjectType(Context.ObjCBuiltinIdTy, 0, 0);
-    T = Context.getObjCObjectPointerType(T);
-    TypeSourceInfo *IdInfo = Context.getTrivialTypeSourceInfo(T);
-    TypedefDecl *IdTypedef
-      = TypedefDecl::Create(Context, CurContext,
-                            SourceLocation(), SourceLocation(),
-                            &Context.Idents.get("id"), IdInfo);
-    PushOnScopeChains(IdTypedef, TUScope);
-    Context.setObjCIdType(Context.getTypeDeclType(IdTypedef));
-    Context.ObjCIdRedefinitionType = Context.getObjCIdType();
-  }
-  // Create the built-in typedef for 'Class'.
-  if (Context.getObjCClassType().isNull()) {
-    QualType T = Context.getObjCObjectType(Context.ObjCBuiltinClassTy, 0, 0);
-    T = Context.getObjCObjectPointerType(T);
-    TypeSourceInfo *ClassInfo = Context.getTrivialTypeSourceInfo(T);
-    TypedefDecl *ClassTypedef
-      = TypedefDecl::Create(Context, CurContext,
-                            SourceLocation(), SourceLocation(),
-                            &Context.Idents.get("Class"), ClassInfo);
-    PushOnScopeChains(ClassTypedef, TUScope);
-    Context.setObjCClassType(Context.getTypeDeclType(ClassTypedef));
-    Context.ObjCClassRedefinitionType = Context.getObjCClassType();
-  }  
 }
 
 Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
@@ -181,6 +119,40 @@ void Sema::Initialize() {
   if (ExternalSemaSource *ExternalSema
       = dyn_cast_or_null<ExternalSemaSource>(Context.getExternalSource()))
     ExternalSema->InitializeSema(*this);
+
+  // Initialize predefined 128-bit integer types, if needed.
+  if (PP.getTargetInfo().getPointerWidth(0) >= 64) {
+    // If either of the 128-bit integer types are unavailable to name lookup,
+    // define them now.
+    DeclarationName Int128 = &Context.Idents.get("__int128_t");
+    if (IdentifierResolver::begin(Int128) == IdentifierResolver::end())
+      PushOnScopeChains(Context.getInt128Decl(), TUScope);
+
+    DeclarationName UInt128 = &Context.Idents.get("__uint128_t");
+    if (IdentifierResolver::begin(UInt128) == IdentifierResolver::end())
+      PushOnScopeChains(Context.getUInt128Decl(), TUScope);
+  }
+  
+
+  // Initialize predefined Objective-C types:
+  if (PP.getLangOptions().ObjC1) {
+    // If 'SEL' does not yet refer to any declarations, make it refer to the
+    // predefined 'SEL'.
+    DeclarationName SEL = &Context.Idents.get("SEL");
+    if (IdentifierResolver::begin(SEL) == IdentifierResolver::end())
+      PushOnScopeChains(Context.getObjCSelDecl(), TUScope);
+
+    // If 'id' does not yet refer to any declarations, make it refer to the
+    // predefined 'id'.
+    DeclarationName Id = &Context.Idents.get("id");
+    if (IdentifierResolver::begin(Id) == IdentifierResolver::end())
+      PushOnScopeChains(Context.getObjCIdDecl(), TUScope);
+    
+    // Create the built-in typedef for 'Class'.
+    DeclarationName Class = &Context.Idents.get("Class");
+    if (IdentifierResolver::begin(Class) == IdentifierResolver::end())
+      PushOnScopeChains(Context.getObjCClassDecl(), TUScope);
+  }
 }
 
 Sema::~Sema() {

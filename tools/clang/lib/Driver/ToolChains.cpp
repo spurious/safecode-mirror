@@ -211,7 +211,8 @@ Tool &Darwin::SelectTool(const Compilation &C, const JobAction &JA,
         types::isCXX(Inputs[0]->getType()) &&
         getTriple().getOS() == llvm::Triple::Darwin &&
         getTriple().getArch() == llvm::Triple::x86 &&
-        C.getArgs().getLastArg(options::OPT_fapple_kext))
+        (C.getArgs().getLastArg(options::OPT_fapple_kext) ||
+         C.getArgs().getLastArg(options::OPT_mkernel)))
       Key = JA.getKind();
     else
       Key = Action::AnalyzeJobClass;
@@ -514,7 +515,7 @@ void Darwin::AddDeploymentTarget(DerivedArgList &Args) const {
            ie = Args.filtered_end(); it != ie; ++it) {
       StringRef define = (*it)->getValue(Args);
       if (define.startswith(SimulatorVersionDefineName())) {
-        unsigned Major, Minor, Micro;
+        unsigned Major = 0, Minor = 0, Micro = 0;
         if (GetVersionFromSimulatorDefine(define, Major, Minor, Micro) &&
             Major < 10 && Minor < 100 && Micro < 100) {
           ARCRuntimeForSimulator = Major < 5 ? ARCSimulator_NoARCRuntime

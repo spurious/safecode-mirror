@@ -4728,34 +4728,34 @@ QualType Sema::FindCompositeObjCPointerType(ExprResult &LHS, ExprResult &RHS,
   // to the pseudo-builtin, because that will be implicitly cast back to the
   // redefinition type if an attempt is made to access its fields.
   if (LHSTy->isObjCClassType() &&
-      (Context.hasSameType(RHSTy, Context.ObjCClassRedefinitionType))) {
+      (Context.hasSameType(RHSTy, Context.getObjCClassRedefinitionType()))) {
     RHS = ImpCastExprToType(RHS.take(), LHSTy, CK_BitCast);
     return LHSTy;
   }
   if (RHSTy->isObjCClassType() &&
-      (Context.hasSameType(LHSTy, Context.ObjCClassRedefinitionType))) {
+      (Context.hasSameType(LHSTy, Context.getObjCClassRedefinitionType()))) {
     LHS = ImpCastExprToType(LHS.take(), RHSTy, CK_BitCast);
     return RHSTy;
   }
   // And the same for struct objc_object* / id
   if (LHSTy->isObjCIdType() &&
-      (Context.hasSameType(RHSTy, Context.ObjCIdRedefinitionType))) {
+      (Context.hasSameType(RHSTy, Context.getObjCIdRedefinitionType()))) {
     RHS = ImpCastExprToType(RHS.take(), LHSTy, CK_BitCast);
     return LHSTy;
   }
   if (RHSTy->isObjCIdType() &&
-      (Context.hasSameType(LHSTy, Context.ObjCIdRedefinitionType))) {
+      (Context.hasSameType(LHSTy, Context.getObjCIdRedefinitionType()))) {
     LHS = ImpCastExprToType(LHS.take(), RHSTy, CK_BitCast);
     return RHSTy;
   }
   // And the same for struct objc_selector* / SEL
   if (Context.isObjCSelType(LHSTy) &&
-      (Context.hasSameType(RHSTy, Context.ObjCSelRedefinitionType))) {
+      (Context.hasSameType(RHSTy, Context.getObjCSelRedefinitionType()))) {
     RHS = ImpCastExprToType(RHS.take(), LHSTy, CK_BitCast);
     return LHSTy;
   }
   if (Context.isObjCSelType(RHSTy) &&
-      (Context.hasSameType(LHSTy, Context.ObjCSelRedefinitionType))) {
+      (Context.hasSameType(LHSTy, Context.getObjCSelRedefinitionType()))) {
     LHS = ImpCastExprToType(LHS.take(), RHSTy, CK_BitCast);
     return RHSTy;
   }
@@ -5340,7 +5340,8 @@ Sema::CheckAssignmentConstraints(QualType lhsType, ExprResult &rhs,
 
       //  - conversions from 'Class' to the redefinition type
       if (rhsType->isObjCClassType() &&
-          Context.hasSameType(lhsType, Context.ObjCClassRedefinitionType)) {
+          Context.hasSameType(lhsType, 
+                              Context.getObjCClassRedefinitionType())) {
         Kind = CK_BitCast;
         return Compatible;
       }
@@ -5421,7 +5422,8 @@ Sema::CheckAssignmentConstraints(QualType lhsType, ExprResult &rhs,
 
       //  - conversions to 'Class' from its redefinition type
       if (lhsType->isObjCClassType() &&
-          Context.hasSameType(rhsType, Context.ObjCClassRedefinitionType)) {
+          Context.hasSameType(rhsType, 
+                              Context.getObjCClassRedefinitionType())) {
         Kind = CK_BitCast;
         return Compatible;
       }
@@ -7624,9 +7626,10 @@ ExprResult Sema::CreateBuiltinBinOp(SourceLocation OpLoc,
             !LeftType->canDecayToPointerType() &&
             !RightType->isAnyPointerType() &&
             !RightType->canDecayToPointerType()) {
-          Diag(OpLoc, diag::warn_null_in_arithmetic_operation)
-            << (LeftNull ? lhs.get()->getSourceRange()
-                         : rhs.get()->getSourceRange());
+          Diag(OpLoc, diag::warn_null_in_comparison_operation)
+            << LeftNull /* LHS is NULL */
+            << (LeftNull ? rhs.get()->getType() : lhs.get()->getType())
+            << lhs.get()->getSourceRange() << rhs.get()->getSourceRange();
         }
       }
     }
@@ -7776,32 +7779,28 @@ static void DiagnoseBitwisePrecedence(Sema &Self, BinaryOperatorKind Opc,
       (BinOp::isComparisonOp(rhsopc) || BinOp::isBitwiseOp(rhsopc)))
     return;
 
-  if (BinOp::isComparisonOp(lhsopc)) {
-    Self.Diag(OpLoc, diag::warn_precedence_bitwise_rel)
-        << SourceRange(lhs->getLocStart(), OpLoc)
-        << BinOp::getOpcodeStr(Opc) << BinOp::getOpcodeStr(lhsopc);
-    SuggestParentheses(Self, OpLoc,
-      Self.PDiag(diag::note_precedence_bitwise_silence)
-          << BinOp::getOpcodeStr(lhsopc),
-      lhs->getSourceRange());
-    SuggestParentheses(Self, OpLoc,
-      Self.PDiag(diag::note_precedence_bitwise_first)
-          << BinOp::getOpcodeStr(Opc),
-      SourceRange(cast<BinOp>(lhs)->getRHS()->getLocStart(), rhs->getLocEnd()));
-  } else if (BinOp::isComparisonOp(rhsopc)) {
-    Self.Diag(OpLoc, diag::warn_precedence_bitwise_rel)
-        << SourceRange(OpLoc, rhs->getLocEnd())
-        << BinOp::getOpcodeStr(Opc) << BinOp::getOpcodeStr(rhsopc);
-    SuggestParentheses(Self, OpLoc,
-      Self.PDiag(diag::note_precedence_bitwise_silence)
-          << BinOp::getOpcodeStr(rhsopc),
-      rhs->getSourceRange());
-    SuggestParentheses(Self, OpLoc,
-      Self.PDiag(diag::note_precedence_bitwise_first)
-        << BinOp::getOpcodeStr(Opc),
-      SourceRange(lhs->getLocStart(), 
-                  cast<BinOp>(rhs)->getLHS()->getLocStart()));
-  }
+  bool isLeftComp = BinOp::isComparisonOp(lhsopc);
+  bool isRightComp = BinOp::isComparisonOp(rhsopc);
+  if (!isLeftComp && !isRightComp) return;
+
+  SourceRange DiagRange = isLeftComp ? SourceRange(lhs->getLocStart(), OpLoc)
+                                     : SourceRange(OpLoc, rhs->getLocEnd());
+  std::string OpStr = isLeftComp ? BinOp::getOpcodeStr(lhsopc)
+                                 : BinOp::getOpcodeStr(rhsopc);
+  SourceRange ParensRange = isLeftComp ?
+      SourceRange(cast<BinOp>(lhs)->getRHS()->getLocStart(),
+                  rhs->getLocEnd())
+    : SourceRange(lhs->getLocStart(),
+                  cast<BinOp>(rhs)->getLHS()->getLocStart());
+
+  Self.Diag(OpLoc, diag::warn_precedence_bitwise_rel)
+    << DiagRange << BinOp::getOpcodeStr(Opc) << OpStr;
+  SuggestParentheses(Self, OpLoc,
+    Self.PDiag(diag::note_precedence_bitwise_silence) << OpStr,
+    rhs->getSourceRange());
+  SuggestParentheses(Self, OpLoc,
+    Self.PDiag(diag::note_precedence_bitwise_first) << BinOp::getOpcodeStr(Opc),
+    ParensRange);
 }
 
 /// \brief It accepts a '&' expr that is inside a '|' one.

@@ -109,7 +109,7 @@ public:
                                          const GRState *state,
                                          const Expr *Ex, SVal V);
 
-  static bool SummarizeRegion(raw_ostream& os, ASTContext& Ctx,
+  static bool SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
                               const MemRegion *MR);
 
   // Re-usable checks
@@ -767,15 +767,13 @@ const GRState *CStringChecker::InvalidateBuffer(CheckerContext &C,
   return state->unbindLoc(*L);
 }
 
-bool CStringChecker::SummarizeRegion(raw_ostream& os, ASTContext& Ctx,
+bool CStringChecker::SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
                                      const MemRegion *MR) {
-  const TypedRegion *TR = dyn_cast<TypedRegion>(MR);
-  if (!TR)
-    return false;
+  const TypedValueRegion *TVR = dyn_cast<TypedValueRegion>(MR);
 
-  switch (TR->getKind()) {
+  switch (MR->getKind()) {
   case MemRegion::FunctionTextRegionKind: {
-    const FunctionDecl *FD = cast<FunctionTextRegion>(TR)->getDecl();
+    const FunctionDecl *FD = cast<FunctionTextRegion>(MR)->getDecl();
     if (FD)
       os << "the address of the function '" << FD << "'";
     else
@@ -790,16 +788,16 @@ bool CStringChecker::SummarizeRegion(raw_ostream& os, ASTContext& Ctx,
     return true;
   case MemRegion::CXXThisRegionKind:
   case MemRegion::CXXTempObjectRegionKind:
-    os << "a C++ temp object of type " << TR->getValueType().getAsString();
+    os << "a C++ temp object of type " << TVR->getValueType().getAsString();
     return true;
   case MemRegion::VarRegionKind:
-    os << "a variable of type" << TR->getValueType().getAsString();
+    os << "a variable of type" << TVR->getValueType().getAsString();
     return true;
   case MemRegion::FieldRegionKind:
-    os << "a field of type " << TR->getValueType().getAsString();
+    os << "a field of type " << TVR->getValueType().getAsString();
     return true;
   case MemRegion::ObjCIvarRegionKind:
-    os << "an instance variable of type " << TR->getValueType().getAsString();
+    os << "an instance variable of type " << TVR->getValueType().getAsString();
     return true;
   default:
     return false;

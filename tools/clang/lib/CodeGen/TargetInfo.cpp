@@ -2994,6 +2994,8 @@ public:
                                  CodeGenFunction &CGF) const;
 };
 
+const unsigned MipsABIInfo::MinABIStackAlignInBytes;
+
 class MIPSTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   MIPSTargetCodeGenInfo(CodeGenTypes &CGT)
@@ -3080,6 +3082,7 @@ llvm::Value* MipsABIInfo::EmitVAArg(llvm::Value *VAListAddr, QualType Ty,
     AddrTyped = Builder.CreateBitCast(Addr, PTy);  
 
   llvm::Value *AlignedAddr = Builder.CreateBitCast(AddrTyped, BP);
+  TypeAlign = std::max(TypeAlign, MinABIStackAlignInBytes);
   uint64_t Offset =
     llvm::RoundUpToAlignment(CGF.getContext().getTypeSize(Ty) / 8, TypeAlign);
   llvm::Value *NextAddr =

@@ -1604,7 +1604,7 @@ public:
 
   /// Whether this is a constexpr function or constexpr constructor.
   // FIXME: C++0x: Implement tracking of the constexpr specifier.
-  bool isConstExpr() const { return false; }
+  bool isConstexpr() const { return false; }
 
   /// Whether this templated function will be late parsed.
   bool isLateTemplateParsed() const { return IsLateTemplateParsed; }
@@ -1851,7 +1851,11 @@ public:
   bool isFunctionTemplateSpecialization() const {
     return getPrimaryTemplate() != 0;
   }
-       
+
+  /// \brief Retrieve the class scope template pattern that this function
+  ///  template specialization is instantiated from.
+  FunctionDecl *getClassScopeSpecializationPattern() const;
+
   /// \brief If this function is actually a function template specialization,
   /// retrieve information about this function template specialization. 
   /// Otherwise, returns NULL.

@@ -88,9 +88,9 @@ public:
     ID.Add(V);
   }
 
-  PathDiagnosticPiece* VisitNode(const ExplodedNode *N,
+  PathDiagnosticPiece *VisitNode(const ExplodedNode *N,
                                  const ExplodedNode *PrevN,
-                                 BugReporterContext& BRC) {
+                                 BugReporterContext &BRC) {
 
     if (satisfied)
       return NULL;
@@ -140,7 +140,7 @@ public:
         if (isa<loc::ConcreteInt>(V)) {
           bool b = false;
           if (R->isBoundable()) {
-            if (const TypedRegion *TR = dyn_cast<TypedRegion>(R)) {
+            if (const TypedValueRegion *TR = dyn_cast<TypedValueRegion>(R)) {
               if (TR->getValueType()->isObjCObjectPointerType()) {
                 os << "initialized to nil";
                 b = true;
@@ -170,7 +170,7 @@ public:
       if (isa<loc::ConcreteInt>(V)) {
         bool b = false;
         if (R->isBoundable()) {
-          if (const TypedRegion *TR = dyn_cast<TypedRegion>(R)) {
+          if (const TypedValueRegion *TR = dyn_cast<TypedValueRegion>(R)) {
             if (TR->getValueType()->isObjCObjectPointerType()) {
               os << "nil object reference stored to ";
               b = true;
@@ -220,7 +220,7 @@ public:
 };
 
 
-static void registerFindLastStore(BugReporterContext& BRC, const MemRegion *R,
+static void registerFindLastStore(BugReporterContext &BRC, const MemRegion *R,
                                   SVal V) {
   BRC.addVisitor(new FindLastStoreBRVisitor(V, R));
 }
@@ -240,9 +240,9 @@ public:
     ID.Add(Constraint);
   }
 
-  PathDiagnosticPiece* VisitNode(const ExplodedNode *N,
+  PathDiagnosticPiece *VisitNode(const ExplodedNode *N,
                                  const ExplodedNode *PrevN,
-                                 BugReporterContext& BRC) {
+                                 BugReporterContext &BRC) {
     if (isSatisfied)
       return NULL;
 
@@ -296,15 +296,15 @@ public:
 };
 } // end anonymous namespace
 
-static void registerTrackConstraint(BugReporterContext& BRC,
+static void registerTrackConstraint(BugReporterContext &BRC,
                                     DefinedSVal Constraint,
                                     bool Assumption) {
   BRC.addVisitor(new TrackConstraintBRVisitor(Constraint, Assumption));
 }
 
-void bugreporter::registerTrackNullOrUndefValue(BugReporterContext& BRC,
+void bugreporter::registerTrackNullOrUndefValue(BugReporterContext &BRC,
                                                 const void *data,
-                                                const ExplodedNode* N) {
+                                                const ExplodedNode *N) {
 
   const Stmt *S = static_cast<const Stmt*>(data);
 
@@ -365,9 +365,9 @@ void bugreporter::registerTrackNullOrUndefValue(BugReporterContext& BRC,
   }
 }
 
-void bugreporter::registerFindLastStore(BugReporterContext& BRC,
+void bugreporter::registerFindLastStore(BugReporterContext &BRC,
                                         const void *data,
-                                        const ExplodedNode* N) {
+                                        const ExplodedNode *N) {
 
   const MemRegion *R = static_cast<const MemRegion*>(data);
 
@@ -394,9 +394,9 @@ public:
     ID.AddPointer(&x);
   }
 
-  PathDiagnosticPiece* VisitNode(const ExplodedNode *N,
+  PathDiagnosticPiece *VisitNode(const ExplodedNode *N,
                                  const ExplodedNode *PrevN,
-                                 BugReporterContext& BRC) {
+                                 BugReporterContext &BRC) {
 
     const PostStmt *P = N->getLocationAs<PostStmt>();
     if (!P)

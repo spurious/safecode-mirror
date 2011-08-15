@@ -282,17 +282,24 @@ def warn_sizeof_pointer_type_memaccess : Warning<
 /// main()
 // static/inline main() are not errors in C, just in C++.
 def warn_unusual_main_decl : Warning<"'main' should not be declared "
-    "%select{static|inline|static or inline}0">;
+    "%select{static|inline|static or inline}0">,
+    InGroup<Main>;
 def err_unusual_main_decl : Error<"'main' is not allowed to be declared "
-    "%select{static|inline|static or inline}0">;
-def err_main_template_decl : Error<"'main' cannot be a template">;
-def err_main_returns_nonint : Error<"'main' must return 'int'">;
+    "%select{static|inline|static or inline}0">,
+    InGroup<Main>;
+def err_main_template_decl : Error<"'main' cannot be a template">,
+    InGroup<Main>;
+def err_main_returns_nonint : Error<"'main' must return 'int'">,
+    InGroup<Main>;
 def err_main_surplus_args : Error<"too many parameters (%0) for 'main': "
-    "must be 0, 2, or 3">;
-def warn_main_one_arg : Warning<"only one parameter on 'main' declaration">;
+    "must be 0, 2, or 3">,
+    InGroup<Main>;
+def warn_main_one_arg : Warning<"only one parameter on 'main' declaration">,
+    InGroup<Main>;
 def err_main_arg_wrong : Error<"%select{first|second|third|fourth}0 "
     "parameter of 'main' (%select{argument count|argument array|environment|"
-    "platform-specific data}0) must be of type %1">;
+    "platform-specific data}0) must be of type %1">,
+    InGroup<Main>;
 
 /// parser diagnostics
 def ext_typedef_without_a_name : ExtWarn<"typedef requires a name">,
@@ -383,32 +390,72 @@ def note_undef_method_impl : Note<"method definition for %0 not found">;
 def note_required_for_protocol_at : 
   Note<"required for direct or indirect protocol %0">;
 
+def warn_conflicting_overriding_ret_types : Warning<
+  "conflicting return type in "
+  "declaration of %0: %1 vs %2">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
 def warn_conflicting_ret_types : Warning<
   "conflicting return type in "
-  "%select{implementation|declaration}3 of %0: %1 vs %2">;
+  "implementation of %0: %1 vs %2">;
+
+def warn_conflicting_overriding_ret_type_modifiers : Warning<
+  "conflicting distributed object modifiers on return type "
+  "in declaration of %0">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
 def warn_conflicting_ret_type_modifiers : Warning<
   "conflicting distributed object modifiers on return type "
-  "in %select{implementation|declaration}1 of %0">,
+  "in implementation of %0">,
   InGroup<DiagGroup<"distributed-object-modifiers">>;
+
+def warn_non_covariant_overriding_ret_types : Warning<
+  "conflicting return type in "
+  "declaration of %0: %1 vs %2">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
 def warn_non_covariant_ret_types : Warning<
   "conflicting return type in "
-  "%select{implementation|declaration}3 of %0: %1 vs %2">,
+  "implementation of %0: %1 vs %2">,
   InGroup<DiagGroup<"method-signatures">>, DefaultIgnore;
+
+def warn_conflicting_overriding_param_types : Warning<
+  "conflicting parameter types in "
+  "declaration of %0: %1 vs %2">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
 
 def warn_conflicting_param_types : Warning<
   "conflicting parameter types in "
-  "%select{implementation|declaration}3 of %0: %1 vs %2">;
+  "implementation of %0: %1 vs %2">;
 def warn_conflicting_param_modifiers : Warning<
   "conflicting distributed object modifiers on parameter type "
-  "in %select{implementation|declaration}1 of %0">,
+  "in implementation of %0">,
   InGroup<DiagGroup<"distributed-object-modifiers">>;
+
+def warn_conflicting_overriding_param_modifiers : Warning<
+  "conflicting distributed object modifiers on parameter type "
+  "in declaration of %0">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
+def warn_non_contravariant_overriding_param_types : Warning<
+  "conflicting parameter types in "
+  "declaration of %0: %1 vs %2">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
 def warn_non_contravariant_param_types : Warning<
   "conflicting parameter types in "
-  "%select{implementation|declaration}3 of %0: %1 vs %2">,
+  "implementation of %0: %1 vs %2">,
   InGroup<DiagGroup<"method-signatures">>, DefaultIgnore;
+
+def warn_conflicting_overriding_variadic :Warning<
+  "conflicting variadic declaration of method and its "
+  "implementation">,
+  InGroup<OverridingMethodMismatch>, DefaultIgnore;
+
 def warn_conflicting_variadic :Warning<
   "conflicting variadic declaration of method and its "
-  "%select{implementation|declaration}0">;
+  "implementation">;
+
 def warn_category_method_impl_match:Warning<
   "category is implementing a method which will also be implemented"
   " by its primary class">, InGroup<ObjCProtocolMethodImpl>;
@@ -1981,6 +2028,9 @@ def err_not_class_template_specialization : Error<
   "parameter}0">;
 def err_function_specialization_in_class : Error<
   "cannot specialize a function %0 within class scope">;
+def ext_function_specialization_in_class : ExtWarn<
+  "explicit specialization of %0 within class scope is a Microsoft extension">,
+  InGroup<Microsoft>;
 def ext_explicit_specialization_storage_class : ExtWarn<
   "explicit specialization cannot have a storage class">;
 def err_explicit_specialization_inconsistent_storage_class : Error<
@@ -2192,7 +2242,8 @@ def note_typename_refers_here : Note<
 def err_typename_missing : Error<
   "missing 'typename' prior to dependent type name '%0%1'">;
 def warn_typename_missing : ExtWarn<
-  "missing 'typename' prior to dependent type name '%0%1'">;
+  "missing 'typename' prior to dependent type name '%0%1'">,
+  InGroup<DiagGroup<"typename-missing">>;
 def ext_typename_outside_of_template : ExtWarn<
   "'typename' occurs outside of a template">, InGroup<CXX0x>;
 def err_typename_refers_to_using_value_decl : Error<
@@ -3122,6 +3173,10 @@ def warn_comparison_of_mixed_enum_types : Warning<
   InGroup<DiagGroup<"enum-compare">>;
 def warn_null_in_arithmetic_operation : Warning<
   "use of NULL in arithmetic operation">,
+  InGroup<DiagGroup<"null-arithmetic">>;
+def warn_null_in_comparison_operation : Warning<
+  "comparison between NULL and non-pointer "
+  "%select{(%1 and NULL)|(NULL and %1)}0">,
   InGroup<DiagGroup<"null-arithmetic">>;
 
 def err_invalid_this_use : Error<
@@ -4213,7 +4268,8 @@ def warn_comparison_always : Warning<
 
 def warn_stringcompare : Warning<
   "result of comparison against %select{a string literal|@encode}0 is "
-  "unspecified (use strncmp instead)">;
+  "unspecified (use strncmp instead)">,
+  InGroup<DiagGroup<"string-compare">>;
 
 // Generic selections.
 def err_assoc_type_incomplete : Error<
@@ -4244,10 +4300,12 @@ def err_block_returning_array_function : Error<
 
 // CFString checking
 def err_cfstring_literal_not_string_constant : Error<
-  "CFString literal is not a string constant">;
+  "CFString literal is not a string constant">,
+  InGroup<DiagGroup<"CFString-literal">>;
 def warn_cfstring_truncated : Warning<
   "input conversion stopped due to an input byte that does not "
-  "belong to the input codeset UTF-8">;
+  "belong to the input codeset UTF-8">,
+  InGroup<DiagGroup<"CFString-literal">>;
 
 // Statements.
 def err_continue_not_in_loop : Error<

@@ -396,7 +396,7 @@ bool CursorVisitor::Visit(CXCursor Cursor, bool CheckedRegionOfInterest) {
   if (clang_isDeclaration(Cursor.kind)) {
     Decl *D = getCursorDecl(Cursor);
     assert(D && "Invalid declaration cursor");
-    if (D->getPCHLevel() > MaxPCHLevel)
+    if (D->getPCHLevel() > MaxPCHLevel && !isa<TranslationUnitDecl>(D))
       return false;
 
     if (D->isImplicit())
@@ -3471,6 +3471,13 @@ enum CXChildVisitResult GetCursorVisitor(CXCursor cursor,
                                          CXClientData client_data) {
   GetCursorData *Data = static_cast<GetCursorData *>(client_data);
   CXCursor *BestCursor = &Data->BestCursor;
+  
+  if (clang_isDeclaration(cursor.kind)) {
+    // Avoid having the synthesized methods override the property decls.
+    if (ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(getCursorDecl(cursor)))
+      if (MD->isSynthesized())
+        return CXChildVisit_Break;
+  }
 
   if (clang_isExpression(cursor.kind) &&
       clang_isDeclaration(BestCursor->kind)) {
@@ -4041,6 +4048,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::StaticAssert:
   case Decl::Block:
   case Decl::Label:  // FIXME: Is this right??
+  case Decl::ClassScopeFunctionSpecialization:
     return C;
 
   // Declaration kinds that don't make any sense here, but are

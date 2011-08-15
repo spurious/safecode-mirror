@@ -344,10 +344,12 @@ void Sema::LookupTemplateName(LookupResult &Found,
     if (FoundOuter.empty()) {
       //   - if the name is not found, the name found in the class of the
       //     object expression is used, otherwise
-    } else if (!FoundOuter.getAsSingle<ClassTemplateDecl>()) {
+    } else if (!FoundOuter.getAsSingle<ClassTemplateDecl>() ||
+               FoundOuter.isAmbiguous()) {
       //   - if the name is found in the context of the entire
       //     postfix-expression and does not name a class template, the name
       //     found in the class of the object expression is used, otherwise
+      FoundOuter.clear();
     } else if (!Found.isSuppressingDiagnostics()) {
       //   - if the name found is a class template, it must refer to the same
       //     entity as the one found in the class of the object expression,
@@ -4509,9 +4511,18 @@ static bool CheckTemplateSpecializationScope(Sema &S,
   }
 
   if (S.CurContext->isRecord() && !IsPartialSpecialization) {
-    S.Diag(Loc, diag::err_template_spec_decl_class_scope)
-      << Specialized;
-    return true;
+    if (S.getLangOptions().Microsoft) {
+      // Do not warn for class scope explicit specialization during
+      // instantiation, warning was already emitted during pattern
+      // semantic analysis.
+      if (!S.ActiveTemplateInstantiations.size())
+        S.Diag(Loc, diag::ext_function_specialization_in_class)
+          << Specialized;
+    } else {
+      S.Diag(Loc, diag::err_template_spec_decl_class_scope)
+        << Specialized;
+      return true;
+    }
   }
 
   // C++ [temp.class.spec]p6:

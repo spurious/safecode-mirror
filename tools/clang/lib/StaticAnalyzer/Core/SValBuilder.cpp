@@ -70,7 +70,7 @@ SVal SValBuilder::convertToArrayIndex(SVal val) {
 }
 
 DefinedOrUnknownSVal 
-SValBuilder::getRegionValueSymbolVal(const TypedRegion* region) {
+SValBuilder::getRegionValueSymbolVal(const TypedValueRegion* region) {
   QualType T = region->getValueType();
 
   if (!SymbolManager::canSymbolicate(T))
@@ -133,7 +133,7 @@ DefinedSVal SValBuilder::getMetadataSymbolVal(const void *symbolTag,
 
 DefinedOrUnknownSVal
 SValBuilder::getDerivedRegionValueSymbolVal(SymbolRef parentSymbol,
-                                             const TypedRegion *region) {
+                                             const TypedValueRegion *region) {
   QualType T = region->getValueType();
 
   if (!SymbolManager::canSymbolicate(T))
@@ -147,7 +147,7 @@ SValBuilder::getDerivedRegionValueSymbolVal(SymbolRef parentSymbol,
   return nonloc::SymbolVal(sym);
 }
 
-DefinedSVal SValBuilder::getFunctionPointer(const FunctionDecl* func) {
+DefinedSVal SValBuilder::getFunctionPointer(const FunctionDecl *func) {
   return loc::MemRegionVal(MemMgr.getFunctionTextRegion(func));
 }
 

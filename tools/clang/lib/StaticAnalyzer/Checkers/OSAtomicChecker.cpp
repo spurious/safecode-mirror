@@ -37,7 +37,7 @@ bool OSAtomicChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
   const Expr *Callee = CE->getCallee();
   SVal L = state->getSVal(Callee);
 
-  const FunctionDecl* FD = L.getAsFunctionDecl();
+  const FunctionDecl *FD = L.getAsFunctionDecl();
   if (!FD)
     return false;
 
@@ -87,12 +87,9 @@ bool OSAtomicChecker::evalOSAtomicCompareAndSwap(CheckerContext &C,
   if (theValueTypePointee != newValueType)
     return false;
 
-  static unsigned magic_load = 0;
-  static unsigned magic_store = 0;
-
-  const void *OSAtomicLoadTag = &magic_load;
-  const void *OSAtomicStoreTag = &magic_store;
-
+  static SimpleProgramPointTag OSAtomicLoadTag("OSAtomicChecker : Load");
+  static SimpleProgramPointTag OSAtomicStoreTag("OSAtomicChecker : Store");
+  
   // Load 'theValue'.
   ExprEngine &Engine = C.getEngine();
   const GRState *state = C.getState();
@@ -106,12 +103,12 @@ bool OSAtomicChecker::evalOSAtomicCompareAndSwap(CheckerContext &C,
   // LoadTy specifying can be omitted. But we put it here to emphasize the 
   // semantics.
   QualType LoadTy;
-  if (const TypedRegion *TR =
-      dyn_cast_or_null<TypedRegion>(location.getAsRegion())) {
+  if (const TypedValueRegion *TR =
+      dyn_cast_or_null<TypedValueRegion>(location.getAsRegion())) {
     LoadTy = TR->getValueType();
   }
   Engine.evalLoad(Tmp, theValueExpr, C.getPredecessor(), 
-                  state, location, OSAtomicLoadTag, LoadTy);
+                  state, location, &OSAtomicLoadTag, LoadTy);
 
   if (Tmp.empty()) {
     // If no nodes were generated, other checkers must generated sinks. But 
@@ -148,7 +145,8 @@ bool OSAtomicChecker::evalOSAtomicCompareAndSwap(CheckerContext &C,
     SValBuilder &svalBuilder = Engine.getSValBuilder();
 
     // Perform the comparison.
-    DefinedOrUnknownSVal Cmp = svalBuilder.evalEQ(stateLoad,theValueVal,oldValueVal);
+    DefinedOrUnknownSVal Cmp =
+      svalBuilder.evalEQ(stateLoad,theValueVal,oldValueVal);
 
     const GRState *stateEqual = stateLoad->assume(Cmp, true);
 
@@ -159,13 +157,13 @@ bool OSAtomicChecker::evalOSAtomicCompareAndSwap(CheckerContext &C,
       SVal val = stateEqual->getSVal(newValueExpr);
 
       // Handle implicit value casts.
-      if (const TypedRegion *R =
-          dyn_cast_or_null<TypedRegion>(location.getAsRegion())) {
+      if (const TypedValueRegion *R =
+          dyn_cast_or_null<TypedValueRegion>(location.getAsRegion())) {
         val = svalBuilder.evalCast(val,R->getValueType(), newValueExpr->getType());
       }
 
       Engine.evalStore(TmpStore, NULL, theValueExpr, N, 
-                       stateEqual, location, val, OSAtomicStoreTag);
+                       stateEqual, location, val, &OSAtomicStoreTag);
 
       if (TmpStore.empty()) {
         // If no nodes were generated, other checkers must generated sinks. But 
