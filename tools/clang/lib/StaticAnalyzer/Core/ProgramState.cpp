@@ -1,4 +1,4 @@
-//= GRState.cpp - Path-Sensitive "State" for tracking values -----*- C++ -*--=//
+//= ProgramState.cpp - Path-Sensitive "State" for tracking values --*- C++ -*--=
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,13 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements GRState and GRStateManager.
+//  This file implements ProgramState and ProgramStateManager.
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/CFG.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/GRStateTrait.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/GRState.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SubEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/TransferFuncs.h"
 #include "llvm/Support/raw_ostream.h"
@@ -25,7 +25,7 @@ using namespace ento;
 // FIXME: Move this elsewhere.
 ConstraintManager::~ConstraintManager() {}
 
-GRState::GRState(GRStateManager *mgr, const Environment& env,
+ProgramState::ProgramState(ProgramStateManager *mgr, const Environment& env,
                  StoreRef st, GenericDataMap gdm)
   : stateMgr(mgr),
     Env(env),
@@ -35,7 +35,7 @@ GRState::GRState(GRStateManager *mgr, const Environment& env,
   stateMgr->getStoreManager().incrementReferenceCount(store);
 }
 
-GRState::GRState(const GRState &RHS)
+ProgramState::ProgramState(const ProgramState &RHS)
     : llvm::FoldingSetNode(),
       stateMgr(RHS.stateMgr),
       Env(RHS.Env),
@@ -45,13 +45,13 @@ GRState::GRState(const GRState &RHS)
   stateMgr->getStoreManager().incrementReferenceCount(store);
 }
 
-GRState::~GRState() {
+ProgramState::~ProgramState() {
   if (store)
     stateMgr->getStoreManager().decrementReferenceCount(store);
 }
 
-GRStateManager::~GRStateManager() {
-  for (std::vector<GRState::Printer*>::iterator I=Printers.begin(),
+ProgramStateManager::~ProgramStateManager() {
+  for (std::vector<ProgramState::Printer*>::iterator I=Printers.begin(),
         E=Printers.end(); I!=E; ++I)
     delete *I;
 
@@ -60,8 +60,8 @@ GRStateManager::~GRStateManager() {
     I->second.second(I->second.first);
 }
 
-const GRState*
-GRStateManager::removeDeadBindings(const GRState *state,
+const ProgramState*
+ProgramStateManager::removeDeadBindings(const ProgramState *state,
                                    const StackFrameContext *LCtx,
                                    SymbolReaper& SymReaper) {
 
@@ -71,7 +71,7 @@ GRStateManager::removeDeadBindings(const GRState *state,
   // those around.  This code more than likely can be made faster, and the
   // frequency of which this method is called should be experimented with
   // for optimum performance.
-  GRState NewState = *state;
+  ProgramState NewState = *state;
 
   NewState.Env = EnvMgr.removeDeadBindings(NewState.Env, SymReaper, state);
 
@@ -84,10 +84,10 @@ GRStateManager::removeDeadBindings(const GRState *state,
   return getPersistentState(NewState);
 }
 
-const GRState *GRStateManager::MarshalState(const GRState *state,
+const ProgramState *ProgramStateManager::MarshalState(const ProgramState *state,
                                             const StackFrameContext *InitLoc) {
   // make up an empty state for now.
-  GRState State(this,
+  ProgramState State(this,
                 EnvMgr.getInitialEnvironment(),
                 StoreMgr->getInitialStore(InitLoc),
                 GDMFactory.getEmptyMap());
@@ -95,7 +95,7 @@ const GRState *GRStateManager::MarshalState(const GRState *state,
   return getPersistentState(State);
 }
 
-const GRState *GRState::bindCompoundLiteral(const CompoundLiteralExpr *CL,
+const ProgramState *ProgramState::bindCompoundLiteral(const CompoundLiteralExpr *CL,
                                             const LocationContext *LC,
                                             SVal V) const {
   const StoreRef &newStore = 
@@ -103,21 +103,21 @@ const GRState *GRState::bindCompoundLiteral(const CompoundLiteralExpr *CL,
   return makeWithStore(newStore);
 }
 
-const GRState *GRState::bindDecl(const VarRegion* VR, SVal IVal) const {
+const ProgramState *ProgramState::bindDecl(const VarRegion* VR, SVal IVal) const {
   const StoreRef &newStore =
     getStateManager().StoreMgr->BindDecl(getStore(), VR, IVal);
   return makeWithStore(newStore);
 }
 
-const GRState *GRState::bindDeclWithNoInit(const VarRegion* VR) const {
+const ProgramState *ProgramState::bindDeclWithNoInit(const VarRegion* VR) const {
   const StoreRef &newStore =
     getStateManager().StoreMgr->BindDeclWithNoInit(getStore(), VR);
   return makeWithStore(newStore);
 }
 
-const GRState *GRState::bindLoc(Loc LV, SVal V) const {
-  GRStateManager &Mgr = getStateManager();
-  const GRState *newState = makeWithStore(Mgr.StoreMgr->Bind(getStore(), 
+const ProgramState *ProgramState::bindLoc(Loc LV, SVal V) const {
+  ProgramStateManager &Mgr = getStateManager();
+  const ProgramState *newState = makeWithStore(Mgr.StoreMgr->Bind(getStore(), 
                                                              LV, V));
   const MemRegion *MR = LV.getAsRegion();
   if (MR && Mgr.getOwningEngine())
@@ -126,17 +126,17 @@ const GRState *GRState::bindLoc(Loc LV, SVal V) const {
   return newState;
 }
 
-const GRState *GRState::bindDefault(SVal loc, SVal V) const {
-  GRStateManager &Mgr = getStateManager();
+const ProgramState *ProgramState::bindDefault(SVal loc, SVal V) const {
+  ProgramStateManager &Mgr = getStateManager();
   const MemRegion *R = cast<loc::MemRegionVal>(loc).getRegion();
   const StoreRef &newStore = Mgr.StoreMgr->BindDefault(getStore(), R, V);
-  const GRState *new_state = makeWithStore(newStore);
+  const ProgramState *new_state = makeWithStore(newStore);
   return Mgr.getOwningEngine() ? 
            Mgr.getOwningEngine()->processRegionChange(new_state, R) : 
            new_state;
 }
 
-const GRState *GRState::invalidateRegions(const MemRegion * const *Begin,
+const ProgramState *ProgramState::invalidateRegions(const MemRegion * const *Begin,
                                           const MemRegion * const *End,
                                           const Expr *E, unsigned Count,
                                           StoreManager::InvalidatedSymbols *IS,
@@ -149,13 +149,13 @@ const GRState *GRState::invalidateRegions(const MemRegion * const *Begin,
   return invalidateRegionsImpl(Begin, End, E, Count, *IS, invalidateGlobals);
 }
 
-const GRState *
-GRState::invalidateRegionsImpl(const MemRegion * const *Begin,
+const ProgramState *
+ProgramState::invalidateRegionsImpl(const MemRegion * const *Begin,
                                const MemRegion * const *End,
                                const Expr *E, unsigned Count,
                                StoreManager::InvalidatedSymbols &IS,
                                bool invalidateGlobals) const {
-  GRStateManager &Mgr = getStateManager();
+  ProgramStateManager &Mgr = getStateManager();
   SubEngine* Eng = Mgr.getOwningEngine();
  
   if (Eng && Eng->wantsRegionChangeUpdate(this)) {
@@ -163,7 +163,7 @@ GRState::invalidateRegionsImpl(const MemRegion * const *Begin,
     const StoreRef &newStore
       = Mgr.StoreMgr->invalidateRegions(getStore(), Begin, End, E, Count, IS,
                                         invalidateGlobals, &Regions);
-    const GRState *newState = makeWithStore(newStore);
+    const ProgramState *newState = makeWithStore(newStore);
     return Eng->processRegionChanges(newState, &IS,
                                      &Regions.front(),
                                      &Regions.back()+1);
@@ -175,7 +175,7 @@ GRState::invalidateRegionsImpl(const MemRegion * const *Begin,
   return makeWithStore(newStore);
 }
 
-const GRState *GRState::unbindLoc(Loc LV) const {
+const ProgramState *ProgramState::unbindLoc(Loc LV) const {
   assert(!isa<loc::MemRegionVal>(LV) && "Use invalidateRegion instead.");
 
   Store OldStore = getStore();
@@ -187,13 +187,13 @@ const GRState *GRState::unbindLoc(Loc LV) const {
   return makeWithStore(newStore);
 }
 
-const GRState *GRState::enterStackFrame(const StackFrameContext *frame) const {
+const ProgramState *ProgramState::enterStackFrame(const StackFrameContext *frame) const {
   const StoreRef &new_store =
     getStateManager().StoreMgr->enterStackFrame(this, frame);
   return makeWithStore(new_store);
 }
 
-SVal GRState::getSValAsScalarOrLoc(const MemRegion *R) const {
+SVal ProgramState::getSValAsScalarOrLoc(const MemRegion *R) const {
   // We only want to do fetches from regions that we can actually bind
   // values.  For example, SymbolicRegions of type 'id<...>' cannot
   // have direct bindings (but their can be bindings on their subregions).
@@ -209,7 +209,7 @@ SVal GRState::getSValAsScalarOrLoc(const MemRegion *R) const {
   return UnknownVal();
 }
 
-SVal GRState::getSVal(Loc location, QualType T) const {
+SVal ProgramState::getSVal(Loc location, QualType T) const {
   SVal V = getRawSVal(cast<Loc>(location), T);
 
   // If 'V' is a symbolic value that is *perfectly* constrained to
@@ -246,18 +246,18 @@ SVal GRState::getSVal(Loc location, QualType T) const {
   return V;
 }
 
-const GRState *GRState::BindExpr(const Stmt *S, SVal V, bool Invalidate) const{
+const ProgramState *ProgramState::BindExpr(const Stmt *S, SVal V, bool Invalidate) const{
   Environment NewEnv = getStateManager().EnvMgr.bindExpr(Env, S, V,
                                                          Invalidate);
   if (NewEnv == Env)
     return this;
 
-  GRState NewSt = *this;
+  ProgramState NewSt = *this;
   NewSt.Env = NewEnv;
   return getStateManager().getPersistentState(NewSt);
 }
 
-const GRState *GRState::bindExprAndLocation(const Stmt *S, SVal location,
+const ProgramState *ProgramState::bindExprAndLocation(const Stmt *S, SVal location,
                                             SVal V) const {
   Environment NewEnv =
     getStateManager().EnvMgr.bindExprAndLocation(Env, S, location, V);
@@ -265,12 +265,12 @@ const GRState *GRState::bindExprAndLocation(const Stmt *S, SVal location,
   if (NewEnv == Env)
     return this;
   
-  GRState NewSt = *this;
+  ProgramState NewSt = *this;
   NewSt.Env = NewEnv;
   return getStateManager().getPersistentState(NewSt);
 }
 
-const GRState *GRState::assumeInBound(DefinedOrUnknownSVal Idx,
+const ProgramState *ProgramState::assumeInBound(DefinedOrUnknownSVal Idx,
                                       DefinedOrUnknownSVal UpperBound,
                                       bool Assumption) const {
   if (Idx.isUnknown() || UpperBound.isUnknown())
@@ -279,7 +279,7 @@ const GRState *GRState::assumeInBound(DefinedOrUnknownSVal Idx,
   // Build an expression for 0 <= Idx < UpperBound.
   // This is the same as Idx + MIN < UpperBound + MIN, if overflow is allowed.
   // FIXME: This should probably be part of SValBuilder.
-  GRStateManager &SM = getStateManager();
+  ProgramStateManager &SM = getStateManager();
   SValBuilder &svalBuilder = SM.getSValBuilder();
   ASTContext &Ctx = svalBuilder.getContext();
 
@@ -315,8 +315,8 @@ const GRState *GRState::assumeInBound(DefinedOrUnknownSVal Idx,
   return CM.assume(this, cast<DefinedSVal>(inBound), Assumption);
 }
 
-const GRState *GRStateManager::getInitialState(const LocationContext *InitLoc) {
-  GRState State(this,
+const ProgramState *ProgramStateManager::getInitialState(const LocationContext *InitLoc) {
+  ProgramState State(this,
                 EnvMgr.getInitialEnvironment(),
                 StoreMgr->getInitialStore(InitLoc),
                 GDMFactory.getEmptyMap());
@@ -324,57 +324,57 @@ const GRState *GRStateManager::getInitialState(const LocationContext *InitLoc) {
   return getPersistentState(State);
 }
 
-void GRStateManager::recycleUnusedStates() {
-  for (std::vector<GRState*>::iterator i = recentlyAllocatedStates.begin(),
+void ProgramStateManager::recycleUnusedStates() {
+  for (std::vector<ProgramState*>::iterator i = recentlyAllocatedStates.begin(),
        e = recentlyAllocatedStates.end(); i != e; ++i) {
-    GRState *state = *i;
+    ProgramState *state = *i;
     if (state->referencedByExplodedNode())
       continue;
     StateSet.RemoveNode(state);
     freeStates.push_back(state);
-    state->~GRState();
+    state->~ProgramState();
   }
   recentlyAllocatedStates.clear();
 }
 
-const GRState *GRStateManager::getPersistentStateWithGDM(
-                                                     const GRState *FromState,
-                                                     const GRState *GDMState) {
-  GRState NewState = *FromState;
+const ProgramState *ProgramStateManager::getPersistentStateWithGDM(
+                                                     const ProgramState *FromState,
+                                                     const ProgramState *GDMState) {
+  ProgramState NewState = *FromState;
   NewState.GDM = GDMState->GDM;
   return getPersistentState(NewState);
 }
 
-const GRState *GRStateManager::getPersistentState(GRState &State) {
+const ProgramState *ProgramStateManager::getPersistentState(ProgramState &State) {
 
   llvm::FoldingSetNodeID ID;
   State.Profile(ID);
   void *InsertPos;
 
-  if (GRState *I = StateSet.FindNodeOrInsertPos(ID, InsertPos))
+  if (ProgramState *I = StateSet.FindNodeOrInsertPos(ID, InsertPos))
     return I;
 
-  GRState *newState = 0;
+  ProgramState *newState = 0;
   if (!freeStates.empty()) {
     newState = freeStates.back();
     freeStates.pop_back();    
   }
   else {
-    newState = (GRState*) Alloc.Allocate<GRState>();
+    newState = (ProgramState*) Alloc.Allocate<ProgramState>();
   }
-  new (newState) GRState(State);
+  new (newState) ProgramState(State);
   StateSet.InsertNode(newState, InsertPos);
   recentlyAllocatedStates.push_back(newState);
   return newState;
 }
 
-const GRState *GRState::makeWithStore(const StoreRef &store) const {
-  GRState NewSt = *this;
+const ProgramState *ProgramState::makeWithStore(const StoreRef &store) const {
+  ProgramState NewSt = *this;
   NewSt.setStore(store);
   return getStateManager().getPersistentState(NewSt);
 }
 
-void GRState::setStore(const StoreRef &newStore) {
+void ProgramState::setStore(const StoreRef &newStore) {
   Store newStoreStore = newStore.getStore();
   if (newStoreStore)
     stateMgr->getStoreManager().incrementReferenceCount(newStoreStore);
@@ -392,10 +392,10 @@ static bool IsEnvLoc(const Stmt *S) {
   return (bool) (((uintptr_t) S) & 0x1);
 }
 
-void GRState::print(raw_ostream &Out, CFG &C, const char* nl,
+void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
                     const char* sep) const {
   // Print the store.
-  GRStateManager &Mgr = getStateManager();
+  ProgramStateManager &Mgr = getStateManager();
   Mgr.getStoreManager().print(getStore(), Out, nl, sep);
 
   // Print Subexpression bindings.
@@ -467,11 +467,11 @@ void GRState::print(raw_ostream &Out, CFG &C, const char* nl,
   }
 }
 
-void GRState::printDOT(raw_ostream &Out, CFG &C) const {
+void ProgramState::printDOT(raw_ostream &Out, CFG &C) const {
   print(Out, C, "\\l", "\\|");
 }
 
-void GRState::printStdErr(CFG &C) const {
+void ProgramState::printStdErr(CFG &C) const {
   print(llvm::errs(), C);
 }
 
@@ -479,12 +479,12 @@ void GRState::printStdErr(CFG &C) const {
 // Generic Data Map.
 //===----------------------------------------------------------------------===//
 
-void *const* GRState::FindGDM(void *K) const {
+void *const* ProgramState::FindGDM(void *K) const {
   return GDM.lookup(K);
 }
 
 void*
-GRStateManager::FindGDMContext(void *K,
+ProgramStateManager::FindGDMContext(void *K,
                                void *(*CreateContext)(llvm::BumpPtrAllocator&),
                                void (*DeleteContext)(void*)) {
 
@@ -497,26 +497,26 @@ GRStateManager::FindGDMContext(void *K,
   return p.first;
 }
 
-const GRState *GRStateManager::addGDM(const GRState *St, void *Key, void *Data){
-  GRState::GenericDataMap M1 = St->getGDM();
-  GRState::GenericDataMap M2 = GDMFactory.add(M1, Key, Data);
+const ProgramState *ProgramStateManager::addGDM(const ProgramState *St, void *Key, void *Data){
+  ProgramState::GenericDataMap M1 = St->getGDM();
+  ProgramState::GenericDataMap M2 = GDMFactory.add(M1, Key, Data);
 
   if (M1 == M2)
     return St;
 
-  GRState NewSt = *St;
+  ProgramState NewSt = *St;
   NewSt.GDM = M2;
   return getPersistentState(NewSt);
 }
 
-const GRState *GRStateManager::removeGDM(const GRState *state, void *Key) {
-  GRState::GenericDataMap OldM = state->getGDM();
-  GRState::GenericDataMap NewM = GDMFactory.remove(OldM, Key);
+const ProgramState *ProgramStateManager::removeGDM(const ProgramState *state, void *Key) {
+  ProgramState::GenericDataMap OldM = state->getGDM();
+  ProgramState::GenericDataMap NewM = GDMFactory.remove(OldM, Key);
 
   if (NewM == OldM)
     return state;
 
-  GRState NewState = *state;
+  ProgramState NewState = *state;
   NewState.GDM = NewM;
   return getPersistentState(NewState);
 }
@@ -530,12 +530,12 @@ class ScanReachableSymbols : public SubRegionMap::Visitor  {
   typedef llvm::DenseMap<const void*, unsigned> VisitedItems;
 
   VisitedItems visited;
-  const GRState *state;
+  const ProgramState *state;
   SymbolVisitor &visitor;
   llvm::OwningPtr<SubRegionMap> SRM;
 public:
 
-  ScanReachableSymbols(const GRState *st, SymbolVisitor& v)
+  ScanReachableSymbols(const ProgramState *st, SymbolVisitor& v)
     : state(st), visitor(v) {}
 
   bool scan(nonloc::CompoundVal val);
@@ -635,12 +635,12 @@ bool ScanReachableSymbols::scan(const MemRegion *R) {
   return SRM->iterSubRegions(R, *this);
 }
 
-bool GRState::scanReachableSymbols(SVal val, SymbolVisitor& visitor) const {
+bool ProgramState::scanReachableSymbols(SVal val, SymbolVisitor& visitor) const {
   ScanReachableSymbols S(this, visitor);
   return S.scan(val);
 }
 
-bool GRState::scanReachableSymbols(const SVal *I, const SVal *E,
+bool ProgramState::scanReachableSymbols(const SVal *I, const SVal *E,
                                    SymbolVisitor &visitor) const {
   ScanReachableSymbols S(this, visitor);
   for ( ; I != E; ++I) {
@@ -650,7 +650,7 @@ bool GRState::scanReachableSymbols(const SVal *I, const SVal *E,
   return true;
 }
 
-bool GRState::scanReachableSymbols(const MemRegion * const *I,
+bool ProgramState::scanReachableSymbols(const MemRegion * const *I,
                                    const MemRegion * const *E,
                                    SymbolVisitor &visitor) const {
   ScanReachableSymbols S(this, visitor);

@@ -1158,6 +1158,16 @@ def err_for_range_begin_end_types_differ : Error<
 def note_for_range_type : Note<"range has type %0">;
 def note_for_range_begin_end : Note<
   "selected '%select{begin|end}0' %select{function|template }1%2 with iterator type %3">;
+
+// C++0x constexpr
+def err_invalid_constexpr : Error<
+  "%select{function parameter|typedef|non-static data member}0 "
+  "cannot be constexpr">;
+def err_constexpr_tag : Error<
+  "%select{class|struct|union|enum}0 cannot be marked constexpr">;
+def err_constexpr_dtor : Error<"destructor cannot be marked constexpr">;
+def err_constexpr_no_declarators : Error<
+  "constexpr can only be used in variable and function declarations">;
   
 // Objective-C++
 def err_objc_decls_may_only_appear_in_global_scope : Error<
@@ -2940,8 +2950,12 @@ def note_precedence_conditional_silence : Note<
   "place parentheses around the '%0' expression to silence this warning">;
 
 def warn_logical_instead_of_bitwise : Warning<
-  "use of logical %0 with constant operand; switch to bitwise %1 or "
-  "remove constant">, InGroup<DiagGroup<"constant-logical-operand">>;
+  "use of logical '%0' with constant operand">,
+  InGroup<DiagGroup<"constant-logical-operand">>;
+def note_logical_instead_of_bitwise_change_operator : Note<
+  "use '%0' for a bitwise operation">;
+def note_logical_instead_of_bitwise_remove_constant : Note<
+  "remove constant to silence this warning">;
 
 def warn_bitwise_and_in_bitwise_or : Warning<
   "'&' within '|'">, InGroup<BitwiseOpParentheses>;

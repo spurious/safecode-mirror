@@ -1,4 +1,4 @@
-//==- GRStateTrait.h - Partial implementations of GRStateTrait -----*- C++ -*-//
+//ProgramStateTrait.h - Partial implementations of ProgramStateTrait -*- C++ -*-
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -8,14 +8,15 @@
 //===----------------------------------------------------------------------===//
 //
 //  This file defines partial implementations of template specializations of
-//  the class GRStateTrait<>.  GRStateTrait<> is used by GRState to implement
-//  set/get methods for mapulating a GRState's generic data map.
+//  the class ProgramStateTrait<>.  ProgramStateTrait<> is used by ProgramState 
+//  to implement set/get methods for mapulating a ProgramState's
+// generic data map.
 //
 //===----------------------------------------------------------------------===//
 
 
-#ifndef LLVM_CLANG_GR_GRSTATETRAIT_H
-#define LLVM_CLANG_GR_GRSTATETRAIT_H
+#ifndef LLVM_CLANG_GR_PROGRAMSTATETRAIT_H
+#define LLVM_CLANG_GR_PROGRAMSTATETRAIT_H
 
 namespace llvm {
   class BumpPtrAllocator;
@@ -28,12 +29,12 @@ namespace llvm {
 namespace clang {
 
 namespace ento {
-  template <typename T> struct GRStatePartialTrait;
+  template <typename T> struct ProgramStatePartialTrait;
 
   // Partial-specialization for ImmutableMap.
 
   template <typename Key, typename Data, typename Info>
-  struct GRStatePartialTrait< llvm::ImmutableMap<Key,Data,Info> > {
+  struct ProgramStatePartialTrait< llvm::ImmutableMap<Key,Data,Info> > {
     typedef llvm::ImmutableMap<Key,Data,Info> data_type;
     typedef typename data_type::Factory&      context_type;
     typedef Key                               key_type;
@@ -74,7 +75,7 @@ namespace ento {
   // Partial-specialization for ImmutableSet.
 
   template <typename Key, typename Info>
-  struct GRStatePartialTrait< llvm::ImmutableSet<Key,Info> > {
+  struct ProgramStatePartialTrait< llvm::ImmutableSet<Key,Info> > {
     typedef llvm::ImmutableSet<Key,Info>      data_type;
     typedef typename data_type::Factory&      context_type;
     typedef Key                               key_type;
@@ -115,7 +116,7 @@ namespace ento {
   // Partial-specialization for ImmutableList.
 
   template <typename T>
-  struct GRStatePartialTrait< llvm::ImmutableList<T> > {
+  struct ProgramStatePartialTrait< llvm::ImmutableList<T> > {
     typedef llvm::ImmutableList<T>            data_type;
     typedef T                                 key_type;
     typedef typename data_type::Factory&      context_type;
@@ -151,7 +152,7 @@ namespace ento {
   };
   
   // Partial specialization for bool.
-  template <> struct GRStatePartialTrait<bool> {
+  template <> struct ProgramStatePartialTrait<bool> {
     typedef bool data_type;
 
     static inline data_type MakeData(void *const* p) {
@@ -164,7 +165,7 @@ namespace ento {
   };
   
   // Partial specialization for unsigned.
-  template <> struct GRStatePartialTrait<unsigned> {
+  template <> struct ProgramStatePartialTrait<unsigned> {
     typedef unsigned data_type;
 
     static inline data_type MakeData(void *const* p) {
