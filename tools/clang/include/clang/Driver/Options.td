@@ -860,6 +860,6 @@ def Z_reserved_lib_cckext : Flag<"-Z-reserved-lib-cckext">,
     Flags<[LinkerInput, NoArgumentUnused, Unsupported]>, Group<reserved_lib_Group>;
 
 // Memory safety options
-def memsafety : Flag<"-memsafety">,
+def memsafety : Flag<"-fmemsafety">,
  HelpText<"Instrument program with memory-safety checks">;
 

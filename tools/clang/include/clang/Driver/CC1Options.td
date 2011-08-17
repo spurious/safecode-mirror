@@ -696,6 +696,6 @@ def cl_std_EQ : Joined<"-cl-std=">,
 //===----------------------------------------------------------------------===//
 // Memory Safety Options
 //===----------------------------------------------------------------------===//
-def memsafety : Flag<"-memsafety">,
+def memsafety : Flag<"-fmemsafety">,
   HelpText<"Instrument program with memory-safety checks">;
 
