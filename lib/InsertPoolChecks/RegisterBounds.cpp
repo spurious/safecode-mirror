@@ -389,7 +389,15 @@ RegisterCustomizedAllocation::registerReallocationSite(CallInst * AllocSite, ReA
   args.push_back (NewPtr);
   args.push_back (OldPtr);
   args.push_back (AllocSize);
-  CallInst::Create(PoolReregisterFunc, args, "", InsertPt); 
+  CallInst * CI = CallInst::Create(PoolReregisterFunc, args, "", InsertPt); 
+
+  //
+  // If there's debug information on the allocation instruction, add it to the
+  // registration call.
+  //
+  if (MDNode * MD = AllocSite->getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
+
   return;
 }
 
@@ -514,7 +522,16 @@ RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * All
   args.push_back (PHCasted);
   args.push_back (GVCasted);
   args.push_back (AllocSize);
-  CallInst::Create(PoolRegisterFunc, args, "", InsertBefore); 
+  CallInst * CI = CallInst::Create(PoolRegisterFunc, args, "", InsertBefore); 
+
+  //
+  // If there's debug information on the allocation instruction, add it to the
+  // registration call.
+  //
+  if (Instruction * I = dyn_cast<Instruction>(val->stripPointerCasts()))
+    if (MDNode * MD = I->getMetadata ("dbg"))
+      CI->setMetadata ("dbg", MD);
+  return;
 }
 
 bool

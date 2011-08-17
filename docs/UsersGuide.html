@@ -172,16 +172,16 @@ We'll get the following error report:
 
 <pre>
 =======+++++++    SAFECODE RUNTIME ALERT +++++++=======
-= Error type                            :       Load/Store Error
-= Faulting pointer                      :       0x100100679
-= Program counter                       :       0x100002fa6
-= Fault PC Source                       :       /Users/criswell/tmp/safecode/test/test.c:7
+= Error type                            : Load/Store Error
+= Faulting pointer                      : 0x100100679
+= Program counter                       : 0x100002493
+= Fault PC Source                       : /Users/criswell/tmp/safecode/test/test.c:7
 =
-= Object allocated at PC                :       0x100003600
-= Allocated in Source File              :       main:1
-= Object allocation sequence number     :       3
-= Object start                          :       0x100100670
-= Object length                         :       0x9
+= Object allocated at PC                : 0x100002ad6
+= Allocated in Source File              : /Users/criswell/tmp/safecode/test/test.c:17
+= Object allocation sequence number     : 3
+= Object start                          : 0x100100670
+= Object length                         : 0x9
 </pre>
 
 <p>
@@ -212,18 +212,13 @@ when a pointer goes out of bounds, SAFECode changes it to point to a reserved,
 unmapped region in the program's virtual address space.  SAFECode tracks enough
 metadata about memory objects that if it ever detects a dereference of a
 rewritten pointer (like the example above), it can report the bounds of the
-original object from which the pointer came.  Not only that, it attempts to
-print the source line information about the location at which the memory object
-was allocated:
+original object from which the pointer came.  Not only that, SAFECode can even
+tell us the source line information about the location at which the memory
+object was allocated:
 
 <pre>
-= Allocated in Source File              :       main:1
+= Allocated in Source File              : /Users/criswell/tmp/safecode/test/test.c:17
 </pre>
-
-Unfortunately, in this example, SAFECode can't find enough debugging
-information to report the source line information, so it prints the function
-which allocated the memory object and a unique tag number for the allocation
-site as a second-best result.
 </p>
 
 <p>
