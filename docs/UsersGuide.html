@@ -75,10 +75,10 @@ transforms are performed transparently by the Clang compiler.
 
 <p>
 To activate the SAFECode transforms during compilation, add the
-<i>-memsafety</i> command-line option to the Clang command line:
+<i>-fmemsafety</i> command-line option to the Clang command line:
 
 <ul>
-  <li><tt>clang -g -memsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
+  <li><tt>clang -g -fmemsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
 </ul>
 
 ... and add the SAFECode libraries to the link command line (note that you may
@@ -86,7 +86,7 @@ need a <tt>-L$PREFIX/lib</tt> option to indicate where the libraries are
 located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed):
 
 <ul>
-  <li><tt>clang -memsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
+  <li><tt>clang -fmemsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
   -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++</tt></li>
 </ul>
 </p>
@@ -105,7 +105,7 @@ the following:
 <ol>
 <li> Set the environment variable CC to $PREFIX/clang.</li>
 <li> Set the environment variable CXX to $PREFIX/clang++.</li>
-<li> Set the environment variable CFLAGS to "-g -memsafety"</li>
+<li> Set the environment variable CFLAGS to "-g -fmemsafety"</li>
 <li> Set the environment variable LDFLAGS to
      "-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where
      $PREFIX is the directory into which SAFECode was installed.
@@ -163,7 +163,7 @@ of the array.
 <p>
 If we compile this program with SAFECode and execute it:
 <ul>
-  <li><tt>clang -g -memsafety -o <i>test</i> <i>test.c</i></tt></li>
+  <li><tt>clang -g -fmemsafety -o <i>test</i> <i>test.c</i></tt></li>
   <li><tt>./test 10</tt></li>
 </ul>
 
