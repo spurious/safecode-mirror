@@ -92,6 +92,56 @@ void Sema::ActOnForEachDeclStmt(DeclGroupPtrTy dg) {
   }
 }
 
+/// \brief Diagnose unused '==' and '!=' as likely typos for '=' or '|='.
+///
+/// Adding a cast to void (or other expression wrappers) will prevent the
+/// warning from firing.
+static bool DiagnoseUnusedComparison(Sema &S, const Expr *E) {
+  SourceLocation Loc;
+  bool IsNotEqual, CanAssign;
+
+  if (const BinaryOperator *Op = dyn_cast<BinaryOperator>(E)) {
+    if (Op->getOpcode() != BO_EQ && Op->getOpcode() != BO_NE)
+      return false;
+
+    Loc = Op->getOperatorLoc();
+    IsNotEqual = Op->getOpcode() == BO_NE;
+    CanAssign = Op->getLHS()->IgnoreParenImpCasts()->isLValue();
+  } else if (const CXXOperatorCallExpr *Op = dyn_cast<CXXOperatorCallExpr>(E)) {
+    if (Op->getOperator() != OO_EqualEqual &&
+        Op->getOperator() != OO_ExclaimEqual)
+      return false;
+
+    Loc = Op->getOperatorLoc();
+    IsNotEqual = Op->getOperator() == OO_ExclaimEqual;
+    CanAssign = Op->getArg(0)->IgnoreParenImpCasts()->isLValue();
+  } else {
+    // Not a typo-prone comparison.
+    return false;
+  }
+
+  // Suppress warnings when the operator, suspicious as it may be, comes from
+  // a macro expansion.
+  if (Loc.isMacroID())
+    return false;
+
+  S.Diag(Loc, diag::warn_unused_comparison)
+    << (unsigned)IsNotEqual << E->getSourceRange();
+
+  // If the LHS is a plausible entity to assign to, provide a fixit hint to
+  // correct common typos.
+  if (CanAssign) {
+    if (IsNotEqual)
+      S.Diag(Loc, diag::note_inequality_comparison_to_or_assign)
+        << FixItHint::CreateReplacement(Loc, "|=");
+    else
+      S.Diag(Loc, diag::note_equality_comparison_to_assign)
+        << FixItHint::CreateReplacement(Loc, "=");
+  }
+
+  return true;
+}
+
 void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
   if (const LabelStmt *Label = dyn_cast_or_null<LabelStmt>(S))
     return DiagnoseUnusedExprResult(Label->getSubStmt());
@@ -113,6 +163,9 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     E = Temps->getSubExpr();
   if (const CXXBindTemporaryExpr *TempExpr = dyn_cast<CXXBindTemporaryExpr>(E))
     E = TempExpr->getSubExpr();
+
+  if (DiagnoseUnusedComparison(*this, E))
+    return;
 
   E = E->IgnoreParenImpCasts();
   if (const CallExpr *CE = dyn_cast<CallExpr>(E)) {
