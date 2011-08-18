@@ -62,22 +62,22 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"poolcheckui",      "lscheck",      1, true,  false},
   {"poolcheckalign",   "lscheckalign", 1, true,  true},
   {"poolcheckalignui", "lscheckalign", 1, true,  false},
-  {"boundscheck",    "boundscheck",  2, false, true},
-  {"boundscheckui",  "boundscheck",  2, false, false},
-  {"exactcheck2",    "exactcheck2",  1, false, true},
-  {"funccheck",      "funccheck",    0, true,  true},
-  {"funccheckui",    "funccheck",    0, true,  false},
+  {"boundscheck",      "boundscheck",  2, false, true},
+  {"boundscheckui",    "boundscheck",  2, false, false},
+  {"exactcheck2",      "exactcheck2",  1, false, true},
+  {"funccheck",        "funccheck",    0, true,  true},
+  {"funccheckui",      "funccheck",    0, true,  false},
 
   // Debug versions of the above
-  {"poolcheck_debug",        "lscheck_debug",      1, true,  true},
-  {"poolcheckui_debug",      "lscheck_debug",      1, true,  false},
-  {"poolcheckalign_debug",   "lscheckalign_debug", 1, true,  true},
-  {"poolcheckalignui_debug", "lscheckalign_debug", 1, true,  false},
-  {"boundscheck_debug",    "boundscheck_debug",  2, false, true},
-  {"boundscheckui_debug",  "boundscheck_debug",  2, false, false},
-  {"exactcheck2_debug",    "exactcheck2_debug",  1, false, true},
-  {"funccheck_debug",      "funccheck_debug",    1, true,  true},
-  {"funccheckui_debug",    "funccheck_debug",    1, true,  false}
+  {"poolcheck_debug",        "poolcheck_debug",      1, true,  true},
+  {"poolcheckui_debug",      "poolcheck_debug",      1, true,  false},
+  {"poolcheckalign_debug",   "poolcheckalign_debug", 1, true,  true},
+  {"poolcheckalignui_debug", "poolcheckalign_debug", 1, true,  false},
+  {"boundscheck_debug",      "boundscheck_debug",  2, false, true},
+  {"boundscheckui_debug",    "boundscheck_debug",  2, false, false},
+  {"exactcheck2_debug",      "exactcheck2_debug",  1, false, true},
+  {"funccheck_debug",        "funccheck_debug",    1, true,  true},
+  {"funccheckui_debug",      "funccheck_debug",    1, true,  false}
 };
 
 //
