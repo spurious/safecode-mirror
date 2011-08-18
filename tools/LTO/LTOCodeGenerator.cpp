@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
+
 #include "LTOModule.h"
 #include "LTOCodeGenerator.h"
 #include "llvm/Constants.h"
@@ -354,7 +356,16 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   LLVMCompilerUsed->setSection("llvm.metadata");
 
+  // Add prerequisite passes needed by SAFECode
+  PassManagerBuilder().populateLTOPassManager(passes, /*Internalize=*/ false,
+                                              !DisableInline);
+
   passes.add(createInternalizePass(mustPreserveList));
+
+  // Add the SAFECode optimization/finalization passes
+  std::cerr << "Complete Checks!" << std::endl;
+  passes.add(new TargetData(*_target->getTargetData()));
+  passes.add(new CompleteChecks());
 
   // apply scope restrictions
   passes.run(*mergedModule);
@@ -389,9 +400,6 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
     
     PassManagerBuilder().populateLTOPassManager(passes, /*Internalize=*/ false,
                                                 !DisableInline);
-
-    // Add the SAFECode optimization/finalization passes
-    passes.add(new CompleteChecks());
 
     // Make sure everything is still good.
     passes.add(createVerifierPass());
