@@ -39,7 +39,6 @@ struct CompleteChecks : public ModulePass {
     virtual bool runOnModule (Module & M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
-      AU.addRequired<TargetData>();
       AU.addRequired<EQTDDataStructures>();
 
       // Preserved passes
