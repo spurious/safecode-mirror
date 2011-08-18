@@ -12,8 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
-
 #include "LTOModule.h"
 #include "LTOCodeGenerator.h"
 #include "llvm/Constants.h"
@@ -363,7 +361,6 @@ void LTOCodeGenerator::applyScopeRestrictions() {
   passes.add(createInternalizePass(mustPreserveList));
 
   // Add the SAFECode optimization/finalization passes
-  std::cerr << "Complete Checks!" << std::endl;
   passes.add(new TargetData(*_target->getTargetData()));
   passes.add(new CompleteChecks());
 
