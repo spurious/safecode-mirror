@@ -23,6 +23,8 @@ SHARED_LIBRARY = 1
 LINK_COMPONENTS = $(TARGETS_TO_BUILD) ipo scalaropts linker bitreader \
 	bitwriter mcdisassembler
 
+USEDLIBS := addchecks.a LLVMDataStructure.a
+
 include $(LEVEL)/Makefile.common
 
 ifdef LLVM_VERSION_INFO
@@ -57,3 +59,12 @@ ifeq ($(HOST_OS),Darwin)
                             -Wl,"@executable_path/../lib/lib$(LIBRARYNAME)$(SHLIBEXT)"
     endif
 endif
+
+#
+# These rules create symbolic links from the poolalloc object tree to the
+# SAFECode object tree.  This allows the LLVM build machinery to handle
+# library dependencies.
+#
+$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
+	$(VERB) ln -fs $< $@
+

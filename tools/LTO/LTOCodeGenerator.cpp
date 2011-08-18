@@ -47,6 +47,9 @@
 #include "llvm/Config/config.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+
+#include "safecode/CompleteChecks.h"
+
 #include <cstdlib>
 #include <unistd.h>
 #include <fcntl.h>
@@ -386,6 +389,9 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
     
     PassManagerBuilder().populateLTOPassManager(passes, /*Internalize=*/ false,
                                                 !DisableInline);
+
+    // Add the SAFECode optimization/finalization passes
+    passes.add(new CompleteChecks());
 
     // Make sure everything is still good.
     passes.add(createVerifierPass());
