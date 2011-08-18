@@ -65,6 +65,6 @@ endif
 # SAFECode object tree.  This allows the LLVM build machinery to handle
 # library dependencies.
 #
-$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/libLLVMDataStructure.a
+$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.a
 	$(VERB) ln -fs $< $@
 
