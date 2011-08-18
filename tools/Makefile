@@ -2,10 +2,10 @@ LEVEL = ..
 PARALLEL_DIRS = \
   WatchDog \
   clang \
+  LTO \
   #Sc \
   #InjectF \
 
-#LTO
 # QueueSpeed
 
 include $(LEVEL)/Makefile.common
