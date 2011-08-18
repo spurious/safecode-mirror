@@ -252,8 +252,8 @@ CompleteChecks::makeComplete (Module & M, const struct CheckInfo & CheckInfo) {
   //
   // Get the run-time checking functions.
   //
-  Function * Complete   = M.getFunction (CheckInfo.name);
-  Function * Incomplete = M.getFunction (CheckInfo.completeName);
+  Function * Complete   = M.getFunction (CheckInfo.completeName);
+  Function * Incomplete = M.getFunction (CheckInfo.name);
 
   //
   // If the incomplete function does not exist within the module, then don't
