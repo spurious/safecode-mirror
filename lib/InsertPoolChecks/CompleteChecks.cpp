@@ -263,6 +263,14 @@ CompleteChecks::makeComplete (Module & M, const struct CheckInfo & CheckInfo) {
     return;
 
   //
+  // If the complete version of the function does not exist, then create it.
+  //
+  if (!Complete) {
+    FunctionType * FT = Incomplete->getFunctionType();
+    Complete=cast<Function>(M.getOrInsertFunction (CheckInfo.completeName, FT));
+  }
+
+  //
   // Scan through all uses of the run-time check and record any checks on
   // complete pointers.
   //
