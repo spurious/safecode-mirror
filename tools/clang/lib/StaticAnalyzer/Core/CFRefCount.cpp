@@ -1452,8 +1452,6 @@ RetainSummaryManager::getClassMethodSummary(Selector S, IdentifierInfo *ClsName,
 
 void RetainSummaryManager::InitializeClassMethodSummaries() {
   assert(ScratchArgs.isEmpty());
-  RetainSummary* Summ = getPersistentSummary(ObjCAllocRetE);
-
   // Create the [NSAssertionHandler currentHander] summary.
   addClassMethSummary("NSAssertionHandler", "currentHandler",
                 getPersistentSummary(RetEffect::MakeNotOwned(RetEffect::ObjC)));
@@ -1469,7 +1467,8 @@ void RetainSummaryManager::InitializeClassMethodSummaries() {
   // used for delegates that can release the object.  When we have better
   // inter-procedural analysis we can potentially do something better.  This
   // workaround is to remove false positives.
-  Summ = getPersistentSummary(RetEffect::MakeNoRet(), DoNothing, StopTracking);
+  RetainSummary *Summ =
+    getPersistentSummary(RetEffect::MakeNoRet(), DoNothing, StopTracking);
   IdentifierInfo *NSObjectII = &Ctx.Idents.get("NSObject");
   addClsMethSummary(NSObjectII, Summ, "performSelector", "withObject",
                     "afterDelay", NULL);
@@ -1759,8 +1758,6 @@ public:
                                ObjCMessage msg,
                                ExplodedNode *Pred,
                                const ProgramState *state);
-  // Stores.
-  virtual void evalBind(StmtNodeBuilderRef& B, SVal location, SVal val);
 
   // End-of-path.
 
@@ -1799,13 +1796,6 @@ public:
                                ExplodedNode *Pred,
                                RetEffect RE, RefVal X,
                                SymbolRef Sym, const ProgramState *state);
-
-
-  // Assumptions.
-
-  virtual const ProgramState *evalAssume(const ProgramState *state,
-                                         SVal condition,
-                                         bool assumption);
 };
 
 } // end anonymous namespace
@@ -1969,28 +1959,28 @@ namespace {
   // Bug Reports.  //
   //===---------===//
 
-  class CFRefReport : public RangedBugReport {
+  class CFRefReport : public BugReport {
   protected:
     SymbolRef Sym;
     const CFRefCount &TF;
   public:
     CFRefReport(CFRefBug& D, const CFRefCount &tf,
                 ExplodedNode *n, SymbolRef sym)
-      : RangedBugReport(D, D.getDescription(), n), Sym(sym), TF(tf) {}
+      : BugReport(D, D.getDescription(), n), Sym(sym), TF(tf) {}
 
     CFRefReport(CFRefBug& D, const CFRefCount &tf,
                 ExplodedNode *n, SymbolRef sym, StringRef endText)
-      : RangedBugReport(D, D.getDescription(), endText, n), Sym(sym), TF(tf) {}
+      : BugReport(D, D.getDescription(), endText, n), Sym(sym), TF(tf) {}
 
     virtual ~CFRefReport() {}
 
     CFRefBug& getBugType() const {
-      return (CFRefBug&) RangedBugReport::getBugType();
+      return (CFRefBug&) BugReport::getBugType();
     }
 
-    virtual std::pair<ranges_iterator, ranges_iterator> getRanges() const {
+    virtual std::pair<ranges_iterator, ranges_iterator> getRanges() {
       if (!getBugType().isLeak())
-        return RangedBugReport::getRanges();
+        return BugReport::getRanges();
       else
         return std::make_pair(ranges_iterator(), ranges_iterator());
     }
@@ -2378,7 +2368,7 @@ CFRefReport::getEndPath(BugReporterContext &BRC,
   // Tell the BugReporterContext to report cases when the tracked symbol is
   // assigned to different variables, etc.
   BRC.addNotableSymbol(Sym);
-  return RangedBugReport::getEndPath(BRC, EndN);
+  return BugReport::getEndPath(BRC, EndN);
 }
 
 PathDiagnosticPiece*
@@ -2881,58 +2871,6 @@ void CFRefCount::evalObjCMessage(ExplodedNodeSet &Dst,
               Pred, state);
 }
 
-namespace {
-class StopTrackingCallback : public SymbolVisitor {
-  const ProgramState *state;
-public:
-  StopTrackingCallback(const ProgramState *st) : state(st) {}
-  const ProgramState *getState() const { return state; }
-
-  bool VisitSymbol(SymbolRef sym) {
-    state = state->remove<RefBindings>(sym);
-    return true;
-  }
-};
-} // end anonymous namespace
-
-
-void CFRefCount::evalBind(StmtNodeBuilderRef& B, SVal location, SVal val) {
-  // Are we storing to something that causes the value to "escape"?
-  bool escapes = false;
-
-  // A value escapes in three possible cases (this may change):
-  //
-  // (1) we are binding to something that is not a memory region.
-  // (2) we are binding to a memregion that does not have stack storage
-  // (3) we are binding to a memregion with stack storage that the store
-  //     does not understand.
-  const ProgramState *state = B.getState();
-
-  if (!isa<loc::MemRegionVal>(location))
-    escapes = true;
-  else {
-    const MemRegion* R = cast<loc::MemRegionVal>(location).getRegion();
-    escapes = !R->hasStackStorage();
-
-    if (!escapes) {
-      // To test (3), generate a new state with the binding removed.  If it is
-      // the same state, then it escapes (since the store cannot represent
-      // the binding).
-      escapes = (state == (state->bindLoc(cast<Loc>(location), UnknownVal())));
-    }
-  }
-
-  // If our store can represent the binding and we aren't storing to something
-  // that doesn't have local storage then just return and have the simulation
-  // state continue as is.
-  if (!escapes)
-      return;
-
-  // Otherwise, find all symbols referenced by 'val' that we are tracking
-  // and stop tracking them.
-  B.MakeNode(state->scanReachableSymbols<StopTrackingCallback>(val).getState());
-}
-
  // Return statements.
 
 void CFRefCount::evalReturn(ExplodedNodeSet &Dst,
@@ -3093,41 +3031,6 @@ void CFRefCount::evalReturnWithRetEffect(ExplodedNodeSet &Dst,
       }
     }
   }
-}
-
-// Assumptions.
-
-const ProgramState *CFRefCount::evalAssume(const ProgramState *state,
-                                           SVal Cond,
-                                           bool Assumption) {
-
-  // FIXME: We may add to the interface of evalAssume the list of symbols
-  //  whose assumptions have changed.  For now we just iterate through the
-  //  bindings and check if any of the tracked symbols are NULL.  This isn't
-  //  too bad since the number of symbols we will track in practice are
-  //  probably small and evalAssume is only called at branches and a few
-  //  other places.
-  RefBindings B = state->get<RefBindings>();
-
-  if (B.isEmpty())
-    return state;
-
-  bool changed = false;
-  RefBindings::Factory& RefBFactory = state->get_context<RefBindings>();
-
-  for (RefBindings::iterator I=B.begin(), E=B.end(); I!=E; ++I) {
-    // Check if the symbol is null (or equal to any constant).
-    // If this is the case, stop tracking the symbol.
-    if (state->getSymVal(I.getKey())) {
-      changed = true;
-      B = RefBFactory.remove(B, I.getKey());
-    }
-  }
-
-  if (changed)
-    state = state->set<RefBindings>(B);
-
-  return state;
 }
 
 const ProgramState * CFRefCount::Update(const ProgramState * state,
@@ -3521,18 +3424,22 @@ void CFRefCount::ProcessNonLeakError(ExplodedNodeSet &Dst,
 
 namespace {
 class RetainReleaseChecker
-  : public Checker< check::PostStmt<BlockExpr>,
+  : public Checker< check::Bind,
+                    check::PostStmt<BlockExpr>,
                     check::PostStmt<CastExpr>,
-                    check::RegionChanges > {
+                    check::RegionChanges,
+                    eval::Assume > {
 public:
     bool wantsRegionUpdate;
     
     RetainReleaseChecker() : wantsRegionUpdate(true) {}
     
-    
+    void checkBind(SVal loc, SVal val, CheckerContext &C) const;
     void checkPostStmt(const BlockExpr *BE, CheckerContext &C) const;
-                      
     void checkPostStmt(const CastExpr *CE, CheckerContext &C) const;
+
+    const ProgramState *evalAssume(const ProgramState *state, SVal Cond,
+                                   bool Assumption) const;
 
     const ProgramState *checkRegionChanges(const ProgramState *state,
                             const StoreManager::InvalidatedSymbols *invalidated,
@@ -3544,6 +3451,92 @@ public:
     }
 };
 } // end anonymous namespace
+
+namespace {
+class StopTrackingCallback : public SymbolVisitor {
+  const ProgramState *state;
+public:
+  StopTrackingCallback(const ProgramState *st) : state(st) {}
+  const ProgramState *getState() const { return state; }
+
+  bool VisitSymbol(SymbolRef sym) {
+    state = state->remove<RefBindings>(sym);
+    return true;
+  }
+};
+} // end anonymous namespace
+
+
+void RetainReleaseChecker::checkBind(SVal loc, SVal val,
+                                     CheckerContext &C) const {
+  // Are we storing to something that causes the value to "escape"?
+  bool escapes = true;
+
+  // A value escapes in three possible cases (this may change):
+  //
+  // (1) we are binding to something that is not a memory region.
+  // (2) we are binding to a memregion that does not have stack storage
+  // (3) we are binding to a memregion with stack storage that the store
+  //     does not understand.
+  const ProgramState *state = C.getState();
+
+  if (loc::MemRegionVal *regionLoc = dyn_cast<loc::MemRegionVal>(&loc)) {
+    escapes = !regionLoc->getRegion()->hasStackStorage();
+
+    if (!escapes) {
+      // To test (3), generate a new state with the binding added.  If it is
+      // the same state, then it escapes (since the store cannot represent
+      // the binding).
+      escapes = (state == (state->bindLoc(*regionLoc, val)));
+    }
+  }
+
+  // If our store can represent the binding and we aren't storing to something
+  // that doesn't have local storage then just return and have the simulation
+  // state continue as is.
+  if (!escapes)
+      return;
+
+  // Otherwise, find all symbols referenced by 'val' that we are tracking
+  // and stop tracking them.
+  state = state->scanReachableSymbols<StopTrackingCallback>(val).getState();
+  C.addTransition(state);
+}
+
+// Assumptions.
+
+const ProgramState *RetainReleaseChecker::evalAssume(const ProgramState *state,
+                                                     SVal Cond,
+                                                     bool Assumption) const {
+
+  // FIXME: We may add to the interface of evalAssume the list of symbols
+  //  whose assumptions have changed.  For now we just iterate through the
+  //  bindings and check if any of the tracked symbols are NULL.  This isn't
+  //  too bad since the number of symbols we will track in practice are
+  //  probably small and evalAssume is only called at branches and a few
+  //  other places.
+  RefBindings B = state->get<RefBindings>();
+
+  if (B.isEmpty())
+    return state;
+
+  bool changed = false;
+  RefBindings::Factory &RefBFactory = state->get_context<RefBindings>();
+
+  for (RefBindings::iterator I = B.begin(), E = B.end(); I != E; ++I) {
+    // Check if the symbol is null (or equal to any constant).
+    // If this is the case, stop tracking the symbol.
+    if (state->getSymVal(I.getKey())) {
+      changed = true;
+      B = RefBFactory.remove(B, I.getKey());
+    }
+  }
+
+  if (changed)
+    state = state->set<RefBindings>(B);
+
+  return state;
+}
 
 const ProgramState *
 RetainReleaseChecker::checkRegionChanges(const ProgramState *state,

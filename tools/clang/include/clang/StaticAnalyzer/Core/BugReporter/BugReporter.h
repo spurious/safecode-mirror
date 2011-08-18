@@ -58,25 +58,9 @@ public:
   virtual void Profile(llvm::FoldingSetNodeID &ID) const = 0;
 };
 
-// FIXME: Combine this with RangedBugReport and remove RangedBugReport.
+/// This class provides an interface through which checkers can create
+/// individual bug reports.
 class BugReport : public BugReporterVisitor {
-protected:
-  BugType& BT;
-  std::string ShortDescription;
-  std::string Description;
-  const ExplodedNode *ErrorNode;
-  mutable SourceRange R;
-
-protected:
-  friend class BugReporter;
-  friend class BugReportEquivClass;
-
-  virtual void Profile(llvm::FoldingSetNodeID& hash) const {
-    hash.AddPointer(&BT);
-    hash.AddInteger(getLocation().getRawEncoding());
-    hash.AddString(Description);
-  }
-
 public:
   class NodeResolver {
   public:
@@ -85,6 +69,31 @@ public:
             getOriginalNode(const ExplodedNode *N) = 0;
   };
 
+  typedef void (*VisitorCreator)(BugReporterContext &BRcC, const void *data,
+                                 const ExplodedNode *N);
+  typedef const SourceRange *ranges_iterator;
+
+protected:
+  friend class BugReporter;
+  friend class BugReportEquivClass;
+  typedef SmallVector<std::pair<VisitorCreator, const void*>, 2> Creators;
+
+  BugType& BT;
+  std::string ShortDescription;
+  std::string Description;
+  FullSourceLoc Location;
+  const ExplodedNode *ErrorNode;
+  SmallVector<SourceRange, 4> Ranges;
+  Creators creators;
+
+  /// Profile to identify equivalent bug reports for error report coalescing.
+  /// Reports are uniqued to ensure that we do not emit multiple diagnostics
+  /// for each bug.
+  virtual void Profile(llvm::FoldingSetNodeID& hash) const;
+
+  const Stmt *getStmt() const;
+
+public:
   BugReport(BugType& bt, StringRef desc, const ExplodedNode *errornode)
     : BT(bt), Description(desc), ErrorNode(errornode) {}
 
@@ -93,21 +102,17 @@ public:
   : BT(bt), ShortDescription(shortDesc), Description(desc),
     ErrorNode(errornode) {}
 
+  BugReport(BugType& bt, StringRef desc, FullSourceLoc l)
+    : BT(bt), Description(desc), Location(l), ErrorNode(0) {}
+
   virtual ~BugReport();
 
-  virtual bool isOwnedByReporterContext() { return false; }
+  bool isOwnedByReporterContext() { return false; }
 
   const BugType& getBugType() const { return BT; }
   BugType& getBugType() { return BT; }
 
-  // FIXME: Perhaps this should be moved into a subclass?
   const ExplodedNode *getErrorNode() const { return ErrorNode; }
-
-  // FIXME: Do we need this?  Maybe getLocation() should return a ProgramPoint
-  // object.
-  // FIXME: If we do need it, we can probably just make it private to
-  // BugReporter.
-  const Stmt *getStmt() const;
 
   const StringRef getDescription() const { return Description; }
 
@@ -115,32 +120,56 @@ public:
     return ShortDescription.empty() ? Description : ShortDescription;
   }
 
-  // FIXME: Is this needed?
+  /// \brief This allows for addition of meta data to the diagnostic.
+  ///
+  /// Currently, only the HTMLDiagnosticClient knows how to display it. 
   virtual std::pair<const char**,const char**> getExtraDescriptiveText() {
     return std::make_pair((const char**)0,(const char**)0);
   }
 
-  // FIXME: Perhaps move this into a subclass.
+  /// Provide custom definition for the last diagnostic piece on the path.
   virtual PathDiagnosticPiece *getEndPath(BugReporterContext &BRC,
                                           const ExplodedNode *N);
 
-  /// getLocation - Return the "definitive" location of the reported bug.
+  /// \brief Return the "definitive" location of the reported bug.
+  ///
   ///  While a bug can span an entire path, usually there is a specific
   ///  location that can be used to identify where the key issue occurred.
   ///  This location is used by clients rendering diagnostics.
   virtual SourceLocation getLocation() const;
 
-  typedef const SourceRange *ranges_iterator;
+  /// \brief Add a range to a bug report.
+  ///
+  /// Ranges are used to highlight regions of interest in the source code.
+  /// They should be at the same source code line as the BugReport location.
+  void addRange(SourceRange R) {
+    assert(R.isValid());
+    Ranges.push_back(R);
+  }
 
-  /// getRanges - Returns the source ranges associated with this bug.
-  virtual std::pair<ranges_iterator, ranges_iterator> getRanges() const;
+  /// \brief Get the SourceRanges associated with the report.
+  virtual std::pair<ranges_iterator, ranges_iterator> getRanges();
+
+  /// \brief Add custom or predefined bug report visitors to this report.
+  ///
+  /// The visitors should be used when the default trace is not sufficient.
+  /// For example, they allow constructing a more elaborate trace.
+  /// \sa registerConditionVisitor(), registerTrackNullOrUndefValue(),
+  /// registerFindLastStore(), registerNilReceiverVisitor(), and
+  /// registerVarDeclsLastStore().
+  void addVisitorCreator(VisitorCreator creator, const void *data) {
+    creators.push_back(std::make_pair(creator, data));
+  }
 
   virtual PathDiagnosticPiece *VisitNode(const ExplodedNode *N,
                                          const ExplodedNode *PrevN,
                                          BugReporterContext &BR);
 
   virtual void registerInitialVisitors(BugReporterContext &BRC,
-                                       const ExplodedNode *N) {}
+                                       const ExplodedNode *N) {
+    for (Creators::iterator I = creators.begin(), E = creators.end(); I!=E; ++I)
+      I->first(BRC, I->second, N);
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -148,7 +177,7 @@ public:
 //===----------------------------------------------------------------------===//
 
 class BugReportEquivClass : public llvm::FoldingSetNode {
-  // List of *owned* BugReport objects.
+  /// List of *owned* BugReport objects.
   std::list<BugReport*> Reports;
 
   friend class BugReporter;
@@ -191,78 +220,6 @@ public:
   const_iterator end() const { return const_iterator(Reports.end()); }
 };
 
-
-//===----------------------------------------------------------------------===//
-// Specialized subclasses of BugReport.
-//===----------------------------------------------------------------------===//
-
-// FIXME: Collapse this with the default BugReport class.
-class RangedBugReport : public BugReport {
-  SmallVector<SourceRange, 4> Ranges;
-public:
-  RangedBugReport(BugType& D, StringRef description,
-                  ExplodedNode *errornode)
-    : BugReport(D, description, errornode) {}
-
-  RangedBugReport(BugType& D, StringRef shortDescription,
-                  StringRef description, ExplodedNode *errornode)
-  : BugReport(D, shortDescription, description, errornode) {}
-
-  ~RangedBugReport();
-
-  // FIXME: Move this out of line.
-  void addRange(SourceRange R) {
-    assert(R.isValid());
-    Ranges.push_back(R);
-  }
-
-  virtual std::pair<ranges_iterator, ranges_iterator> getRanges() const {
-    return std::make_pair(Ranges.begin(), Ranges.end());
-  }
-  
-  virtual void Profile(llvm::FoldingSetNodeID& hash) const {
-    BugReport::Profile(hash);
-    for (SmallVectorImpl<SourceRange>::const_iterator I =
-          Ranges.begin(), E = Ranges.end(); I != E; ++I) {
-      const SourceRange range = *I;
-      if (!range.isValid())
-        continue;
-      hash.AddInteger(range.getBegin().getRawEncoding());
-      hash.AddInteger(range.getEnd().getRawEncoding());
-    }
-  }
-};
-
-class EnhancedBugReport : public RangedBugReport {
-public:
-  typedef void (*VisitorCreator)(BugReporterContext &BRcC, const void *data,
-                                 const ExplodedNode *N);
-
-private:
-  typedef std::vector<std::pair<VisitorCreator, const void*> > Creators;
-  Creators creators;
-
-public:
-  EnhancedBugReport(BugType& D, StringRef description,
-                    ExplodedNode *errornode)
-   : RangedBugReport(D, description, errornode) {}
-
-  EnhancedBugReport(BugType& D, StringRef shortDescription,
-                   StringRef description, ExplodedNode *errornode)
-    : RangedBugReport(D, shortDescription, description, errornode) {}
-
-  ~EnhancedBugReport() {}
-
-  void registerInitialVisitors(BugReporterContext &BRC, const ExplodedNode *N) {
-    for (Creators::iterator I = creators.begin(), E = creators.end(); I!=E; ++I)
-      I->first(BRC, I->second, N);
-  }
-
-  void addVisitorCreator(VisitorCreator creator, const void *data) {
-    creators.push_back(std::make_pair(creator, data));
-  }
-};
-
 //===----------------------------------------------------------------------===//
 // BugReporter and friends.
 //===----------------------------------------------------------------------===//
@@ -276,6 +233,9 @@ public:
   virtual SourceManager& getSourceManager() = 0;
 };
 
+/// BugReporter is a utility class for generating PathDiagnostics for analysis.
+/// It collects the BugReports and BugTypes and knows how to generate
+/// and flush the corresponding diagnostics.
 class BugReporter {
 public:
   enum Kind { BaseBRKind, GRBugReporterKind };
@@ -288,8 +248,10 @@ private:
   const Kind kind;
   BugReporterData& D;
 
+  /// Generate and flush the diagnostics for the given bug report.
   void FlushReport(BugReportEquivClass& EQ);
 
+  /// The set of bug reports tracked by the BugReporter.
   llvm::FoldingSet<BugReportEquivClass> EQClasses;
 
 protected:
@@ -301,6 +263,7 @@ public:
                                     D(d) {}
   virtual ~BugReporter();
 
+  /// \brief Generate and flush diagnostics for all bug reports.
   void FlushReports();
 
   Kind getKind() const { return kind; }
@@ -313,10 +276,12 @@ public:
     return D.getPathDiagnosticClient();
   }
 
+  /// \brief Iterator over the set of BugTypes tracked by the BugReporter.
   typedef BugTypesTy::iterator iterator;
   iterator begin() { return BugTypes.begin(); }
   iterator end() { return BugTypes.end(); }
 
+  /// \brief Iterator over the set of BugReports tracked by the BugReporter.
   typedef llvm::FoldingSet<BugReportEquivClass>::iterator EQClasses_iterator;
   EQClasses_iterator EQClasses_begin() { return EQClasses.begin(); }
   EQClasses_iterator EQClasses_end() { return EQClasses.end(); }
@@ -330,6 +295,11 @@ public:
 
   void Register(BugType *BT);
 
+  /// \brief Add the given report to the set of reports tracked by BugReporter.
+  ///
+  /// The reports are usually generated by the checkers. Further, they are
+  /// folded based on the profile value, which is done to coalesce similar
+  /// reports.
   void EmitReport(BugReport *R);
 
   void EmitBasicReport(StringRef BugName, StringRef BugStr,
@@ -459,25 +429,6 @@ public:
   }
 
   virtual BugReport::NodeResolver& getNodeResolver() = 0;
-};
-
-class DiagBugReport : public RangedBugReport {
-  std::list<std::string> Strs;
-  FullSourceLoc L;
-public:
-  DiagBugReport(BugType& D, StringRef desc, FullSourceLoc l) :
-  RangedBugReport(D, desc, 0), L(l) {}
-
-  virtual ~DiagBugReport() {}
-
-  // FIXME: Move out-of-line (virtual function).
-  SourceLocation getLocation() const { return L; }
-
-  void addString(StringRef s) { Strs.push_back(s); }
-
-  typedef std::list<std::string>::const_iterator str_iterator;
-  str_iterator str_begin() const { return Strs.begin(); }
-  str_iterator str_end() const { return Strs.end(); }
 };
 
 //===----------------------------------------------------------------------===//

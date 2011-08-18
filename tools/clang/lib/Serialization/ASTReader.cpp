@@ -2033,25 +2033,25 @@ ASTReader::ReadASTBlock(Module &F) {
       break;
     }
 
-    case CHAINED_METADATA: {
-      if (!First) {
-        Error("CHAINED_METADATA is not first record in block");
-        return Failure;
-      }
-      if (Record[0] != VERSION_MAJOR && !DisableValidation) {
-        Diag(Record[0] < VERSION_MAJOR? diag::warn_pch_version_too_old
-                                           : diag::warn_pch_version_too_new);
-        return IgnorePCH;
-      }
+    case IMPORTS: {
+      // Load each of the imported PCH files. 
+      unsigned Idx = 0, N = Record.size();
+      while (Idx < N) {
+        // Read information about the AST file.
+        ModuleKind ImportedKind = (ModuleKind)Record[Idx++];
+        unsigned Length = Record[Idx++];
+        llvm::SmallString<128> ImportedFile(Record.begin() + Idx,
+                                            Record.begin() + Idx + Length);
+        Idx += Length;
 
-      // Load the chained file, which is always a PCH file.
-      // FIXME: This could end up being a module.
-      switch(ReadASTCore(StringRef(BlobStart, BlobLen), MK_PCH)) {
-      case Failure: return Failure;
-        // If we have to ignore the dependency, we'll have to ignore this too.
-      case IgnorePCH: return IgnorePCH;
-      case Success: break;
-      }     
+        // Load the AST file.
+        switch(ReadASTCore(ImportedFile, ImportedKind, &F)) {
+        case Failure: return Failure;
+          // If we have to ignore the dependency, we'll have to ignore this too.
+        case IgnorePCH: return IgnorePCH;
+        case Success: break;
+        }
+      }
       break;
     }
 
@@ -2724,7 +2724,7 @@ ASTReader::ASTReadResult ASTReader::validateFileEntries() {
 
 ASTReader::ASTReadResult ASTReader::ReadAST(const std::string &FileName,
                                             ModuleKind Type) {
-  switch(ReadASTCore(FileName, Type)) {
+  switch(ReadASTCore(FileName, Type, /*ImportedBy=*/0)) {
   case Failure: return Failure;
   case IgnorePCH: return IgnorePCH;
   case Success: break;
@@ -2829,8 +2829,25 @@ ASTReader::ASTReadResult ASTReader::ReadAST(const std::string &FileName,
 }
 
 ASTReader::ASTReadResult ASTReader::ReadASTCore(StringRef FileName,
-                                                ModuleKind Type) {
-  Module &F = ModuleMgr.addModule(FileName, Type);
+                                                ModuleKind Type,
+                                                Module *ImportedBy) {
+  Module *M;
+  bool NewModule;
+  llvm::tie(M, NewModule) = ModuleMgr.addModule(FileName, Type, ImportedBy);
+
+  if (!M) {
+    // We couldn't load the module.
+    std::string Msg = "Unable to load module \"" + FileName.str() + "\"";
+    Error(Msg);
+    return Failure;
+  }
+
+  if (!NewModule) {
+    // We've already loaded this module.
+    return Success;
+  }
+
+  Module &F = *M;
 
   if (FileName != "-") {
     CurrentDir = llvm::sys::path::parent_path(FileName);
@@ -5610,7 +5627,8 @@ ASTReader::~ASTReader() {
 }
 
 Module::Module(ModuleKind Kind)
-  : Kind(Kind), SizeInBits(0), LocalNumSLocEntries(0), SLocEntryBaseID(0),
+  : Kind(Kind), DirectlyImported(false), SizeInBits(0), 
+    LocalNumSLocEntries(0), SLocEntryBaseID(0),
     SLocEntryBaseOffset(0), SLocEntryOffsets(0),
     SLocFileOffsets(0), LocalNumIdentifiers(0), 
     IdentifierOffsets(0), BaseIdentifierID(0), IdentifierTableData(0),
@@ -5707,23 +5725,34 @@ llvm::MemoryBuffer *ModuleManager::lookupBuffer(StringRef Name) {
   return InMemoryBuffers[Entry];
 }
 
-/// \brief Creates a new module and adds it to the list of known modules
-Module &ModuleManager::addModule(StringRef FileName, ModuleKind Type) {
-  Module *Prev = !size() ? 0 : &getLastModule();
-  Module *Current = new Module(Type);
-
-  Current->FileName = FileName.str();
-
-  Chain.push_back(Current);
+std::pair<Module *, bool>
+ModuleManager::addModule(StringRef FileName, ModuleKind Type, 
+                         Module *ImportedBy) {
   const FileEntry *Entry = FileMgr.getFile(FileName);
-  Modules[Entry] = Current;
+  if (!Entry)
+    return std::make_pair(static_cast<Module*>(0), false);
 
-  if (Prev) {
-    Current->ImportedBy.insert(Prev);
-    Prev->Imports.insert(Current);
+  // Check whether we already loaded this module, before 
+  Module *&ModuleEntry = Modules[Entry];
+  bool NewModule = false;
+  if (!ModuleEntry) {
+    // Allocate a new module.
+    Module *New = new Module(Type);
+    New->FileName = FileName.str();
+    Chain.push_back(New);
+  
+    NewModule = true;
+    ModuleEntry = New;
+  }
+
+  if (ImportedBy) {
+    ModuleEntry->ImportedBy.insert(ImportedBy);
+    ImportedBy->Imports.insert(ModuleEntry);
+  } else {
+    ModuleEntry->DirectlyImported = true;
   }
   
-  return *Current;
+  return std::make_pair(ModuleEntry, NewModule);
 }
 
 void ModuleManager::addInMemoryBuffer(StringRef FileName, 

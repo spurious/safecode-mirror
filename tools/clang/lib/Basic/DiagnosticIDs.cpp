@@ -496,14 +496,27 @@ DiagnosticIDs::getDiagnosticLevel(unsigned DiagID, unsigned DiagClass,
   switch (MappingInfo & 7) {
   default: assert(0 && "Unknown mapping!");
   case diag::MAP_IGNORE:
-    // Ignore this, unless this is an extension diagnostic and we're mapping
-    // them onto warnings or errors.
-    if (!isBuiltinExtensionDiag(DiagID) ||  // Not an extension
-        Diag.ExtBehavior == Diagnostic::Ext_Ignore || // Ext ignored
-        (MappingInfo & 8) != 0)             // User explicitly mapped it.
+    if (Diag.EnableAllWarnings) {
+      // Leave the warning disabled if it was explicitly ignored.
+      if ((MappingInfo & 8) != 0)
+        return DiagnosticIDs::Ignored;
+     
+      Result = Diag.WarningsAsErrors ? DiagnosticIDs::Error 
+                                     : DiagnosticIDs::Warning;
+    }
+    // Otherwise, ignore this diagnostic unless this is an extension diagnostic
+    // and we're mapping them onto warnings or errors.
+    else if (!isBuiltinExtensionDiag(DiagID) ||  // Not an extension
+             Diag.ExtBehavior == Diagnostic::Ext_Ignore || // Ext ignored
+             (MappingInfo & 8) != 0) {           // User explicitly mapped it.
       return DiagnosticIDs::Ignored;
-    Result = DiagnosticIDs::Warning;
-    if (Diag.ExtBehavior == Diagnostic::Ext_Error) Result = DiagnosticIDs::Error;
+    }
+    else {
+      Result = DiagnosticIDs::Warning;
+    }
+
+    if (Diag.ExtBehavior == Diagnostic::Ext_Error)
+      Result = DiagnosticIDs::Error;
     if (Result == DiagnosticIDs::Error && Diag.ErrorsAsFatal)
       Result = DiagnosticIDs::Fatal;
     break;
@@ -733,11 +746,13 @@ bool DiagnosticIDs::ProcessDiag(Diagnostic &Diag) const {
       ++Diag.NumErrors;
     }
 
-    // If we've emitted a lot of errors, emit a fatal error after it to stop a
-    // flood of bogus errors.
-    if (Diag.ErrorLimit && Diag.NumErrors >= Diag.ErrorLimit &&
-        DiagLevel == DiagnosticIDs::Error)
+    // If we've emitted a lot of errors, emit a fatal error instead of it to 
+    // stop a flood of bogus errors.
+    if (Diag.ErrorLimit && Diag.NumErrors > Diag.ErrorLimit &&
+        DiagLevel == DiagnosticIDs::Error) {
       Diag.SetDelayedDiagnostic(diag::fatal_too_many_errors);
+      return false;
+    }
   }
 
   // If we have any Fix-Its, make sure that all of the Fix-Its point into

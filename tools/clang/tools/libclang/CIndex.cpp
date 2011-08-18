@@ -3497,13 +3497,6 @@ static enum CXChildVisitResult GetCursorVisitor(CXCursor cursor,
   // cursor.
   if (cursor.kind == CXCursor_MacroExpansion && Data->PointsAtMacroArgExpansion)
     return CXChildVisit_Recurse;
-  
-  if (clang_isDeclaration(cursor.kind)) {
-    // Avoid having the synthesized methods override the property decls.
-    if (ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(getCursorDecl(cursor)))
-      if (MD->isSynthesized())
-        return CXChildVisit_Break;
-  }
 
   if (clang_isExpression(cursor.kind) &&
       clang_isDeclaration(BestCursor->kind)) {
@@ -4753,12 +4746,6 @@ AnnotateTokensWorker::Visit(CXCursor cursor, CXCursor parent) {
   const enum CXCursorKind cursorK = clang_getCursorKind(cursor);
   if (cursorK >= CXCursor_FirstDecl && cursorK <= CXCursor_LastDecl) {
     Decl *D = cxcursor::getCursorDecl(cursor);
-    // Don't visit synthesized ObjC methods, since they have no syntatic
-    // representation in the source.
-    if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(D)) {
-      if (MD->isSynthesized())
-        return CXChildVisit_Continue;
-    }
     
     SourceLocation StartLoc;
     if (const DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {

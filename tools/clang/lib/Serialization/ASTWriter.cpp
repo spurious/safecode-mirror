@@ -765,7 +765,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(EXT_VECTOR_DECLS);
   RECORD(VERSION_CONTROL_BRANCH_REVISION);
   RECORD(MACRO_DEFINITION_OFFSETS);
-  RECORD(CHAINED_METADATA);
+  RECORD(IMPORTS);
   RECORD(REFERENCED_SELECTOR_POOL);
   RECORD(TU_UPDATE_LEXICAL);
   RECORD(REDECLS_UPDATE_LATEST);
@@ -952,28 +952,45 @@ void ASTWriter::WriteMetadata(ASTContext &Context, StringRef isysroot,
   // Metadata
   const TargetInfo &Target = Context.Target;
   BitCodeAbbrev *MetaAbbrev = new BitCodeAbbrev();
-  MetaAbbrev->Add(BitCodeAbbrevOp(
-                    Chain ? CHAINED_METADATA : METADATA));
+  MetaAbbrev->Add(BitCodeAbbrevOp(METADATA));
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // AST major
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // AST minor
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang major
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang minor
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Relocatable
-  // Target triple or chained PCH name
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
+  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // Target triple
   unsigned MetaAbbrevCode = Stream.EmitAbbrev(MetaAbbrev);
 
   RecordData Record;
-  Record.push_back(Chain ? CHAINED_METADATA : METADATA);
+  Record.push_back(METADATA);
   Record.push_back(VERSION_MAJOR);
   Record.push_back(VERSION_MINOR);
   Record.push_back(CLANG_VERSION_MAJOR);
   Record.push_back(CLANG_VERSION_MINOR);
   Record.push_back(!isysroot.empty());
-  // FIXME: This writes the absolute path for chained headers.
-  const std::string &BlobStr =
-                  Chain ? Chain->getFileName() : Target.getTriple().getTriple();
-  Stream.EmitRecordWithBlob(MetaAbbrevCode, Record, BlobStr);
+  const std::string &Triple = Target.getTriple().getTriple();
+  Stream.EmitRecordWithBlob(MetaAbbrevCode, Record, Triple);
+
+  if (Chain) {
+    serialization::ModuleManager &Mgr = Chain->getModuleManager();
+    llvm::SmallVector<char, 128> ModulePaths;
+    Record.clear();
+
+    for (ModuleManager::ModuleIterator M = Mgr.begin(), MEnd = Mgr.end();
+         M != MEnd; ++M) {
+      // Skip modules that weren't directly imported.
+      if (!(*M)->isDirectlyImported())
+        continue;
+
+      Record.push_back((unsigned)(*M)->Kind); // FIXME: Stable encoding
+      // FIXME: Write import location, once it matters.
+      // FIXME: This writes the absolute path for AST files we depend on.
+      const std::string &FileName = (*M)->FileName;
+      Record.push_back(FileName.size());
+      Record.append(FileName.begin(), FileName.end());
+    }
+    Stream.EmitRecord(IMPORTS, Record);
+  }
 
   // Original file name and file ID
   SourceManager &SM = Context.getSourceManager();
@@ -3843,7 +3860,7 @@ void ASTWriter::AddCXXDefinitionData(const CXXRecordDecl *D, RecordDataImpl &Rec
 
 void ASTWriter::ReaderInitialized(ASTReader *Reader) {
   assert(Reader && "Cannot remove chain");
-  assert(!Chain && "Cannot replace chain");
+  assert((!Chain || Chain == Reader) && "Cannot replace chain");
   assert(FirstDeclID == NextDeclID &&
          FirstTypeID == NextTypeID &&
          FirstIdentID == NextIdentID &&
@@ -3853,11 +3870,11 @@ void ASTWriter::ReaderInitialized(ASTReader *Reader) {
 
   Chain = Reader;
 
-  FirstDeclID += Chain->getTotalNumDecls();
-  FirstTypeID += Chain->getTotalNumTypes();
-  FirstIdentID += Chain->getTotalNumIdentifiers();
-  FirstSelectorID += Chain->getTotalNumSelectors();
-  FirstMacroID += Chain->getTotalNumMacroDefinitions();
+  FirstDeclID = NUM_PREDEF_DECL_IDS + Chain->getTotalNumDecls();
+  FirstTypeID = NUM_PREDEF_TYPE_IDS + Chain->getTotalNumTypes();
+  FirstIdentID = NUM_PREDEF_IDENT_IDS + Chain->getTotalNumIdentifiers();
+  FirstSelectorID = NUM_PREDEF_SELECTOR_IDS + Chain->getTotalNumSelectors();
+  FirstMacroID = NUM_PREDEF_MACRO_IDS + Chain->getTotalNumMacroDefinitions();
   NextDeclID = FirstDeclID;
   NextTypeID = FirstTypeID;
   NextIdentID = FirstIdentID;

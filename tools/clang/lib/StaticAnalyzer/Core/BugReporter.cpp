@@ -1221,10 +1221,28 @@ void BugType::FlushReports(BugReporter &BR) {}
 //===----------------------------------------------------------------------===//
 // Methods for BugReport and subclasses.
 //===----------------------------------------------------------------------===//
+
 BugReport::~BugReport() {}
-RangedBugReport::~RangedBugReport() {}
+
+void BugReport::Profile(llvm::FoldingSetNodeID& hash) const {
+  hash.AddPointer(&BT);
+  hash.AddInteger(getLocation().getRawEncoding());
+  hash.AddString(Description);
+
+  for (SmallVectorImpl<SourceRange>::const_iterator I =
+      Ranges.begin(), E = Ranges.end(); I != E; ++I) {
+    const SourceRange range = *I;
+    if (!range.isValid())
+      continue;
+    hash.AddInteger(range.getBegin().getRawEncoding());
+    hash.AddInteger(range.getEnd().getRawEncoding());
+  }
+}
 
 const Stmt *BugReport::getStmt() const {
+  if (!ErrorNode)
+    return 0;
+
   ProgramPoint ProgP = ErrorNode->getLocation();
   const Stmt *S = NULL;
 
@@ -1279,18 +1297,24 @@ BugReport::getEndPath(BugReporterContext &BRC,
 }
 
 std::pair<BugReport::ranges_iterator, BugReport::ranges_iterator>
-BugReport::getRanges() const {
-  if (const Expr *E = dyn_cast_or_null<Expr>(getStmt())) {
-    R = E->getSourceRange();
-    assert(R.isValid());
-    return std::make_pair(&R, &R+1);
-  }
-  else
-    return std::make_pair(ranges_iterator(), ranges_iterator());
+BugReport::getRanges() {
+    // If no custom ranges, add the range of the statement corresponding to
+    // the error node.
+    if (Ranges.empty()) {
+      if (const Expr *E = dyn_cast_or_null<Expr>(getStmt()))
+        addRange(E->getSourceRange());
+      else
+        return std::make_pair(ranges_iterator(), ranges_iterator());
+    }
+
+    return std::make_pair(Ranges.begin(), Ranges.end());
 }
 
 SourceLocation BugReport::getLocation() const {
-  if (ErrorNode)
+  if (ErrorNode) {
+    (Location.isInvalid() &&
+     "Either Location or ErrorNode should be specified but not both.");
+
     if (const Stmt *S = GetCurrentOrPreviousStmt(ErrorNode)) {
       // For member expressions, return the location of the '.' or '->'.
       if (const MemberExpr *ME = dyn_cast<MemberExpr>(S))
@@ -1301,6 +1325,11 @@ SourceLocation BugReport::getLocation() const {
 
       return S->getLocStart();
     }
+
+  } else {
+    assert(Location.isValid());
+    return Location;
+  }
 
   return FullSourceLoc();
 }
@@ -1912,7 +1941,7 @@ void BugReporter::EmitBasicReport(StringRef name,
   // 'BT' is owned by BugReporter.
   BugType *BT = getBugTypeForName(name, category);
   FullSourceLoc L = getContext().getFullLoc(Loc);
-  RangedBugReport *R = new DiagBugReport(*BT, str, L);
+  BugReport *R = new BugReport(*BT, str, L);
   for ( ; NumRanges > 0 ; --NumRanges, ++RBeg) R->addRange(*RBeg);
   EmitReport(R);
 }

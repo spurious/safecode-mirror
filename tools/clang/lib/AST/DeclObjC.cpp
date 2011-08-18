@@ -337,6 +337,7 @@ ObjCMethodDecl *ObjCMethodDecl::Create(ASTContext &C,
                                        bool isInstance,
                                        bool isVariadic,
                                        bool isSynthesized,
+                                       bool isImplicitlyDeclared,
                                        bool isDefined,
                                        ImplementationControl impControl,
                                        bool HasRelatedResultType,
@@ -344,7 +345,8 @@ ObjCMethodDecl *ObjCMethodDecl::Create(ASTContext &C,
   return new (C) ObjCMethodDecl(beginLoc, endLoc,
                                 SelInfo, T, ResultTInfo, contextDecl,
                                 isInstance,
-                                isVariadic, isSynthesized, isDefined,
+                                isVariadic, isSynthesized, isImplicitlyDeclared,
+                                isDefined,
                                 impControl,
                                 HasRelatedResultType,
                                 numSelectorArgs);
@@ -756,8 +758,7 @@ ObjCIvarDecl *ObjCIvarDecl::Create(ASTContext &C, ObjCContainerDecl *DC,
         ID = IM->getClassInterface();
         if (BW)
           IM->setHasSynthBitfield(true);
-      }
-      else {
+      } else {
         ObjCCategoryDecl *CD = cast<ObjCCategoryDecl>(DC);
         ID = CD->getClassInterface();
         if (BW)
