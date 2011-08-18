@@ -62,11 +62,19 @@ void
 RegisterGlobalVariables::registerGV (GlobalVariable * GV,
                                      Instruction * InsertBefore) {
   //
+  // Do not register the global variable if it has opaque type.  This is
+  // because we cannot determine the size of an opaque type.
+  //
+  Type * GlobalType = GV->getType()->getElementType();
+  if (StructType * ST = dyn_cast<StructType>(GlobalType))
+    if (ST->isOpaque())
+      return;
+
+  //
   // Get the pool into which the global should be registered.
   //
   Value * PH = ConstantPointerNull::get (getVoidPtrType(GV->getContext()));
   Type* csiType = IntegerType::getInt32Ty(GV->getContext());
-  Type * GlobalType = GV->getType()->getElementType();
   unsigned TypeSize = TD->getTypeAllocSize((GlobalType));
   if (!TypeSize) {
     llvm::errs() << "FIXME: Ignoring global of size zero: ";
