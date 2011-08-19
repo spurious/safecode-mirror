@@ -55,7 +55,7 @@ struct CheckInfo {
 //
 // Create a table describing all of the SAFECode run-time checks.
 //
-static const unsigned numChecks = 18;
+static const unsigned numChecks = 20;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
   {"poolcheck",        "lscheck",      1, true,  true},
@@ -65,6 +65,7 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"boundscheck",      "boundscheck",  2, false, true},
   {"boundscheckui",    "boundscheck",  2, false, false},
   {"exactcheck2",      "exactcheck2",  1, false, true},
+  {"fastlscheck",      "fastlscheck",  1, true,  true},
   {"funccheck",        "funccheck",    0, true,  true},
   {"funccheckui",      "funccheck",    0, true,  false},
 
@@ -76,6 +77,7 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"boundscheck_debug",      "boundscheck_debug",  2, false, true},
   {"boundscheckui_debug",    "boundscheck_debug",  2, false, false},
   {"exactcheck2_debug",      "exactcheck2_debug",  1, false, true},
+  {"fastlscheck_debug",      "fastlscheck_debug",  1, true, true},
   {"funccheck_debug",        "funccheck_debug",    1, true,  true},
   {"funccheckui_debug",      "funccheck_debug",    1, true,  false}
 };
