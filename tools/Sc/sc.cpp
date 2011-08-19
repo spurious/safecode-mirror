@@ -13,14 +13,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "safecode/SAFECode.h"
+#if 0
 #include "safecode/SAFECodeConfig.h"
+#include "safecode/AllocatorInfo.h"
+#endif
+#if 0
 #include "safecode/CompleteChecks.h"
 #include "safecode/BaggyBoundsChecks.h"
 #include "safecode/SafeLoadStoreOpts.h"
-#include "safecode/InsertChecks/RegisterBounds.h"
-#include "safecode/InsertChecks/RegisterRuntimeInitializer.h"
-#include "safecode/Support/AllocatorInfo.h"
+#endif
+#include "safecode/RegisterBounds.h"
+#include "safecode/RegisterRuntimeInitializer.h"
+#if 0
 #include "safecode/SCPoolHeuristic.h"
+#endif
 
 #include "llvm/Module.h"
 #include "llvm/LLVMContext.h"
@@ -36,30 +42,42 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/Verifier.h"
-#include "llvm/System/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
+#if 0
 #include "poolalloc/PoolAllocate.h"
-#include "safecode/InsertChecks.h"
+#endif
+
+#include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
+
 #if 0
 #include "IndirectCallChecks.h"
 #endif
+
+#if 0
 #include "safecode/BreakConstantGEPs.h"
 #include "safecode/BreakConstantStrings.h"
 #include "safecode/CStdLib.h"
+#endif
 #include "safecode/DebugInstrumentation.h"
+#if 0
 #include "safecode/DetectDanglingPointers.h"
 #include "safecode/DummyUse.h"
 #include "safecode/FormatStrings.h"
+#endif
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RewriteOOB.h"
+#if 0
 #include "safecode/SpeculativeChecking.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/FaultInjector.h"
 #include "safecode/CodeDuplication.h"
+#endif
 
 #include <fstream>
 #include <iostream>
@@ -70,7 +88,6 @@ namespace llvm {
 }
 
 using namespace llvm;
-using namespace NAMESPACE_SC;
 
 // General options for sc.
 static cl::opt<std::string>
@@ -207,8 +224,12 @@ int main(int argc, char **argv) {
     // Load the module to be compiled...
     std::auto_ptr<Module> M;
     std::string ErrorMessage;
-    if (MemoryBuffer *Buffer
-          = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
+    OwningPtr<MemoryBuffer> BufPtr;
+    if (error_code ec = MemoryBuffer::getFileOrSTDIN(InputFilename, BufPtr)) {
+      std::cerr << argv[0] << ": " << ec.message() << "\n";
+      return 1;
+    } else {
+      MemoryBuffer * Buffer = BufPtr.take();
       M.reset(ParseBitcodeFile(Buffer, Context, &ErrorMessage));
       delete Buffer;
     }
@@ -218,6 +239,7 @@ int main(int argc, char **argv) {
       return 1;
     }
 
+#if 0
     // The type of DSA depends on which pool allocation pass is used.
     if (SCConfig.svaEnabled()) {
       SCConfig.allocators.push_back(&AllocatorVMalloc);
@@ -226,11 +248,13 @@ int main(int argc, char **argv) {
     } else {
       SCConfig.allocators.push_back(&AllocatorPoolAlloc);
     }
+#endif
 
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
     Passes.add(new TargetData(M.get()));
 
+#if 0
     //
     // Create a new allocator information pass and schedule it for execution.
     //
@@ -240,6 +264,7 @@ int main(int argc, char **argv) {
       AllocInfo->addAllocator (&AllocatorKMalloc);
       AllocInfo->addAllocator (&AllocatorBootmem);
     }
+#endif
 
     //
     // Merge constants.  We do this here because merging constants *after*
@@ -249,16 +274,21 @@ int main(int argc, char **argv) {
     //
     Passes.add (createConstantMergePass());
 
+#if 0
     // Remove all constant GEP expressions
     NOT_FOR_SVA(Passes.add(new BreakConstantGEPs()));
+#endif
 
     //
     // Ensure that all functions have only a single return instruction.  We do
     // this to make stack-to-heap promotion easier (with a single return
     // instruction, we know where to free all of the promoted alloca's).
     //
+#if 0
     NOT_FOR_SVA(Passes.add(createUnifyFunctionExitNodesPass()));
+#endif
 
+#if 0
     //
     // Convert Unsafe alloc instructions first.  This does not rely upon
     // pool allocation and has problems dealing with cloned functions.
@@ -289,6 +319,7 @@ int main(int argc, char **argv) {
     // Ensure that all type-safe stack allocations are initialized.
     //
     NOT_FOR_SVA(Passes.add(new InitAllocas()));
+#endif
 
     //
     // Disable this pass for now.  We don't really use it, and it generates
@@ -308,21 +339,29 @@ int main(int argc, char **argv) {
     // pass manually.  If we don't, then PassManager just throws the static
     // GEP checking pass away.
     //
+#if 0
     Passes.add (new EQTDDataStructures());
     Passes.add(new InsertPoolChecks());
+#endif
 
     if (!DisableLSChecks)  Passes.add(new InsertLSChecks());
     if (!DisableGEPChecks) {
       addStaticGEPCheckingPass(Passes);
+      Passes.add(new AllocatorInfoPass());
+      Passes.add(new ScalarEvolution());
+      Passes.add(new ArrayBoundsCheckLocal());
       Passes.add(new InsertGEPChecks());
     }
 
+#if 0
     //
     // Go ahead and make all of the run-time checks complete.  This tool can
     // use DSA (which makes this transform possible).
     //
     Passes.add(new CompleteChecks());
+#endif
 
+#if 0
     //
     // Optimize away type-safe load/store checks if we're using automatic pool
     // allocation.  If we optimize away type-safe loads and stores, insert
@@ -336,6 +375,7 @@ int main(int argc, char **argv) {
         }
       }
     }
+#endif
 
     //
     // Instrument the code so that memory objects are registered into the
@@ -344,10 +384,14 @@ int main(int argc, char **argv) {
     //
     Passes.add(new RegisterGlobalVariables());
 
+#if 0
     if (!SCConfig.svaEnabled()) {
+#endif
       Passes.add(new RegisterMainArgs());
       Passes.add(new RegisterRuntimeInitializer());
+#if 0
     }
+#endif
 
     Passes.add(new RegisterFunctionByvalArguments());
 
@@ -357,13 +401,21 @@ int main(int argc, char **argv) {
 
     if (!DisableExactChecks) Passes.add(new ExactCheckOpt());
 
+#if 0
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));
+#else
+    Passes.add(new LoopInfo());
+    Passes.add(new DominatorTree());
+    Passes.add(new DominanceFrontier());
+    Passes.add(new RegisterStackObjPass());
+#endif
 
 #if 0
     if (EnableFastCallChecks)
       Passes.add(createIndirectCallChecksPass());
 #endif
 
+#if 0
     if (!DisableMonotonicLoopOpt)
       Passes.add(new MonotonicLoopOpt());
 
@@ -374,6 +426,7 @@ int main(int argc, char **argv) {
         Passes.add(new SpeculativeCheckStoreCheckPass());
       }
     }
+#endif
 
     //
     // Do post processing required for Out of Bounds pointer rewriting.
@@ -386,19 +439,25 @@ int main(int argc, char **argv) {
     // optimization impossible.
     //
     if (CheckingRuntime == RUNTIME_DEBUG) {
+#if 0
       Passes.add(new OptimizeChecks());
+#endif
       Passes.add(new RewriteOOB());
     }
+#if 0
     if (CheckingRuntime == RUNTIME_BB) {
       Passes.add(new InsertBaggyBoundsChecks());
       Passes.add(new OptimizeChecks());
       Passes.add(new RewriteOOB());
     }
+#endif
 
     //
     // Run pool allocation.
     //
+#if 0
     addPoolAllocationPass(Passes);
+#endif
 
 #if 0
     //
@@ -407,6 +466,7 @@ int main(int argc, char **argv) {
     Passes.add (createLICMPass());
 #endif
 
+#if 0
     //
     // Remove special attributes for loop hoisting that were added by previous
     // SAFECode passes.
@@ -440,10 +500,12 @@ int main(int argc, char **argv) {
     // Instrument the code so that dangling pointers are detected.
     //
     Passes.add(new DetectDanglingPointers());
+#endif
 
     if (!DisableDebugInfo)
       Passes.add (new DebugInstrument());
 
+#if 0
     // Lower the checking intrinsics into appropriate runtime function calls.
     // It should be the last pass
     addLowerIntrinsicPass(Passes, CheckingRuntime);
@@ -456,12 +518,13 @@ int main(int argc, char **argv) {
     // Remove pool metadata.
     //
     Passes.add(new RemovePoolMDPass());
+#endif
 
     // Verify the final result
     Passes.add(createVerifierPass());
 
     // Figure out where we are going to send the output...
-    raw_fd_ostream *Out = 0;
+    raw_ostream *Out = 0;
     std::string error;
     if (OutputFilename != "") {
       if (OutputFilename != "-") {
@@ -479,12 +542,12 @@ int main(int argc, char **argv) {
         // SIGINT
         sys::RemoveFileOnSignal(sys::Path(OutputFilename));
       } else {
-        Out = new raw_stdout_ostream();
+        Out = new raw_os_ostream(std::cout);
       }
     } else {
       if (InputFilename == "-") {
         OutputFilename = "-";
-        Out = new raw_stdout_ostream();
+        Out = new raw_os_ostream(std::cout);
       } else {
         OutputFilename = GetFileNameRoot(InputFilename);
 
@@ -531,6 +594,7 @@ int main(int argc, char **argv) {
 }
 
 static void addStaticGEPCheckingPass(PassManager & Passes) {
+#if 0
 	switch (SCConfig.staticCheckType()) {
 		case SAFECodeConfiguration::ABC_CHECK_NONE:
 			Passes.add(new ArrayBoundsCheckDummy());
@@ -544,9 +608,11 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 			Passes.add(new ArrayBoundsCheckLocal());
 			break;
 		case SAFECodeConfiguration::ABC_CHECK_FULL:
+#if 0
       if (SCConfig.getPAType() == SAFECodeConfiguration::PA_APA) {
         Passes.add(new ArrayBoundsCheckStruct());
       }
+#endif
 #if 0
 			Passes.add(new ArrayBoundsCheck());
 #else
@@ -554,10 +620,12 @@ static void addStaticGEPCheckingPass(PassManager & Passes) {
 #endif
 			break;
 	}
+#endif
 }
 
 static inline void
 addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
+#if 0
   /// Mapping between check intrinsics and implementation
 
   typedef LowerSafecodeIntrinsic::IntrinsicMappingEntry IntrinsicMappingEntry;
@@ -852,9 +920,11 @@ addLowerIntrinsicPass(PassManager & Passes, CheckingRuntimeType type) {
   default:
     assert (0 && "Invalid Runtime!");
   }
+#endif
 }
 
 static inline void addPoolAllocationPass(PassManager & Passes) {
+#if 0
   if (CheckingRuntime == RUNTIME_BB) {
     Passes.add(new PoolAllocateSimple(true, true, false));
     return;
@@ -874,4 +944,5 @@ static inline void addPoolAllocationPass(PassManager & Passes) {
     Passes.add(new PoolAllocate(true, true));
     break;
   } 
+#endif
 }
