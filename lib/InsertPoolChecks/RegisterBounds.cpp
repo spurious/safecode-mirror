@@ -138,6 +138,10 @@ RegisterGlobalVariables::runOnModule(Module & M) {
     // This is needed for the Linux kernel.
     if (GV->getSection() == ".exitcall.exit") continue;
 
+    //
+    // Skip globals that may not be emitted into the final executable.
+    //
+    if (GV->hasAvailableExternallyLinkage()) continue;
     registerGV(GV, InsertPt);    
   }
 
