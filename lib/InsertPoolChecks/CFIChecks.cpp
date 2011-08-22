@@ -50,7 +50,7 @@ namespace {
 //  A global variable pointing to an array of call targets.
 //
 GlobalVariable *
-CFIChecks::createTargetTable (const CallInst & CI, bool & isComplete) {
+CFIChecks::createTargetTable (CallInst & CI, bool & isComplete) {
   //
   // Get the call graph.
   //
@@ -106,7 +106,8 @@ CFIChecks::createTargetTable (const CallInst & CI, bool & isComplete) {
   //
   ArrayType * AT = ArrayType::get (VoidPtrType, Targets.size());
   Constant * TargetArray = ConstantArray::get (AT, Targets);
-  return new GlobalVariable (AT,
+  return new GlobalVariable (*(CI.getParent()->getParent()->getParent()),
+                             AT,
                              true,
                              GlobalValue::InternalLinkage,
                              TargetArray,
@@ -164,7 +165,11 @@ CFIChecks::runOnModule (Module & M) {
   //
   Type *VoidTy    = Type::getVoidTy (M.getContext());
   Type *VoidPtrTy = getVoidPtrType (M.getContext());
-  M.getOrInsertFunction ("funccheckui", VoidTy, VoidPtrTy, VoidPtrTy, NULL);
+  FunctionCheckUI = cast<Function>(M.getOrInsertFunction ("funccheckui",
+                                                          VoidTy,
+                                                          VoidPtrTy,
+                                                          VoidPtrTy,
+                                                          NULL));
   assert (FunctionCheckUI && "Function Check function has disappeared!\n");
 
   //

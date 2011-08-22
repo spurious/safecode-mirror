@@ -51,7 +51,7 @@ struct CFIChecks : public ModulePass, InstVisitor<CFIChecks> {
     Function * FunctionCheckUI;
 
     // Create a global variable table for the targets of the call instruction
-    GlobalVariable * createTargetTable (const CallInst & CI, bool & isComplete);
+    GlobalVariable * createTargetTable (CallInst & CI, bool & isComplete);
 };
 
 }
