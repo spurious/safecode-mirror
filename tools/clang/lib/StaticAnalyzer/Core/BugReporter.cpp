@@ -33,27 +33,6 @@ using namespace clang;
 using namespace ento;
 
 BugReporterVisitor::~BugReporterVisitor() {}
-BugReporterContext::~BugReporterContext() {
-  for (visitor_iterator I = visitor_begin(), E = visitor_end(); I != E; ++I)
-    if ((*I)->isOwnedByReporterContext()) delete *I;
-}
-
-void BugReporterContext::addVisitor(BugReporterVisitor* visitor) {
-  if (!visitor)
-    return;
-
-  llvm::FoldingSetNodeID ID;
-  visitor->Profile(ID);
-  void *InsertPos;
-
-  if (CallbacksSet.FindNodeOrInsertPos(ID, InsertPos)) {
-    delete visitor;
-    return;
-  }
-
-  CallbacksSet.InsertNode(visitor, InsertPos);
-  Callbacks = F.add(visitor, Callbacks);
-}
 
 //===----------------------------------------------------------------------===//
 // Helper routines for walking the ExplodedGraph and fetching statements.
@@ -161,14 +140,14 @@ public:
                         BugReport *r, NodeBackMap *Backmap,
                         PathDiagnosticClient *pdc)
     : BugReporterContext(br),
-      R(r), PDC(pdc), NMC(Backmap) {
-    addVisitor(R);
-  }
+      R(r), PDC(pdc), NMC(Backmap) {}
 
   PathDiagnosticLocation ExecutionContinues(const ExplodedNode *N);
 
   PathDiagnosticLocation ExecutionContinues(llvm::raw_string_ostream &os,
                                             const ExplodedNode *N);
+
+  BugReport *getBugReport() { return R; }
 
   Decl const &getCodeDecl() { return R->getErrorNode()->getCodeDecl(); }
 
@@ -459,10 +438,11 @@ public:
     FullSourceLoc L(S->getLocStart(), BR.getSourceManager());
 
     if (Loc::isLocType(VD->getType())) {
-      std::string msg = "'" + std::string(VD->getNameAsString()) +
-      "' now aliases '" + MostRecent->getNameAsString() + "'";
+      llvm::SmallString<64> buf;
+      llvm::raw_svector_ostream os(buf);
+      os << '\'' << VD << "' now aliases '" << MostRecent << '\'';
 
-      PD.push_front(new PathDiagnosticEventPiece(L, msg));
+      PD.push_front(new PathDiagnosticEventPiece(L, os.str()));
     }
 
     return true;
@@ -791,9 +771,11 @@ static void GenerateMinimalPathDiagnostic(PathDiagnostic& PD,
     }
 
     if (NextNode) {
-      for (BugReporterContext::visitor_iterator I = PDB.visitor_begin(),
-           E = PDB.visitor_end(); I!=E; ++I) {
-        if (PathDiagnosticPiece *p = (*I)->VisitNode(N, NextNode, PDB))
+      // Add diagnostic pieces from custom visitors.
+      BugReport *R = PDB.getBugReport();
+      for (BugReport::visitor_iterator I = R->visitor_begin(),
+           E = R->visitor_end(); I!=E; ++I) {
+        if (PathDiagnosticPiece *p = (*I)->VisitNode(N, NextNode, PDB, *R))
           PD.push_front(p);
       }
     }
@@ -1198,9 +1180,11 @@ static void GenerateExtensivePathDiagnostic(PathDiagnostic& PD,
     if (!NextNode)
       continue;
 
-    for (BugReporterContext::visitor_iterator I = PDB.visitor_begin(),
-         E = PDB.visitor_end(); I!=E; ++I) {
-      if (PathDiagnosticPiece *p = (*I)->VisitNode(N, NextNode, PDB)) {
+    // Add pieces from custom visitors.
+    BugReport *R = PDB.getBugReport();
+    for (BugReport::visitor_iterator I = R->visitor_begin(),
+                                     E = R->visitor_end(); I!=E; ++I) {
+      if (PathDiagnosticPiece *p = (*I)->VisitNode(N, NextNode, PDB, *R)) {
         const PathDiagnosticLocation &Loc = p->getLocation();
         EB.addEdge(Loc, true);
         PD.push_front(p);
@@ -1222,7 +1206,28 @@ void BugType::FlushReports(BugReporter &BR) {}
 // Methods for BugReport and subclasses.
 //===----------------------------------------------------------------------===//
 
-BugReport::~BugReport() {}
+void BugReport::addVisitor(BugReporterVisitor* visitor) {
+  if (!visitor)
+    return;
+
+  llvm::FoldingSetNodeID ID;
+  visitor->Profile(ID);
+  void *InsertPos;
+
+  if (CallbacksSet.FindNodeOrInsertPos(ID, InsertPos)) {
+    delete visitor;
+    return;
+  }
+
+  CallbacksSet.InsertNode(visitor, InsertPos);
+  Callbacks = F.add(visitor, Callbacks);
+}
+
+BugReport::~BugReport() {
+  for (visitor_iterator I = visitor_begin(), E = visitor_end(); I != E; ++I) {
+    delete *I;
+  }
+}
 
 void BugReport::Profile(llvm::FoldingSetNodeID& hash) const {
   hash.AddPointer(&BT);
@@ -1255,45 +1260,6 @@ const Stmt *BugReport::getStmt() const {
     S = GetStmt(ProgP);
 
   return S;
-}
-
-PathDiagnosticPiece*
-BugReport::getEndPath(BugReporterContext &BRC,
-                      const ExplodedNode *EndPathNode) {
-
-  const ProgramPoint &PP = EndPathNode->getLocation();
-  PathDiagnosticLocation L;
-
-  if (const BlockEntrance *BE = dyn_cast<BlockEntrance>(&PP)) {
-    const CFGBlock *block = BE->getBlock();
-    if (block->getBlockID() == 0) {
-      L = PathDiagnosticLocation(
-          EndPathNode->getLocationContext()->getDecl()->getBodyRBrace(),
-          BRC.getSourceManager());
-    }
-  }
-
-  if (!L.isValid()) {
-    const Stmt *S = getStmt();
-
-    if (!S)
-      return NULL;
-
-    L = PathDiagnosticLocation(S, BRC.getSourceManager());
-  }
-
-  BugReport::ranges_iterator Beg, End;
-  llvm::tie(Beg, End) = getRanges();
-
-  // Only add the statement itself as a range if we didn't specify any
-  // special ranges for this report.
-  PathDiagnosticPiece *P = new PathDiagnosticEventPiece(L, getDescription(),
-                                                        Beg == End);
-
-  for (; Beg != End; ++Beg)
-    P->addRange(*Beg);
-
-  return P;
 }
 
 std::pair<BugReport::ranges_iterator, BugReport::ranges_iterator>
@@ -1334,12 +1300,6 @@ SourceLocation BugReport::getLocation() const {
   return FullSourceLoc();
 }
 
-PathDiagnosticPiece *BugReport::VisitNode(const ExplodedNode *N,
-                                          const ExplodedNode *PrevN,
-                                          BugReporterContext &BRC) {
-  return NULL;
-}
-
 //===----------------------------------------------------------------------===//
 // Methods for BugReporter and subclasses.
 //===----------------------------------------------------------------------===//
@@ -1356,7 +1316,16 @@ ExplodedGraph &GRBugReporter::getGraph() { return Eng.getGraph(); }
 ProgramStateManager&
 GRBugReporter::getStateManager() { return Eng.getStateManager(); }
 
-BugReporter::~BugReporter() { FlushReports(); }
+BugReporter::~BugReporter() {
+  FlushReports();
+
+  // Free the bug reports we are tracking.
+  typedef std::vector<BugReportEquivClass *> ContTy;
+  for (ContTy::iterator I = EQClassesVector.begin(), E = EQClassesVector.end();
+       I != E; ++I) {
+    delete *I;
+  }
+}
 
 void BugReporter::FlushReports() {
   if (BugTypes.isEmpty())
@@ -1650,15 +1619,27 @@ void GRBugReporter::GeneratePathDiagnostic(PathDiagnostic& PD,
   // Start building the path diagnostic...
   PathDiagnosticBuilder PDB(*this, R, BackMap.get(), getPathDiagnosticClient());
 
-  if (PathDiagnosticPiece *Piece = R->getEndPath(PDB, N))
-    PD.push_back(Piece);
+  // Register additional node visitors.
+  R->addVisitor(new NilReceiverBRVisitor());
+  R->addVisitor(new ConditionBRVisitor());
+
+  // Generate the very last diagnostic piece - the piece is visible before 
+  // the trace is expanded.
+  PathDiagnosticPiece *LastPiece = 0;
+  for (BugReport::visitor_iterator I = R->visitor_begin(),
+                                   E = R->visitor_end(); I!=E; ++I) {
+    if (PathDiagnosticPiece *Piece = (*I)->getEndPath(PDB, N, *R)) {
+      assert (!LastPiece &&
+              "There can only be one final piece in a diagnostic.");
+      LastPiece = Piece;
+    }
+  }
+  if (!LastPiece)
+    LastPiece = BugReporterVisitor::getDefaultEndPath(PDB, N, *R);
+  if (LastPiece)
+    PD.push_back(LastPiece);
   else
     return;
-
-  // Register node visitors.
-  R->registerInitialVisitors(PDB, N);
-  bugreporter::registerNilReceiverVisitor(PDB);
-  bugreporter::registerConditionVisitor(PDB);
 
   switch (PDB.getGenerationScheme()) {
     case PathDiagnosticClient::Extensive:
@@ -1688,6 +1669,7 @@ void BugReporter::EmitReport(BugReport* R) {
   if (!EQ) {
     EQ = new BugReportEquivClass(R);
     EQClasses.InsertNode(EQ, InsertPos);
+    EQClassesVector.push_back(EQ);
   }
   else
     EQ->AddReport(R);

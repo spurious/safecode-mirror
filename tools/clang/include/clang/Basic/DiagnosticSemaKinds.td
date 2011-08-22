@@ -264,8 +264,9 @@ def err_types_compatible_p_in_cplusplus : Error<
   "__builtin_types_compatible_p is not valid in C++">;
 def warn_builtin_unknown : Warning<"use of unknown builtin %0">, DefaultError;
 def warn_dyn_class_memaccess : Warning<
-  "%select{destination for|source of}0 this %1 call is a pointer to dynamic "
-  "class %2; vtable pointer will be overwritten">, 
+  "%select{destination for|source of|first operand of|second operand of}0 this "
+  "%1 call is a pointer to dynamic class %2; vtable pointer will be "
+  "%select{overwritten|copied|moved|compared}3">,
   InGroup<DiagGroup<"dynamic-class-memaccess">>;
 def note_bad_memaccess_silence : Note<
   "explicitly cast the pointer to silence this warning">;
@@ -278,6 +279,13 @@ def warn_sizeof_pointer_type_memaccess : Warning<
   "argument to 'sizeof' in %0 call is the same pointer type %1 as the "
   "%select{destination|source}2; expected %3 or an explicit length">,
   InGroup<DiagGroup<"sizeof-pointer-memaccess">>;
+def warn_strlcpycat_wrong_size : Warning<
+  "size argument in %0 call appears to be size of the source; expected the size of "
+  "the destination">,
+  DefaultIgnore,
+  InGroup<DiagGroup<"strlcpy-strlcat-size">>;
+def note_strlcpycat_wrong_size : Note<
+  "change size argument to be the size of the destination">;
 
 /// main()
 // static/inline main() are not errors in C, just in C++.
@@ -285,21 +293,16 @@ def warn_unusual_main_decl : Warning<"'main' should not be declared "
     "%select{static|inline|static or inline}0">,
     InGroup<Main>;
 def err_unusual_main_decl : Error<"'main' is not allowed to be declared "
-    "%select{static|inline|static or inline}0">,
-    InGroup<Main>;
-def err_main_template_decl : Error<"'main' cannot be a template">,
-    InGroup<Main>;
-def err_main_returns_nonint : Error<"'main' must return 'int'">,
-    InGroup<Main>;
+    "%select{static|inline|static or inline}0">;
+def err_main_template_decl : Error<"'main' cannot be a template">;
+def err_main_returns_nonint : Error<"'main' must return 'int'">;
 def err_main_surplus_args : Error<"too many parameters (%0) for 'main': "
-    "must be 0, 2, or 3">,
-    InGroup<Main>;
+    "must be 0, 2, or 3">;
 def warn_main_one_arg : Warning<"only one parameter on 'main' declaration">,
     InGroup<Main>;
 def err_main_arg_wrong : Error<"%select{first|second|third|fourth}0 "
     "parameter of 'main' (%select{argument count|argument array|environment|"
-    "platform-specific data}0) must be of type %1">,
-    InGroup<Main>;
+    "platform-specific data}0) must be of type %1">;
 
 /// parser diagnostics
 def ext_typedef_without_a_name : ExtWarn<"typedef requires a name">,
@@ -610,6 +613,8 @@ def err_tagless_friend_type_template : Error<
   "friend type templates must use an elaborated type">;
 def err_no_matching_local_friend : Error<
   "no matching function found in local scope">;
+def err_no_matching_local_friend_suggest : Error<
+  "no matching function %0 found in local scope; did you mean %2">;
 def err_partial_specialization_friend : Error<
   "partial specialization cannot be declared as a friend">;
 
@@ -3038,6 +3043,9 @@ def err_member_def_undefined_record : Error<
   "out-of-line definition of %0 from class %1 without definition">;
 def err_member_def_does_not_match : Error<
   "out-of-line definition of %0 does not match any declaration in %1">;
+def err_member_def_does_not_match_suggest : Error<
+  "out-of-line definition of %0 does not match any declaration in %1; "
+  "did you mean %2">;
 def err_member_def_does_not_match_ret_type : Error<
   "out-of-line definition of %q0 differs from the declaration in the return type">;
 def err_nonstatic_member_out_of_line : Error<

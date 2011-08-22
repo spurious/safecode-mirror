@@ -11,7 +11,6 @@ add_clang_library(clangStaticAnalyzerCore
   BugReporter.cpp
   BugReporterVisitors.cpp
   CFRefCount.cpp
-  CXXExprEngine.cpp
   Checker.cpp
   CheckerContext.cpp
   CheckerHelpers.cpp
@@ -21,6 +20,10 @@ add_clang_library(clangStaticAnalyzerCore
   Environment.cpp
   ExplodedGraph.cpp
   ExprEngine.cpp
+  ExprEngineC.cpp
+  ExprEngineCXX.cpp
+  ExprEngineCallAndReturn.cpp
+  ExprEngineObjC.cpp
   HTMLDiagnostics.cpp
   MemRegion.cpp
   ObjCMessage.cpp

@@ -482,10 +482,6 @@ public:
   /// the first module loaded.
   Module &getPrimaryModule() const { return *Chain[0]; }
 
-  /// \brief Returns the latest module associated with the manager, that is,
-  /// the last module loaded
-  Module &getLastModule() { return *Chain.back(); }
-
   /// \brief Returns the module associated with the given index
   Module &operator[](unsigned Index) const { return *Chain[Index]; }
 
@@ -508,16 +504,37 @@ public:
   /// \param ImportedBy The module that is importing this module, or NULL if
   /// this module is imported directly by the user.
   ///
+  /// \param ErrorStr Will be set to a non-empty string if any errors occurred
+  /// while trying to load the module.
+  ///
   /// \return A pointer to the module that corresponds to this file name,
   /// and a boolean indicating whether the module was newly added.
   std::pair<Module *, bool> 
-  addModule(StringRef FileName, ModuleKind Type, Module *ImportedBy);
+  addModule(StringRef FileName, ModuleKind Type, Module *ImportedBy,
+            std::string &ErrorStr);
   
   /// \brief Add an in-memory buffer the list of known buffers
   void addInMemoryBuffer(StringRef FileName, llvm::MemoryBuffer *Buffer);
 
-  /// \brief Exports the list of loaded modules with their corresponding names
-  void exportLookup(SmallVector<ModuleOffset, 16> &Target);
+  /// \brief Visit each of the modules.
+  ///
+  /// This routine visits each of the modules, starting with the
+  /// "root" modules that no other loaded modules depend on, and
+  /// proceeding to the leaf modules, visiting each module only once
+  /// during the traversal.
+  ///
+  /// This traversal is intended to support various "lookup"
+  /// operations that can find data in any of the loaded modules.
+  ///
+  /// \param Visitor A visitor function that will be invoked with each
+  /// module and the given user data pointer. The return value must be
+  /// convertible to bool; when false, the visitation continues to
+  /// modules that the current module depends on. When true, the
+  /// visitation skips any modules that the current module depends on.
+  ///
+  /// \param UserData User data associated with the visitor object, which
+  /// will be passed along to the visitor.
+  void visit(bool (*Visitor)(Module &M, void *UserData), void *UserData);
 };
 
 } // end namespace serialization

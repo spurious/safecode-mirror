@@ -737,11 +737,6 @@ DeclContext *Sema::getContainingDC(DeclContext *DC) {
     return DC;
   }
 
-  // ObjCMethodDecls are parsed (for some reason) outside the context
-  // of the class.
-  if (isa<ObjCMethodDecl>(DC))
-    return DC->getLexicalParent()->getLexicalParent();
-
   return DC->getLexicalParent();
 }
 
@@ -4204,27 +4199,79 @@ bool Sema::AddOverriddenMethods(CXXRecordDecl *DC, CXXMethodDecl *MD) {
   return AddedAny;
 }
 
-static void DiagnoseInvalidRedeclaration(Sema &S, FunctionDecl *NewFD) {
-  LookupResult Prev(S, NewFD->getDeclName(), NewFD->getLocation(),
+static void DiagnoseInvalidRedeclaration(Sema &S, FunctionDecl *NewFD,
+                                         bool isFriendDecl) {
+  DeclarationName Name = NewFD->getDeclName();
+  DeclContext *DC = NewFD->getDeclContext();
+  LookupResult Prev(S, Name, NewFD->getLocation(),
                     Sema::LookupOrdinaryName, Sema::ForRedeclaration);
   llvm::SmallVector<unsigned, 1> MismatchedParams;
-  S.LookupQualifiedName(Prev, NewFD->getDeclContext());
+  llvm::SmallVector<std::pair<FunctionDecl*, unsigned>, 1> NearMatches;
+  TypoCorrection Correction;
+  unsigned DiagMsg = isFriendDecl ? diag::err_no_matching_local_friend
+                                  : diag::err_member_def_does_not_match;
+
+  NewFD->setInvalidDecl();
+  S.LookupQualifiedName(Prev, DC);
   assert(!Prev.isAmbiguous() &&
          "Cannot have an ambiguity in previous-declaration lookup");
-  for (LookupResult::iterator Func = Prev.begin(), FuncEnd = Prev.end();
-       Func != FuncEnd; ++Func) {
-    FunctionDecl *FD = dyn_cast<FunctionDecl>(*Func);
-    if (FD && isNearlyMatchingFunction(S.Context, FD, NewFD,
-                                       MismatchedParams)) {
-      if (MismatchedParams.size() > 0) {
-        unsigned Idx = MismatchedParams.front();
-        ParmVarDecl *FDParam = FD->getParamDecl(Idx);
-        S.Diag(FDParam->getTypeSpecStartLoc(),
-               diag::note_member_def_close_param_match)
-            << Idx+1 << FDParam->getType() << NewFD->getParamDecl(Idx)->getType();
-      } else
-        S.Diag(FD->getLocation(), diag::note_member_def_close_match);
+  if (!Prev.empty()) {
+    for (LookupResult::iterator Func = Prev.begin(), FuncEnd = Prev.end();
+         Func != FuncEnd; ++Func) {
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(*Func);
+      if (FD && isNearlyMatchingFunction(S.Context, FD, NewFD,
+                                         MismatchedParams)) {
+        // Add 1 to the index so that 0 can mean the mismatch didn't
+        // involve a parameter
+        unsigned ParamNum =
+            MismatchedParams.empty() ? 0 : MismatchedParams.front() + 1;
+        NearMatches.push_back(std::make_pair(FD, ParamNum));
+      }
     }
+  // If the qualified name lookup yielded nothing, try typo correction
+  } else if ((Correction = S.CorrectTypo(Prev.getLookupNameInfo(),
+                                         Prev.getLookupKind(), 0, 0, DC)) &&
+             Correction.getCorrection() != Name) {
+    DiagMsg = isFriendDecl ? diag::err_no_matching_local_friend_suggest
+                           : diag::err_member_def_does_not_match_suggest;
+    for (TypoCorrection::decl_iterator CDecl = Correction.begin(),
+                                    CDeclEnd = Correction.end();
+         CDecl != CDeclEnd; ++CDecl) {
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(*CDecl);
+      if (FD && isNearlyMatchingFunction(S.Context, FD, NewFD,
+                                         MismatchedParams)) {
+        // Add 1 to the index so that 0 can mean the mismatch didn't
+        // involve a parameter
+        unsigned ParamNum =
+            MismatchedParams.empty() ? 0 : MismatchedParams.front() + 1;
+        NearMatches.push_back(std::make_pair(FD, ParamNum));
+      }
+    }
+  }
+
+  if (Correction)
+    S.Diag(NewFD->getLocation(), DiagMsg)
+        << Name << DC << Correction.getQuoted(S.getLangOptions())
+        << FixItHint::CreateReplacement(
+            NewFD->getLocation(), Correction.getAsString(S.getLangOptions()));
+  else
+    S.Diag(NewFD->getLocation(), DiagMsg) << Name << DC << NewFD->getLocation();
+
+  for (llvm::SmallVector<std::pair<FunctionDecl*, unsigned>, 1>::iterator
+       NearMatch = NearMatches.begin(), NearMatchEnd = NearMatches.end();
+       NearMatch != NearMatchEnd; ++NearMatch) {
+    FunctionDecl *FD = NearMatch->first;
+
+    if (unsigned Idx = NearMatch->second) {
+      ParmVarDecl *FDParam = FD->getParamDecl(Idx-1);
+      S.Diag(FDParam->getTypeSpecStartLoc(),
+             diag::note_member_def_close_param_match)
+          << Idx << FDParam->getType() << NewFD->getParamDecl(Idx-1)->getType();
+    } else if (Correction) {
+      S.Diag(FD->getLocation(), diag::note_previous_decl)
+        << Correction.getQuoted(S.getLangOptions());
+    } else
+      S.Diag(FD->getLocation(), diag::note_member_def_close_match);
   }
 }
 
@@ -4923,36 +4970,31 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             (TemplateParamLists.size() ||
              D.getCXXScopeSpec().getScopeRep()->isDependent() ||
              CurContext->isDependentContext())) {
-              // ignore these
-            } else {
-              // The user tried to provide an out-of-line definition for a
-              // function that is a member of a class or namespace, but there
-              // was no such member function declared (C++ [class.mfct]p2,
-              // C++ [namespace.memdef]p2). For example:
-              //
-              // class X {
-              //   void f() const;
-              // };
-              //
-              // void X::f() { } // ill-formed
-              //
-              // Complain about this problem, and attempt to suggest close
-              // matches (e.g., those that differ only in cv-qualifiers and
-              // whether the parameter types are references).
-              Diag(D.getIdentifierLoc(), diag::err_member_def_does_not_match)
-              << Name << DC << D.getCXXScopeSpec().getRange();
-              NewFD->setInvalidDecl();
+          // ignore these
+        } else {
+          // The user tried to provide an out-of-line definition for a
+          // function that is a member of a class or namespace, but there
+          // was no such member function declared (C++ [class.mfct]p2,
+          // C++ [namespace.memdef]p2). For example:
+          //
+          // class X {
+          //   void f() const;
+          // };
+          //
+          // void X::f() { } // ill-formed
+          //
+          // Complain about this problem, and attempt to suggest close
+          // matches (e.g., those that differ only in cv-qualifiers and
+          // whether the parameter types are references).
 
-              DiagnoseInvalidRedeclaration(*this, NewFD);
-            }
+          DiagnoseInvalidRedeclaration(*this, NewFD, false);
+        }
 
         // Unqualified local friend declarations are required to resolve
         // to something.
-        } else if (isFriend && cast<CXXRecordDecl>(CurContext)->isLocalClass()) {
-          Diag(D.getIdentifierLoc(), diag::err_no_matching_local_friend);
-          NewFD->setInvalidDecl();
-          DiagnoseInvalidRedeclaration(*this, NewFD);
-        }
+      } else if (isFriend && cast<CXXRecordDecl>(CurContext)->isLocalClass()) {
+        DiagnoseInvalidRedeclaration(*this, NewFD, true);
+      }
 
     } else if (!IsFunctionDefinition && D.getCXXScopeSpec().isSet() &&
                !isFriend && !isFunctionTemplateSpecialization &&
@@ -7685,6 +7727,15 @@ void Sema::ActOnTagStartDefinition(Scope *S, Decl *TagD) {
   PushDeclContext(S, Tag);
 }
 
+void Sema::ActOnObjCContainerStartDefinition(Decl *IDecl) {
+  assert(isa<ObjCContainerDecl>(IDecl) && 
+         "ActOnObjCContainerStartDefinition - Not ObjCContainerDecl");
+  DeclContext *OCD = cast<DeclContext>(IDecl);
+  assert(getContainingDC(OCD) == CurContext &&
+      "The next DeclContext should be lexically contained in the current one.");
+  CurContext = OCD;
+}
+
 void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
                                            SourceLocation FinalLoc,
                                            SourceLocation LBraceLoc) {
@@ -7736,6 +7787,11 @@ void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
   Consumer.HandleTagDeclDefinition(Tag);
 }
 
+void Sema::ActOnObjCContainerFinishDefinition(Decl *IDecl) {
+  // Exit this scope of this interface definition.
+  PopDeclContext();
+}
+                                          
 void Sema::ActOnTagDefinitionError(Scope *S, Decl *TagD) {
   AdjustDeclIfTemplate(TagD);
   TagDecl *Tag = cast<TagDecl>(TagD);
@@ -8280,7 +8336,6 @@ TranslateIvarVisibility(tok::ObjCKeywordKind ivarVisibility) {
 /// in order to create an IvarDecl object for it.
 Decl *Sema::ActOnIvar(Scope *S,
                                 SourceLocation DeclStart,
-                                Decl *IntfDecl,
                                 Declarator &D, ExprTy *BitfieldWidth,
                                 tok::ObjCKeywordKind Visibility) {
 
@@ -8323,7 +8378,7 @@ Decl *Sema::ActOnIvar(Scope *S,
     Visibility != tok::objc_not_keyword ? TranslateIvarVisibility(Visibility)
                                         : ObjCIvarDecl::None;
   // Must set ivar's DeclContext to its enclosing interface.
-  ObjCContainerDecl *EnclosingDecl = cast<ObjCContainerDecl>(IntfDecl);
+  ObjCContainerDecl *EnclosingDecl = cast<ObjCContainerDecl>(CurContext);
   ObjCContainerDecl *EnclosingContext;
   if (ObjCImplementationDecl *IMPDecl =
       dyn_cast<ObjCImplementationDecl>(EnclosingDecl)) {
@@ -8385,7 +8440,7 @@ Decl *Sema::ActOnIvar(Scope *S,
 /// class and class extensions. For every class @interface and class 
 /// extension @interface, if the last ivar is a bitfield of any type, 
 /// then add an implicit `char :0` ivar to the end of that interface.
-void Sema::ActOnLastBitfield(SourceLocation DeclLoc, Decl *EnclosingDecl,
+void Sema::ActOnLastBitfield(SourceLocation DeclLoc,
                              SmallVectorImpl<Decl *> &AllIvarDecls) {
   if (!LangOpts.ObjCNonFragileABI2 || AllIvarDecls.empty())
     return;
@@ -8399,9 +8454,9 @@ void Sema::ActOnLastBitfield(SourceLocation DeclLoc, Decl *EnclosingDecl,
     Ivar->getBitWidth()->EvaluateAsInt(Context).getZExtValue();
   if (BitFieldSize == 0)
     return;
-  ObjCInterfaceDecl *ID = dyn_cast<ObjCInterfaceDecl>(EnclosingDecl);
+  ObjCInterfaceDecl *ID = dyn_cast<ObjCInterfaceDecl>(CurContext);
   if (!ID) {
-    if (ObjCCategoryDecl *CD = dyn_cast<ObjCCategoryDecl>(EnclosingDecl)) {
+    if (ObjCCategoryDecl *CD = dyn_cast<ObjCCategoryDecl>(CurContext)) {
       if (!CD->IsClassExtension())
         return;
     }
@@ -8413,7 +8468,7 @@ void Sema::ActOnLastBitfield(SourceLocation DeclLoc, Decl *EnclosingDecl,
   llvm::APInt Zero(Context.getTypeSize(Context.IntTy), 0);
   Expr * BW = IntegerLiteral::Create(Context, Zero, Context.IntTy, DeclLoc);
 
-  Ivar = ObjCIvarDecl::Create(Context, cast<ObjCContainerDecl>(EnclosingDecl),
+  Ivar = ObjCIvarDecl::Create(Context, cast<ObjCContainerDecl>(CurContext),
                               DeclLoc, DeclLoc, 0,
                               Context.CharTy, 
                               Context.getTrivialTypeSourceInfo(Context.CharTy,
@@ -9284,4 +9339,8 @@ void Sema::ActOnPragmaWeakAlias(IdentifierInfo* Name,
     (void)WeakUndeclaredIdentifiers.insert(
       std::pair<IdentifierInfo*,WeakInfo>(AliasName, W));
   }
+}
+
+Decl *Sema::getObjCDeclContext() const {
+  return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }

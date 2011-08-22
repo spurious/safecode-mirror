@@ -893,6 +893,18 @@ public:
     return DeclKind == Decl::Block;
   }
 
+  bool isObjCContainer() const {
+    switch (DeclKind) {
+        case Decl::ObjCCategory:
+        case Decl::ObjCCategoryImpl:
+        case Decl::ObjCImplementation:
+        case Decl::ObjCInterface:
+        case Decl::ObjCProtocol:
+            return true;
+    }
+    return false;
+  }
+
   bool isFunctionOrMethod() const {
     switch (DeclKind) {
     case Decl::Block:

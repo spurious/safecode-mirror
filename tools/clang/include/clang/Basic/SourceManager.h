@@ -23,6 +23,7 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include <map>
 #include <vector>
 #include <cassert>
 
@@ -34,6 +35,8 @@ class FileManager;
 class FileEntry;
 class LineTableInfo;
 class LangOptions;
+class ASTWriter;
+class ASTReader;
   
 /// SrcMgr - Public enums and private classes that are part of the
 /// SourceManager implementation.
@@ -84,6 +87,11 @@ namespace SrcMgr {
     /// NumLines - The number of lines in this ContentCache.  This is only valid
     /// if SourceLineCache is non-null.
     unsigned NumLines;
+
+    /// \brief Lazily computed map of macro argument chunks to their expanded
+    /// source location.
+    typedef std::map<unsigned, SourceLocation> MacroArgsMap;
+    MacroArgsMap *MacroArgsCache;
 
     /// getBuffer - Returns the memory buffer for the associated content.
     ///
@@ -142,11 +150,11 @@ namespace SrcMgr {
     
     ContentCache(const FileEntry *Ent = 0)
       : Buffer(0, false), OrigEntry(Ent), ContentsEntry(Ent),
-        SourceLineCache(0), NumLines(0) {}
+        SourceLineCache(0), NumLines(0), MacroArgsCache(0) {}
 
     ContentCache(const FileEntry *Ent, const FileEntry *contentEnt)
       : Buffer(0, false), OrigEntry(Ent), ContentsEntry(contentEnt),
-        SourceLineCache(0), NumLines(0) {}
+        SourceLineCache(0), NumLines(0), MacroArgsCache(0) {}
 
     ~ContentCache();
 
@@ -154,12 +162,13 @@ namespace SrcMgr {
     ///  a non-NULL Buffer or SourceLineCache.  Ownership of allocated memory
     ///  is not transferred, so this is a logical error.
     ContentCache(const ContentCache &RHS) 
-      : Buffer(0, false), SourceLineCache(0) 
+      : Buffer(0, false), SourceLineCache(0), MacroArgsCache(0)
     {
       OrigEntry = RHS.OrigEntry;
       ContentsEntry = RHS.ContentsEntry;
 
-      assert (RHS.Buffer.getPointer() == 0 && RHS.SourceLineCache == 0
+      assert (RHS.Buffer.getPointer() == 0 && RHS.SourceLineCache == 0 &&
+              RHS.MacroArgsCache == 0
               && "Passed ContentCache object cannot own a buffer.");
 
       NumLines = RHS.NumLines;
@@ -184,16 +193,26 @@ namespace SrcMgr {
     /// This is an invalid SLOC for the main file (top of the #include chain).
     unsigned IncludeLoc;  // Really a SourceLocation
 
+    /// \brief Number of FileIDs (files and macros) that were created during
+    /// preprocessing of this #include, including this SLocEntry.
+    /// Zero means the preprocessor didn't provide such info for this SLocEntry.
+    unsigned NumCreatedFIDs;
+
     /// Data - This contains the ContentCache* and the bits indicating the
     /// characteristic of the file and whether it has #line info, all bitmangled
     /// together.
     uintptr_t Data;
+
+    friend class clang::SourceManager;
+    friend class clang::ASTWriter;
+    friend class clang::ASTReader;
   public:
     /// get - Return a FileInfo object.
     static FileInfo get(SourceLocation IL, const ContentCache *Con,
                         CharacteristicKind FileCharacter) {
       FileInfo X;
       X.IncludeLoc = IL.getRawEncoding();
+      X.NumCreatedFIDs = 0;
       X.Data = (uintptr_t)Con;
       assert((X.Data & 7) == 0 &&"ContentCache pointer insufficiently aligned");
       assert((unsigned)FileCharacter < 4 && "invalid file character");
@@ -711,6 +730,28 @@ public:
   /// \param Invalid If non-NULL, will be set true if an error occurred.
   StringRef getBufferData(FileID FID, bool *Invalid = 0) const;
 
+  /// \brief Get the number of FileIDs (files and macros) that were created
+  /// during preprocessing of \arg FID, including it.
+  unsigned getNumCreatedFIDsForFileID(FileID FID) const {
+    bool Invalid = false;
+    const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+    if (Invalid || !Entry.isFile())
+      return 0;
+
+    return Entry.getFile().NumCreatedFIDs;
+  }
+
+  /// \brief Set the number of FileIDs (files and macros) that were created
+  /// during preprocessing of \arg FID, including it.
+  void setNumCreatedFIDsForFileID(FileID FID, unsigned NumFIDs) const {
+    bool Invalid = false;
+    const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+    if (Invalid || !Entry.isFile())
+      return;
+
+    assert(Entry.getFile().NumCreatedFIDs == 0 && "Already set!");
+    const_cast<SrcMgr::FileInfo &>(Entry.getFile()).NumCreatedFIDs = NumFIDs;
+  }
 
   //===--------------------------------------------------------------------===//
   // SourceLocation manipulation methods.
@@ -741,6 +782,17 @@ public:
     
     unsigned FileOffset = Entry.getOffset();
     return SourceLocation::getFileLoc(FileOffset);
+  }
+
+  /// \brief Returns the include location if \arg FID is a #include'd file
+  /// otherwise it returns an invalid location.
+  SourceLocation getIncludeLoc(FileID FID) const {
+    bool Invalid = false;
+    const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+    if (Invalid || !Entry.isFile())
+      return SourceLocation();
+    
+    return Entry.getFile().getIncludeLoc();
   }
 
   /// getExpansionLoc - Given a SourceLocation object, return the expansion
@@ -914,6 +966,33 @@ public:
     return getFileCharacteristic(Loc) == SrcMgr::C_ExternCSystem;
   }
 
+  /// \brief The size of the SLocEnty that \arg FID represents.
+  unsigned getFileIDSize(FileID FID) const {
+    bool Invalid = false;
+    const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+    if (Invalid)
+      return 0;
+
+    int ID = FID.ID;
+    unsigned NextOffset;
+    if ((ID > 0 && unsigned(ID+1) == local_sloc_entry_size()))
+      NextOffset = getNextLocalOffset();
+    else if (ID+1 == -1)
+      NextOffset = MaxLoadedOffset;
+    else
+      NextOffset = getSLocEntry(FileID::get(ID+1)).getOffset();
+
+    return NextOffset - Entry.getOffset() - 1;
+  }
+
+  /// \brief Given a specific FileID, returns true if \arg Loc is inside that
+  /// FileID chunk and sets relative offset (offset of \arg Loc from beginning
+  /// of FileID) to \arg relativeOffset.
+  bool isInFileID(SourceLocation Loc, FileID FID,
+                  unsigned *RelativeOffset = 0) const {
+    return isInFileID(Loc, FID, 0, getFileIDSize(FID), RelativeOffset);
+  }
+
   /// \brief Given a specific chunk of a FileID (FileID with offset+length),
   /// returns true if \arg Loc is inside that chunk and sets relative offset
   /// (offset of \arg Loc from beginning of chunk) to \arg relativeOffset.
@@ -924,21 +1003,13 @@ public:
     if (Loc.isInvalid())
       return false;
 
-    unsigned start = getSLocEntry(FID).getOffset() + offset;
+    unsigned FIDOffs = getSLocEntry(FID).getOffset();
+    unsigned start = FIDOffs + offset;
     unsigned end = start + length;
 
-#ifndef NDEBUG
     // Make sure offset/length describe a chunk inside the given FileID.
-    unsigned NextOffset;
-    if (FID.ID == -2)
-      NextOffset = 1U << 31U;
-    else if (FID.ID+1 == (int)LocalSLocEntryTable.size())
-      NextOffset = getNextLocalOffset();
-    else
-      NextOffset = getSLocEntryByID(FID.ID+1).getOffset();
-    assert(start < NextOffset);
-    assert(end   < NextOffset);
-#endif
+    assert(start <  FIDOffs + getFileIDSize(FID));
+    assert(end   <= FIDOffs + getFileIDSize(FID));
 
     if (Loc.getOffset() >= start && Loc.getOffset() < end) {
       if (relativeOffset)
@@ -1186,6 +1257,7 @@ private:
   std::pair<FileID, unsigned>
   getDecomposedSpellingLocSlowCase(const SrcMgr::SLocEntry *E,
                                    unsigned Offset) const;
+  void computeMacroArgsCache(SrcMgr::ContentCache *Content, FileID FID);
 };
 
 
