@@ -51,6 +51,8 @@ struct CompleteChecks : public ModulePass {
     void makeComplete (Module & M, const struct CheckInfo & CheckInfo);
     void makeCStdLibCallsComplete(Function *, unsigned);
     void makeFSParameterCallsComplete(Module &M);
+    void fixupCFIChecks (Module & M, std::string name);
+    void getFunctionTargets (CallSite CS, std::vector<const Function *> & T);
 };
 
 }

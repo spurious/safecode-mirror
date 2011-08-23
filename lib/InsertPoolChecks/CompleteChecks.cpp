@@ -17,6 +17,7 @@
 #include "dsa/CStdLib.h"
 #include "safecode/CheckInfo.h"
 #include "safecode/CompleteChecks.h"
+#include "safecode/Utility.h"
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Constants.h"
@@ -389,6 +390,123 @@ CompleteChecks::makeFSParameterCallsComplete(Module &M)
   return;
 }
 
+//
+// Method: getFunctionTargets()
+//
+// Description:
+//  This method finds all of the potential targets of the specified indirect
+//  function call.
+//
+void
+CompleteChecks::getFunctionTargets (CallSite CS,
+                                    std::vector<const Function *> & Targets) {
+  EQTDDataStructures & dsaPass = getAnalysis<EQTDDataStructures>();
+  const DSCallGraph & callgraph = dsaPass.getCallGraph();
+  DSGraph* G = dsaPass.getGlobalsGraph();
+  DSGraph::ScalarMapTy& SM = G->getScalarMap();
+
+  DSCallGraph::callee_iterator csi = callgraph.callee_begin(CS);
+  DSCallGraph::callee_iterator cse = callgraph.callee_end(CS);
+  for (; csi != cse; ++csi) {
+    const Function *F = *csi;
+    DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
+      sccee = callgraph.scc_end(F);
+    for (;sccii != sccee; ++sccii) {
+      DSGraph::ScalarMapTy::const_iterator I = 
+        SM.find(SM.getLeaderForGlobal(*sccii));
+      if (I != SM.end() && !((*sccii)->isDeclaration())) {
+        Targets.push_back (*sccii);
+      }
+    }
+  }
+
+  const Function *F1 = CS.getInstruction()->getParent()->getParent();
+  F1 = callgraph.sccLeader(&*F1);
+  DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
+                 sccee = callgraph.scc_end(F1);
+  for(;sccii != sccee; ++sccii) {
+    DSGraph::ScalarMapTy::const_iterator I = 
+      SM.find(SM.getLeaderForGlobal(*sccii));
+    if (I != SM.end() && !((*sccii)->isDeclaration())) {
+      Targets.push_back (*sccii);
+    }
+  }
+
+  return;
+}
+
+//
+// Method: fixupCFIChecks()
+//
+// Description:
+//  Search for all complete checks on indirect function calls and update the
+//  table of potential targets using DSA results.  Note that we do this here
+//  because we don't have a complete call graph when analyzing individual
+//  compilation units.
+//
+// Preconditions:
+//  This method assumes that we have already converted incomplete checks to
+//  complete checks.
+//
+void
+CompleteChecks::fixupCFIChecks (Module & M, std::string name) {
+  //
+  // Scan through all uses of the funccheck() function.
+  //
+  Function * FuncCheck = M.getFunction (name);
+  if (!FuncCheck) return;
+
+  PointerType * VoidPtrType = getVoidPtrType(M.getContext());
+  Value::use_iterator UI = FuncCheck->use_begin();
+  Value::use_iterator  E = FuncCheck->use_end();
+  for (; UI != E; ++UI) {
+    if (CallInst * CI = dyn_cast<CallInst>(*UI)) {
+      if (CI->getCalledValue()->stripPointerCasts() == FuncCheck) {
+        //
+        // Get the call instruction after this call instruction.
+        //
+        BasicBlock::iterator I = CI;
+        ++I;
+        CallInst * ICI = cast<CallInst>(I);
+
+        //
+        // Get the list of potential function targets.  Note that we have to
+        // do some silly things to get rid of the "const"-ness of the functions
+        // that we find.
+        //
+        //
+        std::vector<const Function *> Targets;
+        getFunctionTargets (ICI, Targets);
+        std::vector<Constant *> GoodTargets;
+        for (unsigned index = 0; index < Targets.size(); ++index) {
+          Constant * C = M.getFunction (Targets[index]->getName());
+          GoodTargets.push_back(ConstantExpr::getZExtOrBitCast(C, VoidPtrType));
+        }
+
+        //
+        // Create a new global variable containing the list of targets.
+        //
+        ArrayType * AT = ArrayType::get (VoidPtrType, GoodTargets.size());
+        Constant * TargetArray = ConstantArray::get (AT, GoodTargets);
+        Value * NewTable = new GlobalVariable (M,
+                                               AT,
+                                               true,
+                                               GlobalValue::InternalLinkage,
+                                               TargetArray,
+                                               "TargetList");
+
+        //
+        // Install the new target list into the check.
+        //
+        NewTable = castTo (NewTable, VoidPtrType, ICI);
+        CI->setArgOperand (1, NewTable);
+      }
+    }
+  }
+
+  return;
+}
+
 bool
 CompleteChecks::runOnModule (Module & M) {
   //
@@ -416,9 +534,9 @@ CompleteChecks::runOnModule (Module & M) {
   //
   for (const CStdLibPoolArgCountEntry *entry = &CStdLibPoolArgCounts[0];
        entry->function != 0; ++entry) {
-    Function *f = M.getFunction(entry->function);
-    if (f != 0)
+    if (Function * f = M.getFunction(entry->function)) {
       makeCStdLibCallsComplete(f, entry->pool_argc);
+    }
   }
 
   //
@@ -427,6 +545,11 @@ CompleteChecks::runOnModule (Module & M) {
   //
   makeFSParameterCallsComplete(M);
 
+  //
+  // Fixup the targets of indirect function calls.
+  //
+  fixupCFIChecks(M, "funccheck");
+  fixupCFIChecks(M, "funccheck_debug");
   return true;
 }
 

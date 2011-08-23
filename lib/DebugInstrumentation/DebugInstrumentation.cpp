@@ -440,6 +440,8 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("boundscheckui"), LInfo);
   transformFunction (M.getFunction ("exactcheck2"), LInfo);
   transformFunction (M.getFunction ("fastlscheck"), LInfo);
+  transformFunction (M.getFunction ("funccheck"), LInfo);
+  transformFunction (M.getFunction ("funccheckui"), LInfo);
   transformFunction (M.getFunction ("pool_register"), LInfo);
   transformFunction (M.getFunction ("pool_register_stack"), LInfo);
   transformFunction (M.getFunction ("pool_unregister"), LInfo);
