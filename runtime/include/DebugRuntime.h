@@ -247,7 +247,7 @@ extern "C" {
                           const char * SourceFile,
                           unsigned lineno);
 
-  void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);
+  void funccheck   (void *f, void * targets[]);
   void funccheckui (void *f, void * targets[]);
   void * pchk_getActualValue (PPOOL, void * src);
 

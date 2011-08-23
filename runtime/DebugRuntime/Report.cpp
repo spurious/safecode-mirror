@@ -82,6 +82,10 @@ ViolationInfo::print(std::ostream & OS) const {
       typestring = "C Library Undefined Behavior";
       break;
 
+    case FAULT_CALL:
+      typestring = "Invalid Call Target Error";
+      break;
+
     default:
       typestring = "Unknown Error";
       break;

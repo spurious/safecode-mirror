@@ -288,6 +288,8 @@ poolcheckui_debug (DebugPoolTy *Pool,
                    const char * SourceFilep,
                    unsigned lineno) {
 
+  printf ("poolcheckui_debug!\n");
+  fflush (stdout);
   if (_barebone_poolcheck (Pool, Node))
     return;
 
@@ -807,30 +809,26 @@ boundscheckui_debug (DebugPoolTy * Pool,
 //  in the given list.
 //
 // Inputs:
-//  num - The number of function targets in the DSNode.
-//  f   - The function pointer that we are testing.
-//  g   - The first function given in the DSNode.
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
 //
 void
-__sc_dbg_funccheck (unsigned num, void *f, void *g, ...) {
-  va_list ap;
-  unsigned i = 0;
-
-  // Test against the first function in the list
-  if (f == g) return;
-  i++;
-  va_start(ap, g);
-  for ( ; i != num; ++i) {
-    void *h = va_arg(ap, void *);
-    if (f == h) {
+funccheck (void *f, void * targets[]) {
+  unsigned index = 0;
+  while (targets[index]) {
+    if (f == targets[index])
       return;
-    }
   }
-  if (logregs) {
-  fprintf(stderr, "funccheck failed(num=%d): %p %p\n", num, f, g);
-  fflush(stderr);
-  }
-  abort();
+
+  DebugViolationInfo v;
+  v.type = ViolationInfo::FAULT_CALL,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = f,
+    v.SourceFile = "Unknown",
+    v.lineNo = 0;
+
+  ReportMemoryViolation(&v);
+  return;
 }
 
 //
