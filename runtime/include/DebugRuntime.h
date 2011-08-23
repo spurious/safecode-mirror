@@ -247,9 +247,13 @@ extern "C" {
                           const char * SourceFile,
                           unsigned lineno);
 
+  void * pchk_getActualValue (PPOOL, void * src);
+
+  // Indirect function call checks
   void funccheck   (void *f, void * targets[]);
   void funccheckui (void *f, void * targets[]);
-  void * pchk_getActualValue (PPOOL, void * src);
+  void funccheck_debug   (void *f, void * targets[], TAG, SRC_INFO);
+  void funccheckui_debug (void *f, void * targets[], TAG, SRC_INFO);
 
   // Change memory protections to detect dangling pointers
   void * pool_shadow (void * Node, unsigned NumBytes);
