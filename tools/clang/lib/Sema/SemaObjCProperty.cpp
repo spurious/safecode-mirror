@@ -144,7 +144,7 @@ Sema::HandlePropertyInClassExtension(Scope *S,
                                      bool *isOverridingProperty,
                                      TypeSourceInfo *T,
                                      tok::ObjCKeywordKind MethodImplKind) {
-  ObjCCategoryDecl *CDecl = dyn_cast<ObjCCategoryDecl>(CurContext);
+  ObjCCategoryDecl *CDecl = cast<ObjCCategoryDecl>(CurContext);
   // Diagnose if this property is already in continuation class.
   DeclContext *DC = CurContext;
   IdentifierInfo *PropertyId = FD.D.getIdentifier();
@@ -235,8 +235,8 @@ Sema::HandlePropertyInClassExtension(Scope *S,
                             PIkind);
       // Must re-establish the context from class extension to primary
       // class context.
-      ActOnObjCContainerFinishDefinition(CDecl);
-      ActOnObjCContainerStartDefinition(CCPrimary);
+      ContextRAII SavedContext(*this, CCPrimary);
+      
       Decl *ProtocolPtrTy =
         ActOnProperty(S, AtLoc, FD, ProtocolPropertyODS,
                       PIDecl->getGetterName(),
@@ -244,9 +244,6 @@ Sema::HandlePropertyInClassExtension(Scope *S,
                       isOverridingProperty,
                       MethodImplKind,
                       /* lexicalDC = */ CDecl);
-      // restore class extension context.
-      ActOnObjCContainerFinishDefinition(CCPrimary);
-      ActOnObjCContainerStartDefinition(CDecl);
       PIDecl = cast<ObjCPropertyDecl>(ProtocolPtrTy);
     }
     PIDecl->makeitReadWriteAttribute();

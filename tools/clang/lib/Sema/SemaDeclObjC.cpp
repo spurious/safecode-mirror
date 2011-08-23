@@ -278,14 +278,24 @@ void Sema::ActOnStartOfObjCMethodDef(Scope *FnBodyScope, Decl *D) {
     }
   }
 
-  // Warn on implementating deprecated methods under 
-  // -Wdeprecated-implementations flag.
-  if (ObjCInterfaceDecl *IC = MDecl->getClassInterface())
+  // Warn on deprecated methods under -Wdeprecated-implementations,
+  // and prepare for warning on missing super calls.
+  if (ObjCInterfaceDecl *IC = MDecl->getClassInterface()) {
     if (ObjCMethodDecl *IMD = 
           IC->lookupMethod(MDecl->getSelector(), MDecl->isInstanceMethod()))
       DiagnoseObjCImplementedDeprecations(*this, 
                                           dyn_cast<NamedDecl>(IMD), 
                                           MDecl->getLocation(), 0);
+
+    // If this is "dealloc", set some bit here.
+    // Then in ActOnSuperMessage() (SemaExprObjC), set it back to false.
+    // Finally, in ActOnFinishFunctionBody() (SemaDecl), warn if flag is set.
+    // Only do this if the current class actually has a superclass.
+    if (IC->getSuperClass())
+      ObjCShouldCallSuperDealloc = 
+        !Context.getLangOptions().ObjCAutoRefCount &&      
+        MDecl->getMethodFamily() == OMF_dealloc;
+  }
 }
 
 Decl *Sema::
@@ -2657,8 +2667,8 @@ Decl *Sema::ActOnMethodDeclaration(
 bool Sema::CheckObjCDeclScope(Decl *D) {
   if (isa<TranslationUnitDecl>(CurContext->getRedeclContext()))
     return false;
-  // Following is also an error. But it is caused my a missing @end
-  // and diagnostic is issued elsewere.
+  // Following is also an error. But it is caused by a missing @end
+  // and diagnostic is issued elsewhere.
   if (isa<ObjCContainerDecl>(CurContext->getRedeclContext())) {
     return false;
   }
