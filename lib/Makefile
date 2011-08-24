@@ -4,11 +4,11 @@ PARALLEL_DIRS = \
                Support \
                ArrayBoundChecks \
                InsertPoolChecks \
+               ConvertUnsafeAllocas \
                OptimizeChecks \
                RewriteOOB \
                DebugInstrumentation \
 #               BaggyBoundsChecks \
-#               ConvertUnsafeAllocas \
 #               CStdLib \
 #               FormatStrings \
 #               StackSafety \
