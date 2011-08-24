@@ -36,7 +36,7 @@
 #include "llvm/Module.h"
 #include "llvm/Support/Debug.h"
 
-#include <iostream>
+#include <vector>
 
 using namespace llvm;
 
@@ -74,6 +74,32 @@ getInsertionPoint (AllocaInst & AI) {
 
 namespace llvm {
 
+bool
+InitAllocas::doInitialization (Module & M) {
+  //
+  // Create needed LLVM types.
+  //
+  Type * VoidType  = Type::getVoidTy(M.getContext());
+  Type * Int1Type  = IntegerType::getInt1Ty(M.getContext());
+  Type * Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
+  Type * VoidPtrType = PointerType::getUnqual(Int8Type);
+
+  //
+  // Add the memset function to the program.
+  //
+  M.getOrInsertFunction ("llvm.memset.p0i8.i32",
+                         VoidType,
+                         VoidPtrType,
+                         Int8Type,
+                         Int32Type,
+                         Int32Type,
+                         Int1Type,
+                         NULL);
+
+  return true;
+}
+
 //
 // Method: visitAllocaInst()
 //
@@ -84,28 +110,59 @@ namespace llvm {
 void
 InitAllocas::visitAllocaInst (AllocaInst & AI) {
   //
-  // Do not generate excessively large stores.
-  //
-  if (ArrayType * AT = dyn_cast<ArrayType>(AI.getAllocatedType())) {
-    if (AT->getNumElements() > 10000)
-      return;
-  }
-
-  //
-  // Create an aggregate zero value to initialize the alloca.
-  //
-  Constant * Init = Constant::getNullValue (AI.getAllocatedType());
-
-  //
   // Scan for a place to insert the instruction to initialize the
   // allocated memory.
   //
   Instruction * InsertPt = getInsertionPoint (AI);
 
   //
-  // Store the zero value into the allocated memory.
+  // If the alloca allocates an array of significant size, use a memset of
+  // initialize it.  The LLVM code generators can assert out with
+  // zeroinitializers of large aggregate size.
   //
-  new StoreInst (Init, &AI, InsertPt);
+  bool useMemset = false;
+  Type * AllocType = AI.getAllocatedType();
+  if ((isa<ArrayType>(AllocType)) || (isa<VectorType>(AllocType))) {
+    useMemset = true;
+  }
+
+  if (useMemset) {
+    //
+    // Get access to the pass that tells us how large types are.
+    //
+    TargetData & TD = getAnalysis<TargetData>();
+
+    //
+    // Get various types that we'll need.
+    //
+    Type * Int1Type    = IntegerType::getInt1Ty(AI.getContext());
+    Type * Int8Type    = IntegerType::getInt8Ty(AI.getContext());
+    Type * Int32Type   = IntegerType::getInt32Ty(AI.getContext());
+    Type * VoidPtrType = getVoidPtrType (AI.getContext());
+
+    //
+    // Create a call to memset.
+    //
+    Module * M = AI.getParent()->getParent()->getParent();
+    Function * Memset = cast<Function>(M->getFunction ("llvm.memset.p0i8.i32"));
+    std::vector<Value *> args;
+    args.push_back (castTo (&AI, VoidPtrType, AI.getNameStr(), InsertPt));
+    args.push_back (ConstantInt::get(Int8Type, 0));
+    args.push_back (ConstantInt::get(Int32Type,TD.getTypeAllocSize(AllocType)));
+    args.push_back (ConstantInt::get(Int32Type, 0));
+    args.push_back (ConstantInt::get(Int1Type, 0));
+    CallInst::Create (Memset, args, "", InsertPt);
+  } else {
+    //
+    // Create an aggregate zero value to initialize the alloca.
+    //
+    Constant * Init = Constant::getNullValue (AI.getAllocatedType());
+
+    //
+    // Store the zero value into the allocated memory.
+    //
+    new StoreInst (Init, &AI, InsertPt);
+  }
 
   //
   // Update statistics.

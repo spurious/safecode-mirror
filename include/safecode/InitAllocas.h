@@ -19,6 +19,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Target/TargetData.h"
 
 namespace llvm {
 
@@ -38,7 +39,9 @@ struct InitAllocas : public FunctionPass, InstVisitor<InitAllocas> {
     InitAllocas() : FunctionPass(ID) {}
     const char *getPassName() const { return "Init Alloca Pass"; }
     virtual bool runOnFunction (Function &F);
+    bool doInitialization (Module & M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<TargetData>();
       AU.setPreservesCFG();
     }
     void visitAllocaInst (AllocaInst & AI);
