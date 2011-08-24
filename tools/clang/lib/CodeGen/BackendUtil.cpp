@@ -39,6 +39,7 @@
 #include "safecode/ArrayBoundsCheck.h"
 #include "safecode/CFIChecks.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/InitAllocas.h"
 #include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
 #include "safecode/OptimizeChecks.h"
@@ -200,6 +201,7 @@ void EmitAssemblyHelper::CreatePasses() {
 
   // Add the memory safety passes
   if (CodeGenOpts.MemSafety) {
+    MPM->add (new InitAllocas());
     MPM->add (new RegisterGlobalVariables());
     MPM->add (new RegisterMainArgs());
     MPM->add (new RegisterCustomizedAllocation());
