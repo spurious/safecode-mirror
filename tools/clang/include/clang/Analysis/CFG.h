@@ -96,7 +96,9 @@ class CFGStmt : public CFGElement {
 public:
   CFGStmt(Stmt *S) : CFGElement(Statement, S) {}
 
-  Stmt *getStmt() const { return static_cast<Stmt *>(Data1.getPointer()); }
+  const Stmt *getStmt() const { 
+    return static_cast<const Stmt *>(Data1.getPointer());
+  }
 
   static bool classof(const CFGElement *E) {
     return E->getKind() == Statement;
@@ -611,6 +613,18 @@ public:
 
   CFGBlock *       getIndirectGotoBlock() { return IndirectGotoBlock; }
   const CFGBlock * getIndirectGotoBlock() const { return IndirectGotoBlock; }
+  
+  typedef std::vector<const CFGBlock*>::const_iterator try_block_iterator;
+  try_block_iterator try_blocks_begin() const {
+    return TryDispatchBlocks.begin();
+  }
+  try_block_iterator try_blocks_end() const {
+    return TryDispatchBlocks.end();
+  }
+  
+  void addTryDispatchBlock(const CFGBlock *block) {
+    TryDispatchBlocks.push_back(block);
+  }
 
   //===--------------------------------------------------------------------===//
   // Member templates useful for various batch operations over CFGs.
@@ -622,7 +636,7 @@ public:
       for (CFGBlock::const_iterator BI=(*I)->begin(), BE=(*I)->end();
            BI != BE; ++BI) {
         if (const CFGStmt *stmt = BI->getAs<CFGStmt>())
-          O(stmt->getStmt());
+          O(const_cast<Stmt*>(stmt->getStmt()));
       }
   }
 
@@ -689,6 +703,10 @@ private:
   BumpVectorContext BlkBVC;
   
   CFGBlockListTy Blocks;
+  
+  /// C++ 'try' statements are modeled with an indirect dispatch block.
+  /// This is the collection of such blocks present in the CFG.
+  std::vector<const CFGBlock *> TryDispatchBlocks;
 
 };
 } // end namespace clang

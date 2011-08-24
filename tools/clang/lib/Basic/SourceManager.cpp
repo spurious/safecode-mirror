@@ -834,10 +834,11 @@ SourceManager::getDecomposedSpellingLocSlowCase(const SrcMgr::SLocEntry *E,
   SourceLocation Loc;
   do {
     Loc = E->getExpansion().getSpellingLoc();
+    Loc = Loc.getFileLocWithOffset(Offset);
 
     FID = getFileID(Loc);
     E = &getSLocEntry(FID);
-    Offset += Loc.getOffset()-E->getOffset();
+    Offset = Loc.getOffset()-E->getOffset();
   } while (!Loc.isFileID());
 
   return std::make_pair(FID, Offset);
@@ -1278,6 +1279,25 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc) const {
   }
 
   return PresumedLoc(Filename, LineNo, ColNo, IncludeLoc);
+}
+
+/// \brief The size of the SLocEnty that \arg FID represents.
+unsigned SourceManager::getFileIDSize(FileID FID) const {
+  bool Invalid = false;
+  const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
+  if (Invalid)
+    return 0;
+
+  int ID = FID.ID;
+  unsigned NextOffset;
+  if ((ID > 0 && unsigned(ID+1) == local_sloc_entry_size()))
+    NextOffset = getNextLocalOffset();
+  else if (ID+1 == -1)
+    NextOffset = MaxLoadedOffset;
+  else
+    NextOffset = getSLocEntry(FileID::get(ID+1)).getOffset();
+
+  return NextOffset - Entry.getOffset() - 1;
 }
 
 //===----------------------------------------------------------------------===//

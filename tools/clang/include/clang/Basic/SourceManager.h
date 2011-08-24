@@ -882,6 +882,49 @@ public:
   /// expanded.
   bool isMacroArgExpansion(SourceLocation Loc) const;
 
+  /// \brief Returns true if \arg Loc is inside the [\arg Start, +\arg Length)
+  /// chunk of the source location address space.
+  /// If it's true and \arg RelativeOffset is non-null, it will be set to the
+  /// relative offset of \arg Loc inside the chunk.
+  bool isInSLocAddrSpace(SourceLocation Loc,
+                         SourceLocation Start, unsigned Length,
+                         unsigned *RelativeOffset = 0) const {
+    assert(((Start.getOffset() < NextLocalOffset &&
+               Start.getOffset()+Length <= NextLocalOffset) ||
+            (Start.getOffset() >= CurrentLoadedOffset &&
+                Start.getOffset()+Length < MaxLoadedOffset)) &&
+           "Chunk is not valid SLoc address space");
+    unsigned LocOffs = Loc.getOffset();
+    unsigned BeginOffs = Start.getOffset();
+    unsigned EndOffs = BeginOffs + Length;
+    if (LocOffs >= BeginOffs && LocOffs < EndOffs) {
+      if (RelativeOffset)
+        *RelativeOffset = LocOffs - BeginOffs;
+      return true;
+    }
+
+    return false;
+  }
+
+  /// \brief Return true if both \arg LHS and \arg RHS are in the local source
+  /// location address space or the loaded one. If it's true and
+  /// \arg RelativeOffset is non-null, it will be set to the offset of \arg RHS
+  /// relative to \arg LHS.
+  bool isInSameSLocAddrSpace(SourceLocation LHS, SourceLocation RHS,
+                             int *RelativeOffset) const {
+    unsigned LHSOffs = LHS.getOffset(), RHSOffs = RHS.getOffset();
+    bool LHSLoaded = LHSOffs >= CurrentLoadedOffset;
+    bool RHSLoaded = RHSOffs >= CurrentLoadedOffset;
+
+    if (LHSLoaded == RHSLoaded) {
+      if (RelativeOffset)
+        *RelativeOffset = RHSOffs - LHSOffs;
+      return true;
+    }
+
+    return false;
+  }
+
   //===--------------------------------------------------------------------===//
   // Queries about the code at a SourceLocation.
   //===--------------------------------------------------------------------===//
@@ -967,53 +1010,17 @@ public:
   }
 
   /// \brief The size of the SLocEnty that \arg FID represents.
-  unsigned getFileIDSize(FileID FID) const {
-    bool Invalid = false;
-    const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &Invalid);
-    if (Invalid)
-      return 0;
-
-    int ID = FID.ID;
-    unsigned NextOffset;
-    if ((ID > 0 && unsigned(ID+1) == local_sloc_entry_size()))
-      NextOffset = getNextLocalOffset();
-    else if (ID+1 == -1)
-      NextOffset = MaxLoadedOffset;
-    else
-      NextOffset = getSLocEntry(FileID::get(ID+1)).getOffset();
-
-    return NextOffset - Entry.getOffset() - 1;
-  }
+  unsigned getFileIDSize(FileID FID) const;
 
   /// \brief Given a specific FileID, returns true if \arg Loc is inside that
   /// FileID chunk and sets relative offset (offset of \arg Loc from beginning
   /// of FileID) to \arg relativeOffset.
   bool isInFileID(SourceLocation Loc, FileID FID,
                   unsigned *RelativeOffset = 0) const {
-    return isInFileID(Loc, FID, 0, getFileIDSize(FID), RelativeOffset);
-  }
-
-  /// \brief Given a specific chunk of a FileID (FileID with offset+length),
-  /// returns true if \arg Loc is inside that chunk and sets relative offset
-  /// (offset of \arg Loc from beginning of chunk) to \arg relativeOffset.
-  bool isInFileID(SourceLocation Loc,
-                  FileID FID, unsigned offset, unsigned length,
-                  unsigned *relativeOffset = 0) const {
-    assert(!FID.isInvalid());
-    if (Loc.isInvalid())
-      return false;
-
-    unsigned FIDOffs = getSLocEntry(FID).getOffset();
-    unsigned start = FIDOffs + offset;
-    unsigned end = start + length;
-
-    // Make sure offset/length describe a chunk inside the given FileID.
-    assert(start <  FIDOffs + getFileIDSize(FID));
-    assert(end   <= FIDOffs + getFileIDSize(FID));
-
-    if (Loc.getOffset() >= start && Loc.getOffset() < end) {
-      if (relativeOffset)
-        *relativeOffset = Loc.getOffset() - start;
+    unsigned Offs = Loc.getOffset();
+    if (isOffsetInFileID(FID, Offs)) {
+      if (RelativeOffset)
+        *RelativeOffset = Offs - getSLocEntry(FID).getOffset();
       return true;
     }
 
@@ -1111,21 +1118,20 @@ public:
 
   /// \brief Determines the order of 2 source locations in the "source location
   /// address space".
-  bool isBeforeInSourceLocationOffset(SourceLocation LHS, 
-                                      SourceLocation RHS) const {
-    return isBeforeInSourceLocationOffset(LHS, RHS.getOffset());
+  bool isBeforeInSLocAddrSpace(SourceLocation LHS, SourceLocation RHS) const {
+    return isBeforeInSLocAddrSpace(LHS, RHS.getOffset());
   }
 
   /// \brief Determines the order of a source location and a source location
   /// offset in the "source location address space".
   ///
   /// Note that we always consider source locations loaded from 
-  bool isBeforeInSourceLocationOffset(SourceLocation LHS, unsigned RHS) const {
+  bool isBeforeInSLocAddrSpace(SourceLocation LHS, unsigned RHS) const {
     unsigned LHSOffset = LHS.getOffset();
     bool LHSLoaded = LHSOffset >= CurrentLoadedOffset;
     bool RHSLoaded = RHS >= CurrentLoadedOffset;
     if (LHSLoaded == RHSLoaded)
-      return LHS.getOffset() < RHS;
+      return LHSOffset < RHS;
     
     return LHSLoaded;
   }

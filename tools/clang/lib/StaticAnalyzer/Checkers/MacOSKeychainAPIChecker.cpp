@@ -62,19 +62,25 @@ public:
   void checkEndPath(EndOfFunctionNodeBuilder &B, ExprEngine &Eng) const;
 
 private:
+  enum APIKind{
+    /// Denotes functions tracked by this checker.
+    ValidAPI = 0,
+    /// The functions commonly/mistakenly used in place of the given API.
+    ErrorAPI = 1,
+    /// The functions which may allocate the data. These are tracked to reduce
+    /// the false alarm rate.
+    PossibleAPI = 2
+  };
   /// Stores the information about the allocator and deallocator functions -
   /// these are the functions the checker is tracking.
   struct ADFunctionInfo {
     const char* Name;
     unsigned int Param;
     unsigned int DeallocatorIdx;
-    /// The flag specifies if the call is valid or is a result of a common user
-    /// error (Ex: free instead of SecKeychainItemFreeContent), which we also
-    /// track for better diagnostics.
-    bool isValid;
+    APIKind Kind;
   };
   static const unsigned InvalidIdx = 100000;
-  static const unsigned FunctionsToTrackSize = 7;
+  static const unsigned FunctionsToTrackSize = 8;
   static const ADFunctionInfo FunctionsToTrack[FunctionsToTrackSize];
   /// The value, which represents no error return value for allocator functions.
   static const unsigned NoErr = 0;
@@ -87,6 +93,11 @@ private:
     if (!BT)
       BT.reset(new BugType("Improper use of SecKeychain API", "Mac OS API"));
   }
+
+  void generateDeallocatorMismatchReport(const AllocationState &AS,
+                                         const Expr *ArgExpr,
+                                         CheckerContext &C,
+                                         SymbolRef ArgSM) const;
 
   BugReport *generateAllocatedDataNotReleasedReport(const AllocationState &AS,
                                                     ExplodedNode *N) const;
@@ -133,13 +144,14 @@ static bool isEnclosingFunctionParam(const Expr *E) {
 
 const MacOSKeychainAPIChecker::ADFunctionInfo
   MacOSKeychainAPIChecker::FunctionsToTrack[FunctionsToTrackSize] = {
-    {"SecKeychainItemCopyContent", 4, 3, true},                       // 0
-    {"SecKeychainFindGenericPassword", 6, 3, true},                   // 1
-    {"SecKeychainFindInternetPassword", 13, 3, true},                 // 2
-    {"SecKeychainItemFreeContent", 1, InvalidIdx, true},              // 3
-    {"SecKeychainItemCopyAttributesAndData", 5, 5, true},             // 4
-    {"SecKeychainItemFreeAttributesAndData", 1, InvalidIdx, true},    // 5
-    {"free", 0, InvalidIdx, false},                                   // 6
+    {"SecKeychainItemCopyContent", 4, 3, ValidAPI},                       // 0
+    {"SecKeychainFindGenericPassword", 6, 3, ValidAPI},                   // 1
+    {"SecKeychainFindInternetPassword", 13, 3, ValidAPI},                 // 2
+    {"SecKeychainItemFreeContent", 1, InvalidIdx, ValidAPI},              // 3
+    {"SecKeychainItemCopyAttributesAndData", 5, 5, ValidAPI},             // 4
+    {"SecKeychainItemFreeAttributesAndData", 1, InvalidIdx, ValidAPI},    // 5
+    {"free", 0, InvalidIdx, ErrorAPI},                                    // 6
+    {"CFStringCreateWithBytesNoCopy", 1, InvalidIdx, PossibleAPI},        // 7
 };
 
 unsigned MacOSKeychainAPIChecker::getTrackedFunctionIndex(StringRef Name,
@@ -162,8 +174,14 @@ unsigned MacOSKeychainAPIChecker::getTrackedFunctionIndex(StringRef Name,
 
 static SymbolRef getSymbolForRegion(CheckerContext &C,
                                    const MemRegion *R) {
-  if (!isa<SymbolicRegion>(R))
-    return 0;
+  if (!isa<SymbolicRegion>(R)) {
+    // Implicit casts (ex: void* -> char*) can turn Symbolic region into element
+    // region, if that is the case, get the underlining region.
+    if (const ElementRegion *ER = dyn_cast<ElementRegion>(R))
+      R = ER->getAsArrayOffset().getRegion();
+    else
+      return 0;
+  }
   return cast<SymbolicRegion>(R)->getSymbol();
 }
 
@@ -211,6 +229,31 @@ bool MacOSKeychainAPIChecker::definitelyReturnedError(SymbolRef RetSym,
   }
 
   return false;
+}
+
+// Report deallocator mismatch. Remove the region from tracking - reporting a
+// missing free error after this one is redundant.
+void MacOSKeychainAPIChecker::
+  generateDeallocatorMismatchReport(const AllocationState &AS,
+                                    const Expr *ArgExpr,
+                                    CheckerContext &C,
+                                    SymbolRef ArgSM) const {
+  const ProgramState *State = C.getState();
+  State = State->remove<AllocatedData>(ArgSM);
+  ExplodedNode *N = C.generateNode(State);
+
+  if (!N)
+    return;
+  initBugType();
+  llvm::SmallString<80> sbuf;
+  llvm::raw_svector_ostream os(sbuf);
+  unsigned int PDeallocIdx = FunctionsToTrack[AS.AllocatorIdx].DeallocatorIdx;
+
+  os << "Deallocator doesn't match the allocator: '"
+     << FunctionsToTrack[PDeallocIdx].Name << "' should be used.";
+  BugReport *Report = new BugReport(*BT, os.str(), N);
+  Report->addRange(ArgExpr->getSourceRange());
+  C.EmitReport(Report);
 }
 
 void MacOSKeychainAPIChecker::checkPreStmt(const CallExpr *CE,
@@ -262,9 +305,6 @@ void MacOSKeychainAPIChecker::checkPreStmt(const CallExpr *CE,
   if (idx == InvalidIdx)
     return;
 
-  // We also track invalid deallocators. Ex: free() for enhanced error messages.
-  bool isValidDeallocator = FunctionsToTrack[idx].isValid;
-
   // Check the argument to the deallocator.
   const Expr *ArgExpr = CE->getArg(FunctionsToTrack[idx].Param);
   SVal ArgSVal = State->getSVal(ArgExpr);
@@ -284,11 +324,15 @@ void MacOSKeychainAPIChecker::checkPreStmt(const CallExpr *CE,
   if (!ArgSM && !RegionArgIsBad)
     return;
 
+  // Is the argument to the call being tracked?
+  const AllocationState *AS = State->get<AllocatedData>(ArgSM);
+  if (!AS && FunctionsToTrack[idx].Kind != ValidAPI) {
+    return;
+  }
   // If trying to free data which has not been allocated yet, report as a bug.
   // TODO: We might want a more precise diagnostic for double free
   // (that would involve tracking all the freed symbols in the checker state).
-  const AllocationState *AS = State->get<AllocatedData>(ArgSM);
-  if ((!AS || RegionArgIsBad) && isValidDeallocator) {
+  if (!AS || RegionArgIsBad) {
     // It is possible that this is a false positive - the argument might
     // have entered as an enclosing function parameter.
     if (isEnclosingFunctionParam(ArgExpr))
@@ -305,27 +349,47 @@ void MacOSKeychainAPIChecker::checkPreStmt(const CallExpr *CE,
     return;
   }
 
+  // Process functions which might deallocate.
+  if (FunctionsToTrack[idx].Kind == PossibleAPI) {
+
+    if (funName == "CFStringCreateWithBytesNoCopy") {
+      const Expr *DeallocatorExpr = CE->getArg(5)->IgnoreParenCasts();
+      // NULL ~ default deallocator, so warn.
+      if (DeallocatorExpr->isNullPointerConstant(C.getASTContext(),
+          Expr::NPC_ValueDependentIsNotNull)) {
+        generateDeallocatorMismatchReport(*AS, ArgExpr, C, ArgSM);
+        return;
+      }
+      // One of the default allocators, so warn.
+      if (const DeclRefExpr *DE = dyn_cast<DeclRefExpr>(DeallocatorExpr)) {
+        StringRef DeallocatorName = DE->getFoundDecl()->getName();
+        if (DeallocatorName == "kCFAllocatorDefault" ||
+            DeallocatorName == "kCFAllocatorSystemDefault" ||
+            DeallocatorName == "kCFAllocatorMalloc") {
+          generateDeallocatorMismatchReport(*AS, ArgExpr, C, ArgSM);
+          return;
+        }
+        // If kCFAllocatorNull, which does not deallocate, we still have to
+        // find the deallocator. Otherwise, assume that the user had written a
+        // custom deallocator which does the right thing.
+        if (DE->getFoundDecl()->getName() != "kCFAllocatorNull") {
+          State = State->remove<AllocatedData>(ArgSM);
+          C.addTransition(State);
+          return;
+        }
+      }
+    }
+    return;
+  }
+
   // The call is deallocating a value we previously allocated, so remove it
   // from the next state.
   State = State->remove<AllocatedData>(ArgSM);
 
-  // Check if the proper deallocator is used. If not, report, but also stop 
-  // tracking the allocated symbol to avoid reporting a missing free after the
-  // deallocator mismatch error.
+  // Check if the proper deallocator is used.
   unsigned int PDeallocIdx = FunctionsToTrack[AS->AllocatorIdx].DeallocatorIdx;
-  if (PDeallocIdx != idx || !isValidDeallocator) {
-    ExplodedNode *N = C.generateNode(State);
-    if (!N)
-      return;
-    initBugType();
-
-    llvm::SmallString<80> sbuf;
-    llvm::raw_svector_ostream os(sbuf);
-    os << "Deallocator doesn't match the allocator: '"
-       << FunctionsToTrack[PDeallocIdx].Name << "' should be used.";
-    BugReport *Report = new BugReport(*BT, os.str(), N);
-    Report->addRange(ArgExpr->getSourceRange());
-    C.EmitReport(Report);
+  if (PDeallocIdx != idx || (FunctionsToTrack[idx].Kind == ErrorAPI)) {
+    generateDeallocatorMismatchReport(*AS, ArgExpr, C, ArgSM);
     return;
   }
 
