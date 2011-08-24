@@ -288,8 +288,6 @@ poolcheckui_debug (DebugPoolTy *Pool,
                    const char * SourceFilep,
                    unsigned lineno) {
 
-  printf ("poolcheckui_debug!\n");
-  fflush (stdout);
   if (_barebone_poolcheck (Pool, Node))
     return;
 
