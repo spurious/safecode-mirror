@@ -152,34 +152,7 @@ struct InsertPoolChecks : public FunctionPass {
     unsigned getOffset (const Value * V, const Function * F);
 };
 
-/// Monotonic Loop Optimization
-struct MonotonicLoopOpt : public LoopPass {
-  static char ID;
-  virtual const char *getPassName() const { return "Optimize SAFECode checkings in monotonic loops"; }
-  MonotonicLoopOpt() : LoopPass((intptr_t) &ID) {}
-  virtual bool doInitialization(Loop *L, LPPassManager &LPM); 
-  virtual bool doFinalization(); 
-  virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<TargetData>();
-    AU.addRequired<LoopInfo>();
-    AU.addRequired<ScalarEvolution>();
-    AU.addPreserved<InsertSCIntrinsic>();
-    AU.setPreservesCFG();
-  }
-  private:
-  LoopInfo * LI;
-  ScalarEvolution * scevPass;
-  TargetData * TD;
-  bool isMonotonicLoop(Loop * L, Value * loopVar);
-  bool isHoistableGEP(GetElementPtrInst * GEP, Loop * L);
-  void insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *
-  ptIns, int type);
-  bool optimizeCheck(Loop *L);
-  bool isEligibleForOptimization(const Loop * L);
-};
-
- extern ModulePass * createClearCheckAttributesPass();
+extern ModulePass * createClearCheckAttributesPass();
 
 NAMESPACE_SC_END
 #endif
