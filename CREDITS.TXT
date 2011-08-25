@@ -9,17 +9,18 @@ beautification by scripts.  The fields are: name (N), email (E), web-address
 (S).
 
 N: Vikram Adve
-W: http://www.cs.uiuc.edu/~vadve/
+W: http://www.cs.illinois.edu/~vadve/
 D: Provider of much wisdom and motivator for SAFECode
 
 N: Aman Bhatia
 D: Performance evaluation
 
 N: John Criswell
-D: Secure Virtual Architecture, Mac OS X port, Debug Tool Support, Bug fixes
+D: Primary Maintainer, Secure Virtual Architecture, Mac OS X port,
+D: Debug Tool Support, Bug fixes, Refactoring
 
 N: Dinakar Dhurjati
-D: Primary architect of SAFECode
+D: Original architect of SAFECode
 
 N: Nicolas Geoffray
 D: Secure Virtual Architecture
