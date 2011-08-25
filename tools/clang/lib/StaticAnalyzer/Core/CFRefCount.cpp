@@ -115,9 +115,9 @@ public:
 
 /// ArgEffect is used to summarize a function/method call's effect on a
 /// particular argument.
-enum ArgEffect { Autorelease, Dealloc, DecRef, DecRefMsg, DoNothing,
+enum ArgEffect { DoNothing, Autorelease, Dealloc, DecRef, DecRefMsg,
                  DecRefBridgedTransfered,
-                 DoNothingByRef, IncRefMsg, IncRef, MakeCollectable, MayEscape,
+                 IncRefMsg, IncRef, MakeCollectable, MayEscape,
                  NewAutoreleasePool, SelfOwn, StopTracking };
 
 namespace llvm {
@@ -612,10 +612,6 @@ class RetainSummaryManager {
   /// Ctx - The ASTContext object for the analyzed ASTs.
   ASTContext &Ctx;
 
-  /// CFDictionaryCreateII - An IdentifierInfo* representing the indentifier
-  ///  "CFDictionaryCreate".
-  IdentifierInfo* CFDictionaryCreateII;
-
   /// GCEnabled - Records whether or not the analyzed code runs in GC mode.
   const bool GCEnabled;
 
@@ -760,7 +756,6 @@ public:
 
   RetainSummaryManager(ASTContext &ctx, bool gcenabled, bool usesARC)
    : Ctx(ctx),
-     CFDictionaryCreateII(&ctx.Idents.get("CFDictionaryCreate")),
      GCEnabled(gcenabled),
      ARCEnabled(usesARC),
      AF(BPAlloc), ScratchArgs(AF.getEmptyMap()),
@@ -1159,11 +1154,6 @@ RetainSummaryManager::getUnarySummary(const FunctionType* FT,
 RetainSummary* 
 RetainSummaryManager::getCFSummaryCreateRule(const FunctionDecl *FD) {
   assert (ScratchArgs.isEmpty());
-
-  if (FD->getIdentifier() == CFDictionaryCreateII) {
-    ScratchArgs = AF.add(ScratchArgs, 1, DoNothingByRef);
-    ScratchArgs = AF.add(ScratchArgs, 2, DoNothingByRef);
-  }
 
   return getPersistentSummary(RetEffect::MakeOwned(RetEffect::CF, true));
 }
@@ -1647,31 +1637,18 @@ public:
                        const char* sep);
   };
 
-  RetainSummaryManager Summaries;
   const LangOptions&   LOpts;
-
-  BugType *useAfterRelease, *releaseNotOwned;
-  BugType *deallocGC, *deallocNotOwned;
-  BugType *leakWithinFunction, *leakAtReturn;
-  BugType *overAutorelease;
-  BugType *returnNotOwnedForOwned;
+  const bool GCEnabled;
 
 public:
   CFRefCount(ASTContext &Ctx, bool gcenabled, const LangOptions& lopts)
-    : Summaries(Ctx, gcenabled, (bool)lopts.ObjCAutoRefCount),
-      LOpts(lopts), useAfterRelease(0), releaseNotOwned(0),
-      deallocGC(0), deallocNotOwned(0),
-      leakWithinFunction(0), leakAtReturn(0), overAutorelease(0),
-      returnNotOwnedForOwned(0) {}
+    : LOpts(lopts), GCEnabled(gcenabled) {}
 
   void RegisterChecks(ExprEngine &Eng);
 
   virtual void RegisterPrinters(std::vector<ProgramState::Printer*>& Printers) {
     Printers.push_back(new BindingsPrinter());
   }
-
-  bool isGCEnabled() const { return Summaries.isGCEnabled(); }
-  bool isARCorGCEnabled() const { return Summaries.isARCorGCEnabled(); }
   
   const LangOptions& getLangOptions() const { return LOpts; }
 
@@ -1831,7 +1808,10 @@ namespace {
     const bool isReturn;
   protected:
     Leak(StringRef name, bool isRet)
-    : CFRefBug(name), isReturn(isRet) {}
+    : CFRefBug(name), isReturn(isRet) {
+      // Leaks should not be reported if they are post-dominated by a sink.
+      setSuppressOnSink(true);
+    }
   public:
 
     const char *getDescription() const { return ""; }
@@ -1893,22 +1873,24 @@ namespace {
   };
 
   class CFRefReport : public BugReport {
-    void addGCModeDescription(const CFRefCount &TF);
+    void addGCModeDescription(const LangOptions &LOpts, bool GCEnabled);
 
   public:
-    CFRefReport(CFRefBug &D, const CFRefCount &tf, const SummaryLogTy &log,
-                ExplodedNode *n, SymbolRef sym, bool registerVisitor = true)
+    CFRefReport(CFRefBug &D, const LangOptions &LOpts, bool GCEnabled,
+                const SummaryLogTy &Log, ExplodedNode *n, SymbolRef sym,
+                bool registerVisitor = true)
       : BugReport(D, D.getDescription(), n) {
       if (registerVisitor)
-        addVisitor(new CFRefReportVisitor(sym, tf.isGCEnabled(), log));
-      addGCModeDescription(tf);
+        addVisitor(new CFRefReportVisitor(sym, GCEnabled, Log));
+      addGCModeDescription(LOpts, GCEnabled);
     }
 
-    CFRefReport(CFRefBug &D, const CFRefCount &tf, const SummaryLogTy &log,
-                ExplodedNode *n, SymbolRef sym, StringRef endText)
+    CFRefReport(CFRefBug &D, const LangOptions &LOpts, bool GCEnabled,
+                const SummaryLogTy &Log, ExplodedNode *n, SymbolRef sym,
+                StringRef endText)
       : BugReport(D, D.getDescription(), endText, n) {
-      addVisitor(new CFRefReportVisitor(sym, tf.isGCEnabled(), log));
-      addGCModeDescription(tf);
+      addVisitor(new CFRefReportVisitor(sym, GCEnabled, Log));
+      addGCModeDescription(LOpts, GCEnabled);
     }
 
     virtual std::pair<ranges_iterator, ranges_iterator> getRanges() {
@@ -1925,29 +1907,31 @@ namespace {
     const MemRegion* AllocBinding;
 
   public:
-    CFRefLeakReport(CFRefBug &D, const CFRefCount &tf, const SummaryLogTy &log,
-                    ExplodedNode *n, SymbolRef sym, ExprEngine& Eng);
+    CFRefLeakReport(CFRefBug &D, const LangOptions &LOpts, bool GCEnabled,
+                    const SummaryLogTy &Log, ExplodedNode *n, SymbolRef sym,
+                    ExprEngine &Eng);
 
     SourceLocation getLocation() const { return AllocSite; }
   };
 } // end anonymous namespace
 
-void CFRefReport::addGCModeDescription(const CFRefCount &TF) {
-  const char *GCModeDescription;
+void CFRefReport::addGCModeDescription(const LangOptions &LOpts,
+                                       bool GCEnabled) {
+  const char *GCModeDescription = 0;
 
-  switch (TF.getLangOptions().getGCMode()) {
+  switch (LOpts.getGCMode()) {
   case LangOptions::GCOnly:
-    assert(TF.isGCEnabled());
+    assert(GCEnabled);
     GCModeDescription = "Code is compiled to only use garbage collection";
     break;
 
   case LangOptions::NonGC:
-    assert(!TF.isGCEnabled());
+    assert(!GCEnabled);
     GCModeDescription = "Code is compiled to use reference counts";
     break;
 
   case LangOptions::HybridGC:
-    if (TF.isGCEnabled()) {
+    if (GCEnabled) {
       GCModeDescription = "Code is compiled to use either garbage collection "
                           "(GC) or reference counts (non-GC).  The bug occurs "
                           "with GC enabled";
@@ -1960,6 +1944,7 @@ void CFRefReport::addGCModeDescription(const CFRefCount &TF) {
     }
   }
 
+  assert(GCModeDescription && "invalid/unknown GC mode");
   addExtraText(GCModeDescription);
 }
 
@@ -2384,10 +2369,11 @@ CFRefLeakReportVisitor::getEndPath(BugReporterContext &BRC,
   return new PathDiagnosticEventPiece(L, os.str());
 }
 
-CFRefLeakReport::CFRefLeakReport(CFRefBug &D, const CFRefCount &tf,
-                                 const SummaryLogTy &log, ExplodedNode *n,
-                                 SymbolRef sym, ExprEngine& Eng)
-: CFRefReport(D, tf, log, n, sym, false) {
+CFRefLeakReport::CFRefLeakReport(CFRefBug &D, const LangOptions &LOpts,
+                                 bool GCEnabled, const SummaryLogTy &Log, 
+                                 ExplodedNode *n, SymbolRef sym,
+                                 ExprEngine &Eng)
+: CFRefReport(D, LOpts, GCEnabled, Log, n, sym, false) {
 
   // Most bug reports are cached at the location where they occurred.
   // With leaks, we want to unique them by the location where they were
@@ -2412,16 +2398,15 @@ CFRefLeakReport::CFRefLeakReport(CFRefBug &D, const CFRefCount &tf,
   SourceManager& SMgr = Eng.getContext().getSourceManager();
   unsigned AllocLine = SMgr.getExpansionLineNumber(AllocSite);
   os << "Potential leak ";
-  if (tf.isGCEnabled()) {
+  if (GCEnabled)
     os << "(when using garbage collection) ";
-  }
   os << "of an object allocated on line " << AllocLine;
 
   // FIXME: AllocBinding doesn't get populated for RegionStore yet.
   if (AllocBinding)
     os << " and stored into '" << AllocBinding->getString() << '\'';
 
-  addVisitor(new CFRefLeakReportVisitor(sym, tf.isGCEnabled(), log));
+  addVisitor(new CFRefLeakReportVisitor(sym, GCEnabled, Log));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2619,9 +2604,9 @@ void CFRefCount::evalObjCMessage(ExplodedNodeSet &Dst,
 
 namespace {
 class RetainReleaseChecker
-  : public Checker< check::ASTCodeBody,
-                    check::Bind,
+  : public Checker< check::Bind,
                     check::DeadSymbols,
+                    check::EndAnalysis,
                     check::EndPath,
                     check::PostStmt<BlockExpr>,
                     check::PostStmt<CastExpr>,
@@ -2631,43 +2616,155 @@ class RetainReleaseChecker
                     check::RegionChanges,
                     eval::Assume,
                     eval::Call > {
+  mutable llvm::OwningPtr<CFRefBug> useAfterRelease, releaseNotOwned;
+  mutable llvm::OwningPtr<CFRefBug> deallocGC, deallocNotOwned;
+  mutable llvm::OwningPtr<CFRefBug> overAutorelease, returnNotOwnedForOwned;
+  mutable llvm::OwningPtr<CFRefBug> leakWithinFunction, leakAtReturn;
+  mutable llvm::OwningPtr<CFRefBug> leakWithinFunctionGC, leakAtReturnGC;
 
   typedef llvm::DenseMap<SymbolRef, const SimpleProgramPointTag *> SymbolTagMap;
 
   // This map is only used to ensure proper deletion of any allocated tags.
   mutable SymbolTagMap DeadSymbolTags;
 
-  mutable SummaryLogTy SummaryLog;
+  mutable llvm::OwningPtr<RetainSummaryManager> Summaries;
+  mutable llvm::OwningPtr<RetainSummaryManager> SummariesGC;
+
   mutable ARCounts::Factory ARCountFactory;
 
+  mutable SummaryLogTy SummaryLog;
+  mutable bool ShouldResetSummaryLog;
+
+  LangOptions::GCMode GCMode;
+
 public:  
+  RetainReleaseChecker()
+  : ShouldResetSummaryLog(false), GCMode(LangOptions::HybridGC) {}
 
   virtual ~RetainReleaseChecker() {
     DeleteContainerSeconds(DeadSymbolTags);
   }
 
-  void checkASTCodeBody(const Decl *D, AnalysisManager &mgr,
-                        BugReporter &BR) const {
-    // FIXME: This is a horrible hack which makes the checker stateful --
-    // exactly what being const was supposed to prevent, or at least discourage.
-    // Why? Because a checker's lifetime is tied to a translation unit, but an
-    // ExplodedGraph's lifetime is just a code body. Once in a blue moon, a new
-    // ExplodedNode will have the same address as an old one with an associated
-    // summary, and the bug report visitor will get very confused.
-    // (To make things worse, the summary lifetime is currently also tied to a
-    // code body, so we get a crash instead of incorrect results.)
-    // This fix wipes the summary log at the start of a code body.
+  void checkEndAnalysis(ExplodedGraph &G, BugReporter &BR,
+                        ExprEngine &Eng) const {
+    // FIXME: This is a hack to make sure the summary log gets cleared between
+    // analyses of different code bodies.
+    //
+    // Why is this necessary? Because a checker's lifetime is tied to a
+    // translation unit, but an ExplodedGraph's lifetime is just a code body.
+    // Once in a blue moon, a new ExplodedNode will have the same address as an
+    // old one with an associated summary, and the bug report visitor gets very
+    // confused. (To make things worse, the summary lifetime is currently also
+    // tied to a code body, so we get a crash instead of incorrect results.)
     //
     // Why is this a bad solution? Because if the lifetime of the ExplodedGraph
     // changes, things will start going wrong again. Really the lifetime of this
     // log needs to be tied to either the specific nodes in it or the entire
     // ExplodedGraph, not to a specific part of the code being analyzed.
     //
-    // Oh, and it has to happen at the BEGINNING of the code body instead of the
-    // end because the summary log has to be live when emitting bug reports.
+    // (Also, having stateful local data means that the same checker can't be
+    // used from multiple threads, but a lot of checkers have incorrect
+    // assumptions about that anyway. So that wasn't a priority at the time of
+    // this fix.)
     //
-    // This took forever to track down. A better fix is (hopefully) forthcoming.
-    SummaryLog.clear();
+    // This happens at the end of analysis, but bug reports are emitted /after/
+    // this point. So we can't just clear the summary log now. Instead, we mark
+    // that the next time we access the summary log, it should be cleared.
+
+    // If we never reset the summary log during /this/ code body analysis,
+    // there were no new summaries. There might still have been summaries from
+    // the /last/ analysis, so clear them out to make sure the bug report
+    // visitors don't get confused.
+    if (ShouldResetSummaryLog)
+      SummaryLog.clear();
+
+    ShouldResetSummaryLog = !SummaryLog.empty();
+  }
+
+  void setGCMode(LangOptions::GCMode newGC) {
+    // FIXME: This is definitely not const behavior; its intended use is to
+    // set the GC mode for the entire coming code body. This setting will
+    // most likely live somewhere else in the future.
+    assert(newGC != LangOptions::HybridGC && "Analysis requires GC on or off.");
+    GCMode = newGC;
+  }
+
+  bool isGCEnabled() const {
+    switch (GCMode) {
+    case LangOptions::HybridGC:
+      llvm_unreachable("GC mode not set yet!");
+      return true;
+    case LangOptions::NonGC:
+      return false;
+    case LangOptions::GCOnly:
+      return true;
+    }
+
+    llvm_unreachable("Invalid/unknown GC mode.");
+    return false;
+  }
+
+  bool isARCorGCEnabled(ASTContext &Ctx) const {
+    return isGCEnabled() || Ctx.getLangOptions().ObjCAutoRefCount;
+  }
+
+  CFRefBug *getLeakWithinFunctionBug(ASTContext &Ctx) const {
+    if (isGCEnabled()) {
+      if (!leakWithinFunctionGC)
+        leakWithinFunctionGC.reset(new LeakWithinFunction("Leak of object when "
+                                                          "using garbage "
+                                                          "collection"));
+      return &*leakWithinFunctionGC;
+    } else {
+      if (!leakWithinFunction) {
+        if (Ctx.getLangOptions().getGCMode() == LangOptions::HybridGC) {
+          leakWithinFunction.reset(new LeakWithinFunction("Leak of object when "
+                                                          "not using garbage "
+                                                          "collection (GC) in "
+                                                          "dual GC/non-GC "
+                                                          "code"));
+        } else {
+          leakWithinFunction.reset(new LeakWithinFunction("Leak"));
+        }
+      }
+      return &*leakWithinFunction;
+    }
+  }
+
+  CFRefBug *getLeakAtReturnBug(ASTContext &Ctx) const {
+    if (isGCEnabled()) {
+      if (!leakAtReturnGC)
+        leakAtReturnGC.reset(new LeakAtReturn("Leak of returned object when "
+                                              "using garbage collection"));
+      return &*leakAtReturnGC;
+    } else {
+      if (!leakAtReturn) {
+        if (Ctx.getLangOptions().getGCMode() == LangOptions::HybridGC) {
+          leakAtReturn.reset(new LeakAtReturn("Leak of returned object when "
+                                              "not using garbage collection "
+                                              "(GC) in dual GC/non-GC code"));
+        } else {
+          leakAtReturn.reset(new LeakAtReturn("Leak of returned object"));
+        }
+      }
+      return &*leakAtReturn;
+    }
+  }
+
+  RetainSummaryManager &getSummaryManager(ASTContext &Ctx) const {
+    if (isGCEnabled()) {
+      if (!SummariesGC) {
+        bool ARCEnabled = (bool)Ctx.getLangOptions().ObjCAutoRefCount;
+        SummariesGC.reset(new RetainSummaryManager(Ctx, true, ARCEnabled));
+      }
+      return *SummariesGC;
+    } else {
+      if (!Summaries) {
+        bool ARCEnabled = (bool)Ctx.getLangOptions().ObjCAutoRefCount;
+        Summaries.reset(new RetainSummaryManager(Ctx, false, ARCEnabled));
+      }
+      return *Summaries;
+    }
   }
 
   void checkBind(SVal loc, SVal val, CheckerContext &C) const;
@@ -2914,15 +3011,12 @@ void RetainReleaseChecker::checkPostStmt(const CastExpr *CE,
 
 void RetainReleaseChecker::checkPostStmt(const CallExpr *CE,
                                          CheckerContext &C) const {
-  // FIXME: This goes away once the RetainSummaryManager moves to the checker.
-  CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
-  RetainSummaryManager &Summaries = TF.Summaries;
-
   // Get the callee.
   const ProgramState *state = C.getState();
   const Expr *Callee = CE->getCallee();
   SVal L = state->getSVal(Callee);
 
+  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
   RetainSummary *Summ = 0;
 
   // FIXME: Better support for blocks.  For now we stop tracking anything
@@ -2946,12 +3040,10 @@ void RetainReleaseChecker::checkPostStmt(const CallExpr *CE,
 
 void RetainReleaseChecker::checkPostObjCMessage(const ObjCMessage &Msg, 
                                                 CheckerContext &C) const {
-  // FIXME: This goes away once the RetainSummaryManager moves to the checker.
-  CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
-  RetainSummaryManager &Summaries = TF.Summaries;
-
   const ProgramState *state = C.getState();
   ExplodedNode *Pred = C.getPredecessor();
+
+  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
 
   RetainSummary *Summ;
   if (Msg.isInstanceMessage()) {
@@ -3020,13 +3112,10 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
   RetEffect RE = Summ.getRetEffect();
 
   if (RE.getKind() == RetEffect::OwnedWhenTrackedReceiver) {
-    if (ReceiverIsTracked) {
-      // FIXME: This goes away if the RetainSummaryManager moves to the checker.
-      CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
-      RE = TF.Summaries.getObjAllocRetEffect();      
-    } else {
+    if (ReceiverIsTracked)
+      RE = getSummaryManager(C.getASTContext()).getObjAllocRetEffect();      
+    else
       RE = RetEffect::MakeNoRet();
-    }
   }
 
   switch (RE.getKind()) {
@@ -3088,9 +3177,15 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
     NewNode = C.generateNode(state);
   }
 
-  // Annotate the edge with summary we used.
-  if (NewNode)
+  // Annotate the node with summary we used.
+  if (NewNode) {
+    // FIXME: This is ugly. See checkEndAnalysis for why it's necessary.
+    if (ShouldResetSummaryLog) {
+      SummaryLog.clear();
+      ShouldResetSummaryLog = false;
+    }
     SummaryLog[NewNode] = &Summ;
+  }
 }
 
 
@@ -3098,23 +3193,19 @@ const ProgramState *
 RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
                                    RefVal V, ArgEffect E,
                                    RefVal::Kind &hasErr) const {
-  // FIXME: This will go away when the ARC/GC state moves to the checker.
-  ExprEngine *Eng = 
-    static_cast<ExprEngine*>(state->getStateManager().getOwningEngine());
-  CFRefCount &TF = static_cast<CFRefCount&>(Eng->getTF());
-
   // In GC mode [... release] and [... retain] do nothing.
+  ASTContext &Ctx = state->getStateManager().getContext();
   switch (E) {
     default: break;
-    case IncRefMsg: E = TF.isARCorGCEnabled() ? DoNothing : IncRef; break;
-    case DecRefMsg: E = TF.isARCorGCEnabled() ? DoNothing : DecRef; break;
-    case MakeCollectable: E = TF.isGCEnabled() ? DecRef : DoNothing; break;
-    case NewAutoreleasePool: E = TF.isGCEnabled() ? DoNothing :
-                                                    NewAutoreleasePool; break;
+    case IncRefMsg: E = isARCorGCEnabled(Ctx) ? DoNothing : IncRef; break;
+    case DecRefMsg: E = isARCorGCEnabled(Ctx) ? DoNothing : DecRef; break;
+    case MakeCollectable: E = isGCEnabled() ? DecRef : DoNothing; break;
+    case NewAutoreleasePool: E = isGCEnabled() ? DoNothing :
+                                                 NewAutoreleasePool; break;
   }
 
   // Handle all use-after-releases.
-  if (!TF.isGCEnabled() && V.getKind() == RefVal::Released) {
+  if (!isGCEnabled() && V.getKind() == RefVal::Released) {
     V = V ^ RefVal::ErrorUseAfterRelease;
     hasErr = V.getKind();
     return state->set<RefBindings>(sym, V);
@@ -3129,7 +3220,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
 
     case Dealloc:
       // Any use of -dealloc in GC is *bad*.
-      if (TF.isGCEnabled()) {
+      if (isGCEnabled()) {
         V = V ^ RefVal::ErrorDeallocGC;
         hasErr = V.getKind();
         break;
@@ -3152,7 +3243,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
       break;
 
     case NewAutoreleasePool:
-      assert(!TF.isGCEnabled());
+      assert(!isGCEnabled());
       return state->add<AutoreleaseStack>(sym);
 
     case MayEscape:
@@ -3163,12 +3254,11 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
 
       // Fall-through.
 
-    case DoNothingByRef:
     case DoNothing:
       return state;
 
     case Autorelease:
-      if (TF.isGCEnabled())
+      if (isGCEnabled())
         return state;
 
       // Update the autorelease counts.
@@ -3190,7 +3280,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
           break;
         case RefVal::Released:
           // Non-GC cases are handled above.
-          assert(TF.isGCEnabled());
+          assert(isGCEnabled());
           V = (V ^ RefVal::Owned) + 1;
           break;
       }
@@ -3226,7 +3316,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
 
         case RefVal::Released:
           // Non-GC cases are handled above.
-          assert(TF.isGCEnabled());
+          assert(isGCEnabled());
           V = V ^ RefVal::ErrorUseAfterRelease;
           hasErr = V.getKind();
           break;
@@ -3245,30 +3335,36 @@ void RetainReleaseChecker::processNonLeakError(const ProgramState *St,
   if (!N)
     return;
 
-  // FIXME: This goes away once the these bug types move to the checker,
-  // and CFRefReport no longer depends on CFRefCount.
-  CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
-
   CFRefBug *BT;
   switch (ErrorKind) {
     default:
       llvm_unreachable("Unhandled error.");
       return;
     case RefVal::ErrorUseAfterRelease:
-      BT = static_cast<CFRefBug*>(TF.useAfterRelease);
+      if (!useAfterRelease)
+        useAfterRelease.reset(new UseAfterRelease());
+      BT = &*useAfterRelease;
       break;
     case RefVal::ErrorReleaseNotOwned:
-      BT = static_cast<CFRefBug*>(TF.releaseNotOwned);
+      if (!releaseNotOwned)
+        releaseNotOwned.reset(new BadRelease());
+      BT = &*releaseNotOwned;
       break;
     case RefVal::ErrorDeallocGC:
-      BT = static_cast<CFRefBug*>(TF.deallocGC);
+      if (!deallocGC)
+        deallocGC.reset(new DeallocGC());
+      BT = &*deallocGC;
       break;
     case RefVal::ErrorDeallocNotOwned:
-      BT = static_cast<CFRefBug*>(TF.deallocNotOwned);
+      if (!deallocNotOwned)
+        deallocNotOwned.reset(new DeallocNotOwned());
+      BT = &*deallocNotOwned;
       break;
   }
 
-  CFRefReport *report = new CFRefReport(*BT, TF, SummaryLog, N, Sym);
+  assert(BT);
+  CFRefReport *report = new CFRefReport(*BT, C.getASTContext().getLangOptions(),
+                                        isGCEnabled(), SummaryLog, N, Sym);
   report->addRange(ErrorRange);
   C.EmitReport(report);
 }
@@ -3426,23 +3522,21 @@ void RetainReleaseChecker::checkPreStmt(const ReturnStmt *S,
   X = *T;
 
   // Consult the summary of the enclosing method.
+  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
   const Decl *CD = &Pred->getCodeDecl();
-
-  // FIXME: This goes away once the RetainSummariesManager moves to the checker.
-  CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
 
   if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(CD)) {
     // Unlike regular functions, /all/ ObjC methods are assumed to always
     // follow Cocoa retain-count conventions, not just those with special
     // names or attributes.
-    const RetainSummary *Summ = TF.Summaries.getMethodSummary(MD);
+    const RetainSummary *Summ = Summaries.getMethodSummary(MD);
     RetEffect RE = Summ ? Summ->getRetEffect() : RetEffect::MakeNoRet();
     checkReturnWithRetEffect(S, C, Pred, RE, X, Sym, state);
   }
 
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(CD)) {
     if (!isa<CXXMethodDecl>(FD))
-      if (const RetainSummary *Summ = TF.Summaries.getSummary(FD))
+      if (const RetainSummary *Summ = Summaries.getSummary(FD))
         checkReturnWithRetEffect(S, C, Pred, Summ->getRetEffect(), X,
                                  Sym, state);
   }
@@ -3454,15 +3548,11 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
                                                     RetEffect RE, RefVal X,
                                                     SymbolRef Sym,
                                               const ProgramState *state) const {
-  // FIXME: This goes away once the these bug types move to the checker,
-  // and CFRefReport no longer depends on CFRefCount.
-  CFRefCount &TF = static_cast<CFRefCount&>(C.getEngine().getTF());
-
   // Any leaks or other errors?
   if (X.isReturnedOwned() && X.getCount() == 0) {
     if (RE.getKind() != RetEffect::NoRet) {
       bool hasError = false;
-      if (TF.isGCEnabled() && RE.getObjKind() == RetEffect::ObjC) {
+      if (isGCEnabled() && RE.getObjKind() == RetEffect::ObjC) {
         // Things are more complicated with garbage collection.  If the
         // returned object is suppose to be an Objective-C object, we have
         // a leak (as the caller expects a GC'ed object) because no
@@ -3488,9 +3578,11 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         ExplodedNode *N = Builder.generateNode(S, state, Pred,
                                                &ReturnOwnLeakTag);
         if (N) {
+          ASTContext &Ctx = C.getASTContext();
           CFRefReport *report =
-            new CFRefLeakReport(*static_cast<CFRefBug*>(TF.leakAtReturn), TF,
-                                SummaryLog, N, Sym, C.getEngine());
+            new CFRefLeakReport(*getLeakAtReturnBug(Ctx), Ctx.getLangOptions(),
+                                isGCEnabled(), SummaryLog, N, Sym, 
+                                C.getEngine());
           C.EmitReport(report);
         }
       }
@@ -3504,14 +3596,16 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
 
       static SimpleProgramPointTag
              ReturnNotOwnedTag("RetainReleaseChecker : ReturnNotOwnedForOwned");
-      // FIXME: This PostStmt is a lie. But currently CFRefReport expects all
-      // interesting things to happen in PostStmt nodes.
       ExplodedNode *N = Builder.generateNode(S, state, Pred, 
                                              &ReturnNotOwnedTag);
       if (N) {
+        if (!returnNotOwnedForOwned)
+          returnNotOwnedForOwned.reset(new ReturnedNotOwnedForOwned());
+
         CFRefReport *report =
-            new CFRefReport(*static_cast<CFRefBug*>(TF.returnNotOwnedForOwned),
-                            TF, SummaryLog, N, Sym);
+            new CFRefReport(*returnNotOwnedForOwned,
+                            C.getASTContext().getLangOptions(), isGCEnabled(),
+                            SummaryLog, N, Sym);
         C.EmitReport(report);
       }
     }
@@ -3528,17 +3622,13 @@ RetainReleaseChecker::handleAutoreleaseCounts(const ProgramState *state,
                                               ExplodedNode *Pred,
                                               ExprEngine &Eng, SymbolRef Sym,
                                               RefVal V) const {
-  // FIXME: This goes away once the these bug types move to the checker,
-  // and CFRefReport no longer depends on CFRefCount.
-  CFRefCount &TF = static_cast<CFRefCount&>(Eng.getTF());
-
   unsigned ACnt = V.getAutoreleaseCount();
 
   // No autorelease counts?  Nothing to be done.
   if (!ACnt)
     return std::make_pair(Pred, state);
 
-  assert(!TF.isGCEnabled() && "Autorelease counts in GC mode?");
+  assert(!isGCEnabled() && "Autorelease counts in GC mode?");
   unsigned Cnt = V.getCount();
 
   // FIXME: Handle sending 'autorelease' to already released object.
@@ -3579,9 +3669,13 @@ RetainReleaseChecker::handleAutoreleaseCounts(const ProgramState *state,
       os << V.getAutoreleaseCount() << " times ";
     os << "but the object has a +" << V.getCount() << " retain count";
 
+    if (!overAutorelease)
+      overAutorelease.reset(new OverAutorelease());
+
+    const LangOptions &LOpts = Eng.getContext().getLangOptions();
     CFRefReport *report =
-      new CFRefReport(*static_cast<CFRefBug*>(TF.overAutorelease),
-                      TF, SummaryLog, N, Sym, os.str());
+      new CFRefReport(*overAutorelease, LOpts, /* GCEnabled = */ false,
+                      SummaryLog, N, Sym, os.str());
     Eng.getBugReporter().EmitReport(report);
   }
 
@@ -3622,14 +3716,14 @@ RetainReleaseChecker::processLeaks(const ProgramState *state,
     for (SmallVectorImpl<SymbolRef>::iterator
          I = Leaked.begin(), E = Leaked.end(); I != E; ++I) {
 
-      // FIXME: This goes away once the these bug types move to the checker,
-      // and CFRefReport no longer depends on CFRefCount.
-      CFRefCount &TF = static_cast<CFRefCount&>(Eng.getTF());
-      CFRefBug *BT = static_cast<CFRefBug*>(Pred ? TF.leakWithinFunction
-                                                 : TF.leakAtReturn);
+      ASTContext &Ctx = Eng.getContext();
+      CFRefBug *BT = Pred ? getLeakWithinFunctionBug(Ctx)
+                          : getLeakAtReturnBug(Ctx);
       assert(BT && "BugType not initialized.");
-      CFRefLeakReport *report = new CFRefLeakReport(*BT, TF, SummaryLog, N,
-                                                    *I, Eng);
+
+      const LangOptions &LOpts = Ctx.getLangOptions();
+      CFRefLeakReport *report = new CFRefLeakReport(*BT, LOpts, isGCEnabled(), 
+                                                    SummaryLog, N, *I, Eng);
       Eng.getBugReporter().EmitReport(report);
     }
   }
@@ -3731,66 +3825,15 @@ void RetainReleaseChecker::checkDeadSymbols(SymbolReaper &SymReaper,
 //===----------------------------------------------------------------------===//
 
 void CFRefCount::RegisterChecks(ExprEngine& Eng) {
-  BugReporter &BR = Eng.getBugReporter();
-
-  useAfterRelease = new UseAfterRelease();
-  BR.Register(useAfterRelease);
-
-  releaseNotOwned = new BadRelease();
-  BR.Register(releaseNotOwned);
-
-  deallocGC = new DeallocGC();
-  BR.Register(deallocGC);
-
-  deallocNotOwned = new DeallocNotOwned();
-  BR.Register(deallocNotOwned);
-
-  overAutorelease = new OverAutorelease();
-  BR.Register(overAutorelease);
-
-  returnNotOwnedForOwned = new ReturnedNotOwnedForOwned();
-  BR.Register(returnNotOwnedForOwned);
-
-  // First register "return" leaks.
-  const char *name = 0;
-
-  if (isGCEnabled())
-    name = "Leak of returned object when using garbage collection";
-  else if (getLangOptions().getGCMode() == LangOptions::HybridGC)
-    name = "Leak of returned object when not using garbage collection (GC) in "
-    "dual GC/non-GC code";
-  else {
-    assert(getLangOptions().getGCMode() == LangOptions::NonGC);
-    name = "Leak of returned object";
-  }
-
-  // Leaks should not be reported if they are post-dominated by a sink.
-  leakAtReturn = new LeakAtReturn(name);
-  leakAtReturn->setSuppressOnSink(true);
-  BR.Register(leakAtReturn);
-
-  // Second, register leaks within a function/method.
-  if (isGCEnabled())
-    name = "Leak of object when using garbage collection";
-  else if (getLangOptions().getGCMode() == LangOptions::HybridGC)
-    name = "Leak of object when not using garbage collection (GC) in "
-    "dual GC/non-GC code";
-  else {
-    assert(getLangOptions().getGCMode() == LangOptions::NonGC);
-    name = "Leak";
-  }
-
-  // Leaks should not be reported if they are post-dominated by sinks.
-  leakWithinFunction = new LeakWithinFunction(name);
-  leakWithinFunction->setSuppressOnSink(true);
-  BR.Register(leakWithinFunction);
-
   // Register the RetainReleaseChecker with the ExprEngine object.
   // Functionality in CFRefCount will be migrated to RetainReleaseChecker
   // over time.
   // FIXME: HACK! Remove TransferFuncs and turn all of CFRefCount into fully
   // using the checker mechanism.
-  Eng.getCheckerManager().registerChecker<RetainReleaseChecker>();
+  RetainReleaseChecker *checker = 
+    Eng.getCheckerManager().registerChecker<RetainReleaseChecker>();
+  assert(checker);
+  checker->setGCMode(GCEnabled ? LangOptions::GCOnly : LangOptions::NonGC);
 }
 
 TransferFuncs* ento::MakeCFRefCountTF(ASTContext &Ctx, bool GCEnabled,

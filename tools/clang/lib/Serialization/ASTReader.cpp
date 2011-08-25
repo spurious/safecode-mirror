@@ -487,7 +487,8 @@ class ASTSelectorLookupTrait {
 public:
   struct data_type {
     SelectorID ID;
-    ObjCMethodList Instance, Factory;
+    llvm::SmallVector<ObjCMethodDecl *, 2> Instance;
+    llvm::SmallVector<ObjCMethodDecl *, 2> Factory;
   };
 
   typedef Selector external_key_type;
@@ -548,37 +549,17 @@ public:
     // Load instance methods
     ObjCMethodList *Prev = 0;
     for (unsigned I = 0; I != NumInstanceMethods; ++I) {
-      ObjCMethodDecl *Method
-        = Reader.GetLocalDeclAs<ObjCMethodDecl>(F, ReadUnalignedLE32(d));
-      if (!Result.Instance.Method) {
-        // This is the first method, which is the easy case.
-        Result.Instance.Method = Method;
-        Prev = &Result.Instance;
-        continue;
-      }
-
-      ObjCMethodList *Mem =
-        Reader.getSema()->BumpAlloc.Allocate<ObjCMethodList>();
-      Prev->Next = new (Mem) ObjCMethodList(Method, 0);
-      Prev = Prev->Next;
+      if (ObjCMethodDecl *Method
+            = Reader.GetLocalDeclAs<ObjCMethodDecl>(F, ReadUnalignedLE32(d)))
+        Result.Instance.push_back(Method);
     }
 
     // Load factory methods
     Prev = 0;
     for (unsigned I = 0; I != NumFactoryMethods; ++I) {
-      ObjCMethodDecl *Method
-        = Reader.GetLocalDeclAs<ObjCMethodDecl>(F, ReadUnalignedLE32(d));
-      if (!Result.Factory.Method) {
-        // This is the first method, which is the easy case.
-        Result.Factory.Method = Method;
-        Prev = &Result.Factory;
-        continue;
-      }
-
-      ObjCMethodList *Mem =
-        Reader.getSema()->BumpAlloc.Allocate<ObjCMethodList>();
-      Prev->Next = new (Mem) ObjCMethodList(Method, 0);
-      Prev = Prev->Next;
+      if (ObjCMethodDecl *Method
+            = Reader.GetLocalDeclAs<ObjCMethodDecl>(F, ReadUnalignedLE32(d)))
+        Result.Factory.push_back(Method);
     }
 
     return Result;
@@ -918,7 +899,8 @@ public:
 typedef OnDiskChainedHashTable<ASTDeclContextNameLookupTrait>
   ASTDeclContextNameLookupTable;
 
-bool ASTReader::ReadDeclContextStorage(llvm::BitstreamCursor &Cursor,
+bool ASTReader::ReadDeclContextStorage(Module &M,
+                                       llvm::BitstreamCursor &Cursor,
                                    const std::pair<uint64_t, uint64_t> &Offsets,
                                        DeclContextInfo &Info) {
   SavedStreamPosition SavedPosition(Cursor);
@@ -938,9 +920,6 @@ bool ASTReader::ReadDeclContextStorage(llvm::BitstreamCursor &Cursor,
 
     Info.LexicalDecls = reinterpret_cast<const KindDeclIDPair*>(Blob);
     Info.NumLexicalDecls = BlobLen / sizeof(KindDeclIDPair);
-  } else {
-    Info.LexicalDecls = 0;
-    Info.NumLexicalDecls = 0;
   }
 
   // Now the lookup table.
@@ -960,9 +939,7 @@ bool ASTReader::ReadDeclContextStorage(llvm::BitstreamCursor &Cursor,
       = ASTDeclContextNameLookupTable::Create(
                     (const unsigned char *)Blob + Record[0],
                     (const unsigned char *)Blob,
-                    ASTDeclContextNameLookupTrait(*this, *Info.F));
-  } else {
-    Info.NameLookupTableData = 0;
+                    ASTDeclContextNameLookupTrait(*this, M));
   }
 
   return false;
@@ -2108,15 +2085,11 @@ ASTReader::ReadASTBlock(Module &F) {
     }
         
     case TU_UPDATE_LEXICAL: {
-      DeclContextInfo Info = {
-        &F,
-        /* No visible information */ 0,
-        reinterpret_cast<const KindDeclIDPair *>(BlobStart),
-        static_cast<unsigned int>(BlobLen / sizeof(KindDeclIDPair))
-      };
-
       DeclContext *TU = Context ? Context->getTranslationUnitDecl() : 0;
-      DeclContextOffsets[TU].push_back(Info);
+      DeclContextInfo &Info = F.DeclContextInfos[TU];
+      Info.LexicalDecls = reinterpret_cast<const KindDeclIDPair *>(BlobStart);
+      Info.NumLexicalDecls 
+        = static_cast<unsigned int>(BlobLen / sizeof(KindDeclIDPair));
       if (TU)
         TU->setHasExternalLexicalStorage(true);
 
@@ -2130,14 +2103,9 @@ ASTReader::ReadASTBlock(Module &F) {
                         (const unsigned char *)BlobStart + Record[Idx++],
                         (const unsigned char *)BlobStart,
                         ASTDeclContextNameLookupTrait(*this, F));
-      // FIXME: Complete hack to check for the TU
       if (ID == PREDEF_DECL_TRANSLATION_UNIT_ID && Context) { // Is it the TU?
-        DeclContextInfo Info = {
-          &F, Table, /* No lexical information */ 0, 0
-        };
-
         DeclContext *TU = Context->getTranslationUnitDecl();
-        DeclContextOffsets[TU].push_back(Info);
+        F.DeclContextInfos[TU].NameLookupTableData = Table;
         TU->setHasExternalVisibleStorage(true);
       } else
         PendingVisibleUpdates[ID].push_back(std::make_pair(Table, &F));
@@ -2954,16 +2922,19 @@ void ASTReader::InitializeContext(ASTContext &Ctx) {
   PP->getIdentifierTable().setExternalIdentifierLookup(this);
   PP->setExternalSource(this);
   
-  // If we have an update block for the TU waiting, we have to add it before
-  // deserializing the decl.
+  // If we have any update blocks for the TU waiting, we have to add
+  // them before we deserialize anything.
   TranslationUnitDecl *TU = Ctx.getTranslationUnitDecl();
-  DeclContextOffsetsMap::iterator DCU = DeclContextOffsets.find(0);
-  if (DCU != DeclContextOffsets.end()) {
-    // Insertion could invalidate map, so grab vector.
-    DeclContextInfos T;
-    T.swap(DCU->second);
-    DeclContextOffsets.erase(DCU);
-    DeclContextOffsets[TU].swap(T);
+  for (ModuleIterator M = ModuleMgr.begin(), MEnd = ModuleMgr.end(); 
+       M != MEnd; ++M) {
+    Module::DeclContextInfosMap::iterator DCU
+      = (*M)->DeclContextInfos.find(0);
+    if (DCU != (*M)->DeclContextInfos.end()) {
+      // Insertion could invalidate map, so grab value first.
+      DeclContextInfo Info = DCU->second;
+      (*M)->DeclContextInfos.erase(DCU);
+      (*M)->DeclContextInfos[TU] = Info;
+    }
   }
   
   // If there's a listener, notify them that we "read" the translation unit.
@@ -4274,34 +4245,128 @@ Stmt *ASTReader::GetExternalDeclStmt(uint64_t Offset) {
   return ReadStmtFromStream(*Loc.F);
 }
 
+namespace {
+  class FindExternalLexicalDeclsVisitor {
+    ASTReader &Reader;
+    const DeclContext *DC;
+    bool (*isKindWeWant)(Decl::Kind);
+    SmallVectorImpl<Decl*> &Decls;
+    bool PredefsVisited[NUM_PREDEF_DECL_IDS];
+
+  public:
+    FindExternalLexicalDeclsVisitor(ASTReader &Reader, const DeclContext *DC,
+                                    bool (*isKindWeWant)(Decl::Kind),
+                                    SmallVectorImpl<Decl*> &Decls)
+      : Reader(Reader), DC(DC), isKindWeWant(isKindWeWant), Decls(Decls) 
+    {
+      for (unsigned I = 0; I != NUM_PREDEF_DECL_IDS; ++I)
+        PredefsVisited[I] = false;
+    }
+
+    static bool visit(Module &M, bool Preorder, void *UserData) {
+      if (Preorder)
+        return false;
+
+      FindExternalLexicalDeclsVisitor *This
+        = static_cast<FindExternalLexicalDeclsVisitor *>(UserData);
+
+      Module::DeclContextInfosMap::iterator Info
+        = M.DeclContextInfos.find(This->DC);
+      if (Info == M.DeclContextInfos.end() || !Info->second.LexicalDecls)
+        return false;
+
+      // Load all of the declaration IDs
+      for (const KindDeclIDPair *ID = Info->second.LexicalDecls,
+                               *IDE = ID + Info->second.NumLexicalDecls; 
+           ID != IDE; ++ID) {
+        if (This->isKindWeWant && !This->isKindWeWant((Decl::Kind)ID->first))
+          continue;
+
+        // Don't add predefined declarations to the lexical context more
+        // than once.
+        if (ID->second < NUM_PREDEF_DECL_IDS) {
+          if (This->PredefsVisited[ID->second])
+            continue;
+
+          This->PredefsVisited[ID->second] = true;
+        }
+
+        Decl *D = This->Reader.GetLocalDecl(M, ID->second);
+        assert(D && "Null decl in lexical decls");
+        This->Decls.push_back(D);
+      }
+
+      return false;
+    }
+  };
+}
+
 ExternalLoadResult ASTReader::FindExternalLexicalDecls(const DeclContext *DC,
                                          bool (*isKindWeWant)(Decl::Kind),
                                          SmallVectorImpl<Decl*> &Decls) {
-  // There might be lexical decls in multiple parts of the chain, for the TU
-  // at least.
-  // DeclContextOffsets might reallocate as we load additional decls below,
-  // so make a copy of the vector.
-  DeclContextInfos Infos = DeclContextOffsets[DC];
-  for (DeclContextInfos::iterator I = Infos.begin(), E = Infos.end();
-       I != E; ++I) {
-    // IDs can be 0 if this context doesn't contain declarations.
-    if (!I->LexicalDecls)
-      continue;
-
-    // Load all of the declaration IDs
-    for (const KindDeclIDPair *ID = I->LexicalDecls,
-                              *IDE = ID + I->NumLexicalDecls; ID != IDE; ++ID) {
-      if (isKindWeWant && !isKindWeWant((Decl::Kind)ID->first))
-        continue;
-      
-      Decl *D = GetLocalDecl(*I->F, ID->second);
-      assert(D && "Null decl in lexical decls");
-      Decls.push_back(D);
-    }
-  }
-
+  // There might be lexical decls in multiple modules, for the TU at
+  // least. Walk all of the modules in the order they were loaded.
+  FindExternalLexicalDeclsVisitor Visitor(*this, DC, isKindWeWant, Decls);
+  ModuleMgr.visitDepthFirst(&FindExternalLexicalDeclsVisitor::visit, &Visitor);
   ++NumLexicalDeclContextsRead;
   return ELR_Success;
+}
+
+namespace {
+  /// \brief Module visitor used to perform name lookup into a
+  /// declaration context.
+  class DeclContextNameLookupVisitor {
+    ASTReader &Reader;
+    const DeclContext *DC;
+    DeclarationName Name;
+    SmallVectorImpl<NamedDecl *> &Decls;
+
+  public:
+    DeclContextNameLookupVisitor(ASTReader &Reader, 
+                                 const DeclContext *DC, DeclarationName Name,
+                                 SmallVectorImpl<NamedDecl *> &Decls)
+      : Reader(Reader), DC(DC), Name(Name), Decls(Decls) { }
+
+    static bool visit(Module &M, void *UserData) {
+      DeclContextNameLookupVisitor *This
+        = static_cast<DeclContextNameLookupVisitor *>(UserData);
+
+      // Check whether we have any visible declaration information for
+      // this context in this module.
+      Module::DeclContextInfosMap::iterator Info
+        = M.DeclContextInfos.find(This->DC);
+      if (Info == M.DeclContextInfos.end() || !Info->second.NameLookupTableData)
+        return false;
+
+      // Look for this name within this module.
+      ASTDeclContextNameLookupTable *LookupTable =
+        (ASTDeclContextNameLookupTable*)Info->second.NameLookupTableData;
+      ASTDeclContextNameLookupTable::iterator Pos
+        = LookupTable->find(This->Name);
+      if (Pos == LookupTable->end())
+        return false;
+
+      bool FoundAnything = false;
+      ASTDeclContextNameLookupTrait::data_type Data = *Pos;
+      for (; Data.first != Data.second; ++Data.first) {
+        NamedDecl *ND = This->Reader.GetLocalDeclAs<NamedDecl>(M, *Data.first);
+        if (!ND)
+          continue;
+
+        if (ND->getDeclName() != This->Name) {
+          assert(!This->Name.getCXXNameType().isNull() && 
+                 "Name mismatch without a type");
+          continue;
+        }
+      
+        // Record this declaration.
+        FoundAnything = true;
+        This->Decls.push_back(ND);
+      }
+
+      return FoundAnything;
+    }
+  };
 }
 
 DeclContext::lookup_result
@@ -4314,80 +4379,11 @@ ASTReader::FindExternalVisibleDeclsByName(const DeclContext *DC,
                                       DeclContext::lookup_iterator(0));
 
   SmallVector<NamedDecl *, 64> Decls;
-  // There might be visible decls in multiple parts of the chain, for the TU
-  // and namespaces. For any given name, the last available results replace
-  // all earlier ones. For this reason, we walk in reverse.
-  // Copy the DeclContextInfos vector instead of using a reference to the
-  // vector stored in the map, because DeclContextOffsets can change while
-  // we load declarations with GetLocalDeclAs.
-  DeclContextInfos Infos = DeclContextOffsets[DC];
-  for (DeclContextInfos::reverse_iterator I = Infos.rbegin(), E = Infos.rend();
-       I != E; ++I) {
-    if (!I->NameLookupTableData)
-      continue;
-
-    ASTDeclContextNameLookupTable *LookupTable =
-        (ASTDeclContextNameLookupTable*)I->NameLookupTableData;
-    ASTDeclContextNameLookupTable::iterator Pos = LookupTable->find(Name);
-    if (Pos == LookupTable->end())
-      continue;
-
-    ASTDeclContextNameLookupTrait::data_type Data = *Pos;
-    for (; Data.first != Data.second; ++Data.first) {
-      NamedDecl *ND = GetLocalDeclAs<NamedDecl>(*I->F, *Data.first);
-      if (!ND)
-        continue;
-      
-      if (ND->getDeclName() != Name) {
-        assert(!Name.getCXXNameType().isNull() && 
-               "Name mismatch without a type");
-        continue;
-      }
-      
-      Decls.push_back(ND);
-    }
-    
-    // If we rejected all of the declarations we found, e.g., because the
-    // name didn't actually match, continue looking through DeclContexts.
-    if (Decls.empty())
-      continue;
-    
-    break;
-  }
-
+  DeclContextNameLookupVisitor Visitor(*this, DC, Name, Decls);
+  ModuleMgr.visit(&DeclContextNameLookupVisitor::visit, &Visitor);
   ++NumVisibleDeclContextsRead;
-
   SetExternalVisibleDeclsForName(DC, Name, Decls);
   return const_cast<DeclContext*>(DC)->lookup(Name);
-}
-
-void ASTReader::MaterializeVisibleDecls(const DeclContext *DC) {
-  assert(DC->hasExternalVisibleStorage() &&
-         "DeclContext has no visible decls in storage");
-
-  SmallVector<NamedDecl *, 64> Decls;
-  // There might be visible decls in multiple parts of the chain, for the TU
-  // and namespaces.
-  DeclContextInfos &Infos = DeclContextOffsets[DC];
-  for (DeclContextInfos::iterator I = Infos.begin(), E = Infos.end();
-       I != E; ++I) {
-    if (!I->NameLookupTableData)
-      continue;
-
-    ASTDeclContextNameLookupTable *LookupTable =
-        (ASTDeclContextNameLookupTable*)I->NameLookupTableData;
-    for (ASTDeclContextNameLookupTable::item_iterator
-           ItemI = LookupTable->item_begin(),
-           ItemEnd = LookupTable->item_end() ; ItemI != ItemEnd; ++ItemI) {
-      ASTDeclContextNameLookupTable::item_iterator::value_type Val
-          = *ItemI;
-      ASTDeclContextNameLookupTrait::data_type Data = Val.second;
-      Decls.clear();
-      for (; Data.first != Data.second; ++Data.first)
-        Decls.push_back(GetLocalDeclAs<NamedDecl>(*I->F, *Data.first));
-      MaterializeVisibleDeclsForName(DC, Val.first, Decls);
-    }
-  }
 }
 
 void ASTReader::PassInterestingDeclsToConsumer() {
@@ -4678,32 +4674,92 @@ IdentifierIterator *ASTReader::getIdentifiers() const {
   return new ASTIdentifierIterator(*this);
 }
 
-std::pair<ObjCMethodList, ObjCMethodList>
-ASTReader::ReadMethodPool(Selector Sel) {
-  // Find this selector in a hash table. We want to find the most recent entry.
-  for (ModuleIterator I = ModuleMgr.begin(), E = ModuleMgr.end(); I != E; ++I) {
-    Module &F = *(*I);
-    if (!F.SelectorLookupTable)
-      continue;
+namespace clang { namespace serialization {
+  class ReadMethodPoolVisitor {
+    ASTReader &Reader;
+    Selector Sel;    
+    llvm::SmallVector<ObjCMethodDecl *, 4> InstanceMethods;
+    llvm::SmallVector<ObjCMethodDecl *, 4> FactoryMethods;
 
-    ASTSelectorLookupTable *PoolTable
-      = (ASTSelectorLookupTable*)F.SelectorLookupTable;
-    ASTSelectorLookupTable::iterator Pos = PoolTable->find(Sel);
-    if (Pos != PoolTable->end()) {
-      ++NumSelectorsRead;
+    /// \brief Build an ObjCMethodList from a vector of Objective-C method
+    /// declarations.
+    ObjCMethodList 
+    buildObjCMethodList(const SmallVectorImpl<ObjCMethodDecl *> &Vec) const
+    {
+      ObjCMethodList List;
+      ObjCMethodList *Prev = 0;
+      for (unsigned I = 0, N = Vec.size(); I != N; ++I) {
+        if (!List.Method) {
+          // This is the first method, which is the easy case.
+          List.Method = Vec[I];
+          Prev = &List;
+          continue;
+        }
+        
+        ObjCMethodList *Mem =
+          Reader.getSema()->BumpAlloc.Allocate<ObjCMethodList>();
+        Prev->Next = new (Mem) ObjCMethodList(Vec[I], 0);
+        Prev = Prev->Next;
+      }
+      
+      return List;
+    }
+    
+  public:
+    ReadMethodPoolVisitor(ASTReader &Reader, Selector Sel)
+      : Reader(Reader), Sel(Sel) { }
+    
+    static bool visit(Module &M, void *UserData) {
+      ReadMethodPoolVisitor *This
+        = static_cast<ReadMethodPoolVisitor *>(UserData);
+      
+      if (!M.SelectorLookupTable)
+        return false;
+      
+      ASTSelectorLookupTable *PoolTable
+        = (ASTSelectorLookupTable*)M.SelectorLookupTable;
+      ASTSelectorLookupTable::iterator Pos = PoolTable->find(This->Sel);
+      if (Pos == PoolTable->end())
+        return false;
+      
+      ++This->Reader.NumSelectorsRead;
       // FIXME: Not quite happy with the statistics here. We probably should
       // disable this tracking when called via LoadSelector.
       // Also, should entries without methods count as misses?
-      ++NumMethodPoolEntriesRead;
+      ++This->Reader.NumMethodPoolEntriesRead;
       ASTSelectorLookupTrait::data_type Data = *Pos;
-      if (DeserializationListener)
-        DeserializationListener->SelectorRead(Data.ID, Sel);
-      return std::make_pair(Data.Instance, Data.Factory);
+      if (This->Reader.DeserializationListener)
+        This->Reader.DeserializationListener->SelectorRead(Data.ID, 
+                                                           This->Sel);
+      
+      This->InstanceMethods.append(Data.Instance.begin(), Data.Instance.end());
+      This->FactoryMethods.append(Data.Factory.begin(), Data.Factory.end());
+      return true;
     }
-  }
+    
+    /// \brief Retrieve the instance methods found by this visitor.
+    ObjCMethodList getInstanceMethods() const { 
+      return buildObjCMethodList(InstanceMethods); 
+    }
 
-  ++NumMethodPoolMisses;
-  return std::pair<ObjCMethodList, ObjCMethodList>();
+    /// \brief Retrieve the instance methods found by this visitor.
+    ObjCMethodList getFactoryMethods() const { 
+      return buildObjCMethodList(FactoryMethods); 
+    }
+  };
+} } // end namespace clang::serialization
+
+std::pair<ObjCMethodList, ObjCMethodList>
+ASTReader::ReadMethodPool(Selector Sel) {
+  ReadMethodPoolVisitor Visitor(*this, Sel);
+  ModuleMgr.visit(&ReadMethodPoolVisitor::visit, &Visitor);
+  std::pair<ObjCMethodList, ObjCMethodList> Result;
+  Result.first = Visitor.getInstanceMethods();
+  Result.second = Visitor.getFactoryMethods();
+  
+  if (!Result.first.Method && !Result.second.Method)
+    ++NumMethodPoolMisses;
+  return Result;
 }
 
 void ASTReader::ReadKnownNamespaces(
@@ -5608,17 +5664,6 @@ ASTReader::ASTReader(SourceManager &SourceMgr, FileManager &FileMgr,
 }
 
 ASTReader::~ASTReader() {
-  // Delete all visible decl lookup tables
-  for (DeclContextOffsetsMap::iterator I = DeclContextOffsets.begin(),
-                                       E = DeclContextOffsets.end();
-       I != E; ++I) {
-    for (DeclContextInfos::iterator J = I->second.begin(), F = I->second.end();
-         J != F; ++J) {
-      if (J->NameLookupTableData)
-        delete static_cast<ASTDeclContextNameLookupTable*>(
-            J->NameLookupTableData);
-    }
-  }
   for (DeclContextVisibleUpdatesPending::iterator
            I = PendingVisibleUpdates.begin(),
            E = PendingVisibleUpdates.end();
@@ -5653,6 +5698,14 @@ Module::Module(ModuleKind Kind)
 {}
 
 Module::~Module() {
+  for (DeclContextInfosMap::iterator I = DeclContextInfos.begin(),
+                                     E = DeclContextInfos.end();
+       I != E; ++I) {
+    if (I->second.NameLookupTableData)
+      delete static_cast<ASTDeclContextNameLookupTable*>(
+               I->second.NameLookupTableData);
+  }
+
   delete static_cast<ASTIdentifierLookupTable *>(IdentifierLookupTable);
   delete static_cast<HeaderFileInfoLookupTable *>(HeaderFileInfoTable);
   delete static_cast<ASTSelectorLookupTable *>(SelectorLookupTable);
@@ -5869,5 +5922,43 @@ void ModuleManager::visit(bool (*Visitor)(Module &M, void *UserData),
       if (NumUnusedEdges && (--NumUnusedEdges == 0))
         Queue.push_back(*M);
     }
+  }
+}
+
+/// \brief Perform a depth-first visit of the current module.
+static bool visitDepthFirst(Module &M, 
+                            bool (*Visitor)(Module &M, bool Preorder, 
+                                            void *UserData), 
+                            void *UserData,
+                            llvm::SmallPtrSet<Module *, 4> &Visited) {
+  // Preorder visitation
+  if (Visitor(M, /*Preorder=*/true, UserData))
+    return true;
+
+  // Visit children
+  for (llvm::SetVector<Module *>::iterator IM = M.Imports.begin(),
+                                        IMEnd = M.Imports.end();
+       IM != IMEnd; ++IM) {
+    if (!Visited.insert(*IM))
+      continue;
+
+    if (visitDepthFirst(**IM, Visitor, UserData, Visited))
+      return true;
+  }  
+
+  // Postorder visitation
+  return Visitor(M, /*Preorder=*/false, UserData);
+}
+
+void ModuleManager::visitDepthFirst(bool (*Visitor)(Module &M, bool Preorder, 
+                                                    void *UserData), 
+                                    void *UserData) {
+  llvm::SmallPtrSet<Module *, 4> Visited;
+  for (unsigned I = 0, N = Chain.size(); I != N; ++I) {
+    if (!Visited.insert(Chain[I]))
+      continue;
+
+    if (::visitDepthFirst(*Chain[I], Visitor, UserData, Visited))
+      return;
   }
 }
