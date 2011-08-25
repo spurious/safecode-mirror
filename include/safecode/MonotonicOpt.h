@@ -18,6 +18,9 @@
 #include "llvm/Pass.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Target/TargetData.h"
+
+using namespace llvm;
 
 namespace sc {
 
@@ -27,7 +30,7 @@ struct MonotonicLoopOpt : public LoopPass {
     virtual const char *getPassName() const {
       return "Optimize SAFECode checkings in monotonic loops";
     }
-    MonotonicLoopOpt() : LoopPass((intptr_t) &ID) {}
+    MonotonicLoopOpt() : LoopPass(ID) {}
     virtual bool doInitialization(Loop *L, LPPassManager &LPM); 
     virtual bool doFinalization(); 
     virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
@@ -38,9 +41,14 @@ struct MonotonicLoopOpt : public LoopPass {
       AU.setPreservesCFG();
     }
   private:
+    // Pointers to required analysis passes
     LoopInfo * LI;
     ScalarEvolution * scevPass;
     TargetData * TD;
+
+    // Set of loops already optimized
+    std::set<Loop*> optimizedLoops;
+
     bool isMonotonicLoop(Loop * L, Value * loopVar);
     bool isHoistableGEP(GetElementPtrInst * GEP, Loop * L);
     void insertEdgeBoundsCheck(int checkFunctionId, Loop * L, const CallInst * callInst, GetElementPtrInst * origGEP, Instruction *
