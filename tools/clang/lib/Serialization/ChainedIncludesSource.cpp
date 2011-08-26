@@ -106,12 +106,11 @@ ChainedIncludesSource *ChainedIncludesSource::create(CompilerInstance &CI) {
     llvm::raw_svector_ostream OS(serialAST);
     llvm::OwningPtr<ASTConsumer> consumer;
     consumer.reset(new PCHGenerator(Clang->getPreprocessor(), "-",
-                                    /*Chaining=*/!firstInclude,
                                     /*isysroot=*/"", &OS));
     Clang->getASTContext().setASTMutationListener(
                                             consumer->GetASTMutationListener());
     Clang->setASTConsumer(consumer.take());
-    Clang->createSema(/*CompleteTranslationUnit=*/false, 0);
+    Clang->createSema(TU_Prefix, 0);
 
     if (firstInclude) {
       Preprocessor &PP = Clang->getPreprocessor();

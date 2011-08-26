@@ -207,6 +207,8 @@ static void CodeGenOptsToArgs(const CodeGenOptions &Opts,
     Res.push_back("-mregparm");
     Res.push_back(llvm::utostr(Opts.NumRegisterParameters));
   }
+  if (Opts.NoGlobalMerge)
+    Res.push_back("-mno-global-merge");
   if (Opts.NoExecStack)
     Res.push_back("-mnoexecstack");
   if (Opts.RelaxAll)
@@ -372,6 +374,7 @@ static const char *getActionName(frontend::ActionKind Kind) {
   case frontend::EmitCodeGenOnly:        return "-emit-codegen-only";
   case frontend::EmitObj:                return "-emit-obj";
   case frontend::FixIt:                  return "-fixit";
+  case frontend::GenerateModule:         return "-emit-module";
   case frontend::GeneratePCH:            return "-emit-pch";
   case frontend::GeneratePTH:            return "-emit-pth";
   case frontend::InitOnly:               return "-init-only";
@@ -404,8 +407,6 @@ static void FrontendOptsToArgs(const FrontendOptions &Opts,
     Res.push_back("-disable-free");
   if (Opts.RelocatablePCH)
     Res.push_back("-relocatable-pch");
-  if (Opts.ChainedPCH)
-    Res.push_back("-chained-pch");
   if (Opts.ShowHelp)
     Res.push_back("-help");
   if (Opts.ShowMacrosInCodeCompletion)
@@ -1028,6 +1029,7 @@ static void ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NoZeroInitializedInBSS = Args.hasArg(OPT_mno_zero_initialized_in_bss);
   Opts.BackendOptions = Args.getAllArgValues(OPT_backend_option);
   Opts.NumRegisterParameters = Args.getLastArgIntValue(OPT_mregparm, 0, Diags);
+  Opts.NoGlobalMerge = Args.hasArg(OPT_mno_global_merge);
   Opts.NoExecStack = Args.hasArg(OPT_mno_exec_stack);
   Opts.RelaxAll = Args.hasArg(OPT_mrelax_all);
   Opts.OmitLeafFramePointer = Args.hasArg(OPT_momit_leaf_frame_pointer);
@@ -1206,6 +1208,8 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       // fall-through!
     case OPT_fixit:
       Opts.ProgramAction = frontend::FixIt; break;
+    case OPT_emit_module:
+      Opts.ProgramAction = frontend::GenerateModule; break;
     case OPT_emit_pch:
       Opts.ProgramAction = frontend::GeneratePCH; break;
     case OPT_emit_pth:
@@ -1269,7 +1273,6 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.OutputFile = Args.getLastArgValue(OPT_o);
   Opts.Plugins = Args.getAllArgValues(OPT_load);
   Opts.RelocatablePCH = Args.hasArg(OPT_relocatable_pch);
-  Opts.ChainedPCH = Args.hasArg(OPT_chained_pch);
   Opts.ShowHelp = Args.hasArg(OPT_help);
   Opts.ShowMacrosInCodeCompletion = Args.hasArg(OPT_code_completion_macros);
   Opts.ShowCodePatternsInCodeCompletion

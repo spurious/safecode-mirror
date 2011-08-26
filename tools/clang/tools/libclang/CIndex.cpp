@@ -1445,6 +1445,9 @@ bool CursorVisitor::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
 }
 
 bool CursorVisitor::VisitTagTypeLoc(TagTypeLoc TL) {
+  if (TL.isDefinition())
+    return Visit(MakeCXCursor(TL.getDecl(), TU));
+
   return Visit(MakeCursorTypeRef(TL.getDecl(), TL.getNameLoc(), TU));
 }
 
@@ -2411,9 +2414,7 @@ CXTranslationUnit clang_createTranslationUnit(CXIndex CIdx,
 
 unsigned clang_defaultEditingTranslationUnitOptions() {
   return CXTranslationUnit_PrecompiledPreamble | 
-         CXTranslationUnit_CacheCompletionResults |
-         CXTranslationUnit_CXXPrecompiledPreamble |
-         CXTranslationUnit_CXXChainedPCH;
+         CXTranslationUnit_CacheCompletionResults;
 }
   
 CXTranslationUnit
@@ -2459,14 +2460,11 @@ static void clang_parseTranslationUnit_Impl(void *UserData) {
   CIndexer *CXXIdx = static_cast<CIndexer *>(CIdx);
 
   bool PrecompilePreamble = options & CXTranslationUnit_PrecompiledPreamble;
-  bool CompleteTranslationUnit
-    = ((options & CXTranslationUnit_Incomplete) == 0);
+  // FIXME: Add a flag for modules.
+  TranslationUnitKind TUKind
+    = (options & CXTranslationUnit_Incomplete)? TU_Prefix : TU_Complete;
   bool CacheCodeCompetionResults
     = options & CXTranslationUnit_CacheCompletionResults;
-  bool CXXPrecompilePreamble
-    = options & CXTranslationUnit_CXXPrecompiledPreamble;
-  bool CXXChainedPCH
-    = options & CXTranslationUnit_CXXChainedPCH;
   
   // Configure the diagnostics.
   DiagnosticOptions DiagOpts;
@@ -2550,10 +2548,8 @@ static void clang_parseTranslationUnit_Impl(void *UserData) {
                                  RemappedFiles->size(),
                                  /*RemappedFilesKeepOriginalName=*/true,
                                  PrecompilePreamble,
-                                 CompleteTranslationUnit,
+                                 TUKind,
                                  CacheCodeCompetionResults,
-                                 CXXPrecompilePreamble,
-                                 CXXChainedPCH,
                                  NestedMacroExpansions));
 
   if (NumErrors != Diags->getClient()->getNumErrors()) {

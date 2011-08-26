@@ -46,7 +46,9 @@ static void EmitDeclInit(CodeGenFunction &CGF, const VarDecl &D,
   } else if (type->isAnyComplexType()) {
     CGF.EmitComplexExprIntoAddr(Init, DeclPtr, lv.isVolatile());
   } else {
-    CGF.EmitAggExpr(Init, AggValueSlot::forLValue(lv, true));
+    CGF.EmitAggExpr(Init, AggValueSlot::forLValue(lv,AggValueSlot::IsDestructed,
+                                          AggValueSlot::DoesNotNeedGCBarriers,
+                                                  AggValueSlot::IsNotAliased));
   }
 }
 

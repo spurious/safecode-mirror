@@ -97,7 +97,7 @@ static llvm::sys::cas_flag ActiveASTUnitObjects;
 ASTUnit::ASTUnit(bool _MainFileIsAST)
   : OnlyLocalDecls(false), CaptureDiagnostics(false),
     MainFileIsAST(_MainFileIsAST), 
-    CompleteTranslationUnit(true), WantTiming(getenv("LIBCLANG_TIMING")),
+    TUKind(TU_Complete), WantTiming(getenv("LIBCLANG_TIMING")),
     OwnsRemappedFileBuffers(true),
     NumStoredDiagnosticsFromDriver(0),
     ConcurrencyCheckValue(CheckUnlocked), 
@@ -759,8 +759,8 @@ public:
   TopLevelDeclTrackerAction(ASTUnit &_Unit) : Unit(_Unit) {}
 
   virtual bool hasCodeCompletionSupport() const { return false; }
-  virtual bool usesCompleteTranslationUnit()  { 
-    return Unit.isCompleteTranslationUnit(); 
+  virtual TranslationUnitKind getTranslationUnitKind()  { 
+    return Unit.getTranslationUnitKind(); 
   }
 };
 
@@ -771,10 +771,9 @@ class PrecompilePreambleConsumer : public PCHGenerator,
   std::vector<Decl *> TopLevelDecls;
                                      
 public:
-  PrecompilePreambleConsumer(ASTUnit &Unit,
-                             const Preprocessor &PP, bool Chaining,
+  PrecompilePreambleConsumer(ASTUnit &Unit, const Preprocessor &PP, 
                              StringRef isysroot, raw_ostream *Out)
-    : PCHGenerator(PP, "", Chaining, isysroot, Out), Unit(Unit),
+    : PCHGenerator(PP, "", isysroot, Out), Unit(Unit),
       Hash(Unit.getCurrentTopLevelHashValue()) {
     Hash = 0;
   }
@@ -827,10 +826,9 @@ public:
     std::string Sysroot;
     std::string OutputFile;
     raw_ostream *OS = 0;
-    bool Chaining;
     if (GeneratePCHAction::ComputeASTConsumerArguments(CI, InFile, Sysroot,
                                                        OutputFile,
-                                                       OS, Chaining))
+                                                       OS))
       return 0;
     
     if (!CI.getFrontendOpts().RelocatablePCH)
@@ -838,13 +836,13 @@ public:
 
     CI.getPreprocessor().addPPCallbacks(
      new MacroDefinitionTrackerPPCallbacks(Unit.getCurrentTopLevelHashValue()));
-    return new PrecompilePreambleConsumer(Unit, CI.getPreprocessor(), Chaining,
-                                          Sysroot, OS);
+    return new PrecompilePreambleConsumer(Unit, CI.getPreprocessor(), Sysroot, 
+                                          OS);
   }
 
   virtual bool hasCodeCompletionSupport() const { return false; }
   virtual bool hasASTFileSupport() const { return false; }
-  virtual bool usesCompleteTranslationUnit() { return false; }
+  virtual TranslationUnitKind getTranslationUnitKind() { return TU_Prefix; }
 };
 
 }
@@ -1122,7 +1120,9 @@ ASTUnit::ComputePreamble(CompilerInvocation &Invocation,
     CreatedBuffer = true;
   }
   
-  return std::make_pair(Buffer, Lexer::ComputePreamble(Buffer, MaxLines));
+  return std::make_pair(Buffer, Lexer::ComputePreamble(Buffer,
+                                                       Invocation.getLangOpts(),
+                                                       MaxLines));
 }
 
 static llvm::MemoryBuffer *CreatePaddedMainFileBuffer(llvm::MemoryBuffer *Old,
@@ -1354,7 +1354,6 @@ llvm::MemoryBuffer *ASTUnit::getMainBufferWithPrecompiledPreamble(
   
   // Tell the compiler invocation to generate a temporary precompiled header.
   FrontendOpts.ProgramAction = frontend::GeneratePCH;
-  FrontendOpts.ChainedPCH = true;
   // FIXME: Generate the precompiled header into memory?
   FrontendOpts.OutputFile = PreamblePCHPath;
   PreprocessorOpts.PrecompiledPreambleBytes.first = 0;
@@ -1590,8 +1589,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(CompilerInvocation *CI,
   AST->Diagnostics = Diags;
   AST->OnlyLocalDecls = false;
   AST->CaptureDiagnostics = false;
-  AST->CompleteTranslationUnit = Action ? Action->usesCompleteTranslationUnit()
-                                        : true;
+  AST->TUKind = Action ? Action->getTranslationUnitKind() : TU_Complete;
   AST->ShouldCacheCodeCompletionResults = false;
   AST->Invocation = CI;
 
@@ -1725,7 +1723,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocation(CompilerInvocation *CI,
                                              bool OnlyLocalDecls,
                                              bool CaptureDiagnostics,
                                              bool PrecompilePreamble,
-                                             bool CompleteTranslationUnit,
+                                             TranslationUnitKind TUKind,
                                              bool CacheCodeCompletionResults,
                                              bool NestedMacroExpansions) {  
   // Create the AST unit.
@@ -1735,7 +1733,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocation(CompilerInvocation *CI,
   AST->Diagnostics = Diags;
   AST->OnlyLocalDecls = OnlyLocalDecls;
   AST->CaptureDiagnostics = CaptureDiagnostics;
-  AST->CompleteTranslationUnit = CompleteTranslationUnit;
+  AST->TUKind = TUKind;
   AST->ShouldCacheCodeCompletionResults = CacheCodeCompletionResults;
   AST->Invocation = CI;
   AST->NestedMacroExpansions = NestedMacroExpansions;
@@ -1760,10 +1758,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
                                       unsigned NumRemappedFiles,
                                       bool RemappedFilesKeepOriginalName,
                                       bool PrecompilePreamble,
-                                      bool CompleteTranslationUnit,
+                                      TranslationUnitKind TUKind,
                                       bool CacheCodeCompletionResults,
-                                      bool CXXPrecompilePreamble,
-                                      bool CXXChainedPCH,
                                       bool NestedMacroExpansions) {
   if (!Diags.getPtr()) {
     // No diagnostics engine was provided, so create our own diagnostics object
@@ -1806,16 +1802,6 @@ ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
   // Override the resources path.
   CI->getHeaderSearchOpts().ResourceDir = ResourceFilesPath;
 
-  // Check whether we should precompile the preamble and/or use chained PCH.
-  // FIXME: This is a temporary hack while we debug C++ chained PCH.
-  if (CI->getLangOpts().CPlusPlus) {
-    PrecompilePreamble = PrecompilePreamble && CXXPrecompilePreamble;
-    
-    if (PrecompilePreamble && !CXXChainedPCH &&
-        !CI->getPreprocessorOpts().ImplicitPCHInclude.empty())
-      PrecompilePreamble = false;
-  }
-  
   // Create the AST unit.
   llvm::OwningPtr<ASTUnit> AST;
   AST.reset(new ASTUnit(false));
@@ -1826,7 +1812,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
   AST->FileMgr = new FileManager(AST->FileSystemOpts);
   AST->OnlyLocalDecls = OnlyLocalDecls;
   AST->CaptureDiagnostics = CaptureDiagnostics;
-  AST->CompleteTranslationUnit = CompleteTranslationUnit;
+  AST->TUKind = TUKind;
   AST->ShouldCacheCodeCompletionResults = CacheCodeCompletionResults;
   AST->NumStoredDiagnosticsFromDriver = StoredDiagnostics.size();
   AST->StoredDiagnostics.swap(StoredDiagnostics);

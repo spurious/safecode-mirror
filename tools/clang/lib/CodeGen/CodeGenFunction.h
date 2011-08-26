@@ -1465,7 +1465,9 @@ public:
   /// aggregate type.
   AggValueSlot CreateAggTemp(QualType T, const Twine &Name = "tmp") {
     return AggValueSlot::forAddr(CreateMemTemp(T, Name), T.getQualifiers(),
-                                 false);
+                                 AggValueSlot::IsNotDestructed,
+                                 AggValueSlot::DoesNotNeedGCBarriers,
+                                 AggValueSlot::IsNotAliased);
   }
 
   /// Emit a cast to void* in the appropriate address space.

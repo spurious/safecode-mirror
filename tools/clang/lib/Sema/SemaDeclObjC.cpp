@@ -540,6 +540,9 @@ Sema::ActOnStartProtocolInterface(SourceLocation AtProtoInterfaceLoc,
     // Make sure the cached decl gets a valid start location.
     PDecl->setLocation(AtProtoInterfaceLoc);
     PDecl->setForwardDecl(false);
+    // Since this ObjCProtocolDecl was created by a forward declaration,
+    // we now add it to the DeclContext since it wasn't added before
+    PDecl->setLexicalDeclContext(CurContext);
     CurContext->addDecl(PDecl);
     // Repeat in dependent AST files.
     PDecl->setChangedSinceDeserialization(true);
@@ -1485,7 +1488,7 @@ void Sema::MatchAllMethodDeclarations(const llvm::DenseSet<Selector> &InsMap,
         if (!WarnExactMatch)
           WarnConflictingTypedMethods(ImpMethodDecl, MethodDecl,
                                       isa<ObjCProtocolDecl>(CDecl));
-        else
+        else if (!MethodDecl->isSynthesized())
           WarnExactTypedMethods(ImpMethodDecl, MethodDecl,
                                isa<ObjCProtocolDecl>(CDecl));
       }

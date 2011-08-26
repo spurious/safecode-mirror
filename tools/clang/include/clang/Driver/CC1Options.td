@@ -113,9 +113,10 @@ def dwarf_debug_flags : Separate<"-dwarf-debug-flags">,
 def fforbid_guard_variables : Flag<"-fforbid-guard-variables">,
   HelpText<"Emit an error if a C++ static local initializer would need a guard variable">;
 def g : Flag<"-g">, HelpText<"Generate source level debug information">;
-def fno_dwarf2_cfi_asm : Flag<"-fno-dwarf2-cfi-asm">, HelpText<"Don't use the cfi directives">;
+def fno_dwarf2_cfi_asm : Flag<"-fno-dwarf2-cfi-asm">,
+  HelpText<"Don't use the cfi directives">;
 def fcatch_undefined_behavior : Flag<"-fcatch-undefined-behavior">,
-    HelpText<"Generate runtime checks for undefined behavior.">;
+  HelpText<"Generate runtime checks for undefined behavior.">;
 def flimit_debug_info : Flag<"-flimit-debug-info">,
   HelpText<"Limit debug information produced to reduce size of debug binary">;
 def fno_common : Flag<"-fno-common">,
@@ -157,6 +158,8 @@ def mdisable_fp_elim : Flag<"-mdisable-fp-elim">,
   HelpText<"Disable frame pointer elimination optimization">;
 def mfloat_abi : Separate<"-mfloat-abi">,
   HelpText<"The float ABI to use">;
+def mno_global_merge : Flag<"-mno-global-merge">,
+  HelpText<"Disable merging of globals">;
 def mlimit_float_precision : Separate<"-mlimit-float-precision">,
   HelpText<"Limit float precision to the given value">;
 def mno_exec_stack : Flag<"-mnoexecstack">,
@@ -359,6 +362,8 @@ def ast_view : Flag<"-ast-view">,
   HelpText<"Build ASTs and view them with GraphViz">;
 def print_decl_contexts : Flag<"-print-decl-contexts">,
   HelpText<"Print DeclContexts and their Decls">;
+def emit_module : Flag<"-emit-module">,
+  HelpText<"Generate pre-compiled module file">;
 def emit_pth : Flag<"-emit-pth">,
   HelpText<"Generate pre-tokenized header file">;
 def emit_pch : Flag<"-emit-pch">,
@@ -409,8 +414,6 @@ def working_directory_EQ : Joined<"-working-directory=">,
 
 def relocatable_pch : Flag<"-relocatable-pch">,
   HelpText<"Whether to build a relocatable precompiled header">;
-def chained_pch : Flag<"-chained-pch">,
-  HelpText<"Whether to chain the new precompiled header to the old one.">;
 def print_stats : Flag<"-print-stats">,
   HelpText<"Print performance metrics and statistics">;
 def ftime_report : Flag<"-ftime-report">,
