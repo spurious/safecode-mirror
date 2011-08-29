@@ -616,7 +616,7 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
   AST->Target = TargetInfo::CreateTargetInfo(AST->getDiagnostics(),
                                              TargetOpts);
   AST->PP = new Preprocessor(AST->getDiagnostics(), LangInfo, *AST->Target,
-                             AST->getSourceManager(), HeaderInfo);
+                             AST->getSourceManager(), HeaderInfo, *AST);
   Preprocessor &PP = *AST->PP;
 
   PP.setPredefines(Reader->getSuggestedPredefines());
@@ -707,9 +707,7 @@ void AddTopLevelDeclarationToHash(Decl *D, unsigned &Hash) {
   }
   
   if (ObjCClassDecl *Class = dyn_cast<ObjCClassDecl>(D)) {
-    for (ObjCClassDecl::iterator I = Class->begin(), IEnd = Class->end();
-         I != IEnd; ++I)
-      AddTopLevelDeclarationToHash(I->getInterface(), Hash);
+    AddTopLevelDeclarationToHash(Class->getForwardInterfaceDecl(), Hash);
     return;
   }
 }

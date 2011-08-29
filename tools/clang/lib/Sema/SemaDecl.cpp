@@ -38,6 +38,7 @@
 // FIXME: layering (ideally, Sema shouldn't be dependent on Lex API's)
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/ModuleLoader.h"
 #include "llvm/ADT/Triple.h"
 #include <algorithm>
 #include <cstring>
@@ -6673,11 +6674,17 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
       Diag(MD->getLocEnd(), diag::warn_objc_missing_super_dealloc);
       ObjCShouldCallSuperDealloc = false;
     }
+    if (ObjCShouldCallSuperFinalize) {
+      Diag(MD->getLocEnd(), diag::warn_objc_missing_super_finalize);
+      ObjCShouldCallSuperFinalize = false;
+    }
   } else {
     return 0;
   }
 
   assert(!ObjCShouldCallSuperDealloc && "This should only be set for "
+         "ObjC methods, which should have been handled in the block above.");
+  assert(!ObjCShouldCallSuperFinalize && "This should only be set for "
          "ObjC methods, which should have been handled in the block above.");
 
   // Verify and clean out per-function state.
@@ -9292,6 +9299,19 @@ Decl *Sema::ActOnFileScopeAsmDecl(Expr *expr,
                                                    EndLoc);
   CurContext->addDecl(New);
   return New;
+}
+
+DeclResult Sema::ActOnModuleImport(SourceLocation ImportLoc,
+                                   IdentifierInfo &ModuleName,
+                                   SourceLocation ModuleNameLoc) {
+  ModuleKey Module = PP.getModuleLoader().loadModule(ImportLoc, 
+                                                     ModuleName, ModuleNameLoc);
+  if (!Module)
+    return true;
+  
+  // FIXME: Actually create a declaration to describe the module import.
+  (void)Module;
+  return DeclResult((Decl *)0);
 }
 
 void Sema::ActOnPragmaWeakID(IdentifierInfo* Name,

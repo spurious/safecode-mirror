@@ -1060,8 +1060,8 @@ private:
   ExprResult ParseAsmStringLiteral();
 
   // Objective-C External Declarations
-  Decl *ParseObjCAtDirectives();
-  Decl *ParseObjCAtClassDeclaration(SourceLocation atLoc);
+  Parser::DeclGroupPtrTy ParseObjCAtDirectives();
+  Parser::DeclGroupPtrTy ParseObjCAtClassDeclaration(SourceLocation atLoc);
   Decl *ParseObjCAtInterfaceDeclaration(SourceLocation atLoc,
                                         ParsedAttributes &prefixAttrs);
   void ParseObjCClassInstanceVariables(Decl *interfaceDecl,
@@ -1915,6 +1915,10 @@ bool ParseAsmOperandsOpt(SmallVectorImpl<IdentifierInfo *> &Names,
                                         SourceLocation TemplateLoc,
                                         SourceLocation &DeclEnd);
 
+  //===--------------------------------------------------------------------===//
+  // Modules
+  DeclGroupPtrTy ParseModuleImport();
+  
   //===--------------------------------------------------------------------===//
   // GNU G++: Type Traits [Type-Traits.html in the GCC manual]
   ExprResult ParseUnaryTypeTrait();

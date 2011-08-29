@@ -35,6 +35,7 @@
 #include "clang/Lex/ScratchBuffer.h"
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/CodeCompletionHandler.h"
+#include "clang/Lex/ModuleLoader.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/TargetInfo.h"
@@ -50,12 +51,12 @@ ExternalPreprocessorSource::~ExternalPreprocessorSource() { }
 
 Preprocessor::Preprocessor(Diagnostic &diags, const LangOptions &opts,
                            const TargetInfo &target, SourceManager &SM,
-                           HeaderSearch &Headers,
+                           HeaderSearch &Headers, ModuleLoader &TheModuleLoader,
                            IdentifierInfoLookup* IILookup,
                            bool OwnsHeaders)
   : Diags(&diags), Features(opts), Target(target),FileMgr(Headers.getFileMgr()),
-    SourceMgr(SM),
-    HeaderInfo(Headers), ExternalSource(0),
+    SourceMgr(SM), HeaderInfo(Headers), TheModuleLoader(TheModuleLoader),
+    ExternalSource(0), 
     Identifiers(opts, IILookup), BuiltinInfo(Target), CodeComplete(0),
     CodeCompletionFile(0), SkipMainFilePreamble(0, true), CurPPLexer(0), 
     CurDirLookup(0), Callbacks(0), MacroArgCache(0), Record(0), MIChainHead(0),
@@ -87,6 +88,8 @@ Preprocessor::Preprocessor(Diagnostic &diags, const LangOptions &opts,
   // We haven't read anything from the external source.
   ReadMacrosFromExternalSource = false;
 
+  LexDepth = 0;
+      
   // "Poison" __VA_ARGS__, which can only appear in the expansion of a macro.
   // This gets unpoisoned where it is allowed.
   (Ident__VA_ARGS__ = getIdentifierInfo("__VA_ARGS__"))->setIsPoisoned();
@@ -507,6 +510,27 @@ void Preprocessor::HandleIdentifier(Token &Identifier) {
     Diag(Identifier, diag::ext_token_used);
 }
 
+void Preprocessor::HandleModuleImport(Token &Import) {
+  // The token sequence 
+  //
+  //   __import__ identifier
+  //
+  // indicates a module import directive. We load the module and then 
+  // leave the token sequence for the parser.
+  Token ModuleNameTok = LookAhead(0);
+  if (ModuleNameTok.getKind() != tok::identifier)
+    return;
+  
+  (void)TheModuleLoader.loadModule(Import.getLocation(),
+                                   *ModuleNameTok.getIdentifierInfo(), 
+                                   ModuleNameTok.getLocation());
+  
+  // FIXME: Transmogrify __import__ into some kind of AST-only __import__ that
+  // is not recognized by the preprocessor but is recognized by the parser.
+  // It would also be useful to stash the ModuleKey somewhere, so we don't try
+  // to load the module twice.
+}
+
 void Preprocessor::AddCommentHandler(CommentHandler *Handler) {
   assert(Handler && "NULL comment handler");
   assert(std::find(CommentHandlers.begin(), CommentHandlers.end(), Handler) ==
@@ -534,6 +558,8 @@ bool Preprocessor::HandleComment(Token &result, SourceRange Comment) {
   Lex(result);
   return true;
 }
+
+ModuleLoader::~ModuleLoader() { }
 
 CommentHandler::~CommentHandler() { }
 

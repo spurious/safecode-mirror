@@ -51,10 +51,6 @@ ProgramState::~ProgramState() {
 }
 
 ProgramStateManager::~ProgramStateManager() {
-  for (std::vector<ProgramState::Printer*>::iterator I=Printers.begin(),
-        E=Printers.end(); I!=E; ++I)
-    delete *I;
-
   for (GDMContextsTy::iterator I=GDMContexts.begin(), E=GDMContexts.end();
        I!=E; ++I)
     I->second.second(I->second.first);
@@ -136,41 +132,38 @@ const ProgramState *ProgramState::bindDefault(SVal loc, SVal V) const {
            new_state;
 }
 
-const ProgramState *ProgramState::invalidateRegions(const MemRegion * const *Begin,
-                                          const MemRegion * const *End,
-                                          const Expr *E, unsigned Count,
-                                          StoreManager::InvalidatedSymbols *IS,
-                                          bool invalidateGlobals) const {
+const ProgramState *
+ProgramState::invalidateRegions(ArrayRef<const MemRegion *> Regions,
+                                const Expr *E, unsigned Count,
+                                StoreManager::InvalidatedSymbols *IS,
+                                bool invalidateGlobals) const {
   if (!IS) {
     StoreManager::InvalidatedSymbols invalidated;
-    return invalidateRegionsImpl(Begin, End, E, Count,
-                             invalidated, invalidateGlobals);
+    return invalidateRegionsImpl(Regions, E, Count,
+                                 invalidated, invalidateGlobals);
   }
-  return invalidateRegionsImpl(Begin, End, E, Count, *IS, invalidateGlobals);
+  return invalidateRegionsImpl(Regions, E, Count, *IS, invalidateGlobals);
 }
 
 const ProgramState *
-ProgramState::invalidateRegionsImpl(const MemRegion * const *Begin,
-                               const MemRegion * const *End,
-                               const Expr *E, unsigned Count,
-                               StoreManager::InvalidatedSymbols &IS,
-                               bool invalidateGlobals) const {
+ProgramState::invalidateRegionsImpl(ArrayRef<const MemRegion *> Regions,
+                                    const Expr *E, unsigned Count,
+                                    StoreManager::InvalidatedSymbols &IS,
+                                    bool invalidateGlobals) const {
   ProgramStateManager &Mgr = getStateManager();
   SubEngine* Eng = Mgr.getOwningEngine();
  
   if (Eng && Eng->wantsRegionChangeUpdate(this)) {
-    StoreManager::InvalidatedRegions Regions;
+    StoreManager::InvalidatedRegions Invalidated;
     const StoreRef &newStore
-      = Mgr.StoreMgr->invalidateRegions(getStore(), Begin, End, E, Count, IS,
-                                        invalidateGlobals, &Regions);
+      = Mgr.StoreMgr->invalidateRegions(getStore(), Regions, E, Count, IS,
+                                        invalidateGlobals, &Invalidated);
     const ProgramState *newState = makeWithStore(newStore);
-    return Eng->processRegionChanges(newState, &IS,
-                                     &Regions.front(),
-                                     &Regions.back()+1);
+    return Eng->processRegionChanges(newState, &IS, Regions, Invalidated);
   }
 
   const StoreRef &newStore =
-    Mgr.StoreMgr->invalidateRegions(getStore(), Begin, End, E, Count, IS,
+    Mgr.StoreMgr->invalidateRegions(getStore(), Regions, E, Count, IS,
                                     invalidateGlobals, NULL);
   return makeWithStore(newStore);
 }
@@ -392,11 +385,11 @@ static bool IsEnvLoc(const Stmt *S) {
   return (bool) (((uintptr_t) S) & 0x1);
 }
 
-void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
-                    const char* sep) const {
+void ProgramState::print(raw_ostream &Out, CFG &C,
+                         const char *NL, const char *Sep) const {
   // Print the store.
   ProgramStateManager &Mgr = getStateManager();
-  Mgr.getStoreManager().print(getStore(), Out, nl, sep);
+  Mgr.getStoreManager().print(getStore(), Out, NL, Sep);
 
   // Print Subexpression bindings.
   bool isFirst = true;
@@ -407,10 +400,11 @@ void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
       continue;
 
     if (isFirst) {
-      Out << nl << nl << "Sub-Expressions:" << nl;
+      Out << NL << NL << "Sub-Expressions:" << NL;
       isFirst = false;
+    } else {
+      Out << NL;
     }
-    else { Out << nl; }
 
     Out << " (" << (void*) I.getKey() << ") ";
     LangOptions LO; // FIXME.
@@ -426,10 +420,11 @@ void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
       continue;
 
     if (isFirst) {
-      Out << nl << nl << "Block-level Expressions:" << nl;
+      Out << NL << NL << "Block-level Expressions:" << NL;
       isFirst = false;
+    } else {
+      Out << NL;
     }
-    else { Out << nl; }
 
     Out << " (" << (void*) I.getKey() << ") ";
     LangOptions LO; // FIXME.
@@ -445,10 +440,11 @@ void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
       continue;
     
     if (isFirst) {
-      Out << nl << nl << "Load/store locations:" << nl;
+      Out << NL << NL << "Load/store locations:" << NL;
       isFirst = false;
+    } else {
+      Out << NL;
     }
-    else { Out << nl; }
 
     const Stmt *S = (Stmt*) (((uintptr_t) I.getKey()) & ((uintptr_t) ~0x1));
     
@@ -458,13 +454,10 @@ void ProgramState::print(raw_ostream &Out, CFG &C, const char* nl,
     Out << " : " << I.getData();
   }
 
-  Mgr.getConstraintManager().print(this, Out, nl, sep);
+  Mgr.getConstraintManager().print(this, Out, NL, Sep);
 
   // Print checker-specific data.
-  for (std::vector<Printer*>::iterator I = Mgr.Printers.begin(),
-                                       E = Mgr.Printers.end(); I != E; ++I) {
-    (*I)->Print(Out, this, nl, sep);
-  }
+  Mgr.getOwningEngine()->printState(Out, this, NL, Sep);
 }
 
 void ProgramState::printDOT(raw_ostream &Out, CFG &C) const {

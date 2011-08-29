@@ -493,6 +493,9 @@ public:
   /// A flag that is set when parsing a -dealloc method and no [super dealloc]
   /// call was found yet.
   bool ObjCShouldCallSuperDealloc;
+  /// A flag that is set when parsing a -finalize method and no [super finalize]
+  /// call was found yet.
+  bool ObjCShouldCallSuperFinalize;
 
   /// \brief The set of declarations that have been referenced within
   /// a potentially evaluated expression.
@@ -1073,6 +1076,17 @@ public:
                               SourceLocation AsmLoc,
                               SourceLocation RParenLoc);
 
+  /// \brief The parser has processed a module import declaration.
+  ///
+  /// \param ImportLoc The location of the '__import__' keyword.
+  ///
+  /// \param ModuleName The name of the module.
+  ///
+  /// \param ModuleNameLoc The location of the module name.
+  DeclResult ActOnModuleImport(SourceLocation ImportLoc,
+                               IdentifierInfo &ModuleName,
+                               SourceLocation ModuleNameLoc);
+  
   /// Scope actions.
   void ActOnPopScope(SourceLocation Loc, Scope *S);
   void ActOnTranslationUnitScope(Scope *S);
@@ -4999,7 +5013,7 @@ public:
                                          IdentifierInfo *CatName,
                                          SourceLocation CatLoc);
 
-  Decl *ActOnForwardClassDeclaration(SourceLocation Loc,
+  DeclGroupPtrTy ActOnForwardClassDeclaration(SourceLocation Loc,
                                      IdentifierInfo **IdentList,
                                      SourceLocation *IdentLocs,
                                      unsigned NumElts);

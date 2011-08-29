@@ -99,15 +99,19 @@ public:
   virtual const ProgramState *
   processRegionChanges(const ProgramState *state,
                        const StoreManager::InvalidatedSymbols *invalidated,
-                       const MemRegion* const *Begin,
-                       const MemRegion* const *End) = 0;
+                       ArrayRef<const MemRegion *> ExplicitRegions,
+                       ArrayRef<const MemRegion *> Regions) = 0;
 
 
   inline const ProgramState *
   processRegionChange(const ProgramState *state,
                       const MemRegion* MR) {
-    return processRegionChanges(state, 0, &MR, &MR+1);
+    return processRegionChanges(state, 0, MR, MR);
   }
+
+  /// printState - Called by ProgramStateManager to print checker-specific data.
+  virtual void printState(raw_ostream &Out, const ProgramState *State,
+                          const char *NL, const char *Sep) = 0;
 
   /// Called by CoreEngine when the analysis worklist is either empty or the
   //  maximum number of analysis steps have been reached.

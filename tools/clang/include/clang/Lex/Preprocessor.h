@@ -49,6 +49,7 @@ class PPCallbacks;
 class CodeCompletionHandler;
 class DirectoryLookup;
 class PreprocessingRecord;
+class ModuleLoader;
   
 /// Preprocessor - This object engages in a tight little dance with the lexer to
 /// efficiently preprocess tokens.  Lexers know only about tokens within a
@@ -63,10 +64,12 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   SourceManager     &SourceMgr;
   ScratchBuffer     *ScratchBuf;
   HeaderSearch      &HeaderInfo;
+  ModuleLoader      &TheModuleLoader;
 
   /// \brief External source of macros.
   ExternalPreprocessorSource *ExternalSource;
 
+  
   /// PTH - An optional PTHManager object used for getting tokens from
   ///  a token cache rather than lexing the original source file.
   llvm::OwningPtr<PTHManager> PTH;
@@ -115,6 +118,9 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   /// \brief Whether we have already loaded macros from the external source.
   mutable bool ReadMacrosFromExternalSource : 1;
 
+  /// \brief Tracks the depth of Lex() Calls.
+  unsigned LexDepth;
+  
   /// Identifiers - This is mapping/lookup information for all identifiers in
   /// the program, including program keywords.
   mutable IdentifierTable Identifiers;
@@ -294,6 +300,7 @@ public:
   Preprocessor(Diagnostic &diags, const LangOptions &opts,
                const TargetInfo &target,
                SourceManager &SM, HeaderSearch &Headers,
+               ModuleLoader &TheModuleLoader,
                IdentifierInfoLookup *IILookup = 0,
                bool OwnsHeaderSearch = false);
 
@@ -325,6 +332,9 @@ public:
     return ExternalSource;
   }
 
+  /// \brief Retrieve the module loader associated with this preprocessor.
+  ModuleLoader &getModuleLoader() const { return TheModuleLoader; }
+  
   /// SetCommentRetentionState - Control whether or not the preprocessor retains
   /// comments in output.
   void SetCommentRetentionState(bool KeepComments, bool KeepMacroComments) {
@@ -524,6 +534,7 @@ public:
   /// Lex - To lex a token from the preprocessor, just pull a token from the
   /// current lexer or macro object.
   void Lex(Token &Result) {
+    ++LexDepth;
     if (CurLexer)
       CurLexer->Lex(Result);
     else if (CurPTHLexer)
@@ -532,6 +543,11 @@ public:
       CurTokenLexer->Lex(Result);
     else
       CachingLex(Result);
+    --LexDepth;
+    
+    // If we have the __import__ keyword, handle the module import now.
+    if (Result.getKind() == tok::kw___import__ && LexDepth == 0)
+      HandleModuleImport(Result);
   }
 
   /// LexNonComment - Lex a token.  If it's a comment, keep lexing until we get
@@ -1008,6 +1024,9 @@ private:
   /// the macro should not be expanded return true, otherwise return false.
   bool HandleMacroExpandedIdentifier(Token &Tok, MacroInfo *MI);
 
+  /// \brief Handle a module import directive.
+  void HandleModuleImport(Token &Import);
+  
   /// \brief Cache macro expanded tokens for TokenLexers.
   //
   /// Works like a stack; a TokenLexer adds the macro expanded tokens that is

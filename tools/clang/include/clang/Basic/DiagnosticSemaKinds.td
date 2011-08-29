@@ -573,6 +573,9 @@ def warn_objc_property_attr_mutually_exclusive : Warning<
 def warn_objc_missing_super_dealloc : Warning<
   "method possibly missing a [super dealloc] call">,
   InGroup<ObjCMissingSuperCalls>;
+def warn_objc_missing_super_finalize : Warning<
+  "method possibly missing a [super finalize] call">,
+  InGroup<ObjCMissingSuperCalls>;
 def warn_undeclared_selector : Warning<
   "undeclared selector %0">, InGroup<UndeclaredSelector>, DefaultIgnore;
 def warn_implicit_atomic_property : Warning<
@@ -2851,7 +2854,8 @@ def err_arc_strong_property_ownership : Error<
   "existing ivar %1 for strong property %0 may not be "
   "%select{|__unsafe_unretained||__weak}2">;
 def err_arc_assign_property_ownership : Error<
-  "existing ivar %1 for unsafe_unretained property %0 must be __unsafe_unretained">;
+  "existing ivar %1 for property %0 with %select{unsafe_unretained| assign}2 "
+  "attribute must be __unsafe_unretained">;
 def err_arc_inconsistent_property_ownership : Error<
   "%select{strong|weak|unsafe_unretained}1 property %0 may not also be "
   "declared %select{|__unsafe_unretained|__strong|__weak|__autoreleasing}2">;
@@ -3371,10 +3375,11 @@ def err_incomplete_type_objc_at_encode : Error<
 
 def warn_setter_getter_impl_required : Warning<
   "property %0 requires method %1 to be defined - "
-  "use @synthesize, @dynamic or provide a method implementation">;
+  "use @synthesize, @dynamic or provide a method implementation "
+  "in this class implementation">;
 def warn_setter_getter_impl_required_in_category : Warning<
   "property %0 requires method %1 to be defined - "
-  "use @dynamic or provide a method implementation in category">;
+  "use @dynamic or provide a method implementation in this category">;
 def note_property_impl_required : Note<
   "implementation is here">;
 def note_parameter_named_here : Note<
@@ -4231,7 +4236,7 @@ def warn_printf_insufficient_data_args : Warning<
 def warn_printf_data_arg_not_used : Warning<
   "data argument not used by format string">, InGroup<FormatExtraArgs>;
 def warn_format_invalid_conversion : Warning<
-  "invalid conversion specifier '%0'">, InGroup<Format>;
+  "invalid conversion specifier '%0'">, InGroup<FormatInvalidSpecifier>;
 def warn_printf_incomplete_specifier : Warning<
   "incomplete format specifier">, InGroup<Format>;
 def warn_missing_format_string : Warning<

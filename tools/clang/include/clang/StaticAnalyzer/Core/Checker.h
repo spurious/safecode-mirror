@@ -262,10 +262,10 @@ class RegionChanges {
   _checkRegionChanges(void *checker,
                       const ProgramState *state,
                       const StoreManager::InvalidatedSymbols *invalidated,
-                      const MemRegion * const *Begin,
-                      const MemRegion * const *End) {
+                      ArrayRef<const MemRegion *> Explicits,
+                      ArrayRef<const MemRegion *> Regions) {
     return ((const CHECKER *)checker)->checkRegionChanges(state, invalidated,
-                                                          Begin, End);
+                                                          Explicits, Regions);
   }
   template <typename CHECKER>
   static bool _wantsRegionChangeUpdate(void *checker,
@@ -338,6 +338,10 @@ public:
 class CheckerBase : public ProgramPointTag {
 public:
   StringRef getTagDescription() const;
+
+  /// See CheckerManager::runCheckersForPrintState.
+  virtual void printState(raw_ostream &Out, const ProgramState *State,
+                          const char *NL, const char *Sep) const { }
 };
   
 template <typename CHECK1, typename CHECK2=check::_VoidCheck,

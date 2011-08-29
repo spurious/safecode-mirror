@@ -41,50 +41,6 @@ using namespace ento;
 using llvm::StrInStrNoCase;
 
 namespace {
-class InstanceReceiver {
-  ObjCMessage Msg;
-  const LocationContext *LC;
-public:
-  InstanceReceiver() : LC(0) { }
-  InstanceReceiver(const ObjCMessage &msg,
-                   const LocationContext *lc = 0) : Msg(msg), LC(lc) {}
-
-  bool isValid() const {
-    return Msg.isValid() && Msg.isInstanceMessage();
-  }
-  operator bool() const {
-    return isValid();
-  }
-
-  SVal getSValAsScalarOrLoc(const ProgramState *state) {
-    assert(isValid());
-    // We have an expression for the receiver?  Fetch the value
-    // of that expression.
-    if (const Expr *Ex = Msg.getInstanceReceiver())
-      return state->getSValAsScalarOrLoc(Ex);
-
-    // Otherwise we are sending a message to super.  In this case the
-    // object reference is the same as 'self'.
-    if (const ImplicitParamDecl *SelfDecl = LC->getSelfDecl())
-      return state->getSVal(state->getRegion(SelfDecl, LC));
-
-    return UnknownVal();
-  }
-
-  SourceRange getSourceRange() const {
-    assert(isValid());
-    if (const Expr *Ex = Msg.getInstanceReceiver())
-      return Ex->getSourceRange();
-
-    // Otherwise we are sending a message to super.
-    SourceLocation L = Msg.getSuperLoc();
-    assert(L.isValid());
-    return SourceRange(L, L);
-  }
-};
-}
-
-namespace {
 class GenericNodeBuilderRefCount {
   StmtNodeBuilder *SNB;
   const Stmt *S;
@@ -299,7 +255,7 @@ public:
 
 void RefVal::print(raw_ostream &Out) const {
   if (!T.isNull())
-    Out << "Tracked Type:" << T.getAsString() << '\n';
+    Out << "Tracked " << T.getAsString() << '/';
 
   switch (getKind()) {
     default: assert(false);
@@ -1629,14 +1585,6 @@ namespace {
 
 class CFRefCount : public TransferFuncs {
 public:
-  class BindingsPrinter : public ProgramState::Printer {
-  public:
-    virtual void Print(raw_ostream &Out,
-                       const ProgramState *state,
-                       const char* nl,
-                       const char* sep);
-  };
-
   const LangOptions&   LOpts;
   const bool GCEnabled;
 
@@ -1645,81 +1593,11 @@ public:
     : LOpts(lopts), GCEnabled(gcenabled) {}
 
   void RegisterChecks(ExprEngine &Eng);
-
-  virtual void RegisterPrinters(std::vector<ProgramState::Printer*>& Printers) {
-    Printers.push_back(new BindingsPrinter());
-  }
   
   const LangOptions& getLangOptions() const { return LOpts; }
-
-  // Calls.
-
-  void evalCallOrMessage(ExplodedNodeSet &Dst, ExprEngine &Eng,
-                         StmtNodeBuilder &Builder,
-                         const CallOrObjCMessage &callOrMsg,
-                         InstanceReceiver Receiver, const MemRegion *Callee,
-                         ExplodedNode *Pred, const ProgramState *state);
-
-  virtual void evalCall(ExplodedNodeSet &Dst,
-                        ExprEngine& Eng,
-                        StmtNodeBuilder& Builder,
-                        const CallExpr *CE, SVal L,
-                        ExplodedNode *Pred);
-
-
-  virtual void evalObjCMessage(ExplodedNodeSet &Dst,
-                               ExprEngine& Engine,
-                               StmtNodeBuilder& Builder,
-                               ObjCMessage msg,
-                               ExplodedNode *Pred,
-                               const ProgramState *state);
 };
 
 } // end anonymous namespace
-
-static void PrintPool(raw_ostream &Out,
-                      SymbolRef Sym,
-                      const ProgramState *state) {
-  Out << ' ';
-  if (Sym)
-    Out << Sym->getSymbolID();
-  else
-    Out << "<pool>";
-  Out << ":{";
-
-  // Get the contents of the pool.
-  if (const ARCounts *cnts = state->get<AutoreleasePoolContents>(Sym))
-    for (ARCounts::iterator J=cnts->begin(), EJ=cnts->end(); J != EJ; ++J)
-      Out << '(' << J.getKey() << ',' << J.getData() << ')';
-
-  Out << '}';
-}
-
-void CFRefCount::BindingsPrinter::Print(raw_ostream &Out,
-                                        const ProgramState *state,
-                                        const char* nl, const char* sep) {
-
-  RefBindings B = state->get<RefBindings>();
-
-  if (!B.isEmpty())
-    Out << sep << nl;
-
-  for (RefBindings::iterator I=B.begin(), E=B.end(); I!=E; ++I) {
-    Out << (*I).first << " : ";
-    (*I).second.print(Out);
-    Out << nl;
-  }
-
-  // Print the autorelease stack.
-  Out << sep << nl << "AR pool stack:";
-  ARStack stack = state->get<AutoreleaseStack>();
-
-  PrintPool(Out, SymbolRef(), state);  // Print the caller's pool.
-  for (ARStack::iterator I=stack.begin(), E=stack.end(); I!=E; ++I)
-    PrintPool(Out, *I, state);
-
-  Out << nl;
-}
 
 //===----------------------------------------------------------------------===//
 // Error reporting.
@@ -2439,163 +2317,6 @@ static QualType GetReturnType(const Expr *RetE, ASTContext &Ctx) {
   return RetTy;
 }
 
-
-// HACK: Symbols that have ref-count state that are referenced directly
-//  (not as structure or array elements, or via bindings) by an argument
-//  should not have their ref-count state stripped after we have
-//  done an invalidation pass.
-//
-// FIXME: This is a global to currently share between CFRefCount and
-// RetainReleaseChecker.  Eventually all functionality in CFRefCount should
-// be migrated to RetainReleaseChecker, and we can make this a non-global.
-llvm::DenseSet<SymbolRef> WhitelistedSymbols;
-namespace {
-struct ResetWhiteList {
-  ResetWhiteList() {}
-  ~ResetWhiteList() { WhitelistedSymbols.clear(); } 
-};
-}
-
-void CFRefCount::evalCallOrMessage(ExplodedNodeSet &Dst, ExprEngine &Eng,
-                                   StmtNodeBuilder &Builder,
-                                   const CallOrObjCMessage &callOrMsg,
-                                   InstanceReceiver Receiver,
-                                   const MemRegion *Callee,
-                                   ExplodedNode *Pred,
-                                   const ProgramState *state) {
-
-  SmallVector<const MemRegion*, 10> RegionsToInvalidate;
-  
-  // Use RAII to make sure the whitelist is properly cleared.
-  ResetWhiteList resetWhiteList;
-
-  // Invalidate all instance variables of the receiver of a message.
-  // FIXME: We should be able to do better with inter-procedural analysis.
-  if (Receiver) {
-    SVal V = Receiver.getSValAsScalarOrLoc(state);
-    if (SymbolRef Sym = V.getAsLocSymbol()) {
-      if (state->get<RefBindings>(Sym))
-        WhitelistedSymbols.insert(Sym);
-    }
-    if (const MemRegion *region = V.getAsRegion())
-      RegionsToInvalidate.push_back(region);
-  }
-  
-  // Invalidate all instance variables for the callee of a C++ method call.
-  // FIXME: We should be able to do better with inter-procedural analysis.
-  // FIXME: we can probably do better for const versus non-const methods.
-  if (callOrMsg.isCXXCall()) {
-    if (const MemRegion *callee = callOrMsg.getCXXCallee().getAsRegion())
-      RegionsToInvalidate.push_back(callee);
-  }
-  
-  for (unsigned idx = 0, e = callOrMsg.getNumArgs(); idx != e; ++idx) {
-    SVal V = callOrMsg.getArgSValAsScalarOrLoc(idx);
-
-    // If we are passing a location wrapped as an integer, unwrap it and
-    // invalidate the values referred by the location.
-    if (nonloc::LocAsInteger *Wrapped = dyn_cast<nonloc::LocAsInteger>(&V))
-      V = Wrapped->getLoc();
-    else if (!isa<Loc>(V))
-      continue;
-
-    if (SymbolRef Sym = V.getAsLocSymbol())
-      if (state->get<RefBindings>(Sym))
-        WhitelistedSymbols.insert(Sym);
-
-    if (const MemRegion *R = V.getAsRegion()) {
-      // Invalidate the value of the variable passed by reference.
-
-      // Are we dealing with an ElementRegion?  If the element type is
-      // a basic integer type (e.g., char, int) and the underying region
-      // is a variable region then strip off the ElementRegion.
-      // FIXME: We really need to think about this for the general case
-      //   as sometimes we are reasoning about arrays and other times
-      //   about (char*), etc., is just a form of passing raw bytes.
-      //   e.g., void *p = alloca(); foo((char*)p);
-      if (const ElementRegion *ER = dyn_cast<ElementRegion>(R)) {
-        // Checking for 'integral type' is probably too promiscuous, but
-        // we'll leave it in for now until we have a systematic way of
-        // handling all of these cases.  Eventually we need to come up
-        // with an interface to StoreManager so that this logic can be
-        // approriately delegated to the respective StoreManagers while
-        // still allowing us to do checker-specific logic (e.g.,
-        // invalidating reference counts), probably via callbacks.
-        if (ER->getElementType()->isIntegralOrEnumerationType()) {
-          const MemRegion *superReg = ER->getSuperRegion();
-          if (isa<VarRegion>(superReg) || isa<FieldRegion>(superReg) ||
-              isa<ObjCIvarRegion>(superReg))
-            R = cast<TypedRegion>(superReg);
-        }
-        // FIXME: What about layers of ElementRegions?
-      }
-
-      // Mark this region for invalidation.  We batch invalidate regions
-      // below for efficiency.
-      RegionsToInvalidate.push_back(R);
-    } else {
-      // Nuke all other arguments passed by reference.
-      // FIXME: is this necessary or correct? This handles the non-Region
-      //  cases.  Is it ever valid to store to these?
-      state = state->unbindLoc(cast<Loc>(V));
-    }
-  }
-
-  // Block calls result in all captured values passed-via-reference to be
-  // invalidated.
-  if (const BlockDataRegion *BR = dyn_cast_or_null<BlockDataRegion>(Callee))
-    RegionsToInvalidate.push_back(BR);
-
-  // Invalidate designated regions using the batch invalidation API.
-
-  // FIXME: We can have collisions on the conjured symbol if the
-  //  expression *I also creates conjured symbols.  We probably want
-  //  to identify conjured symbols by an expression pair: the enclosing
-  //  expression (the context) and the expression itself.  This should
-  //  disambiguate conjured symbols.
-  unsigned Count = Builder.getCurrentBlockCount();
-  StoreManager::InvalidatedSymbols IS;
-
-  const Expr *Ex = callOrMsg.getOriginExpr();
-
-  // NOTE: Even if RegionsToInvalidate is empty, we must still invalidate
-  //  global variables.
-  // NOTE: RetainReleaseChecker handles the actual invalidation of symbols.
-  state =
-    state->invalidateRegions(RegionsToInvalidate.data(),
-                             RegionsToInvalidate.data() +
-                             RegionsToInvalidate.size(),
-                             Ex, Count, &IS,
-                             /* invalidateGlobals = */
-                             Eng.doesInvalidateGlobals(callOrMsg));
-
-  Builder.MakeNode(Dst, Ex, Pred, state);
-}
-
-
-void CFRefCount::evalCall(ExplodedNodeSet &Dst,
-                          ExprEngine& Eng,
-                          StmtNodeBuilder& Builder,
-                          const CallExpr *CE, SVal L,
-                          ExplodedNode *Pred) {
-
-  evalCallOrMessage(Dst, Eng, Builder, CallOrObjCMessage(CE, Pred->getState()),
-                    InstanceReceiver(), L.getAsRegion(), Pred, 
-                    Pred->getState());
-}
-
-void CFRefCount::evalObjCMessage(ExplodedNodeSet &Dst,
-                                 ExprEngine& Eng,
-                                 StmtNodeBuilder& Builder,
-                                 ObjCMessage msg,
-                                 ExplodedNode *Pred,
-                                 const ProgramState *state) {
-
-  evalCallOrMessage(Dst, Eng, Builder, CallOrObjCMessage(msg, Pred->getState()),
-                    InstanceReceiver(msg, Pred->getLocationContext()),
-                    /* Callee = */ 0, Pred, state);
-}
-
 //===----------------------------------------------------------------------===//
 // Pieces of the retain/release checker implemented using a CheckerVisitor.
 // More pieces of the retain/release checker will be migrated to this interface
@@ -2611,6 +2332,7 @@ class RetainReleaseChecker
                     check::PostStmt<BlockExpr>,
                     check::PostStmt<CastExpr>,
                     check::PostStmt<CallExpr>,
+                    check::PostStmt<CXXConstructExpr>,
                     check::PostObjCMessage,
                     check::PreStmt<ReturnStmt>,
                     check::RegionChanges,
@@ -2693,7 +2415,6 @@ public:
     switch (GCMode) {
     case LangOptions::HybridGC:
       llvm_unreachable("GC mode not set yet!");
-      return true;
     case LangOptions::NonGC:
       return false;
     case LangOptions::GCOnly:
@@ -2701,7 +2422,6 @@ public:
     }
 
     llvm_unreachable("Invalid/unknown GC mode.");
-    return false;
   }
 
   bool isARCorGCEnabled(ASTContext &Ctx) const {
@@ -2767,24 +2487,29 @@ public:
     }
   }
 
+  void printState(raw_ostream &Out, const ProgramState *State,
+                  const char *NL, const char *Sep) const;
+
   void checkBind(SVal loc, SVal val, CheckerContext &C) const;
   void checkPostStmt(const BlockExpr *BE, CheckerContext &C) const;
   void checkPostStmt(const CastExpr *CE, CheckerContext &C) const;
 
   void checkPostStmt(const CallExpr *CE, CheckerContext &C) const;
+  void checkPostStmt(const CXXConstructExpr *CE, CheckerContext &C) const;
   void checkPostObjCMessage(const ObjCMessage &Msg, CheckerContext &C) const;
   void checkSummary(const RetainSummary &Summ, const CallOrObjCMessage &Call,
-                    InstanceReceiver Receiver, CheckerContext &C) const;
+                    CheckerContext &C) const;
 
   bool evalCall(const CallExpr *CE, CheckerContext &C) const;
 
   const ProgramState *evalAssume(const ProgramState *state, SVal Cond,
                                  bool Assumption) const;
 
-  const ProgramState *checkRegionChanges(const ProgramState *state,
-                          const StoreManager::InvalidatedSymbols *invalidated,
-                                         const MemRegion * const *begin,
-                                         const MemRegion * const *end) const;
+  const ProgramState *
+  checkRegionChanges(const ProgramState *state,
+                     const StoreManager::InvalidatedSymbols *invalidated,
+                     ArrayRef<const MemRegion *> ExplicitRegions,
+                     ArrayRef<const MemRegion *> Regions) const;
                                         
   bool wantsRegionChangeUpdate(const ProgramState *state) const {
     return true;
@@ -2914,10 +2639,17 @@ const ProgramState *RetainReleaseChecker::evalAssume(const ProgramState *state,
 const ProgramState *
 RetainReleaseChecker::checkRegionChanges(const ProgramState *state,
                             const StoreManager::InvalidatedSymbols *invalidated,
-                                         const MemRegion * const *begin,
-                                         const MemRegion * const *end) const {
+                                    ArrayRef<const MemRegion *> ExplicitRegions,
+                                    ArrayRef<const MemRegion *> Regions) const {
   if (!invalidated)
     return state;
+
+  llvm::SmallPtrSet<SymbolRef, 8> WhitelistedSymbols;
+  for (ArrayRef<const MemRegion *>::iterator I = ExplicitRegions.begin(),
+       E = ExplicitRegions.end(); I != E; ++I) {
+    if (const SymbolicRegion *SR = (*I)->StripCasts()->getAs<SymbolicRegion>())
+      WhitelistedSymbols.insert(SR->getSymbol());
+  }
 
   for (StoreManager::InvalidatedSymbols::const_iterator I=invalidated->begin(),
        E = invalidated->end(); I!=E; ++I) {
@@ -3035,7 +2767,24 @@ void RetainReleaseChecker::checkPostStmt(const CallExpr *CE,
   if (!Summ)
     return;
 
-  checkSummary(*Summ, CallOrObjCMessage(CE, state), InstanceReceiver(), C);
+  checkSummary(*Summ, CallOrObjCMessage(CE, state), C);
+}
+
+void RetainReleaseChecker::checkPostStmt(const CXXConstructExpr *CE,
+                                         CheckerContext &C) const {
+  const CXXConstructorDecl *Ctor = CE->getConstructor();
+  if (!Ctor)
+    return;
+
+  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
+  RetainSummary *Summ = Summaries.getSummary(Ctor);
+
+  // If we didn't get a summary, this constructor doesn't affect retain counts.
+  if (!Summ)
+    return;
+
+  const ProgramState *state = C.getState();
+  checkSummary(*Summ, CallOrObjCMessage(CE, state), C);
 }
 
 void RetainReleaseChecker::checkPostObjCMessage(const ObjCMessage &Msg, 
@@ -3057,13 +2806,11 @@ void RetainReleaseChecker::checkPostObjCMessage(const ObjCMessage &Msg,
   if (!Summ)
     return;
 
-  checkSummary(*Summ, CallOrObjCMessage(Msg, state),
-               InstanceReceiver(Msg, Pred->getLocationContext()), C);
+  checkSummary(*Summ, CallOrObjCMessage(Msg, state), C);
 }
 
 void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
                                         const CallOrObjCMessage &CallOrMsg,
-                                        InstanceReceiver Receiver,
                                         CheckerContext &C) const {
   const ProgramState *state = C.getState();
 
@@ -3073,7 +2820,7 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
   SymbolRef ErrorSym = 0;
 
   for (unsigned idx = 0, e = CallOrMsg.getNumArgs(); idx != e; ++idx) {
-    SVal V = CallOrMsg.getArgSValAsScalarOrLoc(idx);
+    SVal V = CallOrMsg.getArgSVal(idx);
 
     if (SymbolRef Sym = V.getAsLocSymbol()) {
       if (RefBindings::data_type *T = state->get<RefBindings>(Sym)) {
@@ -3089,13 +2836,15 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
 
   // Evaluate the effect on the message receiver.
   bool ReceiverIsTracked = false;
-  if (!hasErr && Receiver) {
-    if (SymbolRef Sym = Receiver.getSValAsScalarOrLoc(state).getAsLocSymbol()) {
+  if (!hasErr && CallOrMsg.isObjCMessage()) {
+    const LocationContext *LC = C.getPredecessor()->getLocationContext();
+    SVal Receiver = CallOrMsg.getInstanceMessageReceiver(LC);
+    if (SymbolRef Sym = Receiver.getAsLocSymbol()) {
       if (const RefVal *T = state->get<RefBindings>(Sym)) {
         ReceiverIsTracked = true;
         state = updateSymbol(state, Sym, *T, Summ.getReceiverEffect(), hasErr);
         if (hasErr) {
-          ErrorRange = Receiver.getSourceRange();
+          ErrorRange = CallOrMsg.getReceiverSourceRange();
           ErrorSym = Sym;
         }
       }
@@ -3436,7 +3185,7 @@ bool RetainReleaseChecker::evalCall(const CallExpr *CE,
 
     // Invalidate the argument region.
     unsigned Count = C.getNodeBuilder().getCurrentBlockCount();
-    state = state->invalidateRegion(ArgRegion, CE, Count);
+    state = state->invalidateRegions(ArgRegion, CE, Count);
 
     // Restore the refcount status of the argument.
     if (Binding)
@@ -3818,6 +3567,62 @@ void RetainReleaseChecker::checkDeadSymbols(SymbolReaper &SymReaper,
 
   state = state->set<RefBindings>(B);
   C.generateNode(state, Pred);
+}
+
+//===----------------------------------------------------------------------===//
+// Debug printing of refcount bindings and autorelease pools.
+//===----------------------------------------------------------------------===//
+
+static void PrintPool(raw_ostream &Out, SymbolRef Sym,
+                      const ProgramState *State) {
+  Out << ' ';
+  if (Sym)
+    Out << Sym->getSymbolID();
+  else
+    Out << "<pool>";
+  Out << ":{";
+
+  // Get the contents of the pool.
+  if (const ARCounts *Cnts = State->get<AutoreleasePoolContents>(Sym))
+    for (ARCounts::iterator I = Cnts->begin(), E = Cnts->end(); I != E; ++I)
+      Out << '(' << I.getKey() << ',' << I.getData() << ')';
+
+  Out << '}';
+}
+
+bool UsesAutorelease(const ProgramState *state) {
+  // A state uses autorelease if it allocated an autorelease pool or if it has
+  // objects in the caller's autorelease pool.
+  return !state->get<AutoreleaseStack>().isEmpty() ||
+          state->get<AutoreleasePoolContents>(SymbolRef());
+}
+
+void RetainReleaseChecker::printState(raw_ostream &Out,
+                                      const ProgramState *State,
+                                      const char *NL, const char *Sep) const {
+
+  RefBindings B = State->get<RefBindings>();
+
+  if (!B.isEmpty())
+    Out << Sep << NL;
+
+  for (RefBindings::iterator I = B.begin(), E = B.end(); I != E; ++I) {
+    Out << I->first << " : ";
+    I->second.print(Out);
+    Out << NL;
+  }
+
+  // Print the autorelease stack.
+  if (UsesAutorelease(State)) {
+    Out << Sep << NL << "AR pool stack:";
+    ARStack Stack = State->get<AutoreleaseStack>();
+
+    PrintPool(Out, SymbolRef(), State);  // Print the caller's pool.
+    for (ARStack::iterator I = Stack.begin(), E = Stack.end(); I != E; ++I)
+      PrintPool(Out, *I, State);
+
+    Out << NL;
+  }
 }
 
 //===----------------------------------------------------------------------===//

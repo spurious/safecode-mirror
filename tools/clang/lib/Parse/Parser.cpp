@@ -593,10 +593,7 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     break;
   }
   case tok::at:
-    // @ is not a legal token unless objc is enabled, no need to check for ObjC.
-    /// FIXME: ParseObjCAtDirectives should return a DeclGroup for things like
-    /// @class foo, bar;
-    SingleDecl = ParseObjCAtDirectives();
+    return ParseObjCAtDirectives();
     break;
   case tok::minus:
   case tok::plus:
@@ -679,6 +676,9 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     ParseMicrosoftIfExistsExternalDeclaration();
     return DeclGroupPtrTy();
 
+  case tok::kw___import__:
+    return ParseModuleImport();
+      
   default:
   dont_know:
     // We can't tell whether this is a function-definition or declaration yet.
@@ -1540,4 +1540,25 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
     return;
   }
   ConsumeBrace();
+}
+
+Parser::DeclGroupPtrTy Parser::ParseModuleImport() {
+  assert(Tok.is(tok::kw___import__) && "Improper start to module import");
+  SourceLocation ImportLoc = ConsumeToken();
+  
+  // Parse the module name.
+  if (!Tok.is(tok::identifier)) {
+    Diag(Tok, diag::err_module_expected_ident);
+    SkipUntil(tok::semi);
+    return DeclGroupPtrTy();
+  }
+  
+  IdentifierInfo &ModuleName = *Tok.getIdentifierInfo();
+  SourceLocation ModuleNameLoc = ConsumeToken();
+  DeclResult Import = Actions.ActOnModuleImport(ImportLoc, ModuleName, ModuleNameLoc);
+  ExpectAndConsumeSemi(diag::err_module_expected_semi);
+  if (Import.isInvalid())
+    return DeclGroupPtrTy();
+  
+  return Actions.ConvertDeclToDeclGroup(Import.get());
 }

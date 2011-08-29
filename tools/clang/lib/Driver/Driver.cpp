@@ -1354,8 +1354,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C,
   // Output to a temporary file?
   if ((!AtTopLevel && !C.getArgs().hasArg(options::OPT_save_temps)) ||
       CCGenDiagnostics) {
+    StringRef Name = llvm::sys::path::filename(BaseInput);
+    std::pair<StringRef, StringRef> Split = Name.split('.');
     std::string TmpName =
-      GetTemporaryPath(types::getTypeTempSuffix(JA.getType()));
+      GetTemporaryPath(Split.first, types::getTypeTempSuffix(JA.getType()));
     return C.addTempFile(C.getArgs().MakeArgString(TmpName.c_str()));
   }
 
@@ -1388,9 +1390,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C,
   // If we're saving temps and the temp filename conflicts with the input
   // filename, then avoid overwriting input file.
   if (!AtTopLevel && C.getArgs().hasArg(options::OPT_save_temps) &&
-    NamedOutput == BaseName) {
+      NamedOutput == BaseName) {
+    StringRef Name = llvm::sys::path::filename(BaseInput);
+    std::pair<StringRef, StringRef> Split = Name.split('.');
     std::string TmpName =
-      GetTemporaryPath(types::getTypeTempSuffix(JA.getType()));
+      GetTemporaryPath(Split.first, types::getTypeTempSuffix(JA.getType()));
     return C.addTempFile(C.getArgs().MakeArgString(TmpName.c_str()));
   }
 
@@ -1475,7 +1479,8 @@ std::string Driver::GetProgramPath(const char *Name, const ToolChain &TC,
   return Name;
 }
 
-std::string Driver::GetTemporaryPath(const char *Suffix) const {
+std::string Driver::GetTemporaryPath(StringRef Prefix, const char *Suffix) 
+  const {
   // FIXME: This is lame; sys::Path should provide this function (in particular,
   // it should know how to find the temporary files dir).
   std::string Error;
@@ -1487,7 +1492,7 @@ std::string Driver::GetTemporaryPath(const char *Suffix) const {
   if (!TmpDir)
     TmpDir = "/tmp";
   llvm::sys::Path P(TmpDir);
-  P.appendComponent("cc");
+  P.appendComponent(Prefix);
   if (P.makeUnique(false, &Error)) {
     Diag(clang::diag::err_drv_unable_to_make_temp) << Error;
     return "";
