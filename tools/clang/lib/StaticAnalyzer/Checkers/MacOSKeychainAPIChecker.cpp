@@ -198,12 +198,10 @@ unsigned MacOSKeychainAPIChecker::getTrackedFunctionIndex(StringRef Name,
 
 static SymbolRef getSymbolForRegion(CheckerContext &C,
                                    const MemRegion *R) {
+  // Implicit casts (ex: void* -> char*) can turn Symbolic region into element
+  // region, if that is the case, get the underlining region.
+  R = R->StripCasts();
   if (!isa<SymbolicRegion>(R)) {
-    // Implicit casts (ex: void* -> char*) can turn Symbolic region into element
-    // region, if that is the case, get the underlining region.
-    if (const ElementRegion *ER = dyn_cast<ElementRegion>(R))
-      R = ER->getAsArrayOffset().getRegion();
-    else
       return 0;
   }
   return cast<SymbolicRegion>(R)->getSymbol();
