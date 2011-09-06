@@ -17,13 +17,13 @@ This test serves two purposes:
 
 The list of warnings below should NEVER grow.  It should gradually shrink to 0.
 
-CHECK: Warnings without flags (313):
-CHECK-NEXT:   auto_storage_class
+CHECK: Warnings without flags (311):
 CHECK-NEXT:   backslash_newline_space
 CHECK-NEXT:   charize_microsoft_ext
 CHECK-NEXT:   ext_anon_param_requires_type_specifier
 CHECK-NEXT:   ext_anonymous_struct_union_qualified
 CHECK-NEXT:   ext_array_init_copy
+CHECK-NEXT:   ext_auto_storage_class
 CHECK-NEXT:   ext_binary_literal
 CHECK-NEXT:   ext_c1x_generic_selection
 CHECK-NEXT:   ext_c1x_static_assert
@@ -230,7 +230,6 @@ CHECK-NEXT:   warn_missing_case_for_condition
 CHECK-NEXT:   warn_missing_dependent_template_keyword
 CHECK-NEXT:   warn_missing_exception_specification
 CHECK-NEXT:   warn_missing_whitespace_after_macro_name
-CHECK-NEXT:   warn_module_not_found
 CHECK-NEXT:   warn_multiple_method_decl
 CHECK-NEXT:   warn_no_constructor_for_refconst
 CHECK-NEXT:   warn_nonnull_pointers_only
@@ -253,7 +252,6 @@ CHECK-NEXT:   warn_pointer_attribute_wrong_type
 CHECK-NEXT:   warn_pp_convert_lhs_to_positive
 CHECK-NEXT:   warn_pp_convert_rhs_to_positive
 CHECK-NEXT:   warn_pp_expr_overflow
-CHECK-NEXT:   warn_pp_file_not_found
 CHECK-NEXT:   warn_pp_line_decimal
 CHECK-NEXT:   warn_pragma_align_expected_equal
 CHECK-NEXT:   warn_pragma_align_invalid_option

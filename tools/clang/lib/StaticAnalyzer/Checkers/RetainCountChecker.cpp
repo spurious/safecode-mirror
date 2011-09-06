@@ -1,4 +1,4 @@
-// CFRefCount.cpp - Transfer functions for tracking simple values -*- C++ -*--//
+//==-- RetainCountChecker.cpp - Checks for leaks and other issues -*- C++ -*--//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,27 +7,26 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file defines the methods for CFRefCount, which implements
-//  a reference count checker for Core Foundation (Mac OS X).
+//  This file defines the methods for RetainCountChecker, which implements
+//  a reference count checker for Core Foundation and Cocoa on (Mac OS X).
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/StaticAnalyzer/Core/Checker.h"
-#include "clang/StaticAnalyzer/Core/CheckerManager.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "ClangSACheckers.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Analysis/DomainSpecific/CocoaConventions.h"
+#include "clang/StaticAnalyzer/Core/Checker.h"
+#include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
-#include "clang/StaticAnalyzer/Checkers/LocalCheckers.h"
-#include "clang/Analysis/DomainSpecific/CocoaConventions.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngineBuilders.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/TransferFuncs.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ObjCMessage.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/ImmutableList.h"
@@ -41,6 +40,8 @@ using namespace ento;
 using llvm::StrInStrNoCase;
 
 namespace {
+/// Wrapper around different kinds of node builder, so that helper functions
+/// can have a common interface.
 class GenericNodeBuilderRefCount {
   StmtNodeBuilder *SNB;
   const Stmt *S;
@@ -258,7 +259,7 @@ void RefVal::print(raw_ostream &Out) const {
     Out << "Tracked " << T.getAsString() << '/';
 
   switch (getKind()) {
-    default: assert(false);
+    default: llvm_unreachable("Invalid RefVal kind");
     case Owned: {
       Out << "Owned";
       unsigned cnt = getCount();
@@ -354,7 +355,7 @@ struct ProgramStateTrait<RefBindings>
 }
 
 //===----------------------------------------------------------------------===//
-// Summaries
+// Function/Method behavior summaries.
 //===----------------------------------------------------------------------===//
 
 namespace {
@@ -733,8 +734,6 @@ public:
     InitializeMethodSummaries();
   }
 
-  ~RetainSummaryManager();
-
   RetainSummary* getSummary(const FunctionDecl *FD);
 
   RetainSummary *getInstanceMethodSummary(const ObjCMessage &msg,
@@ -841,8 +840,6 @@ public:
 //===----------------------------------------------------------------------===//
 // Implementation of checker data structures.
 //===----------------------------------------------------------------------===//
-
-RetainSummaryManager::~RetainSummaryManager() {}
 
 ArgEffects RetainSummaryManager::getArgEffects() {
   ArgEffects AE = ScratchArgs;
@@ -1578,28 +1575,6 @@ SendAutorelease(const ProgramState *state,
 }
 
 //===----------------------------------------------------------------------===//
-// Transfer functions.
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-class CFRefCount : public TransferFuncs {
-public:
-  const LangOptions&   LOpts;
-  const bool GCEnabled;
-
-public:
-  CFRefCount(ASTContext &Ctx, bool gcenabled, const LangOptions& lopts)
-    : LOpts(lopts), GCEnabled(gcenabled) {}
-
-  void RegisterChecks(ExprEngine &Eng);
-  
-  const LangOptions& getLangOptions() const { return LOpts; }
-};
-
-} // end anonymous namespace
-
-//===----------------------------------------------------------------------===//
 // Error reporting.
 //===----------------------------------------------------------------------===//
 namespace {
@@ -1826,6 +1801,7 @@ void CFRefReport::addGCModeDescription(const LangOptions &LOpts,
   addExtraText(GCModeDescription);
 }
 
+// FIXME: This should be a method on SmallVector.
 static inline bool contains(const SmallVectorImpl<ArgEffect>& V,
                             ArgEffect X) {
   for (SmallVectorImpl<ArgEffect>::const_iterator I=V.begin(), E=V.end();
@@ -2291,40 +2267,8 @@ CFRefLeakReport::CFRefLeakReport(CFRefBug &D, const LangOptions &LOpts,
 // Main checker logic.
 //===----------------------------------------------------------------------===//
 
-/// GetReturnType - Used to get the return type of a message expression or
-///  function call with the intention of affixing that type to a tracked symbol.
-///  While the the return type can be queried directly from RetEx, when
-///  invoking class methods we augment to the return type to be that of
-///  a pointer to the class (as opposed it just being id).
-static QualType GetReturnType(const Expr *RetE, ASTContext &Ctx) {
-  QualType RetTy = RetE->getType();
-  // If RetE is not a message expression just return its type.
-  // If RetE is a message expression, return its types if it is something
-  /// more specific than id.
-  if (const ObjCMessageExpr *ME = dyn_cast<ObjCMessageExpr>(RetE))
-    if (const ObjCObjectPointerType *PT = RetTy->getAs<ObjCObjectPointerType>())
-      if (PT->isObjCQualifiedIdType() || PT->isObjCIdType() ||
-          PT->isObjCClassType()) {
-        // At this point we know the return type of the message expression is
-        // id, id<...>, or Class. If we have an ObjCInterfaceDecl, we know this
-        // is a call to a class method whose type we can resolve.  In such
-        // cases, promote the return type to XXX* (where XXX is the class).
-        const ObjCInterfaceDecl *D = ME->getReceiverInterface();
-        return !D ? RetTy :
-                    Ctx.getObjCObjectPointerType(Ctx.getObjCInterfaceType(D));
-      }
-
-  return RetTy;
-}
-
-//===----------------------------------------------------------------------===//
-// Pieces of the retain/release checker implemented using a CheckerVisitor.
-// More pieces of the retain/release checker will be migrated to this interface
-// (ideally, all of it some day).
-//===----------------------------------------------------------------------===//
-
 namespace {
-class RetainReleaseChecker
+class RetainCountChecker
   : public Checker< check::Bind,
                     check::DeadSymbols,
                     check::EndAnalysis,
@@ -2357,13 +2301,10 @@ class RetainReleaseChecker
   mutable SummaryLogTy SummaryLog;
   mutable bool ShouldResetSummaryLog;
 
-  LangOptions::GCMode GCMode;
-
 public:  
-  RetainReleaseChecker()
-  : ShouldResetSummaryLog(false), GCMode(LangOptions::HybridGC) {}
+  RetainCountChecker() : ShouldResetSummaryLog(false) {}
 
-  virtual ~RetainReleaseChecker() {
+  virtual ~RetainCountChecker() {
     DeleteContainerSeconds(DeadSymbolTags);
   }
 
@@ -2403,41 +2344,17 @@ public:
     ShouldResetSummaryLog = !SummaryLog.empty();
   }
 
-  void setGCMode(LangOptions::GCMode newGC) {
-    // FIXME: This is definitely not const behavior; its intended use is to
-    // set the GC mode for the entire coming code body. This setting will
-    // most likely live somewhere else in the future.
-    assert(newGC != LangOptions::HybridGC && "Analysis requires GC on or off.");
-    GCMode = newGC;
-  }
-
-  bool isGCEnabled() const {
-    switch (GCMode) {
-    case LangOptions::HybridGC:
-      llvm_unreachable("GC mode not set yet!");
-    case LangOptions::NonGC:
-      return false;
-    case LangOptions::GCOnly:
-      return true;
-    }
-
-    llvm_unreachable("Invalid/unknown GC mode.");
-  }
-
-  bool isARCorGCEnabled(ASTContext &Ctx) const {
-    return isGCEnabled() || Ctx.getLangOptions().ObjCAutoRefCount;
-  }
-
-  CFRefBug *getLeakWithinFunctionBug(ASTContext &Ctx) const {
-    if (isGCEnabled()) {
+  CFRefBug *getLeakWithinFunctionBug(const LangOptions &LOpts,
+                                     bool GCEnabled) const {
+    if (GCEnabled) {
       if (!leakWithinFunctionGC)
         leakWithinFunctionGC.reset(new LeakWithinFunction("Leak of object when "
                                                           "using garbage "
                                                           "collection"));
-      return &*leakWithinFunctionGC;
+      return leakWithinFunctionGC.get();
     } else {
       if (!leakWithinFunction) {
-        if (Ctx.getLangOptions().getGCMode() == LangOptions::HybridGC) {
+        if (LOpts.getGCMode() == LangOptions::HybridGC) {
           leakWithinFunction.reset(new LeakWithinFunction("Leak of object when "
                                                           "not using garbage "
                                                           "collection (GC) in "
@@ -2447,19 +2364,19 @@ public:
           leakWithinFunction.reset(new LeakWithinFunction("Leak"));
         }
       }
-      return &*leakWithinFunction;
+      return leakWithinFunction.get();
     }
   }
 
-  CFRefBug *getLeakAtReturnBug(ASTContext &Ctx) const {
-    if (isGCEnabled()) {
+  CFRefBug *getLeakAtReturnBug(const LangOptions &LOpts, bool GCEnabled) const {
+    if (GCEnabled) {
       if (!leakAtReturnGC)
         leakAtReturnGC.reset(new LeakAtReturn("Leak of returned object when "
                                               "using garbage collection"));
-      return &*leakAtReturnGC;
+      return leakAtReturnGC.get();
     } else {
       if (!leakAtReturn) {
-        if (Ctx.getLangOptions().getGCMode() == LangOptions::HybridGC) {
+        if (LOpts.getGCMode() == LangOptions::HybridGC) {
           leakAtReturn.reset(new LeakAtReturn("Leak of returned object when "
                                               "not using garbage collection "
                                               "(GC) in dual GC/non-GC code"));
@@ -2467,24 +2384,32 @@ public:
           leakAtReturn.reset(new LeakAtReturn("Leak of returned object"));
         }
       }
-      return &*leakAtReturn;
+      return leakAtReturn.get();
     }
   }
 
-  RetainSummaryManager &getSummaryManager(ASTContext &Ctx) const {
-    if (isGCEnabled()) {
-      if (!SummariesGC) {
-        bool ARCEnabled = (bool)Ctx.getLangOptions().ObjCAutoRefCount;
+  RetainSummaryManager &getSummaryManager(ASTContext &Ctx,
+                                          bool GCEnabled) const {
+    // FIXME: We don't support ARC being turned on and off during one analysis.
+    // (nor, for that matter, do we support changing ASTContexts)
+    bool ARCEnabled = (bool)Ctx.getLangOptions().ObjCAutoRefCount;
+    if (GCEnabled) {
+      if (!SummariesGC)
         SummariesGC.reset(new RetainSummaryManager(Ctx, true, ARCEnabled));
-      }
+      else
+        assert(SummariesGC->isARCEnabled() == ARCEnabled);
       return *SummariesGC;
     } else {
-      if (!Summaries) {
-        bool ARCEnabled = (bool)Ctx.getLangOptions().ObjCAutoRefCount;
+      if (!Summaries)
         Summaries.reset(new RetainSummaryManager(Ctx, false, ARCEnabled));
-      }
+      else
+        assert(Summaries->isARCEnabled() == ARCEnabled);
       return *Summaries;
     }
+  }
+
+  RetainSummaryManager &getSummaryManager(CheckerContext &C) const {
+    return getSummaryManager(C.getASTContext(), C.isObjCGCEnabled());
   }
 
   void printState(raw_ostream &Out, const ProgramState *State,
@@ -2524,8 +2449,8 @@ public:
   void checkEndPath(EndOfFunctionNodeBuilder &Builder, ExprEngine &Eng) const;
 
   const ProgramState *updateSymbol(const ProgramState *state, SymbolRef sym,
-                                   RefVal V, ArgEffect E,
-                                   RefVal::Kind &hasErr) const;
+                                   RefVal V, ArgEffect E, RefVal::Kind &hasErr,
+                                   CheckerContext &C) const;
 
   void processNonLeakError(const ProgramState *St, SourceRange ErrorRange,
                            RefVal::Kind ErrorKind, SymbolRef Sym,
@@ -2564,108 +2489,14 @@ public:
 };
 } // end anonymous namespace
 
+//===----------------------------------------------------------------------===//
+// Handle statements that may have an effect on refcounts.
+//===----------------------------------------------------------------------===//
 
-void RetainReleaseChecker::checkBind(SVal loc, SVal val,
-                                     CheckerContext &C) const {
-  // Are we storing to something that causes the value to "escape"?
-  bool escapes = true;
+void RetainCountChecker::checkPostStmt(const BlockExpr *BE,
+                                       CheckerContext &C) const {
 
-  // A value escapes in three possible cases (this may change):
-  //
-  // (1) we are binding to something that is not a memory region.
-  // (2) we are binding to a memregion that does not have stack storage
-  // (3) we are binding to a memregion with stack storage that the store
-  //     does not understand.
-  const ProgramState *state = C.getState();
-
-  if (loc::MemRegionVal *regionLoc = dyn_cast<loc::MemRegionVal>(&loc)) {
-    escapes = !regionLoc->getRegion()->hasStackStorage();
-
-    if (!escapes) {
-      // To test (3), generate a new state with the binding added.  If it is
-      // the same state, then it escapes (since the store cannot represent
-      // the binding).
-      escapes = (state == (state->bindLoc(*regionLoc, val)));
-    }
-  }
-
-  // If our store can represent the binding and we aren't storing to something
-  // that doesn't have local storage then just return and have the simulation
-  // state continue as is.
-  if (!escapes)
-      return;
-
-  // Otherwise, find all symbols referenced by 'val' that we are tracking
-  // and stop tracking them.
-  state = state->scanReachableSymbols<StopTrackingCallback>(val).getState();
-  C.addTransition(state);
-}
-
-// Assumptions.
-
-const ProgramState *RetainReleaseChecker::evalAssume(const ProgramState *state,
-                                                     SVal Cond,
-                                                     bool Assumption) const {
-
-  // FIXME: We may add to the interface of evalAssume the list of symbols
-  //  whose assumptions have changed.  For now we just iterate through the
-  //  bindings and check if any of the tracked symbols are NULL.  This isn't
-  //  too bad since the number of symbols we will track in practice are
-  //  probably small and evalAssume is only called at branches and a few
-  //  other places.
-  RefBindings B = state->get<RefBindings>();
-
-  if (B.isEmpty())
-    return state;
-
-  bool changed = false;
-  RefBindings::Factory &RefBFactory = state->get_context<RefBindings>();
-
-  for (RefBindings::iterator I = B.begin(), E = B.end(); I != E; ++I) {
-    // Check if the symbol is null (or equal to any constant).
-    // If this is the case, stop tracking the symbol.
-    if (state->getSymVal(I.getKey())) {
-      changed = true;
-      B = RefBFactory.remove(B, I.getKey());
-    }
-  }
-
-  if (changed)
-    state = state->set<RefBindings>(B);
-
-  return state;
-}
-
-const ProgramState *
-RetainReleaseChecker::checkRegionChanges(const ProgramState *state,
-                            const StoreManager::InvalidatedSymbols *invalidated,
-                                    ArrayRef<const MemRegion *> ExplicitRegions,
-                                    ArrayRef<const MemRegion *> Regions) const {
-  if (!invalidated)
-    return state;
-
-  llvm::SmallPtrSet<SymbolRef, 8> WhitelistedSymbols;
-  for (ArrayRef<const MemRegion *>::iterator I = ExplicitRegions.begin(),
-       E = ExplicitRegions.end(); I != E; ++I) {
-    if (const SymbolicRegion *SR = (*I)->StripCasts()->getAs<SymbolicRegion>())
-      WhitelistedSymbols.insert(SR->getSymbol());
-  }
-
-  for (StoreManager::InvalidatedSymbols::const_iterator I=invalidated->begin(),
-       E = invalidated->end(); I!=E; ++I) {
-    SymbolRef sym = *I;
-    if (WhitelistedSymbols.count(sym))
-      continue;
-    // Remove any existing reference-count binding.
-    state = state->remove<RefBindings>(sym);
-  }
-  return state;
-}
-
-void RetainReleaseChecker::checkPostStmt(const BlockExpr *BE,
-                                         CheckerContext &C) const {
-
-  // Scan the BlockDecRefExprs for any object the retain/release checker
+  // Scan the BlockDecRefExprs for any object the retain count checker
   // may be tracking.
   if (!BE->getBlockDecl()->hasCaptures())
     return;
@@ -2701,8 +2532,8 @@ void RetainReleaseChecker::checkPostStmt(const BlockExpr *BE,
   C.addTransition(state);
 }
 
-void RetainReleaseChecker::checkPostStmt(const CastExpr *CE,
-                                         CheckerContext &C) const {
+void RetainCountChecker::checkPostStmt(const CastExpr *CE,
+                                       CheckerContext &C) const {
   const ObjCBridgedCastExpr *BE = dyn_cast<ObjCBridgedCastExpr>(CE);
   if (!BE)
     return;
@@ -2730,7 +2561,7 @@ void RetainReleaseChecker::checkPostStmt(const CastExpr *CE,
     return;
 
   RefVal::Kind hasErr = (RefVal::Kind) 0;
-  state = updateSymbol(state, Sym, *T, AE, hasErr);
+  state = updateSymbol(state, Sym, *T, AE, hasErr, C);
   
   if (hasErr) {
     // FIXME: If we get an error during a bridge cast, should we report it?
@@ -2741,14 +2572,14 @@ void RetainReleaseChecker::checkPostStmt(const CastExpr *CE,
   C.generateNode(state);
 }
 
-void RetainReleaseChecker::checkPostStmt(const CallExpr *CE,
-                                         CheckerContext &C) const {
+void RetainCountChecker::checkPostStmt(const CallExpr *CE,
+                                       CheckerContext &C) const {
   // Get the callee.
   const ProgramState *state = C.getState();
   const Expr *Callee = CE->getCallee();
   SVal L = state->getSVal(Callee);
 
-  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
+  RetainSummaryManager &Summaries = getSummaryManager(C);
   RetainSummary *Summ = 0;
 
   // FIXME: Better support for blocks.  For now we stop tracking anything
@@ -2770,13 +2601,13 @@ void RetainReleaseChecker::checkPostStmt(const CallExpr *CE,
   checkSummary(*Summ, CallOrObjCMessage(CE, state), C);
 }
 
-void RetainReleaseChecker::checkPostStmt(const CXXConstructExpr *CE,
-                                         CheckerContext &C) const {
+void RetainCountChecker::checkPostStmt(const CXXConstructExpr *CE,
+                                       CheckerContext &C) const {
   const CXXConstructorDecl *Ctor = CE->getConstructor();
   if (!Ctor)
     return;
 
-  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
+  RetainSummaryManager &Summaries = getSummaryManager(C);
   RetainSummary *Summ = Summaries.getSummary(Ctor);
 
   // If we didn't get a summary, this constructor doesn't affect retain counts.
@@ -2787,12 +2618,12 @@ void RetainReleaseChecker::checkPostStmt(const CXXConstructExpr *CE,
   checkSummary(*Summ, CallOrObjCMessage(CE, state), C);
 }
 
-void RetainReleaseChecker::checkPostObjCMessage(const ObjCMessage &Msg, 
-                                                CheckerContext &C) const {
+void RetainCountChecker::checkPostObjCMessage(const ObjCMessage &Msg, 
+                                              CheckerContext &C) const {
   const ProgramState *state = C.getState();
   ExplodedNode *Pred = C.getPredecessor();
 
-  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
+  RetainSummaryManager &Summaries = getSummaryManager(C);
 
   RetainSummary *Summ;
   if (Msg.isInstanceMessage()) {
@@ -2809,9 +2640,37 @@ void RetainReleaseChecker::checkPostObjCMessage(const ObjCMessage &Msg,
   checkSummary(*Summ, CallOrObjCMessage(Msg, state), C);
 }
 
-void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
-                                        const CallOrObjCMessage &CallOrMsg,
-                                        CheckerContext &C) const {
+/// GetReturnType - Used to get the return type of a message expression or
+///  function call with the intention of affixing that type to a tracked symbol.
+///  While the the return type can be queried directly from RetEx, when
+///  invoking class methods we augment to the return type to be that of
+///  a pointer to the class (as opposed it just being id).
+// FIXME: We may be able to do this with related result types instead.
+// This function is probably overestimating.
+static QualType GetReturnType(const Expr *RetE, ASTContext &Ctx) {
+  QualType RetTy = RetE->getType();
+  // If RetE is not a message expression just return its type.
+  // If RetE is a message expression, return its types if it is something
+  /// more specific than id.
+  if (const ObjCMessageExpr *ME = dyn_cast<ObjCMessageExpr>(RetE))
+    if (const ObjCObjectPointerType *PT = RetTy->getAs<ObjCObjectPointerType>())
+      if (PT->isObjCQualifiedIdType() || PT->isObjCIdType() ||
+          PT->isObjCClassType()) {
+        // At this point we know the return type of the message expression is
+        // id, id<...>, or Class. If we have an ObjCInterfaceDecl, we know this
+        // is a call to a class method whose type we can resolve.  In such
+        // cases, promote the return type to XXX* (where XXX is the class).
+        const ObjCInterfaceDecl *D = ME->getReceiverInterface();
+        return !D ? RetTy :
+                    Ctx.getObjCObjectPointerType(Ctx.getObjCInterfaceType(D));
+      }
+
+  return RetTy;
+}
+
+void RetainCountChecker::checkSummary(const RetainSummary &Summ,
+                                      const CallOrObjCMessage &CallOrMsg,
+                                      CheckerContext &C) const {
   const ProgramState *state = C.getState();
 
   // Evaluate the effect of the arguments.
@@ -2824,7 +2683,7 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
 
     if (SymbolRef Sym = V.getAsLocSymbol()) {
       if (RefBindings::data_type *T = state->get<RefBindings>(Sym)) {
-        state = updateSymbol(state, Sym, *T, Summ.getArg(idx), hasErr);
+        state = updateSymbol(state, Sym, *T, Summ.getArg(idx), hasErr, C);
         if (hasErr) {
           ErrorRange = CallOrMsg.getArgSourceRange(idx);
           ErrorSym = Sym;
@@ -2842,7 +2701,8 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
     if (SymbolRef Sym = Receiver.getAsLocSymbol()) {
       if (const RefVal *T = state->get<RefBindings>(Sym)) {
         ReceiverIsTracked = true;
-        state = updateSymbol(state, Sym, *T, Summ.getReceiverEffect(), hasErr);
+        state = updateSymbol(state, Sym, *T, Summ.getReceiverEffect(),
+                             hasErr, C);
         if (hasErr) {
           ErrorRange = CallOrMsg.getReceiverSourceRange();
           ErrorSym = Sym;
@@ -2862,7 +2722,7 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
 
   if (RE.getKind() == RetEffect::OwnedWhenTrackedReceiver) {
     if (ReceiverIsTracked)
-      RE = getSummaryManager(C.getASTContext()).getObjAllocRetEffect();      
+      RE = getSummaryManager(C).getObjAllocRetEffect();      
     else
       RE = RetEffect::MakeNoRet();
   }
@@ -2939,22 +2799,26 @@ void RetainReleaseChecker::checkSummary(const RetainSummary &Summ,
 
 
 const ProgramState *
-RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
-                                   RefVal V, ArgEffect E,
-                                   RefVal::Kind &hasErr) const {
+RetainCountChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
+                                 RefVal V, ArgEffect E, RefVal::Kind &hasErr,
+                                 CheckerContext &C) const {
   // In GC mode [... release] and [... retain] do nothing.
-  ASTContext &Ctx = state->getStateManager().getContext();
+  // In ARC mode they shouldn't exist at all, but we just ignore them.
+  bool IgnoreRetainMsg = C.isObjCGCEnabled();
+  if (!IgnoreRetainMsg)
+    IgnoreRetainMsg = (bool)C.getASTContext().getLangOptions().ObjCAutoRefCount;
+
   switch (E) {
     default: break;
-    case IncRefMsg: E = isARCorGCEnabled(Ctx) ? DoNothing : IncRef; break;
-    case DecRefMsg: E = isARCorGCEnabled(Ctx) ? DoNothing : DecRef; break;
-    case MakeCollectable: E = isGCEnabled() ? DecRef : DoNothing; break;
-    case NewAutoreleasePool: E = isGCEnabled() ? DoNothing :
-                                                 NewAutoreleasePool; break;
+    case IncRefMsg: E = IgnoreRetainMsg ? DoNothing : IncRef; break;
+    case DecRefMsg: E = IgnoreRetainMsg ? DoNothing : DecRef; break;
+    case MakeCollectable: E = C.isObjCGCEnabled() ? DecRef : DoNothing; break;
+    case NewAutoreleasePool: E = C.isObjCGCEnabled() ? DoNothing :
+                                                      NewAutoreleasePool; break;
   }
 
   // Handle all use-after-releases.
-  if (!isGCEnabled() && V.getKind() == RefVal::Released) {
+  if (!C.isObjCGCEnabled() && V.getKind() == RefVal::Released) {
     V = V ^ RefVal::ErrorUseAfterRelease;
     hasErr = V.getKind();
     return state->set<RefBindings>(sym, V);
@@ -2969,7 +2833,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
 
     case Dealloc:
       // Any use of -dealloc in GC is *bad*.
-      if (isGCEnabled()) {
+      if (C.isObjCGCEnabled()) {
         V = V ^ RefVal::ErrorDeallocGC;
         hasErr = V.getKind();
         break;
@@ -2992,7 +2856,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
       break;
 
     case NewAutoreleasePool:
-      assert(!isGCEnabled());
+      assert(!C.isObjCGCEnabled());
       return state->add<AutoreleaseStack>(sym);
 
     case MayEscape:
@@ -3007,7 +2871,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
       return state;
 
     case Autorelease:
-      if (isGCEnabled())
+      if (C.isObjCGCEnabled())
         return state;
 
       // Update the autorelease counts.
@@ -3029,7 +2893,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
           break;
         case RefVal::Released:
           // Non-GC cases are handled above.
-          assert(isGCEnabled());
+          assert(C.isObjCGCEnabled());
           V = (V ^ RefVal::Owned) + 1;
           break;
       }
@@ -3065,7 +2929,7 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
 
         case RefVal::Released:
           // Non-GC cases are handled above.
-          assert(isGCEnabled());
+          assert(C.isObjCGCEnabled());
           V = V ^ RefVal::ErrorUseAfterRelease;
           hasErr = V.getKind();
           break;
@@ -3075,11 +2939,11 @@ RetainReleaseChecker::updateSymbol(const ProgramState *state, SymbolRef sym,
   return state->set<RefBindings>(sym, V);
 }
 
-void RetainReleaseChecker::processNonLeakError(const ProgramState *St,
-                                               SourceRange ErrorRange,
-                                               RefVal::Kind ErrorKind,
-                                               SymbolRef Sym,
-                                               CheckerContext &C) const {
+void RetainCountChecker::processNonLeakError(const ProgramState *St,
+                                             SourceRange ErrorRange,
+                                             RefVal::Kind ErrorKind,
+                                             SymbolRef Sym,
+                                             CheckerContext &C) const {
   ExplodedNode *N = C.generateSink(St);
   if (!N)
     return;
@@ -3113,13 +2977,17 @@ void RetainReleaseChecker::processNonLeakError(const ProgramState *St,
 
   assert(BT);
   CFRefReport *report = new CFRefReport(*BT, C.getASTContext().getLangOptions(),
-                                        isGCEnabled(), SummaryLog, N, Sym);
+                                        C.isObjCGCEnabled(), SummaryLog,
+                                        N, Sym);
   report->addRange(ErrorRange);
   C.EmitReport(report);
 }
 
-bool RetainReleaseChecker::evalCall(const CallExpr *CE,
-                                    CheckerContext &C) const {
+//===----------------------------------------------------------------------===//
+// Handle the return values of retain-count-related functions.
+//===----------------------------------------------------------------------===//
+
+bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
   // Get the callee. We're only interested in simple C functions.
   const ProgramState *state = C.getState();
   const Expr *Callee = CE->getCallee();
@@ -3196,10 +3064,12 @@ bool RetainReleaseChecker::evalCall(const CallExpr *CE,
   return true;
 }
 
- // Return statements.
+//===----------------------------------------------------------------------===//
+// Handle return statements.
+//===----------------------------------------------------------------------===//
 
-void RetainReleaseChecker::checkPreStmt(const ReturnStmt *S,
-                                        CheckerContext &C) const {
+void RetainCountChecker::checkPreStmt(const ReturnStmt *S,
+                                      CheckerContext &C) const {
   const Expr *RetE = S->getRetValue();
   if (!RetE)
     return;
@@ -3256,7 +3126,7 @@ void RetainReleaseChecker::checkPreStmt(const ReturnStmt *S,
 
   // Update the autorelease counts.
   static SimpleProgramPointTag
-         AutoreleaseTag("RetainReleaseChecker : Autorelease");
+         AutoreleaseTag("RetainCountChecker : Autorelease");
   GenericNodeBuilderRefCount Bd(C.getNodeBuilder(), S, &AutoreleaseTag);
   llvm::tie(Pred, state) = handleAutoreleaseCounts(state, Bd, Pred,
                                                    C.getEngine(), Sym, X);
@@ -3271,7 +3141,7 @@ void RetainReleaseChecker::checkPreStmt(const ReturnStmt *S,
   X = *T;
 
   // Consult the summary of the enclosing method.
-  RetainSummaryManager &Summaries = getSummaryManager(C.getASTContext());
+  RetainSummaryManager &Summaries = getSummaryManager(C);
   const Decl *CD = &Pred->getCodeDecl();
 
   if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(CD)) {
@@ -3291,17 +3161,17 @@ void RetainReleaseChecker::checkPreStmt(const ReturnStmt *S,
   }
 }
 
-void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
-                                                    CheckerContext &C,
-                                                    ExplodedNode *Pred,
-                                                    RetEffect RE, RefVal X,
-                                                    SymbolRef Sym,
+void RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
+                                                  CheckerContext &C,
+                                                  ExplodedNode *Pred,
+                                                  RetEffect RE, RefVal X,
+                                                  SymbolRef Sym,
                                               const ProgramState *state) const {
   // Any leaks or other errors?
   if (X.isReturnedOwned() && X.getCount() == 0) {
     if (RE.getKind() != RetEffect::NoRet) {
       bool hasError = false;
-      if (isGCEnabled() && RE.getObjKind() == RetEffect::ObjC) {
+      if (C.isObjCGCEnabled() && RE.getObjKind() == RetEffect::ObjC) {
         // Things are more complicated with garbage collection.  If the
         // returned object is suppose to be an Objective-C object, we have
         // a leak (as the caller expects a GC'ed object) because no
@@ -3323,15 +3193,16 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         StmtNodeBuilder &Builder = C.getNodeBuilder();
 
         static SimpleProgramPointTag
-               ReturnOwnLeakTag("RetainReleaseChecker : ReturnsOwnLeak");
+               ReturnOwnLeakTag("RetainCountChecker : ReturnsOwnLeak");
         ExplodedNode *N = Builder.generateNode(S, state, Pred,
                                                &ReturnOwnLeakTag);
         if (N) {
-          ASTContext &Ctx = C.getASTContext();
+          const LangOptions &LOpts = C.getASTContext().getLangOptions();
+          bool GCEnabled = C.isObjCGCEnabled();
           CFRefReport *report =
-            new CFRefLeakReport(*getLeakAtReturnBug(Ctx), Ctx.getLangOptions(),
-                                isGCEnabled(), SummaryLog, N, Sym, 
-                                C.getEngine());
+            new CFRefLeakReport(*getLeakAtReturnBug(LOpts, GCEnabled),
+                                LOpts, GCEnabled, SummaryLog,
+                                N, Sym, C.getEngine());
           C.EmitReport(report);
         }
       }
@@ -3344,7 +3215,7 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
       StmtNodeBuilder &Builder = C.getNodeBuilder();
 
       static SimpleProgramPointTag
-             ReturnNotOwnedTag("RetainReleaseChecker : ReturnNotOwnedForOwned");
+             ReturnNotOwnedTag("RetainCountChecker : ReturnNotOwnedForOwned");
       ExplodedNode *N = Builder.generateNode(S, state, Pred, 
                                              &ReturnNotOwnedTag);
       if (N) {
@@ -3353,8 +3224,8 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
 
         CFRefReport *report =
             new CFRefReport(*returnNotOwnedForOwned,
-                            C.getASTContext().getLangOptions(), isGCEnabled(),
-                            SummaryLog, N, Sym);
+                            C.getASTContext().getLangOptions(), 
+                            C.isObjCGCEnabled(), SummaryLog, N, Sym);
         C.EmitReport(report);
       }
     }
@@ -3362,22 +3233,120 @@ void RetainReleaseChecker::checkReturnWithRetEffect(const ReturnStmt *S,
 }
 
 //===----------------------------------------------------------------------===//
+// Check various ways a symbol can be invalidated.
+//===----------------------------------------------------------------------===//
+
+void RetainCountChecker::checkBind(SVal loc, SVal val,
+                                   CheckerContext &C) const {
+  // Are we storing to something that causes the value to "escape"?
+  bool escapes = true;
+
+  // A value escapes in three possible cases (this may change):
+  //
+  // (1) we are binding to something that is not a memory region.
+  // (2) we are binding to a memregion that does not have stack storage
+  // (3) we are binding to a memregion with stack storage that the store
+  //     does not understand.
+  const ProgramState *state = C.getState();
+
+  if (loc::MemRegionVal *regionLoc = dyn_cast<loc::MemRegionVal>(&loc)) {
+    escapes = !regionLoc->getRegion()->hasStackStorage();
+
+    if (!escapes) {
+      // To test (3), generate a new state with the binding added.  If it is
+      // the same state, then it escapes (since the store cannot represent
+      // the binding).
+      escapes = (state == (state->bindLoc(*regionLoc, val)));
+    }
+  }
+
+  // If our store can represent the binding and we aren't storing to something
+  // that doesn't have local storage then just return and have the simulation
+  // state continue as is.
+  if (!escapes)
+      return;
+
+  // Otherwise, find all symbols referenced by 'val' that we are tracking
+  // and stop tracking them.
+  state = state->scanReachableSymbols<StopTrackingCallback>(val).getState();
+  C.addTransition(state);
+}
+
+const ProgramState *RetainCountChecker::evalAssume(const ProgramState *state,
+                                                   SVal Cond,
+                                                   bool Assumption) const {
+
+  // FIXME: We may add to the interface of evalAssume the list of symbols
+  //  whose assumptions have changed.  For now we just iterate through the
+  //  bindings and check if any of the tracked symbols are NULL.  This isn't
+  //  too bad since the number of symbols we will track in practice are
+  //  probably small and evalAssume is only called at branches and a few
+  //  other places.
+  RefBindings B = state->get<RefBindings>();
+
+  if (B.isEmpty())
+    return state;
+
+  bool changed = false;
+  RefBindings::Factory &RefBFactory = state->get_context<RefBindings>();
+
+  for (RefBindings::iterator I = B.begin(), E = B.end(); I != E; ++I) {
+    // Check if the symbol is null (or equal to any constant).
+    // If this is the case, stop tracking the symbol.
+    if (state->getSymVal(I.getKey())) {
+      changed = true;
+      B = RefBFactory.remove(B, I.getKey());
+    }
+  }
+
+  if (changed)
+    state = state->set<RefBindings>(B);
+
+  return state;
+}
+
+const ProgramState *
+RetainCountChecker::checkRegionChanges(const ProgramState *state,
+                            const StoreManager::InvalidatedSymbols *invalidated,
+                                    ArrayRef<const MemRegion *> ExplicitRegions,
+                                    ArrayRef<const MemRegion *> Regions) const {
+  if (!invalidated)
+    return state;
+
+  llvm::SmallPtrSet<SymbolRef, 8> WhitelistedSymbols;
+  for (ArrayRef<const MemRegion *>::iterator I = ExplicitRegions.begin(),
+       E = ExplicitRegions.end(); I != E; ++I) {
+    if (const SymbolicRegion *SR = (*I)->StripCasts()->getAs<SymbolicRegion>())
+      WhitelistedSymbols.insert(SR->getSymbol());
+  }
+
+  for (StoreManager::InvalidatedSymbols::const_iterator I=invalidated->begin(),
+       E = invalidated->end(); I!=E; ++I) {
+    SymbolRef sym = *I;
+    if (WhitelistedSymbols.count(sym))
+      continue;
+    // Remove any existing reference-count binding.
+    state = state->remove<RefBindings>(sym);
+  }
+  return state;
+}
+
+//===----------------------------------------------------------------------===//
 // Handle dead symbols and end-of-path.
 //===----------------------------------------------------------------------===//
 
 std::pair<ExplodedNode *, const ProgramState *>
-RetainReleaseChecker::handleAutoreleaseCounts(const ProgramState *state, 
-                                              GenericNodeBuilderRefCount Bd,
-                                              ExplodedNode *Pred,
-                                              ExprEngine &Eng, SymbolRef Sym,
-                                              RefVal V) const {
+RetainCountChecker::handleAutoreleaseCounts(const ProgramState *state, 
+                                            GenericNodeBuilderRefCount Bd,
+                                            ExplodedNode *Pred, ExprEngine &Eng,
+                                            SymbolRef Sym, RefVal V) const {
   unsigned ACnt = V.getAutoreleaseCount();
 
   // No autorelease counts?  Nothing to be done.
   if (!ACnt)
     return std::make_pair(Pred, state);
 
-  assert(!isGCEnabled() && "Autorelease counts in GC mode?");
+  assert(!Eng.isObjCGCEnabled() && "Autorelease counts in GC mode?");
   unsigned Cnt = V.getCount();
 
   // FIXME: Handle sending 'autorelease' to already released object.
@@ -3432,8 +3401,8 @@ RetainReleaseChecker::handleAutoreleaseCounts(const ProgramState *state,
 }
 
 const ProgramState *
-RetainReleaseChecker::handleSymbolDeath(const ProgramState *state,
-                                        SymbolRef sid, RefVal V,
+RetainCountChecker::handleSymbolDeath(const ProgramState *state,
+                                      SymbolRef sid, RefVal V,
                                     SmallVectorImpl<SymbolRef> &Leaked) const {
   bool hasLeak = false;
   if (V.isOwned())
@@ -3449,12 +3418,10 @@ RetainReleaseChecker::handleSymbolDeath(const ProgramState *state,
 }
 
 ExplodedNode *
-RetainReleaseChecker::processLeaks(const ProgramState *state,
-                                   SmallVectorImpl<SymbolRef> &Leaked,
-                                   GenericNodeBuilderRefCount &Builder,
-                                   ExprEngine &Eng,
-                                   ExplodedNode *Pred) const {
-
+RetainCountChecker::processLeaks(const ProgramState *state,
+                                 SmallVectorImpl<SymbolRef> &Leaked,
+                                 GenericNodeBuilderRefCount &Builder,
+                                 ExprEngine &Eng, ExplodedNode *Pred) const {
   if (Leaked.empty())
     return Pred;
 
@@ -3465,13 +3432,13 @@ RetainReleaseChecker::processLeaks(const ProgramState *state,
     for (SmallVectorImpl<SymbolRef>::iterator
          I = Leaked.begin(), E = Leaked.end(); I != E; ++I) {
 
-      ASTContext &Ctx = Eng.getContext();
-      CFRefBug *BT = Pred ? getLeakWithinFunctionBug(Ctx)
-                          : getLeakAtReturnBug(Ctx);
+      const LangOptions &LOpts = Eng.getContext().getLangOptions();
+      bool GCEnabled = Eng.isObjCGCEnabled();
+      CFRefBug *BT = Pred ? getLeakWithinFunctionBug(LOpts, GCEnabled)
+                          : getLeakAtReturnBug(LOpts, GCEnabled);
       assert(BT && "BugType not initialized.");
 
-      const LangOptions &LOpts = Ctx.getLangOptions();
-      CFRefLeakReport *report = new CFRefLeakReport(*BT, LOpts, isGCEnabled(), 
+      CFRefLeakReport *report = new CFRefLeakReport(*BT, LOpts, GCEnabled, 
                                                     SummaryLog, N, *I, Eng);
       Eng.getBugReporter().EmitReport(report);
     }
@@ -3480,8 +3447,8 @@ RetainReleaseChecker::processLeaks(const ProgramState *state,
   return N;
 }
 
-void RetainReleaseChecker::checkEndPath(EndOfFunctionNodeBuilder &Builder,
-                                        ExprEngine &Eng) const {
+void RetainCountChecker::checkEndPath(EndOfFunctionNodeBuilder &Builder,
+                                      ExprEngine &Eng) const {
   const ProgramState *state = Builder.getState();
   GenericNodeBuilderRefCount Bd(Builder);
   RefBindings B = state->get<RefBindings>();
@@ -3504,19 +3471,19 @@ void RetainReleaseChecker::checkEndPath(EndOfFunctionNodeBuilder &Builder,
 }
 
 const ProgramPointTag *
-RetainReleaseChecker::getDeadSymbolTag(SymbolRef sym) const {
+RetainCountChecker::getDeadSymbolTag(SymbolRef sym) const {
   const SimpleProgramPointTag *&tag = DeadSymbolTags[sym];
   if (!tag) {
     llvm::SmallString<64> buf;
     llvm::raw_svector_ostream out(buf);
-    out << "RetainReleaseChecker : Dead Symbol : " << sym->getSymbolID();
+    out << "RetainCountChecker : Dead Symbol : " << sym->getSymbolID();
     tag = new SimpleProgramPointTag(out.str());
   }
   return tag;  
 }
 
-void RetainReleaseChecker::checkDeadSymbols(SymbolReaper &SymReaper,
-                                            CheckerContext &C) const {
+void RetainCountChecker::checkDeadSymbols(SymbolReaper &SymReaper,
+                                          CheckerContext &C) const {
   StmtNodeBuilder &Builder = C.getNodeBuilder();
   ExprEngine &Eng = C.getEngine();
   const Stmt *S = C.getStmt();
@@ -3590,16 +3557,15 @@ static void PrintPool(raw_ostream &Out, SymbolRef Sym,
   Out << '}';
 }
 
-bool UsesAutorelease(const ProgramState *state) {
+static bool UsesAutorelease(const ProgramState *state) {
   // A state uses autorelease if it allocated an autorelease pool or if it has
   // objects in the caller's autorelease pool.
   return !state->get<AutoreleaseStack>().isEmpty() ||
           state->get<AutoreleasePoolContents>(SymbolRef());
 }
 
-void RetainReleaseChecker::printState(raw_ostream &Out,
-                                      const ProgramState *State,
-                                      const char *NL, const char *Sep) const {
+void RetainCountChecker::printState(raw_ostream &Out, const ProgramState *State,
+                                    const char *NL, const char *Sep) const {
 
   RefBindings B = State->get<RefBindings>();
 
@@ -3626,22 +3592,10 @@ void RetainReleaseChecker::printState(raw_ostream &Out,
 }
 
 //===----------------------------------------------------------------------===//
-// Transfer function creation for external clients.
+// Checker registration.
 //===----------------------------------------------------------------------===//
 
-void CFRefCount::RegisterChecks(ExprEngine& Eng) {
-  // Register the RetainReleaseChecker with the ExprEngine object.
-  // Functionality in CFRefCount will be migrated to RetainReleaseChecker
-  // over time.
-  // FIXME: HACK! Remove TransferFuncs and turn all of CFRefCount into fully
-  // using the checker mechanism.
-  RetainReleaseChecker *checker = 
-    Eng.getCheckerManager().registerChecker<RetainReleaseChecker>();
-  assert(checker);
-  checker->setGCMode(GCEnabled ? LangOptions::GCOnly : LangOptions::NonGC);
+void ento::registerRetainCountChecker(CheckerManager &Mgr) {
+  Mgr.registerChecker<RetainCountChecker>();
 }
 
-TransferFuncs* ento::MakeCFRefCountTF(ASTContext &Ctx, bool GCEnabled,
-                                         const LangOptions& lopts) {
-  return new CFRefCount(Ctx, GCEnabled, lopts);
-}

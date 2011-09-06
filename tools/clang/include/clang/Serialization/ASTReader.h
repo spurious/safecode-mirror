@@ -36,6 +36,7 @@
 #include "llvm/ADT/OwningPtr.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Bitcode/BitstreamReader.h"
 #include "llvm/Support/DataTypes.h"
 #include <deque>
@@ -223,7 +224,7 @@ private:
   SourceManager &SourceMgr;
   FileManager &FileMgr;
   Diagnostic &Diags;
-
+  
   /// \brief The semantic analysis object that will be processing the
   /// AST files and the translation unit that uses it.
   Sema *SemaObj;
@@ -314,6 +315,10 @@ private:
   /// \brief Map of first declarations from a chained PCH that point to the
   /// most recent declarations in another AST file.
   FirstLatestDeclIDMap FirstLatestDeclIDs;
+
+  /// \brief Set of ObjC interfaces that have categories chained to them in
+  /// other modules.
+  llvm::DenseSet<serialization::GlobalDeclID> ObjCChainedCategoriesInterfaces;
 
   /// \brief Read the records that describe the contents of declcontexts.
   bool ReadDeclContextStorage(Module &M, 
@@ -681,6 +686,8 @@ private:
   Decl *ReadDeclRecord(serialization::DeclID ID);
   RecordLocation DeclCursorForID(serialization::DeclID ID);
   void loadDeclUpdateRecords(serialization::DeclID ID, Decl *D);
+  void loadObjCChainedCategories(serialization::GlobalDeclID ID,
+                                 ObjCInterfaceDecl *D);
   
   RecordLocation getLocalBitOffset(uint64_t GlobalOffset);
   uint64_t getGlobalBitOffset(Module &M, uint32_t LocalOffset);
@@ -722,37 +729,9 @@ public:
   /// help when an AST file is being used in cases where the
   /// underlying files in the file system may have changed, but
   /// parsing should still continue.
-  ASTReader(Preprocessor &PP, ASTContext *Context, StringRef isysroot = "",
+  ASTReader(Preprocessor &PP, ASTContext &Context, StringRef isysroot = "",
             bool DisableValidation = false, bool DisableStatCache = false);
 
-  /// \brief Load the AST file without using any pre-initialized Preprocessor.
-  ///
-  /// The necessary information to initialize a Preprocessor later can be
-  /// obtained by setting a ASTReaderListener.
-  ///
-  /// \param SourceMgr the source manager into which the AST file will be loaded
-  ///
-  /// \param FileMgr the file manager into which the AST file will be loaded.
-  ///
-  /// \param Diags the diagnostics system to use for reporting errors and
-  /// warnings relevant to loading the AST file.
-  ///
-  /// \param isysroot If non-NULL, the system include path specified by the
-  /// user. This is only used with relocatable PCH files. If non-NULL,
-  /// a relocatable PCH file will use the default path "/".
-  ///
-  /// \param DisableValidation If true, the AST reader will suppress most
-  /// of its regular consistency checking, allowing the use of precompiled
-  /// headers that cannot be determined to be compatible.
-  ///
-  /// \param DisableStatCache If true, the AST reader will ignore the
-  /// stat cache in the AST files. This performance pessimization can
-  /// help when an AST file is being used in cases where the
-  /// underlying files in the file system may have changed, but
-  /// parsing should still continue.
-  ASTReader(SourceManager &SourceMgr, FileManager &FileMgr,
-            Diagnostic &Diags, StringRef isysroot = "",
-            bool DisableValidation = false, bool DisableStatCache = false);
   ~ASTReader();
 
   /// \brief Load the AST file designated by the given file name.
@@ -899,6 +878,10 @@ public:
   /// \brief Map from a local declaration ID within a given module to a 
   /// global declaration ID.
   serialization::DeclID getGlobalDeclID(Module &F, unsigned LocalID) const;
+
+  /// \brief Returns true if global DeclID \arg ID originated from module
+  /// \arg M.
+  bool isDeclIDFromModule(serialization::GlobalDeclID ID, Module &M) const;
   
   /// \brief Resolve a declaration ID into a declaration, potentially
   /// building a new declaration.

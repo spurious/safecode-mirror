@@ -16,6 +16,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ObjCMessage.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/Basic/TargetInfo.h"
@@ -323,7 +324,7 @@ void CallAndMessageChecker::HandleNilReceiver(CheckerContext &C,
     const uint64_t returnTypeSize = Ctx.getTypeSize(CanRetTy);
 
     if (voidPtrSize < returnTypeSize &&
-        !(supportsNilWithFloatRet(Ctx.Target.getTriple()) &&
+        !(supportsNilWithFloatRet(Ctx.getTargetInfo().getTriple()) &&
           (Ctx.FloatTy == CanRetTy ||
            Ctx.DoubleTy == CanRetTy ||
            Ctx.LongDoubleTy == CanRetTy ||

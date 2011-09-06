@@ -49,80 +49,33 @@ using namespace clang;
 //===----------------------------------------------------------------------===//
 ExternalPreprocessorSource::~ExternalPreprocessorSource() { }
 
-Preprocessor::Preprocessor(Diagnostic &diags, const LangOptions &opts,
-                           const TargetInfo &target, SourceManager &SM,
+Preprocessor::Preprocessor(Diagnostic &diags, LangOptions &opts,
+                           const TargetInfo *target, SourceManager &SM,
                            HeaderSearch &Headers, ModuleLoader &TheModuleLoader,
                            IdentifierInfoLookup* IILookup,
-                           bool OwnsHeaders)
+                           bool OwnsHeaders,
+                           bool DelayInitialization)
   : Diags(&diags), Features(opts), Target(target),FileMgr(Headers.getFileMgr()),
     SourceMgr(SM), HeaderInfo(Headers), TheModuleLoader(TheModuleLoader),
     ExternalSource(0), 
-    Identifiers(opts, IILookup), BuiltinInfo(Target), CodeComplete(0),
-    CodeCompletionFile(0), SkipMainFilePreamble(0, true), CurPPLexer(0), 
+    Identifiers(opts, IILookup), CodeComplete(0),
+    CodeCompletionFile(0), CodeCompletionOffset(0), CodeCompletionReached(0),
+    SkipMainFilePreamble(0, true), CurPPLexer(0), 
     CurDirLookup(0), Callbacks(0), MacroArgCache(0), Record(0), MIChainHead(0),
-    MICache(0) {
-  ScratchBuf = new ScratchBuffer(SourceMgr);
-  CounterValue = 0; // __COUNTER__ starts at 0.
+    MICache(0) 
+{
   OwnsHeaderSearch = OwnsHeaders;
-
-  // Clear stats.
-  NumDirectives = NumDefined = NumUndefined = NumPragma = 0;
-  NumIf = NumElse = NumEndif = 0;
-  NumEnteredSourceFiles = 0;
-  NumMacroExpanded = NumFnMacroExpanded = NumBuiltinMacroExpanded = 0;
-  NumFastMacroExpanded = NumTokenPaste = NumFastTokenPaste = 0;
-  MaxIncludeStackDepth = 0;
-  NumSkipped = 0;
-
-  // Default to discarding comments.
-  KeepComments = false;
-  KeepMacroComments = false;
-
-  // Macro expansion is enabled.
-  DisableMacroExpansion = false;
-  InMacroArgs = false;
-  NumCachedTokenLexers = 0;
-
-  CachedLexPos = 0;
-
-  // We haven't read anything from the external source.
-  ReadMacrosFromExternalSource = false;
-
-  LexDepth = 0;
-      
-  // "Poison" __VA_ARGS__, which can only appear in the expansion of a macro.
-  // This gets unpoisoned where it is allowed.
-  (Ident__VA_ARGS__ = getIdentifierInfo("__VA_ARGS__"))->setIsPoisoned();
-  SetPoisonReason(Ident__VA_ARGS__,diag::ext_pp_bad_vaargs_use);
-
-  // Initialize the pragma handlers.
-  PragmaHandlers = new PragmaNamespace(StringRef());
-  RegisterBuiltinPragmas();
-
-  // Initialize builtin macros like __LINE__ and friends.
-  RegisterBuiltinMacros();
-
-  if(Features.Borland) {
-    Ident__exception_info        = getIdentifierInfo("_exception_info");
-    Ident___exception_info       = getIdentifierInfo("__exception_info");
-    Ident_GetExceptionInfo       = getIdentifierInfo("GetExceptionInformation");
-    Ident__exception_code        = getIdentifierInfo("_exception_code");
-    Ident___exception_code       = getIdentifierInfo("__exception_code");
-    Ident_GetExceptionCode       = getIdentifierInfo("GetExceptionCode");
-    Ident__abnormal_termination  = getIdentifierInfo("_abnormal_termination");
-    Ident___abnormal_termination = getIdentifierInfo("__abnormal_termination");
-    Ident_AbnormalTermination    = getIdentifierInfo("AbnormalTermination");
-  } else {
-    Ident__exception_info = Ident__exception_code = Ident__abnormal_termination = 0;
-    Ident___exception_info = Ident___exception_code = Ident___abnormal_termination = 0;
-    Ident_GetExceptionInfo = Ident_GetExceptionCode = Ident_AbnormalTermination = 0;
+  
+  if (!DelayInitialization) {
+    assert(Target && "Must provide target information for PP initialization");
+    Initialize(*Target);
   }
-
 }
 
 Preprocessor::~Preprocessor() {
   assert(BacktrackPositions.empty() && "EnableBacktrack/Backtrack imbalance!");
-  assert(MacroExpandingLexersStack.empty() && MacroExpandedTokens.empty() &&
+  assert(((MacroExpandingLexersStack.empty() && MacroExpandedTokens.empty()) ||
+          isCodeCompletionReached()) &&
          "Preprocessor::HandleEndOfTokenLexer should have cleared those");
 
   while (!IncludeMacroStack.empty()) {
@@ -154,6 +107,72 @@ Preprocessor::~Preprocessor() {
     delete &HeaderInfo;
 
   delete Callbacks;
+}
+
+void Preprocessor::Initialize(const TargetInfo &Target) {
+  assert((!this->Target || this->Target == &Target) &&
+         "Invalid override of target information");
+  this->Target = &Target;
+  
+  // Initialize information about built-ins.
+  BuiltinInfo.InitializeTarget(Target);
+  
+  ScratchBuf = new ScratchBuffer(SourceMgr);
+  CounterValue = 0; // __COUNTER__ starts at 0.
+  
+  // Clear stats.
+  NumDirectives = NumDefined = NumUndefined = NumPragma = 0;
+  NumIf = NumElse = NumEndif = 0;
+  NumEnteredSourceFiles = 0;
+  NumMacroExpanded = NumFnMacroExpanded = NumBuiltinMacroExpanded = 0;
+  NumFastMacroExpanded = NumTokenPaste = NumFastTokenPaste = 0;
+  MaxIncludeStackDepth = 0;
+  NumSkipped = 0;
+  
+  // Default to discarding comments.
+  KeepComments = false;
+  KeepMacroComments = false;
+  SuppressIncludeNotFoundError = false;
+  
+  // Macro expansion is enabled.
+  DisableMacroExpansion = false;
+  InMacroArgs = false;
+  NumCachedTokenLexers = 0;
+  
+  CachedLexPos = 0;
+  
+  // We haven't read anything from the external source.
+  ReadMacrosFromExternalSource = false;
+  
+  LexDepth = 0;
+  
+  // "Poison" __VA_ARGS__, which can only appear in the expansion of a macro.
+  // This gets unpoisoned where it is allowed.
+  (Ident__VA_ARGS__ = getIdentifierInfo("__VA_ARGS__"))->setIsPoisoned();
+  SetPoisonReason(Ident__VA_ARGS__,diag::ext_pp_bad_vaargs_use);
+  
+  // Initialize the pragma handlers.
+  PragmaHandlers = new PragmaNamespace(StringRef());
+  RegisterBuiltinPragmas();
+  
+  // Initialize builtin macros like __LINE__ and friends.
+  RegisterBuiltinMacros();
+  
+  if(Features.Borland) {
+    Ident__exception_info        = getIdentifierInfo("_exception_info");
+    Ident___exception_info       = getIdentifierInfo("__exception_info");
+    Ident_GetExceptionInfo       = getIdentifierInfo("GetExceptionInformation");
+    Ident__exception_code        = getIdentifierInfo("_exception_code");
+    Ident___exception_code       = getIdentifierInfo("__exception_code");
+    Ident_GetExceptionCode       = getIdentifierInfo("GetExceptionCode");
+    Ident__abnormal_termination  = getIdentifierInfo("_abnormal_termination");
+    Ident___abnormal_termination = getIdentifierInfo("__abnormal_termination");
+    Ident_AbnormalTermination    = getIdentifierInfo("AbnormalTermination");
+  } else {
+    Ident__exception_info = Ident__exception_code = Ident__abnormal_termination = 0;
+    Ident___exception_info = Ident___exception_code = Ident___abnormal_termination = 0;
+    Ident_GetExceptionInfo = Ident_GetExceptionCode = Ident_AbnormalTermination = 0;
+  } 
 }
 
 void Preprocessor::setPTHManager(PTHManager* pm) {
@@ -253,15 +272,13 @@ Preprocessor::macro_end(bool IncludeExternalMacros) const {
 }
 
 bool Preprocessor::SetCodeCompletionPoint(const FileEntry *File,
-                                          unsigned TruncateAtLine,
-                                          unsigned TruncateAtColumn) {
+                                          unsigned CompleteLine,
+                                          unsigned CompleteColumn) {
+  assert(File);
+  assert(CompleteLine && CompleteColumn && "Starts from 1:1");
+  assert(!CodeCompletionFile && "Already set");
+
   using llvm::MemoryBuffer;
-
-  CodeCompletionFile = File;
-
-  // Okay to clear out the code-completion point by passing NULL.
-  if (!CodeCompletionFile)
-    return false;
 
   // Load the actual file's contents.
   bool Invalid = false;
@@ -271,7 +288,7 @@ bool Preprocessor::SetCodeCompletionPoint(const FileEntry *File,
 
   // Find the byte position of the truncation point.
   const char *Position = Buffer->getBufferStart();
-  for (unsigned Line = 1; Line < TruncateAtLine; ++Line) {
+  for (unsigned Line = 1; Line < CompleteLine; ++Line) {
     for (; *Position; ++Position) {
       if (*Position != '\r' && *Position != '\n')
         continue;
@@ -285,31 +302,30 @@ bool Preprocessor::SetCodeCompletionPoint(const FileEntry *File,
     }
   }
 
-  Position += TruncateAtColumn - 1;
+  Position += CompleteColumn - 1;
 
-  // Truncate the buffer.
+  // Insert '\0' at the code-completion point.
   if (Position < Buffer->getBufferEnd()) {
-    StringRef Data(Buffer->getBufferStart(),
-                         Position-Buffer->getBufferStart());
-    MemoryBuffer *TruncatedBuffer
-      = MemoryBuffer::getMemBufferCopy(Data, Buffer->getBufferIdentifier());
-    SourceMgr.overrideFileContents(File, TruncatedBuffer);
+    CodeCompletionFile = File;
+    CodeCompletionOffset = Position - Buffer->getBufferStart();
+
+    MemoryBuffer *NewBuffer =
+        MemoryBuffer::getNewUninitMemBuffer(Buffer->getBufferSize() + 1,
+                                            Buffer->getBufferIdentifier());
+    char *NewBuf = const_cast<char*>(NewBuffer->getBufferStart());
+    char *NewPos = std::copy(Buffer->getBufferStart(), Position, NewBuf);
+    *NewPos = '\0';
+    std::copy(Position, Buffer->getBufferEnd(), NewPos+1);
+    SourceMgr.overrideFileContents(File, NewBuffer);
   }
 
   return false;
 }
 
-bool Preprocessor::isCodeCompletionFile(SourceLocation FileLoc) const {
-  return CodeCompletionFile && FileLoc.isFileID() &&
-    SourceMgr.getFileEntryForID(SourceMgr.getFileID(FileLoc))
-      == CodeCompletionFile;
-}
-
 void Preprocessor::CodeCompleteNaturalLanguage() {
-  SetCodeCompletionPoint(0, 0, 0);
-  getDiagnostics().setSuppressAllDiagnostics(true);
   if (CodeComplete)
     CodeComplete->CodeCompleteNaturalLanguage();
+  setCodeCompletionReached();
 }
 
 /// getSpelling - This method is used to get the spelling of a token into a
@@ -513,7 +529,7 @@ void Preprocessor::HandleIdentifier(Token &Identifier) {
 void Preprocessor::HandleModuleImport(Token &Import) {
   // The token sequence 
   //
-  //   __import__ identifier
+  //   __import_module__ identifier
   //
   // indicates a module import directive. We load the module and then 
   // leave the token sequence for the parser.
@@ -525,10 +541,10 @@ void Preprocessor::HandleModuleImport(Token &Import) {
                                    *ModuleNameTok.getIdentifierInfo(), 
                                    ModuleNameTok.getLocation());
   
-  // FIXME: Transmogrify __import__ into some kind of AST-only __import__ that
-  // is not recognized by the preprocessor but is recognized by the parser.
-  // It would also be useful to stash the ModuleKey somewhere, so we don't try
-  // to load the module twice.
+  // FIXME: Transmogrify __import_module__ into some kind of AST-only 
+  // __import_module__ that is not recognized by the preprocessor but is 
+  // recognized by the parser. It would also be useful to stash the ModuleKey
+  // somewhere, so we don't try to load the module twice.
 }
 
 void Preprocessor::AddCommentHandler(CommentHandler *Handler) {

@@ -1352,15 +1352,16 @@ void ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
       MI->setIsFromAST();
 
       unsigned NextIndex = 3;
+      MI->setExportLocation(ReadSourceLocation(F, Record, NextIndex));
+      
       if (RecType == PP_MACRO_FUNCTION_LIKE) {
         // Decode function-like macro info.
-        bool isC99VarArgs = Record[3];
-        bool isGNUVarArgs = Record[4];
+        bool isC99VarArgs = Record[NextIndex++];
+        bool isGNUVarArgs = Record[NextIndex++];
         MacroArgs.clear();
-        unsigned NumArgs = Record[5];
-        NextIndex = 6 + NumArgs;
+        unsigned NumArgs = Record[NextIndex++];
         for (unsigned i = 0; i != NumArgs; ++i)
-          MacroArgs.push_back(getLocalIdentifier(F, Record[6+i]));
+          MacroArgs.push_back(getLocalIdentifier(F, Record[NextIndex++]));
 
         // Install function-like macro info.
         MI->setIsFunctionLike();
@@ -2389,6 +2390,20 @@ ASTReader::ReadASTBlock(Module &F) {
       for (unsigned I = 0, N = Record.size(); I != N; I += 2)
         ReplacedDecls[getGlobalDeclID(F, Record[I])]
           = std::make_pair(&F, Record[I+1]);
+      break;
+    }
+
+    case OBJC_CHAINED_CATEGORIES: {
+      if (Record.size() % 3 != 0) {
+        Error("invalid OBJC_CHAINED_CATEGORIES block in AST file");
+        return Failure;
+      }
+      for (unsigned I = 0, N = Record.size(); I != N; I += 3) {
+        serialization::GlobalDeclID GlobID = getGlobalDeclID(F, Record[I]);
+        F.ChainedObjCCategories[GlobID] = std::make_pair(Record[I+1],
+                                                         Record[I+2]);
+        ObjCChainedCategoriesInterfaces.insert(GlobID);
+      }
       break;
     }
         
@@ -4075,6 +4090,13 @@ ASTReader::getGlobalDeclID(Module &F, unsigned LocalID) const {
   return LocalID + I->second;
 }
 
+bool ASTReader::isDeclIDFromModule(serialization::GlobalDeclID ID,
+                                   Module &M) const {
+  GlobalDeclMapType::const_iterator I = GlobalDeclMap.find(ID);
+  assert(I != GlobalDeclMap.end() && "Corrupted global declaration map");
+  return &M == I->second;
+}
+
 Decl *ASTReader::GetDecl(DeclID ID) {
   if (ID < NUM_PREDEF_DECL_IDS) {    
     switch ((PredefinedDeclIDs)ID) {
@@ -5493,12 +5515,12 @@ void ASTReader::FinishedDeserializing() {
   --NumCurrentElementsDeserializing;
 }
 
-ASTReader::ASTReader(Preprocessor &PP, ASTContext *Context,
+ASTReader::ASTReader(Preprocessor &PP, ASTContext &Context,
                      StringRef isysroot, bool DisableValidation,
                      bool DisableStatCache)
   : Listener(new PCHValidator(PP, *this)), DeserializationListener(0),
     SourceMgr(PP.getSourceManager()), FileMgr(PP.getFileManager()),
-    Diags(PP.getDiagnostics()), SemaObj(0), PP(&PP), Context(Context),
+    Diags(PP.getDiagnostics()), SemaObj(0), PP(&PP), Context(&Context),
     Consumer(0), ModuleMgr(FileMgr.getFileSystemOptions()),
     RelocatablePCH(false), isysroot(isysroot),
     DisableValidation(DisableValidation),
@@ -5511,26 +5533,6 @@ ASTReader::ASTReader(Preprocessor &PP, ASTContext *Context,
     NumVisibleDeclContextsRead(0), TotalVisibleDeclContexts(0),
     TotalModulesSizeInBits(0), NumCurrentElementsDeserializing(0),
     NumCXXBaseSpecifiersLoaded(0)
-{
-  SourceMgr.setExternalSLocEntrySource(this);
-}
-
-ASTReader::ASTReader(SourceManager &SourceMgr, FileManager &FileMgr,
-                     Diagnostic &Diags, StringRef isysroot,
-                     bool DisableValidation, bool DisableStatCache)
-  : DeserializationListener(0), SourceMgr(SourceMgr), FileMgr(FileMgr),
-    Diags(Diags), SemaObj(0), PP(0), Context(0),
-    Consumer(0), ModuleMgr(FileMgr.getFileSystemOptions()),
-    RelocatablePCH(false), isysroot(isysroot), 
-    DisableValidation(DisableValidation), DisableStatCache(DisableStatCache), 
-    NumStatHits(0), NumStatMisses(0), NumSLocEntriesRead(0), 
-    TotalNumSLocEntries(0), NumStatementsRead(0), 
-    TotalNumStatements(0), NumMacrosRead(0), TotalNumMacros(0), 
-    NumSelectorsRead(0), NumMethodPoolEntriesRead(0), NumMethodPoolMisses(0),
-    TotalNumMethodPoolEntries(0), NumLexicalDeclContextsRead(0),
-    TotalLexicalDeclContexts(0), NumVisibleDeclContextsRead(0),
-    TotalVisibleDeclContexts(0), TotalModulesSizeInBits(0),
-    NumCurrentElementsDeserializing(0), NumCXXBaseSpecifiersLoaded(0)
 {
   SourceMgr.setExternalSLocEntrySource(this);
 }

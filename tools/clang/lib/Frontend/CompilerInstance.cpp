@@ -200,7 +200,7 @@ void CompilerInstance::createPreprocessor() {
   
   // Create the Preprocessor.
   HeaderSearch *HeaderInfo = new HeaderSearch(getFileManager());
-  PP = new Preprocessor(getDiagnostics(), getLangOpts(), getTarget(),
+  PP = new Preprocessor(getDiagnostics(), getLangOpts(), &getTarget(),
                         getSourceManager(), *HeaderInfo, *this, PTHMgr,
                         /*OwnsHeaderSearch=*/true);
   
@@ -240,7 +240,7 @@ void CompilerInstance::createPreprocessor() {
 void CompilerInstance::createASTContext() {
   Preprocessor &PP = getPreprocessor();
   Context = new ASTContext(getLangOpts(), PP.getSourceManager(),
-                           getTarget(), PP.getIdentifierTable(),
+                           &getTarget(), PP.getIdentifierTable(),
                            PP.getSelectorTable(), PP.getBuiltinInfo(),
                            /*size_reserve=*/ 0);
 }
@@ -273,7 +273,7 @@ CompilerInstance::createPCHExternalASTSource(StringRef Path,
                                              void *DeserializationListener,
                                              bool Preamble) {
   llvm::OwningPtr<ASTReader> Reader;
-  Reader.reset(new ASTReader(PP, &Context,
+  Reader.reset(new ASTReader(PP, Context,
                              Sysroot.empty() ? "" : Sysroot.c_str(),
                              DisablePCHValidation, DisableStatCache));
 
@@ -645,7 +645,7 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
                                            /*SearchPath=*/0, 
                                            /*RelativePath=*/0);
   if (!ModuleFile) {
-    getDiagnostics().Report(ModuleNameLoc, diag::warn_module_not_found)
+    getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_found)
       << ModuleName.getName()
       << SourceRange(ImportLoc, ModuleNameLoc);
     return 0;
@@ -655,7 +655,7 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
   if (!ModuleManager) {
     std::string Sysroot = getHeaderSearchOpts().Sysroot;
     const PreprocessorOptions &PPOpts = getPreprocessorOpts();
-    ModuleManager = new ASTReader(getPreprocessor(), &*Context,
+    ModuleManager = new ASTReader(getPreprocessor(), *Context,
                                   Sysroot.empty() ? "" : Sysroot.c_str(),
                                   PPOpts.DisablePCHValidation, 
                                   PPOpts.DisableStatCache);

@@ -20,7 +20,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SubEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CoreEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/TransferFuncs.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/ExprObjC.h"
@@ -74,16 +73,17 @@ class ExprEngine : public SubEngine {
   // Obj-C Selectors.
   Selector* NSExceptionInstanceRaiseSelectors;
   Selector RaiseSel;
+  
+  /// Whether or not GC is enabled in this analysis.
+  bool ObjCGCEnabled;
 
   /// The BugReporter associated with this engine.  It is important that
   ///  this object be placed at the very end of member variables so that its
   ///  destructor is called before the rest of the ExprEngine is destroyed.
   GRBugReporter BR;
-  
-  llvm::OwningPtr<TransferFuncs> TF;
 
 public:
-  ExprEngine(AnalysisManager &mgr, TransferFuncs *tf);
+  ExprEngine(AnalysisManager &mgr, bool gcEnabled);
 
   ~ExprEngine();
 
@@ -111,14 +111,11 @@ public:
 
   SValBuilder &getSValBuilder() { return svalBuilder; }
 
-  TransferFuncs& getTF() { return *TF; }
-
   BugReporter& getBugReporter() { return BR; }
 
   StmtNodeBuilder &getBuilder() { assert(Builder); return *Builder; }
 
-  // FIXME: Remove once TransferFuncs is no longer referenced.
-  void setTransferFunction(TransferFuncs* tf);
+  bool isObjCGCEnabled() { return ObjCGCEnabled; }
 
   /// ViewGraph - Visualize the ExplodedGraph created by executing the
   ///  simulation.

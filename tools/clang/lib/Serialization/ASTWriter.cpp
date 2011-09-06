@@ -950,7 +950,7 @@ void ASTWriter::WriteMetadata(ASTContext &Context, StringRef isysroot,
   using namespace llvm;
 
   // Metadata
-  const TargetInfo &Target = Context.Target;
+  const TargetInfo &Target = Context.getTargetInfo();
   BitCodeAbbrev *MetaAbbrev = new BitCodeAbbrev();
   MetaAbbrev->Add(BitCodeAbbrevOp(METADATA));
   MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // AST major
@@ -1667,7 +1667,7 @@ static int compareMacroDefinitions(const void *XPtr, const void *YPtr) {
 /// \brief Writes the block containing the serialized form of the
 /// preprocessor.
 ///
-void ASTWriter::WritePreprocessor(const Preprocessor &PP) {
+void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
   RecordData Record;
 
   // If the preprocessor __COUNTER__ value has been bumped, remember it.
@@ -1697,8 +1697,10 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP) {
   for (Preprocessor::macro_iterator I = PP.macro_begin(Chain == 0), 
                                     E = PP.macro_end(Chain == 0);
        I != E; ++I) {
-    MacroDefinitionsSeen.insert(I->first);
-    MacrosToEmit.push_back(std::make_pair(I->first, I->second));
+    if (!IsModule || I->second->isExported()) {
+      MacroDefinitionsSeen.insert(I->first);
+      MacrosToEmit.push_back(std::make_pair(I->first, I->second));
+    }
   }
   
   // Sort the set of macro definitions that need to be serialized by the
@@ -1730,14 +1732,15 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP) {
     // chained PCH, by storing the offset into the original PCH rather than
     // writing the macro definition a second time.
     if (MI->isBuiltinMacro() ||
-        (Chain && Name->isFromAST() && MI->isFromAST()))
+        (Chain && Name->isFromAST() && MI->isFromAST() &&
+        !MI->hasChangedAfterLoad()))
       continue;
 
     AddIdentifierRef(Name, Record);
     MacroOffsets[Name] = Stream.GetCurrentBitNo();
     Record.push_back(MI->getDefinitionLoc().getRawEncoding());
     Record.push_back(MI->isUsed());
-
+    AddSourceLocation(MI->getExportLocation(), Record);
     unsigned Code;
     if (MI->isObjectLike()) {
       Code = PP_MACRO_OBJECT_LIKE;
@@ -2293,38 +2296,52 @@ namespace {
 class ASTIdentifierTableTrait {
   ASTWriter &Writer;
   Preprocessor &PP;
-
+  bool IsModule;
+  
   /// \brief Determines whether this is an "interesting" identifier
   /// that needs a full IdentifierInfo structure written into the hash
   /// table.
-  static bool isInterestingIdentifier(const IdentifierInfo *II) {
-    return II->isPoisoned() ||
-      II->isExtensionToken() ||
-      II->hasMacroDefinition() ||
-      II->getObjCOrBuiltinID() ||
-      II->getFETokenInfo<void>();
+  bool isInterestingIdentifier(IdentifierInfo *II, MacroInfo *&Macro) {
+    Macro = 0;
+    
+    if (II->isPoisoned() ||
+        II->isExtensionToken() ||
+        II->getObjCOrBuiltinID() ||
+        II->getFETokenInfo<void>())
+      return true;
+
+    if (!II->hasMacroDefinition())
+      return false;
+    
+    if (!IsModule)
+      return true;
+    
+    if ((Macro = PP.getMacroInfo(II)))
+      return Macro->isExported();
+    
+    return false;
   }
 
 public:
-  typedef const IdentifierInfo* key_type;
+  typedef IdentifierInfo* key_type;
   typedef key_type  key_type_ref;
 
   typedef IdentID data_type;
   typedef data_type data_type_ref;
 
-  ASTIdentifierTableTrait(ASTWriter &Writer, Preprocessor &PP)
-    : Writer(Writer), PP(PP) { }
+  ASTIdentifierTableTrait(ASTWriter &Writer, Preprocessor &PP, bool IsModule)
+    : Writer(Writer), PP(PP), IsModule(IsModule) { }
 
   static unsigned ComputeHash(const IdentifierInfo* II) {
     return llvm::HashString(II->getName());
   }
 
   std::pair<unsigned,unsigned>
-    EmitKeyDataLength(raw_ostream& Out, const IdentifierInfo* II,
-                      IdentID ID) {
+    EmitKeyDataLength(raw_ostream& Out, IdentifierInfo* II, IdentID ID) {
     unsigned KeyLen = II->getLength() + 1;
     unsigned DataLen = 4; // 4 bytes for the persistent ID << 1
-    if (isInterestingIdentifier(II)) {
+    MacroInfo *Macro;
+    if (isInterestingIdentifier(II, Macro)) {
       DataLen += 2; // 2 bytes for builtin ID, flags
       if (II->hasMacroDefinition() &&
           !PP.getMacroInfo(const_cast<IdentifierInfo *>(II))->isBuiltinMacro())
@@ -2350,18 +2367,19 @@ public:
     Out.write(II->getNameStart(), KeyLen);
   }
 
-  void EmitData(raw_ostream& Out, const IdentifierInfo* II,
+  void EmitData(raw_ostream& Out, IdentifierInfo* II,
                 IdentID ID, unsigned) {
-    if (!isInterestingIdentifier(II)) {
+    MacroInfo *Macro;
+    if (!isInterestingIdentifier(II, Macro)) {
       clang::io::Emit32(Out, ID << 1);
       return;
     }
 
     clang::io::Emit32(Out, (ID << 1) | 0x01);
     uint32_t Bits = 0;
-    bool hasMacroDefinition =
-      II->hasMacroDefinition() &&
-      !PP.getMacroInfo(const_cast<IdentifierInfo *>(II))->isBuiltinMacro();
+    bool hasMacroDefinition 
+      = II->hasMacroDefinition() && 
+        (Macro || (Macro = PP.getMacroInfo(II))) && !Macro->isBuiltinMacro();
     Bits = (uint32_t)II->getObjCOrBuiltinID();
     Bits = (Bits << 1) | unsigned(hasMacroDefinition);
     Bits = (Bits << 1) | unsigned(II->isExtensionToken());
@@ -2395,14 +2413,14 @@ public:
 /// The identifier table consists of a blob containing string data
 /// (the actual identifiers themselves) and a separate "offsets" index
 /// that maps identifier IDs to locations within the blob.
-void ASTWriter::WriteIdentifierTable(Preprocessor &PP) {
+void ASTWriter::WriteIdentifierTable(Preprocessor &PP, bool IsModule) {
   using namespace llvm;
 
   // Create and write out the blob that contains the identifier
   // strings.
   {
     OnDiskChainedHashTableGenerator<ASTIdentifierTableTrait> Generator;
-    ASTIdentifierTableTrait Trait(*this, PP);
+    ASTIdentifierTableTrait Trait(*this, PP, IsModule);
 
     // Look for any identifiers that were named while processing the
     // headers, but are otherwise not needed. We add these to the hash
@@ -2422,14 +2440,15 @@ void ASTWriter::WriteIdentifierTable(Preprocessor &PP) {
          ID != IDEnd; ++ID) {
       assert(ID->first && "NULL identifier in identifier table");
       if (!Chain || !ID->first->isFromAST())
-        Generator.insert(ID->first, ID->second, Trait);
+        Generator.insert(const_cast<IdentifierInfo *>(ID->first), ID->second, 
+                         Trait);
     }
 
     // Create the on-disk hash table in a buffer.
     llvm::SmallString<4096> IdentifierTable;
     uint32_t BucketOffset;
     {
-      ASTIdentifierTableTrait Trait(*this, PP);
+      ASTIdentifierTableTrait Trait(*this, PP, IsModule);
       llvm::raw_svector_ostream Out(IdentifierTable);
       // Make sure that no bucket is at offset 0
       clang::io::Emit32(Out, 0);
@@ -2624,13 +2643,37 @@ uint64_t ASTWriter::WriteDeclContextVisibleBlock(ASTContext &Context,
   ASTDeclContextNameLookupTrait Trait(*this);
 
   // Create the on-disk hash table representation.
+  DeclarationName ConversionName;
+  llvm::SmallVector<NamedDecl *, 4> ConversionDecls;
   for (StoredDeclsMap::iterator D = Map->begin(), DEnd = Map->end();
        D != DEnd; ++D) {
     DeclarationName Name = D->first;
     DeclContext::lookup_result Result = D->second.getLookupResult();
-    Generator.insert(Name, Result, Trait);
+    if (Result.first != Result.second) {
+      if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName) {
+        // Hash all conversion function names to the same name. The actual
+        // type information in conversion function name is not used in the
+        // key (since such type information is not stable across different
+        // modules), so the intended effect is to coalesce all of the conversion
+        // functions under a single key.
+        if (!ConversionName)
+          ConversionName = Name;
+        ConversionDecls.append(Result.first, Result.second);
+        continue;
+      }
+      
+      Generator.insert(Name, Result, Trait);
+    }
   }
 
+  // Add the conversion functions
+  if (!ConversionDecls.empty()) {
+    Generator.insert(ConversionName, 
+                     DeclContext::lookup_result(ConversionDecls.begin(),
+                                                ConversionDecls.end()),
+                     Trait);
+  }
+  
   // Create the on-disk hash table in a buffer.
   llvm::SmallString<4096> LookupTable;
   uint32_t BucketOffset;
@@ -2673,7 +2716,8 @@ void ASTWriter::WriteDeclContextVisibleUpdate(const DeclContext *DC) {
     DeclContext::lookup_result Result = D->second.getLookupResult();
     // For any name that appears in this table, the results are complete, i.e.
     // they overwrite results from previous PCHs. Merging is always a mess.
-    Generator.insert(Name, Result, Trait);
+    if (Result.first != Result.second)
+      Generator.insert(Name, Result, Trait);
   }
 
   // Create the on-disk hash table in a buffer.
@@ -2793,7 +2837,7 @@ ASTWriter::ASTWriter(llvm::BitstreamWriter &Stream)
 
 void ASTWriter::WriteAST(Sema &SemaRef, MemorizeStatCalls *StatCalls,
                          const std::string &OutputFile,
-                         StringRef isysroot) {
+                         bool IsModule, StringRef isysroot) {
   // Emit the file header.
   Stream.Emit((unsigned)'C', 8);
   Stream.Emit((unsigned)'P', 8);
@@ -2803,7 +2847,7 @@ void ASTWriter::WriteAST(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   WriteBlockInfoBlock();
 
   Context = &SemaRef.Context;
-  WriteASTCore(SemaRef, StatCalls, isysroot, OutputFile);
+  WriteASTCore(SemaRef, StatCalls, isysroot, OutputFile, IsModule);
   Context = 0;
 }
 
@@ -2818,7 +2862,7 @@ static void AddLazyVectorDecls(ASTWriter &Writer, Vector &Vec,
 
 void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
                              StringRef isysroot,
-                             const std::string &OutputFile) {
+                             const std::string &OutputFile, bool IsModule) {
   using namespace llvm;
 
   ASTContext &Context = SemaRef.Context;
@@ -3070,11 +3114,11 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
   }
   Stream.ExitBlock();
 
-  WritePreprocessor(PP);
+  WritePreprocessor(PP, IsModule);
   WriteHeaderSearch(PP.getHeaderSearchInfo(), isysroot);
   WriteSelectors(SemaRef);
   WriteReferencedSelectorsPool(SemaRef);
-  WriteIdentifierTable(PP);
+  WriteIdentifierTable(PP, IsModule);
   WriteFPPragmaOptions(SemaRef.getFPOptions());
   WriteOpenCLExtensions(SemaRef);
 
@@ -3163,6 +3207,7 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
 
   WriteDeclUpdatesBlocks();
   WriteDeclReplacementsBlock();
+  WriteChainedObjCCategories();
 
   // Some simple statistics
   Record.clear();
@@ -3209,6 +3254,26 @@ void ASTWriter::WriteDeclReplacementsBlock() {
     Record.push_back(I->second);
   }
   Stream.EmitRecord(DECL_REPLACEMENTS, Record);
+}
+
+void ASTWriter::WriteChainedObjCCategories() {
+  if (LocalChainedObjCCategories.empty())
+    return;
+
+  RecordData Record;
+  for (SmallVector<ChainedObjCCategoriesData, 16>::iterator
+         I = LocalChainedObjCCategories.begin(),
+         E = LocalChainedObjCCategories.end(); I != E; ++I) {
+    ChainedObjCCategoriesData &Data = *I;
+    serialization::DeclID
+        HeadCatID = getDeclID(Data.Interface->getCategoryList());
+    assert(HeadCatID != 0 && "Category not written ?");
+
+    Record.push_back(Data.InterfaceID);
+    Record.push_back(HeadCatID);
+    Record.push_back(Data.TailCatID);
+  }
+  Stream.EmitRecord(OBJC_CHAINED_CATEGORIES, Record);
 }
 
 void ASTWriter::AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record) {
@@ -3840,6 +3905,8 @@ void ASTWriter::AddCXXDefinitionData(const CXXRecordDecl *D, RecordDataImpl &Rec
   Record.push_back(Data.DeclaredCopyConstructor);
   Record.push_back(Data.DeclaredCopyAssignment);
   Record.push_back(Data.DeclaredDestructor);
+  Record.push_back(Data.FailedImplicitMoveConstructor);
+  Record.push_back(Data.FailedImplicitMoveAssignment);
 
   Record.push_back(Data.NumBases);
   if (Data.NumBases > 0)
@@ -4008,6 +4075,19 @@ void ASTWriter::StaticDataMemberInstantiated(const VarDecl *D) {
   Record.push_back(UPD_CXX_INSTANTIATED_STATIC_DATA_MEMBER);
   AddSourceLocation(
       D->getMemberSpecializationInfo()->getPointOfInstantiation(), Record);
+}
+
+void ASTWriter::AddedObjCCategoryToInterface(const ObjCCategoryDecl *CatD,
+                                             const ObjCInterfaceDecl *IFD) {
+  if (IFD->getPCHLevel() == 0)
+    return; // Declaration not imported from PCH.
+  if (CatD->getNextClassCategory() &&
+      CatD->getNextClassCategory()->getPCHLevel() == 0)
+    return; // We already recorded that the tail of a category chain should be
+            // attached to an interface.
+
+  ChainedObjCCategoriesData Data =  { IFD, GetDeclRef(IFD), GetDeclRef(CatD) };
+  LocalChainedObjCCategories.push_back(Data);
 }
 
 ASTSerializationListener::~ASTSerializationListener() { }

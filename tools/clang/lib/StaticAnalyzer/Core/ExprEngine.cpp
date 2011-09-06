@@ -18,6 +18,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngineBuilders.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ObjCMessage.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/AST/StmtObjC.h"
@@ -50,7 +51,7 @@ static inline Selector GetNullarySelector(const char* name, ASTContext &Ctx) {
 // Engine construction and deletion.
 //===----------------------------------------------------------------------===//
 
-ExprEngine::ExprEngine(AnalysisManager &mgr, TransferFuncs *tf)
+ExprEngine::ExprEngine(AnalysisManager &mgr, bool gcEnabled)
   : AMgr(mgr),
     Engine(*this),
     G(Engine.getGraph()),
@@ -63,10 +64,7 @@ ExprEngine::ExprEngine(AnalysisManager &mgr, TransferFuncs *tf)
     EntryNode(NULL), currentStmt(NULL),
     NSExceptionII(NULL), NSExceptionInstanceRaiseSelectors(NULL),
     RaiseSel(GetNullarySelector("raise", getContext())),
-    BR(mgr, *this), TF(tf) {
-
-  // FIXME: Eventually remove the TF object entirely.
-  TF->RegisterChecks(*this);
+    ObjCGCEnabled(gcEnabled), BR(mgr, *this) {
   
   if (mgr.shouldEagerlyTrimExplodedGraph()) {
     // Enable eager node reclaimation when constructing the ExplodedGraph.  

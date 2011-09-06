@@ -257,7 +257,6 @@ bool Preprocessor::HandleMacroExpandedIdentifier(Token &Identifier,
       if (HadLeadingSpace) Identifier.setFlag(Token::LeadingSpace);
     }
     Identifier.setFlag(Token::LeadingEmptyMacro);
-    LastEmptyMacroExpansionLoc = ExpandLoc;
     ++NumFastMacroExpanded;
     return false;
 
@@ -354,29 +353,6 @@ MacroArgs *Preprocessor::ReadFunctionLikeMacroArgs(Token &MacroName,
       // an argument value in a macro could expand to ',' or '(' or ')'.
       LexUnexpandedToken(Tok);
 
-      if (Tok.is(tok::code_completion)) {
-        if (CodeComplete)
-          CodeComplete->CodeCompleteMacroArgument(MacroName.getIdentifierInfo(),
-                                                  MI, NumActuals);
-
-        // Add the code-completion token and finish the lexing normally so that
-        // normal code-completion occurs again with the expanded tokens.
-        ArgTokens.push_back(Tok);
-        // Add a marker EOF token to the end of the token list.
-        Token EOFTok;
-        EOFTok.startToken();
-        EOFTok.setKind(tok::eof);
-        EOFTok.setLocation(Tok.getLocation());
-        EOFTok.setLength(0);
-        ArgTokens.push_back(EOFTok);
-        ++NumActuals;
-        // "Fill out" the other arguments.
-        for (; NumActuals < MI->getNumArgs(); ++NumActuals)
-          ArgTokens.push_back(EOFTok);
-        return MacroArgs::create(MI, ArgTokens.data(), ArgTokens.size(),
-                                 /*isVarargsElided=*/false, *this);
-      }
-      
       if (Tok.is(tok::eof) || Tok.is(tok::eod)) { // "#if f(<eof>" & "#if f(\n"
         Diag(MacroName, diag::err_unterm_macro_invoc);
         // Do not lose the EOF/EOD.  Return it to the client.
@@ -411,7 +387,15 @@ MacroArgs *Preprocessor::ReadFunctionLikeMacroArgs(Token &MacroName,
         if (MacroInfo *MI = getMacroInfo(Tok.getIdentifierInfo()))
           if (!MI->isEnabled())
             Tok.setFlag(Token::DisableExpand);
+      } else if (Tok.is(tok::code_completion)) {
+        if (CodeComplete)
+          CodeComplete->CodeCompleteMacroArgument(MacroName.getIdentifierInfo(),
+                                                  MI, NumActuals);
+        // Don't mark that we reached the code-completion point because the
+        // parser is going to handle the token and there will be another
+        // code-completion callback.
       }
+
       ArgTokens.push_back(Tok);
     }
 
@@ -635,7 +619,7 @@ static bool HasFeature(const Preprocessor &PP, const IdentifierInfo *II) {
            .Case("cxx_deleted_functions", LangOpts.CPlusPlus0x)
            .Case("cxx_explicit_conversions", LangOpts.CPlusPlus0x)
          //.Case("cxx_generalized_initializers", LangOpts.CPlusPlus0x)
-         //.Case("cxx_implicit_moves", false)
+           .Case("cxx_implicit_moves", LangOpts.CPlusPlus0x)
          //.Case("cxx_inheriting_constructors", false)
            .Case("cxx_inline_namespaces", LangOpts.CPlusPlus0x)
          //.Case("cxx_lambdas", false)

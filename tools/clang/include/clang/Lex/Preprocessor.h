@@ -58,8 +58,8 @@ class ModuleLoader;
 ///
 class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   Diagnostic        *Diags;
-  LangOptions        Features;
-  const TargetInfo  &Target;
+  LangOptions       &Features;
+  const TargetInfo  *Target;
   FileManager       &FileMgr;
   SourceManager     &SourceMgr;
   ScratchBuffer     *ScratchBuf;
@@ -105,6 +105,7 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   // State that is set before the preprocessor begins.
   bool KeepComments : 1;
   bool KeepMacroComments : 1;
+  bool SuppressIncludeNotFoundError : 1;
 
   // State that changes while the preprocessor runs:
   bool InMacroArgs : 1;            // True if parsing fn macro invocation args.
@@ -150,6 +151,21 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   
   /// \brief The file that we're performing code-completion for, if any.
   const FileEntry *CodeCompletionFile;
+
+  /// \brief The offset in file for the code-completion point.
+  unsigned CodeCompletionOffset;
+
+  /// \brief The location for the code-completion point. This gets instantiated
+  /// when the CodeCompletionFile gets #include'ed for preprocessing.
+  SourceLocation CodeCompletionLoc;
+
+  /// \brief The start location for the file of the code-completion point.
+  /// This gets instantiated when the CodeCompletionFile gets #include'ed
+  /// for preprocessing.
+  SourceLocation CodeCompletionFileLoc;
+
+  /// \brief True if we hit the code-completion point.
+  bool CodeCompletionReached;
 
   /// \brief The number of bytes that we will initially skip when entering the
   /// main file, which is used when loading a precompiled preamble, along
@@ -226,10 +242,6 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   /// previous macro value.
   llvm::DenseMap<IdentifierInfo*, std::vector<MacroInfo*> > PragmaPushMacroInfo;
 
-  /// \brief Expansion source location for the last macro that expanded
-  /// to no tokens.
-  SourceLocation LastEmptyMacroExpansionLoc;
-
   // Various statistics we track for performance analysis.
   unsigned NumDirectives, NumIncluded, NumDefined, NumUndefined, NumPragma;
   unsigned NumIf, NumElse, NumEndif;
@@ -297,20 +309,27 @@ private:  // Cached tokens state.
   MacroInfo *getInfoForMacro(IdentifierInfo *II) const;
   
 public:
-  Preprocessor(Diagnostic &diags, const LangOptions &opts,
-               const TargetInfo &target,
+  Preprocessor(Diagnostic &diags, LangOptions &opts,
+               const TargetInfo *target,
                SourceManager &SM, HeaderSearch &Headers,
                ModuleLoader &TheModuleLoader,
                IdentifierInfoLookup *IILookup = 0,
-               bool OwnsHeaderSearch = false);
+               bool OwnsHeaderSearch = false,
+               bool DelayInitialization = false);
 
   ~Preprocessor();
 
+  /// \brief Initialize the preprocessor, if the constructor did not already
+  /// perform the initialization.
+  ///
+  /// \param Target Information about the target.
+  void Initialize(const TargetInfo &Target);
+  
   Diagnostic &getDiagnostics() const { return *Diags; }
   void setDiagnostics(Diagnostic &D) { Diags = &D; }
 
   const LangOptions &getLangOptions() const { return Features; }
-  const TargetInfo &getTargetInfo() const { return Target; }
+  const TargetInfo &getTargetInfo() const { return *Target; }
   FileManager &getFileManager() const { return FileMgr; }
   SourceManager &getSourceManager() const { return SourceMgr; }
   HeaderSearch &getHeaderSearchInfo() const { return HeaderInfo; }
@@ -343,6 +362,14 @@ public:
   }
 
   bool getCommentRetentionState() const { return KeepComments; }
+
+  void SetSuppressIncludeNotFoundError(bool Suppress) {
+    SuppressIncludeNotFoundError = Suppress;
+  }
+
+  bool GetSuppressIncludeNotFoundError() {
+    return SuppressIncludeNotFoundError;
+  }
 
   /// isCurrentLexer - Return true if we are lexing directly from the specified
   /// lexer.
@@ -389,12 +416,6 @@ public:
                          MacroInfo*>::const_iterator macro_iterator;
   macro_iterator macro_begin(bool IncludeExternalMacros = true) const;
   macro_iterator macro_end(bool IncludeExternalMacros = true) const;
-
-  /// \brief Expansion source location for the last macro that expanded
-  /// to no tokens.
-  SourceLocation getLastEmptyMacroExpansionLoc() const {
-    return LastEmptyMacroExpansionLoc;
-  }
 
   const std::string &getPredefines() const { return Predefines; }
   /// setPredefines - Set the predefines for this Preprocessor.  These
@@ -545,8 +566,8 @@ public:
       CachingLex(Result);
     --LexDepth;
     
-    // If we have the __import__ keyword, handle the module import now.
-    if (Result.getKind() == tok::kw___import__ && LexDepth == 0)
+    // If we have the __import_module__ keyword, handle the module import now.
+    if (Result.getKind() == tok::kw___import_module__ && LexDepth == 0)
       HandleModuleImport(Result);
   }
 
@@ -659,12 +680,32 @@ public:
   bool SetCodeCompletionPoint(const FileEntry *File,
                               unsigned Line, unsigned Column);
 
-  /// \brief Determine if this source location refers into the file
-  /// for which we are performing code completion.
-  bool isCodeCompletionFile(SourceLocation FileLoc) const;
-
   /// \brief Determine if we are performing code completion.
   bool isCodeCompletionEnabled() const { return CodeCompletionFile != 0; }
+
+  /// \brief Returns the location of the code-completion point.
+  /// Returns an invalid location if code-completion is not enabled or the file
+  /// containing the code-completion point has not been lexed yet.
+  SourceLocation getCodeCompletionLoc() const { return CodeCompletionLoc; }
+
+  /// \brief Returns the start location of the file of code-completion point.
+  /// Returns an invalid location if code-completion is not enabled or the file
+  /// containing the code-completion point has not been lexed yet.
+  SourceLocation getCodeCompletionFileLoc() const {
+    return CodeCompletionFileLoc;
+  }
+
+  /// \brief Returns true if code-completion is enabled and we have hit the
+  /// code-completion point.
+  bool isCodeCompletionReached() const { return CodeCompletionReached; }
+
+  /// \brief Note that we hit the code-completion point.
+  void setCodeCompletionReached() {
+    assert(isCodeCompletionEnabled() && "Code-completion not enabled!");
+    CodeCompletionReached = true;
+    // Silence any diagnostics that occur after we hit the code-completion.
+    getDiagnostics().setSuppressAllDiagnostics(true);
+  }
 
   /// \brief Instruct the preprocessor to skip part of the main
   /// the main source file.
@@ -1108,7 +1149,8 @@ private:
   void HandleDigitDirective(Token &Tok);
   void HandleUserDiagnosticDirective(Token &Tok, bool isWarning);
   void HandleIdentSCCSDirective(Token &Tok);
-
+  void HandleMacroExportDirective(Token &Tok);
+  
   // File inclusion.
   void HandleIncludeDirective(SourceLocation HashLoc,
                               Token &Tok,

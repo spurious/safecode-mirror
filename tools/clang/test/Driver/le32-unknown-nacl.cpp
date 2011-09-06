@@ -1,8 +1,8 @@
-// RUN: %clang -ccc-host-triple le32-unknown-nacl -ccc-echo %s -emit-llvm -c 2>&1 | FileCheck %s -check-prefix=ECHO
+// RUN: %clang -ccc-host-triple le32-unknown-nacl -ccc-echo %s -emit-llvm-only -c 2>&1 | FileCheck %s -check-prefix=ECHO
 // RUN: %clang -ccc-host-triple le32-unknown-nacl %s -emit-llvm -S -c -o - | FileCheck %s
 // RUN: %clang -ccc-host-triple le32-unknown-nacl %s -emit-llvm -S -c -pthread -o - | FileCheck %s -check-prefix=THREADS
 
-// ECHO: clang{{.*}} -cc1 {{.*}}le32-unknown-nacl.c
+// ECHO: {{.*}} -cc1 {{.*}}le32-unknown-nacl.c
 
 // Check platform defines
 #include <stdarg.h>
