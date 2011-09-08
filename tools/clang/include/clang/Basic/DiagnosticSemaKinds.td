@@ -289,11 +289,10 @@ def note_strlcpycat_wrong_size : Note<
 
 /// main()
 // static/inline main() are not errors in C, just in C++.
-def warn_unusual_main_decl : Warning<"'main' should not be declared "
-    "%select{static|inline|static or inline}0">,
+def warn_static_main : Warning<"'main' should not be declared static">,
     InGroup<Main>;
-def err_unusual_main_decl : Error<"'main' is not allowed to be declared "
-    "%select{static|inline|static or inline}0">;
+def err_static_main : Error<"'main' is not allowed to be declared static">;
+def err_inline_main : Error<"'main' is not allowed to be declared inline">;
 def err_main_template_decl : Error<"'main' cannot be a template">;
 def err_main_returns_nonint : Error<"'main' must return 'int'">;
 def err_main_surplus_args : Error<"too many parameters (%0) for 'main': "
@@ -549,6 +548,9 @@ def err_arc_perform_selector_retains : Error<
 def warn_arc_perform_selector_leaks : Warning<
   "performSelector may cause a leak because its selector is unknown">,
   InGroup<DiagGroup<"arc-performSelector-leaks">>;
+def err_gc_weak_property_strong_type : Error<
+  "weak attribute declared on a __strong type property"
+  "in GC mode">;
 
 def error_synthesized_ivar_yet_not_supported : Error<
   "instance variable synthesis not yet supported"
@@ -2392,6 +2394,9 @@ def err_unexpected_typedef : Error<
 def err_unexpected_namespace : Error<
   "unexpected namespace name %0: expected expression">;
 def err_undeclared_var_use : Error<"use of undeclared identifier %0">;
+def warn_found_via_dependent_bases_lookup : ExtWarn<"use of identifier %0 "
+   "found via unqualified lookup into dependent bases of class templates is a "
+   "Microsoft extension">, InGroup<Microsoft>;
 def note_dependent_var_use : Note<"must qualify identifier to find this "
     "declaration in dependent base class">;
 def err_not_found_by_two_phase_lookup : Error<"call to function %0 that is neither "
@@ -3668,7 +3673,7 @@ def note_condition_assign_silence : Note<
   "place parentheses around the assignment to silence this warning">;
 
 def warn_equality_with_extra_parens : Warning<"equality comparison with "
-  "extraneous parentheses">, InGroup<Parentheses>;
+  "extraneous parentheses">, InGroup<ParenthesesOnEquality>;
 def note_equality_comparison_to_assign : Note<
   "use '=' to turn this equality comparison into an assignment">;
 def note_equality_comparison_silence : Note<
@@ -4690,9 +4695,12 @@ def warn_related_result_type_compatibility_class : Warning<
 def warn_related_result_type_compatibility_protocol : Warning<
   "protocol method is expected to return an instance of the implementing "
   "class, but is declared to return %0">;
-def note_related_result_type_overridden : Note<
+def note_related_result_type_overridden_family : Note<
   "overridden method is part of the '%select{|alloc|copy|init|mutableCopy|"
-  "new|autorelease|dealloc|release|retain|retainCount|self}0' method family">;
+  "new|autorelease|dealloc|finalize|release|retain|retainCount|self}0' method "
+  "family">;
+def note_related_result_type_overridden : Note<
+  "overridden method returns an instance of its class type">;
 def note_related_result_type_inferred : Note<
   "%select{class|instance}0 method %1 is assumed to return an instance of "
   "its receiver type (%2)">;

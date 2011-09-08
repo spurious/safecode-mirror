@@ -832,6 +832,10 @@ public:
 
   TypeResult ActOnTypeName(Scope *S, Declarator &D);
   
+  /// \brief The parser has parsed the context-sensitive type 'instancetype'
+  /// in an Objective-C message declaration. Return the appropriate type.
+  ParsedType ActOnObjCInstanceType(SourceLocation Loc);
+  
   bool RequireCompleteType(SourceLocation Loc, QualType T,
                            const PartialDiagnostic &PD,
                            std::pair<SourceLocation, PartialDiagnostic> Note);
@@ -1016,7 +1020,7 @@ public:
                                 FunctionDecl *NewFD, LookupResult &Previous,
                                 bool IsExplicitSpecialization,
                                 bool &Redeclaration);
-  void CheckMain(FunctionDecl *FD);
+  void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
@@ -1056,6 +1060,7 @@ public:
   Decl *ActOnStartOfFunctionDef(Scope *S, Decl *D);
   void ActOnStartOfObjCMethodDef(Scope *S, Decl *D);
 
+  void computeNRVO(Stmt *Body, sema::FunctionScopeInfo *Scope);
   Decl *ActOnFinishFunctionBody(Decl *Decl, Stmt *Body);
   Decl *ActOnFinishFunctionBody(Decl *Decl, Stmt *Body, bool IsInstantiation);
 
@@ -5323,7 +5328,8 @@ public:
   void ActOnPragmaVisibility(bool IsPush, const IdentifierInfo* VisType,
                              SourceLocation PragmaLoc);
 
-  NamedDecl *DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II);
+  NamedDecl *DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II,
+                                 SourceLocation Loc);
   void DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, WeakInfo &W);
 
   /// ActOnPragmaWeakID - Called on well formed #pragma weak ident.
