@@ -167,6 +167,11 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
                                           "llvm.global_ctors");
   if (GVCtor)
     newGVCtor->takeName (GVCtor);
+
+  //
+  // Delete the old global ctors.
+  //
+  GVCtor->eraseFromParent ();
   return;
 }
 
