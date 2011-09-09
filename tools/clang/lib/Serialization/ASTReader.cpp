@@ -1448,11 +1448,16 @@ PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
     if (PreprocessedEntity *PE = PPRec.getLoadedPreprocessedEntity(GlobalID-1))
       return PE;
     
-    MacroExpansion *ME =
-      new (PPRec) MacroExpansion(getLocalIdentifier(F, Record[3]),
+    bool isBuiltin = Record[3];
+    MacroExpansion *ME;
+    if (isBuiltin)
+      ME = new (PPRec) MacroExpansion(getLocalIdentifier(F, Record[4]),
                                  SourceRange(ReadSourceLocation(F, Record[1]),
-                                             ReadSourceLocation(F, Record[2])),
-                                 getLocalMacroDefinition(F, Record[4]));
+                                             ReadSourceLocation(F, Record[2])));
+    else
+      ME = new (PPRec) MacroExpansion(getLocalMacroDefinition(F, Record[4]),
+                                 SourceRange(ReadSourceLocation(F, Record[1]),
+                                             ReadSourceLocation(F, Record[2])));
     PPRec.setLoadedPreallocatedEntity(GlobalID - 1, ME);
     return ME;
   }
@@ -4836,8 +4841,16 @@ ASTReader::SetGloballyVisibleDecls(IdentifierInfo *II,
     return;
   }
 
+  ASTContext &Ctx = *getContext();
   for (unsigned I = 0, N = DeclIDs.size(); I != N; ++I) {
     NamedDecl *D = cast<NamedDecl>(GetDecl(DeclIDs[I]));
+
+    // In C++, translation unit's visible decls map gets emitted in the AST
+    // file, but not on C; make the decl visible so it can be looked up.
+    if (!Ctx.getLangOptions().CPlusPlus)
+      SetExternalVisibleDeclsForName(Ctx.getTranslationUnitDecl(),
+                                     DeclarationName(II), D);
+
     if (SemaObj) {
       if (SemaObj->TUScope) {
         // Introduce this declaration into the translation-unit scope
