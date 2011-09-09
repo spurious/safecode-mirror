@@ -156,8 +156,8 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   Constant * NewInit=ConstantArray::get (AT, CurrentCtors);
 
   //
-  // Create the new llvm.global_ctors global variable and replace all uses of
-  // the old global variable with the new one.
+  // Create the new llvm.global_ctors global variable and remove the old one
+  // if it existed.
   //
   Value * newGVCtor = new GlobalVariable (M,
                                           NewInit->getType(),
@@ -165,13 +165,11 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
                                           GlobalValue::AppendingLinkage,
                                           NewInit,
                                           "llvm.global_ctors");
-  if (GVCtor)
+  if (GVCtor) {
     newGVCtor->takeName (GVCtor);
+    GVCtor->eraseFromParent ();
+  }
 
-  //
-  // Delete the old global ctors.
-  //
-  GVCtor->eraseFromParent ();
   return;
 }
 
