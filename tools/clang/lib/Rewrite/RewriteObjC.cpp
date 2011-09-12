@@ -420,8 +420,14 @@ namespace {
       else if (T->isObjCQualifiedClassType())
         T = Context->getObjCClassType();
       else if (T->isObjCObjectPointerType() &&
-               T->getPointeeType()->isObjCQualifiedInterfaceType())
-        T = Context->getObjCIdType();
+               T->getPointeeType()->isObjCQualifiedInterfaceType()) {
+        if (const ObjCObjectPointerType * OBJPT =
+              T->getAsObjCInterfacePointerType()) {
+          const ObjCInterfaceType *IFaceT = OBJPT->getInterfaceType();
+          T = QualType(IFaceT, 0);
+          T = Context->getPointerType(T);
+        }
+     }
     }
     
     // FIXME: This predicate seems like it would be useful to add to ASTContext.
@@ -465,6 +471,8 @@ namespace {
                                    const QualType *args,
                                    unsigned numArgs,
                                    bool variadic = false) {
+      if (result == Context->getObjCInstanceType())
+        result =  Context->getObjCIdType();
       FunctionProtoType::ExtProtoInfo fpi;
       fpi.Variadic = variadic;
       return Context->getFunctionType(result, args, numArgs, fpi);
@@ -970,7 +978,7 @@ void RewriteObjC::RewriteForwardClassDecl(
 void RewriteObjC::RewriteMethodDeclaration(ObjCMethodDecl *Method) {
   // When method is a synthesized one, such as a getter/setter there is
   // nothing to rewrite.
-  if (Method->isSynthesized())
+  if (Method->isImplicit())
     return;
   SourceLocation LocStart = Method->getLocStart();
   SourceLocation LocEnd = Method->getLocEnd();
@@ -3122,8 +3130,8 @@ Stmt *RewriteObjC::SynthMessageExpr(ObjCMessageExpr *Exp,
       (void)convertBlockPointerToFunctionPointer(t);
       ArgTypes.push_back(t);
     }
-    returnType = OMD->getResultType()->isObjCQualifiedIdType()
-                   ? Context->getObjCIdType() : OMD->getResultType();
+    returnType = Exp->getType();
+    convertToUnqualifiedObjCType(returnType);
     (void)convertBlockPointerToFunctionPointer(returnType);
   } else {
     returnType = Context->getObjCIdType();

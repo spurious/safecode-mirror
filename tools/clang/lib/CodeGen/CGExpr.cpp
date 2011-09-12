@@ -1875,6 +1875,9 @@ LValue CodeGenFunction::EmitLValueForField(llvm::Value *baseAddr,
                                          CGM.getTypes().ConvertTypeForMem(type),
                                          field->getName());
 
+  if (field->hasAttr<AnnotateAttr>())
+    addr = EmitFieldAnnotations(field, addr);
+
   unsigned alignment = getContext().getDeclAlign(field).getQuantity();
   LValue LV = MakeAddrLValue(addr, type, alignment);
   LV.getQuals().addCVRQualifiers(cvr);
@@ -2056,9 +2059,10 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_BaseToDerivedMemberPointer:
   case CK_MemberPointerToBoolean:
   case CK_AnyPointerToBlockPointerCast:
-  case CK_ObjCProduceObject:
-  case CK_ObjCConsumeObject:
-  case CK_ObjCReclaimReturnedObject: {
+  case CK_ARCProduceObject:
+  case CK_ARCConsumeObject:
+  case CK_ARCReclaimReturnedObject:
+  case CK_ARCExtendBlockObject: {
     // These casts only produce lvalues when we're binding a reference to a 
     // temporary realized from a (converted) pure rvalue. Emit the expression
     // as a value, copy it into a temporary, and return an lvalue referring to

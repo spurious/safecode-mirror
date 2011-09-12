@@ -230,10 +230,10 @@ private:
   Sema *SemaObj;
 
   /// \brief The preprocessor that will be loading the source file.
-  Preprocessor *PP;
+  Preprocessor &PP;
 
   /// \brief The AST context into which we'll read the AST files.
-  ASTContext *Context;
+  ASTContext &Context;
       
   /// \brief The AST consumer.
   ASTConsumer *Consumer;
@@ -749,11 +749,8 @@ public:
   /// \brief Set the AST deserialization listener.
   void setDeserializationListener(ASTDeserializationListener *Listener);
 
-  /// \brief Set the Preprocessor to use.
-  void setPreprocessor(Preprocessor &pp);
-
-  /// \brief Sets and initializes the given Context.
-  void InitializeContext(ASTContext &Context);
+  /// \brief Initializes the ASTContext
+  void InitializeContext();
 
   /// \brief Add in-memory (virtual file) buffer.
   void addInMemoryBuffer(StringRef &FileName, llvm::MemoryBuffer *Buffer) {
@@ -764,10 +761,7 @@ public:
   ModuleManager &getModuleManager() { return ModuleMgr; }
 
   /// \brief Retrieve the preprocessor.
-  Preprocessor &getPreprocessor() const {
-    assert(PP && "ASTReader does not have a preprocessor");
-    return *PP;
-  }
+  Preprocessor &getPreprocessor() const { return PP; }
   
   /// \brief Retrieve the name of the original source file name
   const std::string &getOriginalSourceFile() { return OriginalFileName; }
@@ -1267,7 +1261,7 @@ public:
   }
   
   /// \brief Retrieve the AST context that this AST reader supplements.
-  ASTContext *getContext() { return Context; }
+  ASTContext &getContext() { return Context; }
 
   // \brief Contains declarations that were loaded before we have
   // access to a Sema object.

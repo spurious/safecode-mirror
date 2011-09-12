@@ -1090,6 +1090,12 @@ public:
                                IdentifierInfo &ModuleName,
                                SourceLocation ModuleNameLoc);
   
+  /// \brief Diagnose that \p New is a module-private redeclaration of
+  /// \p Old.
+  void diagnoseModulePrivateRedeclaration(NamedDecl *New, NamedDecl *Old,
+                                          SourceLocation ModulePrivateKeyword
+                                            = SourceLocation());
+  
   /// Scope actions.
   void ActOnPopScope(SourceLocation Loc, Scope *S);
   void ActOnTranslationUnitScope(Scope *S);
@@ -1125,7 +1131,7 @@ public:
                  SourceLocation KWLoc, CXXScopeSpec &SS,
                  IdentifierInfo *Name, SourceLocation NameLoc,
                  AttributeList *Attr, AccessSpecifier AS,
-                 bool IsModulePrivate,
+                 SourceLocation ModulePrivateLoc,
                  MultiTemplateParamsArg TemplateParameterLists,
                  bool &OwnedDecl, bool &IsDependent, bool ScopedEnum,
                  bool ScopedEnumUsesClassTag, TypeResult UnderlyingType);
@@ -1351,6 +1357,7 @@ public:
   bool FunctionArgTypesAreEqual(const FunctionProtoType *OldType, 
                                 const FunctionProtoType *NewType);
   
+  CastKind PrepareCastToObjCObjectPointer(ExprResult &E);
   bool CheckPointerConversion(Expr *From, QualType ToType,
                               CastKind &Kind,
                               CXXCastPath& BasePath,
@@ -3775,7 +3782,8 @@ public:
                                 IdentifierInfo *Name, SourceLocation NameLoc,
                                 AttributeList *Attr,
                                 TemplateParameterList *TemplateParams,
-                                AccessSpecifier AS, bool IsModulePrivate,
+                                AccessSpecifier AS, 
+                                SourceLocation ModulePrivateLoc,
                                 unsigned NumOuterTemplateParamLists,
                             TemplateParameterList **OuterTemplateParamLists);
 
@@ -3829,6 +3837,7 @@ public:
   DeclResult
   ActOnClassTemplateSpecialization(Scope *S, unsigned TagSpec, TagUseKind TUK,
                                    SourceLocation KWLoc,
+                                   SourceLocation ModulePrivateLoc,
                                    CXXScopeSpec &SS,
                                    TemplateTy Template,
                                    SourceLocation TemplateNameLoc,

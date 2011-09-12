@@ -345,12 +345,12 @@ void gb_fun_3() {
 
 void gb_bad_0() {
   sls_guard_var = 1; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
+    // expected-warning{{writing variable 'sls_guard_var' requires lock on 'any mutex' to be held exclusively}}
 }
 
 void gb_bad_1() {
   int x = sls_guard_var; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
+    // expected-warning{{reading variable 'sls_guard_var' requires lock on 'any mutex' to be held}}
 }
 
 void gb_bad_2() {
@@ -365,12 +365,12 @@ void gb_bad_3() {
 
 void gb_bad_4() {
   *pgb_gvar = 1; // \
-    // expected-warning {{accessing the value pointed to by 'pgb_gvar' requires some lock}}
+    // expected-warning {{writing the value pointed to by 'pgb_gvar' requires lock on 'any mutex' to be held exclusively}}
 }
 
 void gb_bad_5() {
   int x = *pgb_gvar; // \
-    // expected-warning {{accessing the value pointed to by 'pgb_gvar' requires some lock}}
+    // expected-warning {{reading the value pointed to by 'pgb_gvar' requires lock on 'any mutex' to be held}}
 }
 
 void gb_bad_6() {
@@ -391,13 +391,13 @@ void gb_bad_8() {
 
 void gb_bad_9() {
   sls_guard_var++; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
+    // expected-warning{{writing variable 'sls_guard_var' requires lock on 'any mutex' to be held exclusively}}
   sls_guard_var--; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
+    // expected-warning{{writing variable 'sls_guard_var' requires lock on 'any mutex' to be held exclusively}}
   ++sls_guard_var; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
-  --sls_guard_var; // \
-    // expected-warning{{accessing variable 'sls_guard_var' requires some lock}}
+    // expected-warning{{writing variable 'sls_guard_var' requires lock on 'any mutex' to be held exclusively}}
+  --sls_guard_var;// \
+    // expected-warning{{writing variable 'sls_guard_var' requires lock on 'any mutex' to be held exclusively}}
 }
 
 //-----------------------------------------------//
@@ -424,6 +424,80 @@ public:
 
   Mutex mu;
 };
+
+class LateBar {
+ public:
+  int a_ __attribute__((guarded_by(mu1_)));
+  int b_;
+  int *q __attribute__((pt_guarded_by(mu)));
+  Mutex mu1_;
+  Mutex mu;
+  LateFoo Foo;
+  LateFoo Foo2;
+  LateFoo *FooPointer;
+};
+
+LateBar b1, *b3;
+
+void late_0() {
+  LateFoo FooA;
+  LateFoo FooB;
+  FooA.mu.Lock();
+  FooA.a = 5;
+  FooA.mu.Unlock();
+}
+
+void late_1() {
+  LateBar BarA;
+  BarA.FooPointer->mu.Lock();
+  BarA.FooPointer->a = 2;
+  BarA.FooPointer->mu.Unlock();
+}
+
+void late_bad_0() {
+  LateFoo fooA;
+  LateFoo fooB;
+  fooA.mu.Lock();
+  fooB.a = 5; // \
+    // expected-warning{{writing variable 'a' requires lock on 'mu' to be held exclusively}}
+  fooA.mu.Unlock();
+}
+
+void late_bad_1() {
+  Mutex mu;
+  mu.Lock();
+  b1.mu1_.Lock();
+  int res = b1.a_ + b3->b_;
+  b3->b_ = *b1.q; // \
+    // expected-warning{{reading the value pointed to by 'q' requires lock on 'mu' to be held}}
+  b1.mu1_.Unlock();
+  b1.b_ = res;
+  mu.Unlock();
+}
+
+void late_bad_2() {
+  LateBar BarA;
+  BarA.FooPointer->mu.Lock();
+  BarA.Foo.a = 2; // \
+    // expected-warning{{writing variable 'a' requires lock on 'mu' to be held exclusively}}
+  BarA.FooPointer->mu.Unlock();
+}
+
+void late_bad_3() {
+  LateBar BarA;
+  BarA.Foo.mu.Lock();
+  BarA.FooPointer->a = 2; // \
+    // expected-warning{{writing variable 'a' requires lock on 'mu' to be held exclusively}}
+  BarA.Foo.mu.Unlock();
+}
+
+void late_bad_4() {
+  LateBar BarA;
+  BarA.Foo.mu.Lock();
+  BarA.Foo2.a = 2; // \
+    // expected-warning{{writing variable 'a' requires lock on 'mu' to be held exclusively}}
+  BarA.Foo.mu.Unlock();
+}
 
 //-----------------------------------------------//
 // Extra warnings for shared vs. exclusive locks

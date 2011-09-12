@@ -88,6 +88,19 @@ static bool checkArgCount(Sema &S, CallExpr *call, unsigned desiredArgCount) {
     << call->getArg(1)->getSourceRange();
 }
 
+/// CheckBuiltinAnnotationString - Checks that string argument to the builtin
+/// annotation is a non wide string literal.
+static bool CheckBuiltinAnnotationString(Sema &S, Expr *Arg) {
+  Arg = Arg->IgnoreParenCasts();
+  StringLiteral *Literal = dyn_cast<StringLiteral>(Arg);
+  if (!Literal || !Literal->isAscii()) {
+    S.Diag(Arg->getLocStart(), diag::err_builtin_annotation_not_string_constant)
+      << Arg->getSourceRange();
+    return true;
+  }
+  return false;
+}
+
 ExprResult
 Sema::CheckBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   ExprResult TheCallResult(Owned(TheCall));
@@ -184,6 +197,10 @@ Sema::CheckBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case Builtin::BI__sync_lock_release:
   case Builtin::BI__sync_swap:
     return SemaBuiltinAtomicOverloaded(move(TheCallResult));
+  case Builtin::BI__builtin_annotation:
+    if (CheckBuiltinAnnotationString(*this, TheCall->getArg(1)))
+      return ExprError();
+    break;
   }
   
   // Since the target specific builtins for each arch overlap, only check those
@@ -614,13 +631,20 @@ Sema::SemaBuiltinAtomicOverloaded(ExprResult TheCallResult) {
     TheCall->setArg(i+1, Arg.get());
   }
 
-  // Switch the DeclRefExpr to refer to the new decl.
-  DRE->setDecl(NewBuiltinDecl);
-  DRE->setType(NewBuiltinDecl->getType());
+  ASTContext& Context = this->getASTContext();
+
+  // Create a new DeclRefExpr to refer to the new decl.
+  DeclRefExpr* NewDRE = DeclRefExpr::Create(
+      Context,
+      DRE->getQualifierLoc(),
+      NewBuiltinDecl,
+      DRE->getLocation(),
+      NewBuiltinDecl->getType(),
+      DRE->getValueKind());
 
   // Set the callee in the CallExpr.
   // FIXME: This leaks the original parens and implicit casts.
-  ExprResult PromotedCall = UsualUnaryConversions(DRE);
+  ExprResult PromotedCall = UsualUnaryConversions(NewDRE);
   if (PromotedCall.isInvalid())
     return ExprError();
   TheCall->setCallee(PromotedCall.take());
@@ -632,7 +656,6 @@ Sema::SemaBuiltinAtomicOverloaded(ExprResult TheCallResult) {
 
   return move(TheCallResult);
 }
-
 
 /// CheckObjCString - Checks that the argument to the builtin
 /// CFString constructor is correct
@@ -3830,7 +3853,7 @@ static bool findRetainCycleOwner(Expr *e, RetainCycleOwner &owner) {
       case CK_BitCast:
       case CK_LValueBitCast:
       case CK_LValueToRValue:
-      case CK_ObjCReclaimReturnedObject:
+      case CK_ARCReclaimReturnedObject:
         e = cast->getSubExpr();
         continue;
 
@@ -4015,7 +4038,7 @@ bool Sema::checkUnsafeAssigns(SourceLocation Loc,
     return false;
   // strip off any implicit cast added to get to the one arc-specific
   while (ImplicitCastExpr *cast = dyn_cast<ImplicitCastExpr>(RHS)) {
-    if (cast->getCastKind() == CK_ObjCConsumeObject) {
+    if (cast->getCastKind() == CK_ARCConsumeObject) {
       Diag(Loc, diag::warn_arc_retained_assign)
         << (LT == Qualifiers::OCL_ExplicitNone) 
         << RHS->getSourceRange();
@@ -4046,7 +4069,7 @@ void Sema::checkUnsafeExprAssigns(SourceLocation Loc,
     unsigned Attributes = PD->getPropertyAttributes();
     if (Attributes & ObjCPropertyDecl::OBJC_PR_assign)
       while (ImplicitCastExpr *cast = dyn_cast<ImplicitCastExpr>(RHS)) {
-        if (cast->getCastKind() == CK_ObjCConsumeObject) {
+        if (cast->getCastKind() == CK_ARCConsumeObject) {
           Diag(Loc, diag::warn_arc_retained_property_assign)
           << RHS->getSourceRange();
           return;

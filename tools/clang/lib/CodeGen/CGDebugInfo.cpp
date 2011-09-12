@@ -289,7 +289,21 @@ llvm::DIType CGDebugInfo::CreateType(const BuiltinType *BT) {
   unsigned Encoding = 0;
   const char *BTName = NULL;
   switch (BT->getKind()) {
-  default:
+  case BuiltinType::Dependent:
+    assert(0 && "Unexpected builtin type Dependent");
+    return llvm::DIType();
+  case BuiltinType::Overload:
+    assert(0 && "Unexpected builtin type Overload");
+    return llvm::DIType();
+  case BuiltinType::BoundMember:
+    assert(0 && "Unexpected builtin type BoundMember");
+    return llvm::DIType();
+  case BuiltinType::UnknownAny:
+    assert(0 && "Unexpected builtin type UnknownAny");
+    return llvm::DIType();
+  case BuiltinType::NullPtr:
+    assert(0 && "Unexpected builtin type NullPtr");
+    return llvm::DIType();
   case BuiltinType::Void:
     return llvm::DIType();
   case BuiltinType::ObjCClass:
@@ -334,15 +348,19 @@ llvm::DIType CGDebugInfo::CreateType(const BuiltinType *BT) {
   case BuiltinType::Char_U: Encoding = llvm::dwarf::DW_ATE_unsigned_char; break;
   case BuiltinType::Char_S:
   case BuiltinType::SChar: Encoding = llvm::dwarf::DW_ATE_signed_char; break;
+  case BuiltinType::Char16:
+  case BuiltinType::Char32: Encoding = llvm::dwarf::DW_ATE_UTF; break;
   case BuiltinType::UShort:
   case BuiltinType::UInt:
   case BuiltinType::UInt128:
   case BuiltinType::ULong:
+  case BuiltinType::WChar_U:
   case BuiltinType::ULongLong: Encoding = llvm::dwarf::DW_ATE_unsigned; break;
   case BuiltinType::Short:
   case BuiltinType::Int:
   case BuiltinType::Int128:
   case BuiltinType::Long:
+  case BuiltinType::WChar_S:
   case BuiltinType::LongLong:  Encoding = llvm::dwarf::DW_ATE_signed; break;
   case BuiltinType::Bool:      Encoding = llvm::dwarf::DW_ATE_boolean; break;
   case BuiltinType::Float:

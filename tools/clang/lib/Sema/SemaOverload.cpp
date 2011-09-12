@@ -7288,6 +7288,37 @@ SourceLocation GetLocationForCandidate(const OverloadCandidate *Cand) {
   return SourceLocation();
 }
 
+static unsigned
+RankDeductionFailure(const OverloadCandidate::DeductionFailureInfo &DFI) {
+  switch ((Sema::TemplateDeductionResult)DFI.Result) {
+  case Sema::TDK_Success:
+    assert(0 && "TDK_success while diagnosing bad deduction");
+
+  case Sema::TDK_Incomplete:
+    return 1;
+
+  case Sema::TDK_Underqualified:
+  case Sema::TDK_Inconsistent:
+    return 2;
+
+  case Sema::TDK_SubstitutionFailure:
+  case Sema::TDK_NonDeducedMismatch:
+    return 3;
+
+  case Sema::TDK_InstantiationDepth:
+  case Sema::TDK_FailedOverloadResolution:
+    return 4;
+
+  case Sema::TDK_InvalidExplicitArguments:
+    return 5;
+
+  case Sema::TDK_TooManyArguments:
+  case Sema::TDK_TooFewArguments:
+    return 6;
+  }
+  llvm_unreachable("Unhandled deduction result");
+}
+
 struct CompareOverloadCandidatesForDisplay {
   Sema &S;
   CompareOverloadCandidatesForDisplay(Sema &S) : S(S) {}
@@ -7367,6 +7398,15 @@ struct CompareOverloadCandidatesForDisplay {
 
       } else if (R->FailureKind == ovl_fail_bad_conversion)
         return false;
+
+      if (L->FailureKind == ovl_fail_bad_deduction) {
+        if (R->FailureKind != ovl_fail_bad_deduction)
+          return true;
+
+        if (L->DeductionFailure.Result != R->DeductionFailure.Result)
+          return RankDeductionFailure(L->DeductionFailure)
+              <= RankDeductionFailure(R->DeductionFailure);
+      }
 
       // TODO: others?
     }

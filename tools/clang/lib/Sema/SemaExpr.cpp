@@ -3783,6 +3783,35 @@ Sema::ActOnInitList(SourceLocation LBraceLoc, MultiExprArg InitArgList,
   return Owned(E);
 }
 
+/// Do an explicit extend of the given block pointer if we're in ARC.
+static void maybeExtendBlockObject(Sema &S, ExprResult &E) {
+  assert(E.get()->getType()->isBlockPointerType());
+  assert(E.get()->isRValue());
+
+  // Only do this in an r-value context.
+  if (!S.getLangOptions().ObjCAutoRefCount) return;
+
+  E = ImplicitCastExpr::Create(S.Context, E.get()->getType(),
+                               CK_ARCExtendBlockObject, E.get(),
+                               /*base path*/ 0, VK_RValue);
+  S.ExprNeedsCleanups = true;
+}
+
+/// Prepare a conversion of the given expression to an ObjC object
+/// pointer type.
+CastKind Sema::PrepareCastToObjCObjectPointer(ExprResult &E) {
+  QualType type = E.get()->getType();
+  if (type->isObjCObjectPointerType()) {
+    return CK_BitCast;
+  } else if (type->isBlockPointerType()) {
+    maybeExtendBlockObject(*this, E);
+    return CK_BlockPointerToObjCPointerCast;
+  } else {
+    assert(type->isPointerType());
+    return CK_CPointerToObjCPointerCast;
+  }
+}
+
 /// Prepares for a scalar cast, performing all the necessary stages
 /// except the final cast and returning the kind required.
 static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
@@ -3812,8 +3841,10 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
         return CK_BitCast;
       else if (SrcKind == Type::STK_CPointer)
         return CK_CPointerToObjCPointerCast;
-      else
+      else {
+        maybeExtendBlockObject(S, Src);
         return CK_BlockPointerToObjCPointerCast;
+      }
     case Type::STK_Bool:
       return CK_PointerToBoolean;
     case Type::STK_Integral:
@@ -4895,9 +4926,10 @@ static bool IsArithmeticOp(BinaryOperatorKind Opc) {
 /// expression.
 static bool IsArithmeticBinaryExpr(Expr *E, BinaryOperatorKind *Opcode,
                                    Expr **RHSExprs) {
-  E = E->IgnoreParenImpCasts();
+  // Don't strip parenthesis: we should not warn if E is in parenthesis.
+  E = E->IgnoreImpCasts();
   E = E->IgnoreConversionOperator();
-  E = E->IgnoreParenImpCasts();
+  E = E->IgnoreImpCasts();
 
   // Built-in binary operator.
   if (BinaryOperator *OP = dyn_cast<BinaryOperator>(E)) {
@@ -5458,6 +5490,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
 
     // T^ -> A*
     if (RHSType->isBlockPointerType()) {
+      maybeExtendBlockObject(*this, RHS);
       Kind = CK_BlockPointerToObjCPointerCast;
       return Compatible;
     }
@@ -5836,7 +5869,7 @@ static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
     << Pointer->getSourceRange();
 }
 
-/// \brief Warn if Operand is incomplete pointer type
+/// \brief Emit error if Operand is incomplete pointer type
 ///
 /// \returns True if pointer has incomplete type
 static bool checkArithmeticIncompletePointerType(Sema &S, SourceLocation Loc,
@@ -5942,7 +5975,7 @@ static bool checkArithmethicPointerOnNonFragileABI(Sema &S,
   return false;
 }
 
-/// \brief Warn when two pointers are incompatible.
+/// \brief Emit error when two pointers are incompatible.
 static void diagnosePointerIncompatibility(Sema &S, SourceLocation Loc,
                                            Expr *LHSExpr, Expr *RHSExpr) {
   assert(LHSExpr->getType()->isAnyPointerType());
@@ -5977,32 +6010,33 @@ QualType Sema::CheckAdditionOperands( // C99 6.5.6
   if (IExp->getType()->isAnyPointerType())
     std::swap(PExp, IExp);
 
-  if (PExp->getType()->isAnyPointerType()) {
-    if (IExp->getType()->isIntegerType()) {
-      if (!checkArithmeticOpPointerOperand(*this, Loc, PExp))
-        return QualType();
+  if (!PExp->getType()->isAnyPointerType())
+    return InvalidOperands(Loc, LHS, RHS);
 
-      // Diagnose bad cases where we step over interface counts.
-      if (!checkArithmethicPointerOnNonFragileABI(*this, Loc, PExp))
-        return QualType();
+  if (!IExp->getType()->isIntegerType())
+    return InvalidOperands(Loc, LHS, RHS);
 
-      // Check array bounds for pointer arithemtic
-      CheckArrayAccess(PExp, IExp);
+  if (!checkArithmeticOpPointerOperand(*this, Loc, PExp))
+    return QualType();
 
-      if (CompLHSTy) {
-        QualType LHSTy = Context.isPromotableBitField(LHS.get());
-        if (LHSTy.isNull()) {
-          LHSTy = LHS.get()->getType();
-          if (LHSTy->isPromotableIntegerType())
-            LHSTy = Context.getPromotedIntegerType(LHSTy);
-        }
-        *CompLHSTy = LHSTy;
-      }
-      return PExp->getType();
+  // Diagnose bad cases where we step over interface counts.
+  if (!checkArithmethicPointerOnNonFragileABI(*this, Loc, PExp))
+    return QualType();
+
+  // Check array bounds for pointer arithemtic
+  CheckArrayAccess(PExp, IExp);
+
+  if (CompLHSTy) {
+    QualType LHSTy = Context.isPromotableBitField(LHS.get());
+    if (LHSTy.isNull()) {
+      LHSTy = LHS.get()->getType();
+      if (LHSTy->isPromotableIntegerType())
+        LHSTy = Context.getPromotedIntegerType(LHSTy);
     }
+    *CompLHSTy = LHSTy;
   }
 
-  return InvalidOperands(Loc, LHS, RHS);
+  return PExp->getType();
 }
 
 // C99 6.5.6
@@ -8251,7 +8285,7 @@ static Expr *maybeRebuildARCConsumingStmt(Stmt *Statement) {
   if (!cleanups) return 0;
 
   ImplicitCastExpr *cast = dyn_cast<ImplicitCastExpr>(cleanups->getSubExpr());
-  if (!cast || cast->getCastKind() != CK_ObjCConsumeObject)
+  if (!cast || cast->getCastKind() != CK_ARCConsumeObject)
     return 0;
 
   // Splice out the cast.  This shouldn't modify any interesting

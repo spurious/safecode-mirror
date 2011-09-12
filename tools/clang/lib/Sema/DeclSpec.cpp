@@ -900,7 +900,7 @@ void DeclSpec::Finish(Diagnostic &D, Preprocessor &PP) {
   }
 
   assert(!TypeSpecOwned || isDeclRep((TST) TypeSpecType));
-
+ 
   // Okay, now we can infer the real type.
 
   // TODO: return "auto function" and other bad things based on the real type.

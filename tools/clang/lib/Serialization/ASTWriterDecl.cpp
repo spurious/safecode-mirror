@@ -155,7 +155,6 @@ void ASTDeclWriter::VisitDecl(Decl *D) {
   Record.push_back(D->isUsed(false));
   Record.push_back(D->isReferenced());
   Record.push_back(D->getAccess());
-  Record.push_back(D->getPCHLevel());
   Record.push_back(D->ModulePrivate);
 }
 
@@ -181,7 +180,6 @@ void ASTDeclWriter::VisitTypedefDecl(TypedefDecl *D) {
   if (!D->hasAttrs() &&
       !D->isImplicit() &&
       !D->isUsed(false) &&
-      D->getPCHLevel() == 0 &&
       D->RedeclLink.getNext() == D &&
       !D->isInvalidDecl() &&
       !D->isReferenced() &&
@@ -230,7 +228,6 @@ void ASTDeclWriter::VisitEnumDecl(EnumDecl *D) {
   if (!D->hasAttrs() &&
       !D->isImplicit() &&
       !D->isUsed(false) &&
-      D->getPCHLevel() == 0 &&
       !D->hasExtInfo() &&
       D->RedeclLink.getNext() == D &&
       !D->isInvalidDecl() &&
@@ -254,7 +251,6 @@ void ASTDeclWriter::VisitRecordDecl(RecordDecl *D) {
   if (!D->hasAttrs() &&
       !D->isImplicit() &&
       !D->isUsed(false) &&
-      D->getPCHLevel() == 0 &&
       !D->hasExtInfo() &&
       D->RedeclLink.getNext() == D &&
       !D->isInvalidDecl() &&
@@ -476,7 +472,6 @@ void ASTDeclWriter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
       !D->isUsed(false) &&
       !D->isInvalidDecl() &&
       !D->isReferenced() &&
-      D->getPCHLevel() == 0 &&
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
       !D->hasExtInfo() &&
@@ -615,7 +610,6 @@ void ASTDeclWriter::VisitFieldDecl(FieldDecl *D) {
       !D->isUsed(false) &&
       !D->isInvalidDecl() &&
       !D->isReferenced() &&
-      D->getPCHLevel() == 0 &&
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
       !D->hasInClassInitializer() &&
@@ -670,7 +664,6 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
       !D->isReferenced() &&
       D->getAccess() == AS_none &&
       !D->isModulePrivate() &&
-      D->getPCHLevel() == 0 &&
       D->getDeclName().getNameKind() == DeclarationName::Identifier &&
       !D->hasExtInfo() &&
       D->RedeclLink.getNext() == D &&
@@ -712,7 +705,6 @@ void ASTDeclWriter::VisitParmVarDecl(ParmVarDecl *D) {
       !D->isUsed(false) &&
       D->getAccess() == AS_none &&
       !D->isModulePrivate() &&
-      D->getPCHLevel() == 0 &&
       D->getStorageClass() == 0 &&
       !D->hasCXXDirectInitializer() && // Can params have this ever?
       D->getFunctionScopeDepth() == 0 &&
@@ -799,7 +791,7 @@ void ASTDeclWriter::VisitNamespaceDecl(NamespaceDecl *D) {
   Code = serialization::DECL_NAMESPACE;
 
   if (Writer.hasChain() && !D->isOriginalNamespace() &&
-      D->getOriginalNamespace()->getPCHLevel() > 0) {
+      D->getOriginalNamespace()->isFromASTFile()) {
     NamespaceDecl *NS = D->getOriginalNamespace();
     Writer.AddUpdatedDeclContext(NS);
 
@@ -825,7 +817,7 @@ void ASTDeclWriter::VisitNamespaceDecl(NamespaceDecl *D) {
     // anonymous namespace.
     Decl *Parent = cast<Decl>(
         D->getParent()->getRedeclContext()->getPrimaryContext());
-    if (Parent->getPCHLevel() > 0 || isa<TranslationUnitDecl>(Parent)) {
+    if (Parent->isFromASTFile() || isa<TranslationUnitDecl>(Parent)) {
       ASTWriter::UpdateRecord &Record = Writer.DeclUpdates[Parent];
       Record.push_back(UPD_CXX_ADDED_ANONYMOUS_NAMESPACE);
       Writer.AddDeclRef(D, Record);
@@ -1021,7 +1013,7 @@ void ASTDeclWriter::VisitRedeclarableTemplateDecl(RedeclarableTemplateDecl *D) {
     // in a chained PCH, keep track of the association with the map so we can
     // update the first decl during AST reading.
     if (First->getMostRecentDeclaration() == D &&
-        First->getPCHLevel() > D->getPCHLevel()) {
+        First->isFromASTFile() && !D->isFromASTFile()) {
       assert(Writer.FirstLatestDecls.find(First)==Writer.FirstLatestDecls.end()
              && "The latest is already set");
       Writer.FirstLatestDecls[First] = D;
@@ -1243,7 +1235,7 @@ void ASTDeclWriter::VisitRedeclarable(Redeclarable<T> *D) {
   // in a chained PCH, keep track of the association with the map so we can
   // update the first decl during AST reading.
   if (ThisDecl != First && First->getMostRecentDeclaration() == ThisDecl &&
-      First->getPCHLevel() > ThisDecl->getPCHLevel()) {
+      First->isFromASTFile() && !ThisDecl->isFromASTFile()) {
     assert(Writer.FirstLatestDecls.find(First) == Writer.FirstLatestDecls.end()
            && "The latest is already set");
     Writer.FirstLatestDecls[First] = ThisDecl;
@@ -1272,7 +1264,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2));  // AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1304,7 +1295,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2));  // AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1339,7 +1329,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(AS_none));                 // C++ AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1385,7 +1374,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(AS_none));                 // C++ AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1425,7 +1413,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(AS_none));                 // C++ AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1474,7 +1461,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(AS_none));                 // C++ AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1500,7 +1486,6 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                       // isUsed
   Abv->Add(BitCodeAbbrevOp(0));                       // isReferenced
   Abv->Add(BitCodeAbbrevOp(AS_none));                 // C++ AccessSpecifier
-  Abv->Add(BitCodeAbbrevOp(0));                       // PCH level
   Abv->Add(BitCodeAbbrevOp(0));                       // ModulePrivate
   // NamedDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // NameKind = Identifier
@@ -1610,7 +1595,7 @@ void ASTWriter::WriteDeclsBlockAbbrevs() {
 /// decls.
 static bool isRequiredDecl(const Decl *D, ASTContext &Context) {
   // File scoped assembly or obj-c implementation must be seen.
-  if (isa<FileScopeAsmDecl>(D) || isa<ObjCImplementationDecl>(D))
+  if (isa<FileScopeAsmDecl>(D) || isa<ObjCImplDecl>(D))
     return true;
 
   return Context.DeclMustBeEmitted(D);

@@ -271,6 +271,13 @@ ObjCMethodDecl *Sema::tryCaptureObjCSelf() {
   return method;
 }
 
+static QualType stripObjCInstanceType(ASTContext &Context, QualType T) {
+  if (T == Context.getObjCInstanceType())
+    return Context.getObjCIdType();
+  
+  return T;
+}
+
 QualType Sema::getMessageSendResultType(QualType ReceiverType,
                                         ObjCMethodDecl *Method,
                                     bool isClassMessage, bool isSuperMessage) {
@@ -283,7 +290,7 @@ QualType Sema::getMessageSendResultType(QualType ReceiverType,
   //     was a class message send, T is the declared return type of the method
   //     found
   if (Method->isInstanceMethod() && isClassMessage)
-    return Method->getSendResultType();
+    return stripObjCInstanceType(Context, Method->getSendResultType());
   
   //   - if the receiver is super, T is a pointer to the class of the 
   //     enclosing method definition
@@ -302,7 +309,7 @@ QualType Sema::getMessageSendResultType(QualType ReceiverType,
   //     T is the declared return type of the method.
   if (ReceiverType->isObjCClassType() ||
       ReceiverType->isObjCQualifiedClassType())
-    return  Method->getSendResultType();
+    return stripObjCInstanceType(Context, Method->getSendResultType());
   
   //   - if the receiver is id, qualified id, Class, or qualified Class, T
   //     is the receiver type, otherwise
@@ -1814,7 +1821,7 @@ static Expr *maybeUndoReclaimObject(Expr *e) {
   // value-propagating subexpressions --- we can't reliably rebuild
   // in-place because of expression sharing.
   if (ImplicitCastExpr *ice = dyn_cast<ImplicitCastExpr>(e))
-    if (ice->getCastKind() == CK_ObjCReclaimReturnedObject)
+    if (ice->getCastKind() == CK_ARCReclaimReturnedObject)
       return ice->getSubExpr();
 
   return e;
@@ -1882,7 +1889,7 @@ ExprResult Sema::BuildObjCBridgedCast(SourceLocation LParenLoc,
     case OBC_BridgeRetained:        
       // Produce the object before casting it.
       SubExpr = ImplicitCastExpr::Create(Context, FromType,
-                                         CK_ObjCProduceObject,
+                                         CK_ARCProduceObject,
                                          SubExpr, 0, VK_RValue);
       break;
       
@@ -1918,7 +1925,7 @@ ExprResult Sema::BuildObjCBridgedCast(SourceLocation LParenLoc,
   
   if (MustConsume) {
     ExprNeedsCleanups = true;
-    Result = ImplicitCastExpr::Create(Context, T, CK_ObjCConsumeObject, Result, 
+    Result = ImplicitCastExpr::Create(Context, T, CK_ARCConsumeObject, Result, 
                                       0, VK_RValue);    
   }
   

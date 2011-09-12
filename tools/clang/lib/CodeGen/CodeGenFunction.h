@@ -1213,6 +1213,8 @@ public:
   /// for the given property.
   void GenerateObjCSetter(ObjCImplementationDecl *IMP,
                           const ObjCPropertyImplDecl *PID);
+  void generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
+                              const ObjCPropertyImplDecl *propImpl);
   bool IndirectObjCSetterArg(const CGFunctionInfo &FI);
   bool IvarTypeWithAggrGCObjects(QualType Ty);
 
@@ -2270,6 +2272,23 @@ public:
                               AggValueSlot Slot =AggValueSlot::ignored());
 
   void EmitCXXThrowExpr(const CXXThrowExpr *E);
+
+  //===--------------------------------------------------------------------===//
+  //                         Annotations Emission
+  //===--------------------------------------------------------------------===//
+
+  /// Emit an annotation call (intrinsic or builtin).
+  llvm::Value *EmitAnnotationCall(llvm::Value *AnnotationFn,
+                                  llvm::Value *AnnotatedVal,
+                                  llvm::StringRef AnnotationStr,
+                                  SourceLocation Location);
+
+  /// Emit local annotations for the local variable V, declared by D.
+  void EmitVarAnnotations(const VarDecl *D, llvm::Value *V);
+
+  /// Emit field annotations for the given field & value. Returns the
+  /// annotation result.
+  llvm::Value *EmitFieldAnnotations(const FieldDecl *D, llvm::Value *V);
 
   //===--------------------------------------------------------------------===//
   //                             Internal Helpers

@@ -236,7 +236,7 @@ def err_maybe_falloff_nonvoid_block : Error<
 def err_falloff_nonvoid_block : Error<
   "control reaches end of non-void block">;
 def warn_suggest_noreturn_function : Warning<
-  "function %0 could be declared with attribute 'noreturn'">,
+  "%select{function|method}0 %1 could be declared with attribute 'noreturn'">,
   InGroup<DiagGroup<"missing-noreturn">>, DefaultIgnore;
 def warn_suggest_noreturn_block : Warning<
   "block could be declared with attribute 'noreturn'">,
@@ -1032,7 +1032,7 @@ def warn_maybe_uninit_var_captured_by_block : Warning<
   "variable %0 may be uninitialized when captured by block">,
   InGroup<UninitializedMaybe>, DefaultIgnore;
 def note_var_fixit_add_initialization : Note<
-  "add initialization to silence this warning">;
+  "initialize the variable %0 to silence this warning">;
 def err_init_incomplete_type : Error<"initialization of incomplete type %0">;
 
 def err_temp_copy_no_viable : Error<
@@ -1414,21 +1414,18 @@ def warn_variable_requires_lock : Warning<
   "%select{reading|writing}2 variable '%0' requires lock on '%1' to be "
   "%select{held|held exclusively}2">,
   InGroup<ThreadSafety>, DefaultIgnore;
-def warn_variable_requires_any_lock : Warning<
-  "accessing variable '%0' requires some lock">,
-  InGroup<ThreadSafety>, DefaultIgnore;
 def warn_var_deref_requires_lock : Warning<
   "%select{reading|writing}2 the value pointed to by '%0' requires lock on '%1'"
   " to be %select{held|held exclusively}2">,
-  InGroup<ThreadSafety>, DefaultIgnore;
-def warn_var_deref_requires_any_lock : Warning<
-  "accessing the value pointed to by '%0' requires some lock">,
   InGroup<ThreadSafety>, DefaultIgnore;
 def warn_fun_requires_lock : Warning<
   "calling function '%0' requires %select{shared|exclusive}2 lock on '%1'">,
   InGroup<ThreadSafety>, DefaultIgnore;
 def warn_fun_excludes_mutex : Warning<
   "cannot call function '%0' while holding mutex '%1'">,
+  InGroup<ThreadSafety>, DefaultIgnore;
+def warn_cannot_resolve_lock : Warning<
+  "cannot resolve lock expression to a specific lockable object">,
   InGroup<ThreadSafety>, DefaultIgnore;
 
 
@@ -1472,7 +1469,7 @@ def warn_impcast_different_enum_types : Warning<
   "implicit conversion from enumeration type %0 to different enumeration type "
   "%1">, InGroup<DiagGroup<"conversion">>;
 def warn_impcast_bool_to_null_pointer : Warning<
-    "initialization of pointer of type %0 to NULL from a constant boolean "
+    "initialization of pointer of type %0 to null from a constant boolean "
     "expression">, InGroup<BoolConversions>;
 def warn_impcast_null_pointer_to_integer : Warning<
     "implicit conversion of NULL constant to integer">,
@@ -4423,6 +4420,9 @@ def err_return_in_block_expression : Error<
 def err_block_returning_array_function : Error<
   "block cannot return %select{array|function}0 type %1">;
 
+// Builtin annotation string.
+def err_builtin_annotation_not_string_constant : Error<
+  "__builtin_annotation requires a non wide string constant">;
 
 // CFString checking
 def err_cfstring_literal_not_string_constant : Error<
@@ -4717,6 +4717,20 @@ def note_related_result_type_inferred : Note<
   "%select{class|instance}0 method %1 is assumed to return an instance of "
   "its receiver type (%2)">;
 
+}
+
+let CategoryName = "Modules Issue" in {
+def err_module_private_follows_public : Error<
+  "__module_private__ declaration of %0 follows public declaration">;
+def err_module_private_specialization : Error<
+  "%select{template|partial|member}0 specialization cannot be "
+  "declared __module_private__">;
+def err_module_private_local : Error<
+  "%select{local variable|parameter|typedef}0 %1 cannot be declared "
+  "__module_private__">;
+def err_module_private_local_class : Error<
+  "local %select{struct|union|class|enum}0 cannot be declared "
+  "__module_private__">;
 }
 
 } // end of sema component.
