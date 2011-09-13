@@ -21,6 +21,7 @@
 #include "clang/Lex/PTHManager.h"
 #include "clang/Frontend/ChainedDiagnosticClient.h"
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/FrontendActions.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/LogDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
@@ -139,15 +140,17 @@ static void SetUpDiagnosticLog(const DiagnosticOptions &DiagOpts,
 }
 
 void CompilerInstance::createDiagnostics(int Argc, const char* const *Argv,
-                                         DiagnosticClient *Client) {
+                                         DiagnosticClient *Client,
+                                         bool ShouldOwnClient) {
   Diagnostics = createDiagnostics(getDiagnosticOpts(), Argc, Argv, Client,
-                                  &getCodeGenOpts());
+                                  ShouldOwnClient, &getCodeGenOpts());
 }
 
 llvm::IntrusiveRefCntPtr<Diagnostic> 
 CompilerInstance::createDiagnostics(const DiagnosticOptions &Opts,
                                     int Argc, const char* const *Argv,
                                     DiagnosticClient *Client,
+                                    bool ShouldOwnClient,
                                     const CodeGenOptions *CodeGenOpts) {
   llvm::IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   llvm::IntrusiveRefCntPtr<Diagnostic> Diags(new Diagnostic(DiagID));
@@ -155,13 +158,13 @@ CompilerInstance::createDiagnostics(const DiagnosticOptions &Opts,
   // Create the diagnostic client for reporting errors or for
   // implementing -verify.
   if (Client)
-    Diags->setClient(Client);
+    Diags->setClient(Client, ShouldOwnClient);
   else
     Diags->setClient(new TextDiagnosticPrinter(llvm::errs(), Opts));
 
   // Chain in -verify checker, if requested.
-  if (Opts.VerifyDiagnostics)
-    Diags->setClient(new VerifyDiagnosticsClient(*Diags, Diags->takeClient()));
+  if (Opts.VerifyDiagnostics) 
+    Diags->setClient(new VerifyDiagnosticsClient(*Diags));
 
   // Chain in -diagnostic-log-file dumper, if requested.
   if (!Opts.DiagnosticLogFile.empty())
@@ -624,6 +627,73 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
   return !getDiagnostics().getClient()->getNumErrors();
 }
 
+/// \brief Determine the appropriate source input kind based on language
+/// options.
+static InputKind getSourceInputKindFromOptions(const LangOptions &LangOpts) {
+  if (LangOpts.OpenCL)
+    return IK_OpenCL;
+  if (LangOpts.CUDA)
+    return IK_CUDA;
+  if (LangOpts.ObjC1)
+    return LangOpts.CPlusPlus? IK_ObjCXX : IK_ObjC;
+  return LangOpts.CPlusPlus? IK_CXX : IK_C;
+}
+
+/// \brief Compile a module file for the given module name with the given
+/// umbrella header, using the options provided by the importing compiler
+/// instance.
+static void compileModule(CompilerInstance &ImportingInstance,
+                          StringRef ModuleName,
+                          StringRef UmbrellaHeader) {
+  // Determine the file that we'll be writing to.
+  llvm::SmallString<128> ModuleFile;
+  ModuleFile += 
+    ImportingInstance.getInvocation().getHeaderSearchOpts().ModuleCachePath;
+  llvm::sys::path::append(ModuleFile, ModuleName + ".pcm");
+  
+  // Construct a compiler invocation for creating this module.
+  llvm::IntrusiveRefCntPtr<CompilerInvocation> Invocation
+    (new CompilerInvocation(ImportingInstance.getInvocation()));
+  FrontendOptions &FrontendOpts = Invocation->getFrontendOpts();
+  FrontendOpts.OutputFile = ModuleFile.str();
+  FrontendOpts.DisableFree = false;
+  FrontendOpts.Inputs.clear();
+  FrontendOpts.Inputs.push_back(
+    std::make_pair(getSourceInputKindFromOptions(Invocation->getLangOpts()), 
+                                                 UmbrellaHeader));
+  
+  Invocation->getDiagnosticOpts().VerifyDiagnostics = 0;
+  
+  // FIXME: Strip away all of the compilation options that won't be transferred
+  // down to the module. This presumably includes -D flags, optimization 
+  // settings, etc.
+  
+  // Construct a compiler instance that will be used to actually create the
+  // module.
+  CompilerInstance Instance;
+  Instance.setInvocation(&*Invocation);
+  Instance.createDiagnostics(/*argc=*/0, /*argv=*/0, 
+                             &ImportingInstance.getDiagnosticClient(),
+                             /*ShouldOwnClient=*/false);
+
+  // Construct a module-generating action.
+  GeneratePCHAction CreateModuleAction(true);
+  
+  // Execute the action to actually build the module in-place.
+  // FIXME: Need to synchronize when multiple processes do this.
+  Instance.ExecuteAction(CreateModuleAction);
+  
+  // Tell the importing instance's file manager to forget about the module
+  // file, since we've just created it.
+  ImportingInstance.getFileManager().forgetFile(ModuleFile);
+  
+  // Tell the diagnostic client that it's (re-)starting to process a source
+  // file.
+  ImportingInstance.getDiagnosticClient()
+    .BeginSourceFile(ImportingInstance.getLangOpts(),
+                     &ImportingInstance.getPreprocessor());
+} 
+
 ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc, 
                                        IdentifierInfo &ModuleName,
                                        SourceLocation ModuleNameLoc) {  
@@ -636,16 +706,25 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
     CurFile = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
 
   // Search for a module with the given name.
-  std::string Filename = ModuleName.getName().str();
-  Filename += ".pcm";
-  const DirectoryLookup *CurDir = 0;  
+  std::string UmbrellaHeader;
   const FileEntry *ModuleFile
-    = PP->getHeaderSearchInfo().LookupFile(Filename, /*isAngled=*/false,
-                                           /*FromDir=*/0, CurDir, CurFile, 
-                                           /*SearchPath=*/0, 
-                                           /*RelativePath=*/0);
+    = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName(),
+                                             &UmbrellaHeader);
+  
+  bool BuildingModule = false;
+  if (!ModuleFile && !UmbrellaHeader.empty()) {
+    // We didn't find the module, but there is an umbrella header that
+    // can be used to create the module file. Create a separate compilation
+    // module to do so.
+    BuildingModule = true;
+    compileModule(*this, ModuleName.getName(), UmbrellaHeader);
+    ModuleFile = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName());
+  }
+  
   if (!ModuleFile) {
-    getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_found)
+    getDiagnostics().Report(ModuleNameLoc, 
+                            BuildingModule? diag::err_module_not_built
+                                          : diag::err_module_not_found)
       << ModuleName.getName()
       << SourceRange(ImportLoc, ModuleNameLoc);
     return 0;

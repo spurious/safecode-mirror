@@ -129,6 +129,9 @@ class HeaderSearch {
   unsigned SystemDirIdx;
   bool NoCurDirSearch;
 
+  /// \brief The path to the module cache.
+  std::string ModuleCachePath;
+  
   /// FileInfo - This contains all of the preprocessor-specific data about files
   /// that are included.  The vector is indexed by the FileEntry's UID.
   ///
@@ -193,6 +196,11 @@ public:
     //LookupFileCache.clear();
   }
 
+  /// \brief Set the path to the module cache.
+  void setModuleCachePath(StringRef Path) {
+    ModuleCachePath = Path;
+  }
+  
   /// ClearFileInfo - Forget everything we know about headers so far.
   void ClearFileInfo() {
     FileInfo.clear();
@@ -308,6 +316,19 @@ public:
   /// FileEntry, uniquing them through the the 'HeaderMaps' datastructure.
   const HeaderMap *CreateHeaderMap(const FileEntry *FE);
 
+  /// \brief Search in the module cache path for a module with the given
+  /// name.
+  ///
+  /// \param UmbrellaHeader If non-NULL, and no module was found in the module
+  /// cache, this routine will search in the framework paths to determine
+  /// whether a module can be built from an umbrella header. If so, the pointee
+  /// will be set to the path of the umbrella header.
+  ///
+  /// \returns A file describing the named module, if available, or NULL to
+  /// indicate that the module could not be found.
+  const FileEntry *lookupModule(StringRef ModuleName,
+                                std::string *UmbrellaHeader = 0);
+  
   void IncrementFrameworkLookupCount() { ++NumFrameworkLookups; }
 
   typedef std::vector<HeaderFileInfo>::const_iterator header_file_iterator;
