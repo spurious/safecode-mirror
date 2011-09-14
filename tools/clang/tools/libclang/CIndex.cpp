@@ -559,7 +559,15 @@ bool CursorVisitor::VisitChildren(CXCursor Cursor) {
       }
     }
   }
-  
+
+  if (Cursor.kind == CXCursor_IBOutletCollectionAttr) {
+    IBOutletCollectionAttr *A =
+      cast<IBOutletCollectionAttr>(cxcursor::getCursorAttr(Cursor));
+    if (const ObjCInterfaceType *InterT = A->getInterface()->getAs<ObjCInterfaceType>())
+      return Visit(cxcursor::MakeCursorObjCClassRef(InterT->getInterface(),
+                                                    A->getInterfaceLoc(), TU));
+  }
+
   // Nothing to visit at the moment.
   return false;
 }
@@ -2853,6 +2861,34 @@ void clang_getExpansionLocation(CXSourceLocation location,
     *offset = SM.getDecomposedLoc(ExpansionLoc).second;
 }
 
+void clang_getPresumedLocation(CXSourceLocation location,
+                               CXString *filename,
+                               unsigned *line,
+                               unsigned *column) {
+  SourceLocation Loc = SourceLocation::getFromRawEncoding(location.int_data);
+
+  if (!location.ptr_data[0] || Loc.isInvalid()) {
+    if (filename)
+      *filename = createCXString("");
+    if (line)
+      *line = 0;
+    if (column)
+      *column = 0;
+  }
+  else {
+	const SourceManager &SM =
+        *static_cast<const SourceManager*>(location.ptr_data[0]);
+    PresumedLoc PreLoc = SM.getPresumedLoc(Loc);
+
+    if (filename)
+      *filename = createCXString(PreLoc.getFilename());
+    if (line)
+      *line = PreLoc.getLine();
+    if (column)
+      *column = PreLoc.getColumn();
+  }
+}
+
 void clang_getInstantiationLocation(CXSourceLocation location,
                                     CXFile *file,
                                     unsigned *line,
@@ -3386,6 +3422,10 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
      return createCXString("attribute(iboutlet)");
   case CXCursor_IBOutletCollectionAttr:
       return createCXString("attribute(iboutletcollection)");
+  case CXCursor_CXXFinalAttr:
+      return createCXString("attribute(final)");
+  case CXCursor_CXXOverrideAttr:
+      return createCXString("attribute(override)");
   case CXCursor_PreprocessingDirective:
     return createCXString("preprocessing directive");
   case CXCursor_MacroDefinition:
@@ -3803,6 +3843,9 @@ static SourceRange getRawCursorExtent(CXCursor C) {
 
   if (clang_isStatement(C.kind))
     return getCursorStmt(C)->getSourceRange();
+
+  if (clang_isAttribute(C.kind))
+    return getCursorAttr(C)->getRange();
 
   if (C.kind == CXCursor_PreprocessingDirective)
     return cxcursor::getCursorPreprocessingDirective(C);
@@ -5083,44 +5126,10 @@ static void clang_annotateTokensImpl(void *UserData) {
           Tokens[I].int_data[0] = CXToken_Keyword;
         continue;
       }
-      
-      if (Cursors[I].kind == CXCursor_CXXMethod) {
-        IdentifierInfo *II = static_cast<IdentifierInfo *>(Tokens[I].ptr_data);
-        if (CXXMethodDecl *Method
-            = dyn_cast_or_null<CXXMethodDecl>(getCursorDecl(Cursors[I]))) {
-          if ((Method->hasAttr<FinalAttr>() || 
-               Method->hasAttr<OverrideAttr>()) &&
-              Method->getLocation().getRawEncoding() != Tokens[I].int_data[1] &&
-              llvm::StringSwitch<bool>(II->getName())
-              .Case("final", true)
-              .Case("override", true)
-              .Default(false))
-            Tokens[I].int_data[0] = CXToken_Keyword;
-        }
-        continue;
-      }
-      
-      if (Cursors[I].kind == CXCursor_ClassDecl ||
-          Cursors[I].kind == CXCursor_StructDecl ||
-          Cursors[I].kind == CXCursor_ClassTemplate) {
-        IdentifierInfo *II = static_cast<IdentifierInfo *>(Tokens[I].ptr_data);
-        if (II->getName() == "final") {
-          // We have to be careful with 'final', since it could be the name
-          // of a member class rather than the context-sensitive keyword.
-          // So, check whether the cursor associated with this
-          Decl *D = getCursorDecl(Cursors[I]);
-          if (CXXRecordDecl *Record = dyn_cast_or_null<CXXRecordDecl>(D)) {
-            if ((Record->hasAttr<FinalAttr>()) &&
-                Record->getIdentifier() != II)
-              Tokens[I].int_data[0] = CXToken_Keyword;
-          } else if (ClassTemplateDecl *ClassTemplate
-                     = dyn_cast_or_null<ClassTemplateDecl>(D)) {
-            CXXRecordDecl *Record = ClassTemplate->getTemplatedDecl();
-            if ((Record->hasAttr<FinalAttr>()) &&
-                Record->getIdentifier() != II)
-              Tokens[I].int_data[0] = CXToken_Keyword;
-          }
-        }
+
+      if (Cursors[I].kind == CXCursor_CXXFinalAttr ||
+          Cursors[I].kind == CXCursor_CXXOverrideAttr) {
+        Tokens[I].int_data[0] = CXToken_Keyword;
         continue;
       }
     }
@@ -5484,7 +5493,7 @@ CXType clang_getIBOutletCollectionType(CXCursor C) {
   IBOutletCollectionAttr *A =
     cast<IBOutletCollectionAttr>(cxcursor::getCursorAttr(C));
   
-  return cxtype::MakeCXType(A->getInterFace(), cxcursor::getCursorTU(C));  
+  return cxtype::MakeCXType(A->getInterface(), cxcursor::getCursorTU(C));  
 }
 } // end: extern "C"
 

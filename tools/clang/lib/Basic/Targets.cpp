@@ -89,7 +89,7 @@ static void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
     Builder.defineMacro("__weak", "__attribute__((objc_gc(weak)))");
 
     // Darwin defines __strong even in C mode (just to nothing).
-    if (Opts.getGCMode() != LangOptions::NonGC)
+    if (Opts.getGC() != LangOptions::NonGC)
       Builder.defineMacro("__strong", "__attribute__((objc_gc(strong)))");
     else
       Builder.defineMacro("__strong", "");
@@ -2712,11 +2712,6 @@ public:
       Builder.defineMacro("_ABI64", "3");
       Builder.defineMacro("_MIPS_SIM", "_ABI64");
     }
-    else if (ABI == "o64") {
-      Builder.defineMacro("__mips_o64");
-      Builder.defineMacro("_ABIO64", "4");
-      Builder.defineMacro("_MIPS_SIM", "_ABIO64");
-    }
     else if (ABI == "eabi")
       Builder.defineMacro("__mips_eabi");
   }
@@ -2961,8 +2956,6 @@ static TargetInfo *AllocateTarget(const std::string &T) {
 
   case llvm::Triple::mips:
     switch (os) {
-    case llvm::Triple::Psp:
-      return new PSPTargetInfo<MipsTargetInfo>(T);
     case llvm::Triple::Linux:
       return new LinuxTargetInfo<MipsTargetInfo>(T);
     case llvm::Triple::RTEMS:
@@ -2977,8 +2970,6 @@ static TargetInfo *AllocateTarget(const std::string &T) {
 
   case llvm::Triple::mipsel:
     switch (os) {
-    case llvm::Triple::Psp:
-      return new PSPTargetInfo<MipselTargetInfo>(T);
     case llvm::Triple::Linux:
       return new LinuxTargetInfo<MipselTargetInfo>(T);
     case llvm::Triple::RTEMS:

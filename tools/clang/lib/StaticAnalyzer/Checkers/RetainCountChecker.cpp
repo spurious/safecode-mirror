@@ -1772,7 +1772,7 @@ void CFRefReport::addGCModeDescription(const LangOptions &LOpts,
                                        bool GCEnabled) {
   const char *GCModeDescription = 0;
 
-  switch (LOpts.getGCMode()) {
+  switch (LOpts.getGC()) {
   case LangOptions::GCOnly:
     assert(GCEnabled);
     GCModeDescription = "Code is compiled to only use garbage collection";
@@ -2148,29 +2148,7 @@ CFRefLeakReportVisitor::getEndPath(BugReporterContext &BRC,
   // occur at an actual statement (e.g., transition between blocks; end
   // of function) so we need to walk the graph and compute a real location.
   const ExplodedNode *LeakN = EndN;
-  PathDiagnosticLocation L;
-
-  while (LeakN) {
-    ProgramPoint P = LeakN->getLocation();
-
-    if (const StmtPoint *PS = dyn_cast<StmtPoint>(&P)) {
-      L = PathDiagnosticLocation(PS->getStmt()->getLocStart(), SMgr);
-      break;
-    }
-    else if (const BlockEdge *BE = dyn_cast<BlockEdge>(&P)) {
-      if (const Stmt *Term = BE->getSrc()->getTerminator()) {
-        L = PathDiagnosticLocation(Term->getLocStart(), SMgr);
-        break;
-      }
-    }
-
-    LeakN = LeakN->succ_empty() ? 0 : *(LeakN->succ_begin());
-  }
-
-  if (!L.isValid()) {
-    const Decl &D = EndN->getCodeDecl();
-    L = PathDiagnosticLocation(D.getBodyRBrace(), SMgr);
-  }
+  PathDiagnosticLocation L = PathDiagnosticLocation::create(LeakN, SMgr);
 
   std::string sbuf;
   llvm::raw_string_ostream os(sbuf);
@@ -2354,7 +2332,7 @@ public:
       return leakWithinFunctionGC.get();
     } else {
       if (!leakWithinFunction) {
-        if (LOpts.getGCMode() == LangOptions::HybridGC) {
+        if (LOpts.getGC() == LangOptions::HybridGC) {
           leakWithinFunction.reset(new LeakWithinFunction("Leak of object when "
                                                           "not using garbage "
                                                           "collection (GC) in "
@@ -2376,7 +2354,7 @@ public:
       return leakAtReturnGC.get();
     } else {
       if (!leakAtReturn) {
-        if (LOpts.getGCMode() == LangOptions::HybridGC) {
+        if (LOpts.getGC() == LangOptions::HybridGC) {
           leakAtReturn.reset(new LeakAtReturn("Leak of returned object when "
                                               "not using garbage collection "
                                               "(GC) in dual GC/non-GC code"));

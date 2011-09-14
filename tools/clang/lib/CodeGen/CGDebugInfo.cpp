@@ -450,7 +450,7 @@ llvm::DIType CGDebugInfo::CreateType(const PointerType *Ty,
                                Ty->getPointeeType(), Unit);
 }
 
-/// CreatePointeeType - Create PointTee type. If Pointee is a record
+/// CreatePointeeType - Create Pointee type. If Pointee is a record
 /// then emit record's fwd if debug info size reduction is enabled.
 llvm::DIType CGDebugInfo::CreatePointeeType(QualType PointeeTy,
                                             llvm::DIFile Unit) {
@@ -692,7 +692,6 @@ CGDebugInfo::getOrCreateMethodType(const CXXMethodDecl *Method,
                       Unit);
   
   // Add "this" pointer.
-
   llvm::DIArray Args = llvm::DICompositeType(FnTy).getTypeArray();
   assert (Args.getNumElements() && "Invalid number of arguments!");
 
@@ -701,16 +700,15 @@ CGDebugInfo::getOrCreateMethodType(const CXXMethodDecl *Method,
   // First element is always return type. For 'void' functions it is NULL.
   Elts.push_back(Args.getElement(0));
 
-  if (!Method->isStatic())
-  {
-        // "this" pointer is always first argument.
-        QualType ThisPtr = Method->getThisType(CGM.getContext());
-        llvm::DIType ThisPtrType =
-          DBuilder.createArtificialType(getOrCreateType(ThisPtr, Unit));
-
-        TypeCache[ThisPtr.getAsOpaquePtr()] = ThisPtrType;
-        Elts.push_back(ThisPtrType);
-    }
+  if (!Method->isStatic()) {
+    // "this" pointer is always first argument.
+    QualType ThisPtr = Method->getThisType(CGM.getContext());
+    llvm::DIType ThisPtrType =
+      DBuilder.createArtificialType(getOrCreateType(ThisPtr, Unit));
+    
+    TypeCache[ThisPtr.getAsOpaquePtr()] = ThisPtrType;
+    Elts.push_back(ThisPtrType);
+  }
 
   // Copy rest of the arguments.
   for (unsigned i = 1, e = Args.getNumElements(); i != e; ++i)

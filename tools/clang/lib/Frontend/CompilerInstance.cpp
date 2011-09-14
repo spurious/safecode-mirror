@@ -221,6 +221,15 @@ void CompilerInstance::createPreprocessor() {
   
   InitializePreprocessor(*PP, PPOpts, getHeaderSearchOpts(), getFrontendOpts());
   
+  // Set up the module path, including the hash for the
+  // module-creation options.
+  llvm::SmallString<256> SpecificModuleCache(
+                           getHeaderSearchOpts().ModuleCachePath);
+  if (!getHeaderSearchOpts().DisableModuleHash)
+    llvm::sys::path::append(SpecificModuleCache, 
+                            getInvocation().getModuleHash());
+  PP->getHeaderSearchInfo().setModuleCachePath(SpecificModuleCache);
+  
   // Handle generating dependencies, if requested.
   const DependencyOutputOptions &DepOpts = getDependencyOutputOpts();
   if (!DepOpts.OutputFile.empty())
@@ -644,18 +653,16 @@ static InputKind getSourceInputKindFromOptions(const LangOptions &LangOpts) {
 /// instance.
 static void compileModule(CompilerInstance &ImportingInstance,
                           StringRef ModuleName,
+                          StringRef ModuleFileName,
                           StringRef UmbrellaHeader) {
-  // Determine the file that we'll be writing to.
-  llvm::SmallString<128> ModuleFile;
-  ModuleFile += 
-    ImportingInstance.getInvocation().getHeaderSearchOpts().ModuleCachePath;
-  llvm::sys::path::append(ModuleFile, ModuleName + ".pcm");
-  
   // Construct a compiler invocation for creating this module.
   llvm::IntrusiveRefCntPtr<CompilerInvocation> Invocation
     (new CompilerInvocation(ImportingInstance.getInvocation()));
+  Invocation->getLangOpts().resetNonModularOptions();
+  Invocation->getPreprocessorOpts().resetNonModularOptions();
+  
   FrontendOptions &FrontendOpts = Invocation->getFrontendOpts();
-  FrontendOpts.OutputFile = ModuleFile.str();
+  FrontendOpts.OutputFile = ModuleFileName.str();
   FrontendOpts.DisableFree = false;
   FrontendOpts.Inputs.clear();
   FrontendOpts.Inputs.push_back(
@@ -664,9 +671,8 @@ static void compileModule(CompilerInstance &ImportingInstance,
   
   Invocation->getDiagnosticOpts().VerifyDiagnostics = 0;
   
-  // FIXME: Strip away all of the compilation options that won't be transferred
-  // down to the module. This presumably includes -D flags, optimization 
-  // settings, etc.
+  assert(ImportingInstance.getInvocation().getModuleHash() ==
+           Invocation->getModuleHash() && "Module hash mismatch!");
   
   // Construct a compiler instance that will be used to actually create the
   // module.
@@ -682,10 +688,6 @@ static void compileModule(CompilerInstance &ImportingInstance,
   // Execute the action to actually build the module in-place.
   // FIXME: Need to synchronize when multiple processes do this.
   Instance.ExecuteAction(CreateModuleAction);
-  
-  // Tell the importing instance's file manager to forget about the module
-  // file, since we've just created it.
-  ImportingInstance.getFileManager().forgetFile(ModuleFile);
   
   // Tell the diagnostic client that it's (re-)starting to process a source
   // file.
@@ -707,8 +709,10 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
 
   // Search for a module with the given name.
   std::string UmbrellaHeader;
+  std::string ModuleFileName;
   const FileEntry *ModuleFile
     = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName(),
+                                             &ModuleFileName,
                                              &UmbrellaHeader);
   
   bool BuildingModule = false;
@@ -717,7 +721,7 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
     // can be used to create the module file. Create a separate compilation
     // module to do so.
     BuildingModule = true;
-    compileModule(*this, ModuleName.getName(), UmbrellaHeader);
+    compileModule(*this, ModuleName.getName(), ModuleFileName, UmbrellaHeader);
     ModuleFile = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName());
   }
   
