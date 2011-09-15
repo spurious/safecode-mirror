@@ -16,6 +16,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/ParentMap.h"
 #include "clang/AST/StmtCXX.h"
 #include "llvm/ADT/SmallString.h"
 
@@ -137,20 +138,39 @@ PathDiagnosticLocation PathDiagnosticLocation::create(const ExplodedNode* N,
 
   while (NI) {
     ProgramPoint P = NI->getLocation();
-
+    const LocationContext *LC = P.getLocationContext();
     if (const StmtPoint *PS = dyn_cast<StmtPoint>(&P)) {
-      return PathDiagnosticLocation(PS->getStmt(), SM);
+      return PathDiagnosticLocation(PS->getStmt(), SM, LC);
     }
     else if (const BlockEdge *BE = dyn_cast<BlockEdge>(&P)) {
       const Stmt *Term = BE->getSrc()->getTerminator();
       assert(Term);
-      return PathDiagnosticLocation(Term, SM);
+      return PathDiagnosticLocation(Term, SM, LC);
     }
     NI = NI->succ_empty() ? 0 : *(NI->succ_begin());
   }
 
   const Decl &D = N->getCodeDecl();
   return PathDiagnosticLocation(D.getBodyRBrace(), SM);
+}
+
+static SourceLocation getValidSourceLocation(const Stmt* S,
+                                             const LocationContext *LC) {
+  assert(LC);
+  SourceLocation L = S->getLocStart();
+
+  // S might be a temporary statement that does not have a location in the
+  // source code, so find an enclosing statement and use it's location.
+  if (!L.isValid()) {
+    ParentMap & PM = LC->getParentMap();
+
+    while (!L.isValid()) {
+      S = PM.getParent(S);
+      L = S->getLocStart();
+    }
+  }
+
+  return L;
 }
 
 FullSourceLoc PathDiagnosticLocation::asLocation() const {
@@ -162,10 +182,15 @@ FullSourceLoc PathDiagnosticLocation::asLocation() const {
     case RangeK:
       break;
     case StmtK:
-      return FullSourceLoc(S->getLocStart(), const_cast<SourceManager&>(*SM));
+      return FullSourceLoc(getValidSourceLocation(S, LC),
+                           const_cast<SourceManager&>(*SM));
     case DeclK:
       return FullSourceLoc(D->getLocation(), const_cast<SourceManager&>(*SM));
   }
+
+  if (!R.isValid())
+    return FullSourceLoc(LC->getDecl()->getBodyRBrace(),
+                         const_cast<SourceManager&>(*SM));
 
   return FullSourceLoc(R.getBegin(), const_cast<SourceManager&>(*SM));
 }
@@ -205,7 +230,7 @@ PathDiagnosticRange PathDiagnosticLocation::asRange() const {
         case Stmt::BinaryConditionalOperatorClass:
         case Stmt::ConditionalOperatorClass:
         case Stmt::ObjCForCollectionStmtClass: {
-          SourceLocation L = S->getLocStart();
+          SourceLocation L = getValidSourceLocation(S, LC);
           return SourceRange(L, L);
         }
       }

@@ -494,6 +494,9 @@ def warn_property_attr_mismatch : Warning<
 def warn_objc_property_copy_missing_on_block : Warning<
     "'copy' attribute must be specified for the block property "
     "when -fobjc-gc-only is specified">;
+def warn_objc_property_retain_of_block : Warning<
+    "retain'ed block property does not copy the block "
+    "- use copy attribute instead">, InGroup<ObjCRetainBlockProperty>;
 def warn_atomic_property_rule : Warning<
   "writable atomic property %0 cannot pair a synthesized setter/getter "
   "with a user defined setter/getter">;
@@ -1417,6 +1420,14 @@ def warn_variable_requires_lock : Warning<
 def warn_var_deref_requires_lock : Warning<
   "%select{reading|writing}2 the value pointed to by '%0' requires lock on '%1'"
   " to be %select{held|held exclusively}2">,
+  InGroup<ThreadSafety>, DefaultIgnore;
+def warn_variable_requires_any_lock : Warning<
+  "%select{reading|writing}1 variable '%0' requires lock on any mutex to be "
+  "%select{held|held exclusively}1">,
+  InGroup<ThreadSafety>, DefaultIgnore;
+def warn_var_deref_requires_any_lock : Warning<
+  "%select{reading|writing}1 the value pointed to by '%0' requires lock on any"
+  " mutex to be %select{held|held exclusively}1">,
   InGroup<ThreadSafety>, DefaultIgnore;
 def warn_fun_requires_lock : Warning<
   "calling function '%0' requires %select{shared|exclusive}2 lock on '%1'">,

@@ -89,41 +89,40 @@ private:
   const Stmt *S;
   const Decl *D;
   const SourceManager *SM;
+  const LocationContext *LC;
 public:
   PathDiagnosticLocation()
-    : K(SingleLocK), S(0), D(0), SM(0) {}
+    : K(SingleLocK), S(0), D(0), SM(0), LC(0) {}
 
   PathDiagnosticLocation(FullSourceLoc L)
-    : K(SingleLocK), R(L, L), S(0), D(0), SM(&L.getManager()) {}
+    : K(SingleLocK), R(L, L), S(0), D(0), SM(&L.getManager()), LC(0) {}
 
-  PathDiagnosticLocation(const Stmt *s, const SourceManager &sm)
-    : K(StmtK), S(s), D(0), SM(&sm) {}
+  /// Constructs a location when no specific statement is available.
+  /// Defaults to end of brace for the enclosing function body.
+  PathDiagnosticLocation(const LocationContext *lc, const SourceManager &sm)
+    : K(SingleLocK), S(0), D(0), SM(&sm), LC(lc) {}
+
+  PathDiagnosticLocation(const Stmt *s,
+                         const SourceManager &sm,
+                         const LocationContext *lc)
+    : K(StmtK), S(s), D(0), SM(&sm), LC(lc) {}
+
+  PathDiagnosticLocation(SourceRange r, const SourceManager &sm)
+    : K(RangeK), R(r), S(0), D(0), SM(&sm), LC(0) {}
+
+  PathDiagnosticLocation(const Decl *d, const SourceManager &sm)
+    : K(DeclK), S(0), D(d), SM(&sm), LC(0) {}
 
   /// Create a location corresponding to the next valid ExplodedNode.
   static PathDiagnosticLocation create(const ExplodedNode* N,
                                        const SourceManager &SM);
 
-  PathDiagnosticLocation(SourceRange r, const SourceManager &sm)
-    : K(RangeK), R(r), S(0), D(0), SM(&sm) {}
-
-  PathDiagnosticLocation(const Decl *d, const SourceManager &sm)
-    : K(DeclK), S(0), D(d), SM(&sm) {}
-
   bool operator==(const PathDiagnosticLocation &X) const {
-    return K == X.K && R == X.R && S == X.S && D == X.D;
+    return K == X.K && R == X.R && S == X.S && D == X.D && LC == X.LC;
   }
 
   bool operator!=(const PathDiagnosticLocation &X) const {
-    return K != X.K || R != X.R || S != X.S || D != X.D;;
-  }
-
-  PathDiagnosticLocation& operator=(const PathDiagnosticLocation &X) {
-    K = X.K;
-    R = X.R;
-    S = X.S;
-    D = X.D;
-    SM = X.SM;
-    return *this;
+    return !(*this == X);
   }
 
   bool isValid() const {
@@ -144,6 +143,7 @@ public:
   void flatten();
 
   const SourceManager& getManager() const { assert(isValid()); return *SM; }
+  const LocationContext* getLocationContext() const { return LC; }
   
   void Profile(llvm::FoldingSetNodeID &ID) const;
 };
