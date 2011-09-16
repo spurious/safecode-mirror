@@ -363,7 +363,6 @@ static const char *getActionName(frontend::ActionKind Kind) {
   case frontend::ASTDumpXML:             return "-ast-dump-xml";
   case frontend::ASTPrint:               return "-ast-print";
   case frontend::ASTView:                return "-ast-view";
-  case frontend::CreateModule:           return "-create-module";
   case frontend::DumpRawTokens:          return "-dump-raw-tokens";
   case frontend::DumpTokens:             return "-dump-tokens";
   case frontend::EmitAssembly:           return "-S";
@@ -1232,8 +1231,6 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       Opts.ProgramAction = frontend::RunAnalysis; break;
     case OPT_Eonly:
       Opts.ProgramAction = frontend::RunPreprocessorOnly; break;
-    case OPT_create_module:
-      Opts.ProgramAction = frontend::CreateModule; break;
     }
   }
 
@@ -1757,6 +1754,7 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     Opts.TokenCache = Opts.ImplicitPTHInclude;
   Opts.UsePredefines = !Args.hasArg(OPT_undef);
   Opts.DetailedRecord = Args.hasArg(OPT_detailed_preprocessing_record);
+  Opts.AutoModuleImport = Args.hasArg(OPT_fauto_module_import);
   Opts.DisablePCHValidation = Args.hasArg(OPT_fno_validate_pch);
 
   Opts.DumpDeserializedPCHDecls = Args.hasArg(OPT_dump_deserialized_pch_decls);

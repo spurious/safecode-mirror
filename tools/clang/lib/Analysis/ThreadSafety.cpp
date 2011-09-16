@@ -119,6 +119,10 @@ public:
   iterator end() {
     return Blocks.rend();
   }
+
+  bool empty() {
+    return begin() == end();
+  }
 };
 
 /// \brief A MutexID object uniquely identifies a particular mutex, and
@@ -161,6 +165,8 @@ class MutexID {
 
   /// Build a Decl sequence representing the lock from the given expression.
   /// Recursive function that bottoms out when the final DeclRefExpr is reached.
+  // FIXME: Lock expressions that involve array indices or function calls.
+  // FIXME: Deal with LockReturned attribute.
   void buildMutexID(Expr *Exp, Expr *Parent) {
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Exp)) {
       NamedDecl *ND = cast<NamedDecl>(DRE->getDecl()->getCanonicalDecl());
@@ -331,7 +337,8 @@ public:
 /// \param LockExp The lock expression corresponding to the lock to be added
 void BuildLockset::addLock(SourceLocation LockLoc, Expr *LockExp, Expr *Parent,
                            LockKind LK) {
-  // FIXME: deal with acquired before/after annotations
+  // FIXME: deal with acquired before/after annotations. We can write a first
+  // pass that does the transitive lookup lazily, and refine afterwards.
   MutexID Mutex(LockExp, Parent);
   if (!Mutex.isValid()) {
     Handler.handleInvalidLockExp(LockExp->getExprLoc());
@@ -505,6 +512,9 @@ void BuildLockset::addLocksToSet(LockKind LK, Attr *Attr,
 /// the same signature as const method calls can be also treated as reads.
 ///
 /// FIXME: We need to also visit CallExprs to catch/check global functions.
+///
+/// FIXME: Do not flag an error for member variables accessed in constructors/
+/// destructors
 void BuildLockset::VisitCXXMemberCallExpr(CXXMemberCallExpr *Exp) {
   NamedDecl *D = dyn_cast_or_null<NamedDecl>(Exp->getCalleeDecl());
 
@@ -547,9 +557,6 @@ void BuildLockset::VisitCXXMemberCallExpr(CXXMemberCallExpr *Exp) {
       }
 
       case attr::ExclusiveLocksRequired: {
-        // FIXME: Also use this attribute to add required locks to the initial
-        // lockset when processing a CFG for a function annotated with this
-        // attribute.
         ExclusiveLocksRequiredAttr *ELRAttr =
             cast<ExclusiveLocksRequiredAttr>(Attr);
 
@@ -560,9 +567,6 @@ void BuildLockset::VisitCXXMemberCallExpr(CXXMemberCallExpr *Exp) {
       }
 
       case attr::SharedLocksRequired: {
-        // FIXME: Also use this attribute to add required locks to the initial
-        // lockset when processing a CFG for a function annotated with this
-        // attribute.
         SharedLocksRequiredAttr *SLRAttr = cast<SharedLocksRequiredAttr>(Attr);
 
         for (SharedLocksRequiredAttr::args_iterator I = SLRAttr->args_begin(),
@@ -585,10 +589,6 @@ void BuildLockset::VisitCXXMemberCallExpr(CXXMemberCallExpr *Exp) {
         break;
       }
 
-      case attr::LockReturned:
-        // FIXME: Deal with this attribute.
-        break;
-
       // Ignore other (non thread-safety) attributes
       default:
         break;
@@ -598,13 +598,18 @@ void BuildLockset::VisitCXXMemberCallExpr(CXXMemberCallExpr *Exp) {
 
 } // end anonymous namespace
 
-/// \brief Flags a warning for each lock that is in LSet2 but not LSet1, or
-/// else mutexes that are held shared in one lockset and exclusive in the other.
-static Lockset warnIfNotInFirstSetOrNotSameKind(ThreadSafetyHandler &Handler,
-                                                const Lockset LSet1,
-                                                const Lockset LSet2,
-                                                Lockset Intersection,
-                                                Lockset::Factory &Fact) {
+/// \brief Compute the intersection of two locksets and issue warnings for any
+/// locks in the symmetric difference.
+///
+/// This function is used at a merge point in the CFG when comparing the lockset
+/// of each branch being merged. For example, given the following sequence:
+/// A; if () then B; else C; D; we need to check that the lockset after B and C
+/// are the same. In the event of a difference, we use the intersection of these
+/// two locksets at the start of D.
+static Lockset intersectAndWarn(ThreadSafetyHandler &Handler,
+                                const Lockset LSet1, const Lockset LSet2,
+                                Lockset::Factory &Fact, LockErrorKind LEK) {
+  Lockset Intersection = LSet1;
   for (Lockset::iterator I = LSet2.begin(), E = LSet2.end(); I != E; ++I) {
     const MutexID &LSet2Mutex = I.getKey();
     const LockData &LSet2LockData = I.getData();
@@ -618,84 +623,34 @@ static Lockset warnIfNotInFirstSetOrNotSameKind(ThreadSafetyHandler &Handler,
       }
     } else {
       Handler.handleMutexHeldEndOfScope(LSet2Mutex.getName(),
-                                        LSet2LockData.AcquireLoc);
+                                        LSet2LockData.AcquireLoc, LEK);
     }
   }
-  return Intersection;
-}
-
-
-/// \brief Compute the intersection of two locksets and issue warnings for any
-/// locks in the symmetric difference.
-///
-/// This function is used at a merge point in the CFG when comparing the lockset
-/// of each branch being merged. For example, given the following sequence:
-/// A; if () then B; else C; D; we need to check that the lockset after B and C
-/// are the same. In the event of a difference, we use the intersection of these
-/// two locksets at the start of D.
-static Lockset intersectAndWarn(ThreadSafetyHandler &Handler,
-                                const Lockset LSet1, const Lockset LSet2,
-                                Lockset::Factory &Fact) {
-  Lockset Intersection = LSet1;
-  Intersection = warnIfNotInFirstSetOrNotSameKind(Handler, LSet1, LSet2,
-                                                  Intersection, Fact);
 
   for (Lockset::iterator I = LSet1.begin(), E = LSet1.end(); I != E; ++I) {
     if (!LSet2.contains(I.getKey())) {
       const MutexID &Mutex = I.getKey();
       const LockData &MissingLock = I.getData();
       Handler.handleMutexHeldEndOfScope(Mutex.getName(),
-                                        MissingLock.AcquireLoc);
+                                        MissingLock.AcquireLoc, LEK);
       Intersection = Fact.remove(Intersection, Mutex);
     }
   }
   return Intersection;
 }
 
-/// \brief Returns the location of the first Stmt in a Block.
-static SourceLocation getFirstStmtLocation(CFGBlock *Block) {
-  SourceLocation Loc;
-  for (CFGBlock::const_iterator BI = Block->begin(), BE = Block->end();
-       BI != BE; ++BI) {
-    if (const CFGStmt *CfgStmt = dyn_cast<CFGStmt>(&(*BI))) {
-      Loc = CfgStmt->getStmt()->getLocStart();
-      if (Loc.isValid()) return Loc;
-    }
+static Lockset addLock(ThreadSafetyHandler &Handler,
+                       Lockset::Factory &LocksetFactory,
+                       Lockset &LSet, Expr *LockExp, LockKind LK,
+                       SourceLocation Loc) {
+  MutexID Mutex(LockExp, 0);
+  if (!Mutex.isValid()) {
+    Handler.handleInvalidLockExp(LockExp->getExprLoc());
+    return LSet;
   }
-  if (Stmt *S = Block->getTerminator().getStmt()) {
-    Loc = S->getLocStart();
-    if (Loc.isValid()) return Loc;
-  }
-  return Loc;
+  LockData NewLock(Loc, LK);
+  return LocksetFactory.add(LSet, Mutex, NewLock);
 }
-
-/// \brief Warn about different locksets along backedges of loops.
-/// This function is called when we encounter a back edge. At that point,
-/// we need to verify that the lockset before taking the backedge is the
-/// same as the lockset before entering the loop.
-///
-/// \param LoopEntrySet Locks before starting the loop
-/// \param LoopReentrySet Locks in the last CFG block of the loop
-static void warnBackEdgeUnequalLocksets(ThreadSafetyHandler &Handler,
-                                        const Lockset LoopReentrySet,
-                                        const Lockset LoopEntrySet,
-                                        SourceLocation FirstLocInLoop,
-                                        Lockset::Factory &Fact) {
-  assert(FirstLocInLoop.isValid());
-  // Warn for locks held at the start of the loop, but not the end.
-  for (Lockset::iterator I = LoopEntrySet.begin(), E = LoopEntrySet.end();
-       I != E; ++I) {
-    if (!LoopReentrySet.contains(I.getKey())) {
-      // We report this error at the location of the first statement in a loop
-      Handler.handleNoLockLoopEntry(I.getKey().getName(), FirstLocInLoop);
-    }
-  }
-
-  // Warn for locks held at the end of the loop, but not at the start.
-  warnIfNotInFirstSetOrNotSameKind(Handler, LoopEntrySet, LoopReentrySet,
-                                   LoopReentrySet, Fact);
-}
-
 
 namespace clang {
 namespace thread_safety {
@@ -724,6 +679,33 @@ void runThreadSafetyAnalysis(AnalysisContext &AC,
   // predecessor locksets when exploring a new block.
   TopologicallySortedCFG SortedGraph(CFGraph);
   CFGBlockSet VisitedBlocks(CFGraph);
+
+  if (!SortedGraph.empty() && D->hasAttrs()) {
+    const CFGBlock *FirstBlock = *SortedGraph.begin();
+    Lockset &InitialLockset = EntryLocksets[FirstBlock->getBlockID()];
+    const AttrVec &ArgAttrs = D->getAttrs();
+    for(unsigned i = 0; i < ArgAttrs.size(); ++i) {
+      Attr *Attr = ArgAttrs[i];
+      SourceLocation AttrLoc = Attr->getLocation();
+      if (SharedLocksRequiredAttr *SLRAttr
+            = dyn_cast<SharedLocksRequiredAttr>(Attr)) {
+        for (SharedLocksRequiredAttr::args_iterator
+            SLRIter = SLRAttr->args_begin(),
+            SLREnd = SLRAttr->args_end(); SLRIter != SLREnd; ++SLRIter)
+          InitialLockset = addLock(Handler, LocksetFactory, InitialLockset,
+                                   *SLRIter, LK_Shared,
+                                   AttrLoc);
+      } else if (ExclusiveLocksRequiredAttr *ELRAttr
+                   = dyn_cast<ExclusiveLocksRequiredAttr>(Attr)) {
+        for (ExclusiveLocksRequiredAttr::args_iterator
+            ELRIter = ELRAttr->args_begin(),
+            ELREnd = ELRAttr->args_end(); ELRIter != ELREnd; ++ELRIter)
+          InitialLockset = addLock(Handler, LocksetFactory, InitialLockset,
+                                   *ELRIter, LK_Exclusive,
+                                   AttrLoc);
+      }
+    }
+  }
 
   for (TopologicallySortedCFG::iterator I = SortedGraph.begin(),
        E = SortedGraph.end(); I!= E; ++I) {
@@ -763,7 +745,8 @@ void runThreadSafetyAnalysis(AnalysisContext &AC,
         LocksetInitialized = true;
       } else {
         Entryset = intersectAndWarn(Handler, Entryset,
-                                    ExitLocksets[PrevBlockID], LocksetFactory);
+                                    ExitLocksets[PrevBlockID], LocksetFactory,
+                                    LEK_LockedSomePredecessors);
       }
     }
 
@@ -787,36 +770,19 @@ void runThreadSafetyAnalysis(AnalysisContext &AC,
         continue;
 
       CFGBlock *FirstLoopBlock = *SI;
-      SourceLocation FirstLoopLocation = getFirstStmtLocation(FirstLoopBlock);
-
-      assert(FirstLoopLocation.isValid());
-
-      // Fail gracefully in release code.
-      if (!FirstLoopLocation.isValid())
-        continue;
-
       Lockset PreLoop = EntryLocksets[FirstLoopBlock->getBlockID()];
       Lockset LoopEnd = ExitLocksets[CurrBlockID];
-      warnBackEdgeUnequalLocksets(Handler, LoopEnd, PreLoop, FirstLoopLocation,
-                                  LocksetFactory);
+      intersectAndWarn(Handler, LoopEnd, PreLoop, LocksetFactory,
+                       LEK_LockedSomeLoopIterations);
     }
   }
 
+  Lockset InitialLockset = EntryLocksets[CFGraph->getEntry().getBlockID()];
   Lockset FinalLockset = ExitLocksets[CFGraph->getExit().getBlockID()];
-  if (!FinalLockset.isEmpty()) {
-    for (Lockset::iterator I=FinalLockset.begin(), E=FinalLockset.end();
-         I != E; ++I) {
-      const MutexID &Mutex = I.getKey();
-      const LockData &MissingLock = I.getData();
 
-      std::string FunName = "<unknown>";
-      if (const NamedDecl *ContextDecl = dyn_cast<NamedDecl>(AC.getDecl())) {
-        FunName = ContextDecl->getDeclName().getAsString();
-      }
-
-      Handler.handleNoUnlock(Mutex.getName(), FunName, MissingLock.AcquireLoc);
-    }
-  }
+  // FIXME: Should we call this function for all blocks which exit the function?
+  intersectAndWarn(Handler, InitialLockset, FinalLockset, LocksetFactory,
+                   LEK_LockedAtEndOfFunction);
 }
 
 /// \brief Helper function that returns a LockKind required for the given level

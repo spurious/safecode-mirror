@@ -228,7 +228,10 @@ void CompilerInstance::createPreprocessor() {
   if (!getHeaderSearchOpts().DisableModuleHash)
     llvm::sys::path::append(SpecificModuleCache, 
                             getInvocation().getModuleHash());
-  PP->getHeaderSearchInfo().setModuleCachePath(SpecificModuleCache);
+  PP->getHeaderSearchInfo().configureModules(SpecificModuleCache,
+    getPreprocessorOpts().ModuleBuildPath.empty()
+      ? std::string() 
+      : getPreprocessorOpts().ModuleBuildPath.back());
   
   // Handle generating dependencies, if requested.
   const DependencyOutputOptions &DepOpts = getDependencyOutputOpts();
@@ -658,9 +661,18 @@ static void compileModule(CompilerInstance &ImportingInstance,
   // Construct a compiler invocation for creating this module.
   llvm::IntrusiveRefCntPtr<CompilerInvocation> Invocation
     (new CompilerInvocation(ImportingInstance.getInvocation()));
+  
+  // For any options that aren't intended to affect how a module is built,
+  // reset them to their default values.
   Invocation->getLangOpts().resetNonModularOptions();
   Invocation->getPreprocessorOpts().resetNonModularOptions();
   
+  // Note that this module is part of the module build path, so that we 
+  // can detect cycles in the module graph.
+  Invocation->getPreprocessorOpts().ModuleBuildPath.push_back(ModuleName);
+  
+  // Set up the inputs/outputs so that we build the module from its umbrella
+  // header.
   FrontendOptions &FrontendOpts = Invocation->getFrontendOpts();
   FrontendOpts.OutputFile = ModuleFileName.str();
   FrontendOpts.DisableFree = false;
@@ -670,6 +682,7 @@ static void compileModule(CompilerInstance &ImportingInstance,
                                                  UmbrellaHeader));
   
   Invocation->getDiagnosticOpts().VerifyDiagnostics = 0;
+  
   
   assert(ImportingInstance.getInvocation().getModuleHash() ==
            Invocation->getModuleHash() && "Module hash mismatch!");
@@ -691,6 +704,7 @@ static void compileModule(CompilerInstance &ImportingInstance,
   
   // Tell the diagnostic client that it's (re-)starting to process a source
   // file.
+  // FIXME: This is a hack. We probably want to clone the diagnostic client.
   ImportingInstance.getDiagnosticClient()
     .BeginSourceFile(ImportingInstance.getLangOpts(),
                      &ImportingInstance.getPreprocessor());
@@ -720,6 +734,26 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
     // We didn't find the module, but there is an umbrella header that
     // can be used to create the module file. Create a separate compilation
     // module to do so.
+    
+    // Check whether there is a cycle in the module graph.
+    SmallVectorImpl<std::string> &ModuleBuildPath
+      = getPreprocessorOpts().ModuleBuildPath;
+    SmallVectorImpl<std::string>::iterator Pos 
+      = std::find(ModuleBuildPath.begin(), ModuleBuildPath.end(),
+                  ModuleName.getName());
+    if (Pos != ModuleBuildPath.end()) {
+      llvm::SmallString<256> CyclePath;
+      for (; Pos != ModuleBuildPath.end(); ++Pos) {
+        CyclePath += *Pos;
+        CyclePath += " -> ";
+      }
+      CyclePath += ModuleName.getName();
+      
+      getDiagnostics().Report(ModuleNameLoc, diag::err_module_cycle)
+        << ModuleName.getName() << CyclePath;
+      return 0;
+    }
+    
     BuildingModule = true;
     compileModule(*this, ModuleName.getName(), ModuleFileName, UmbrellaHeader);
     ModuleFile = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName());
@@ -756,6 +790,8 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
     getASTContext().setExternalSource(Source);
     if (hasSema())
       ModuleManager->InitializeSema(getSema());
+    if (hasASTConsumer())
+      ModuleManager->StartTranslationUnit(&getASTConsumer());
   }
   
   // Try to load the module we found.

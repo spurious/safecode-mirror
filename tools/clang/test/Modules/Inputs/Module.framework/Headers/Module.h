@@ -6,5 +6,7 @@ const char *getModuleVersion(void);
 
 @interface Module
 +(const char *)version; // retrieve module version
++alloc;
 @end
 
+#define MODULE_H_MACRO 1
