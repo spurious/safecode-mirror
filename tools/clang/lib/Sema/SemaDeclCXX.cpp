@@ -392,7 +392,7 @@ bool Sema::MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old) {
       // MSVC accepts that default parameters be redefined for member functions
       // of template class. The new default parameter's value is ignored.
       Invalid = true;
-      if (getLangOptions().Microsoft) {
+      if (getLangOptions().MicrosoftExt) {
         CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(New);
         if (MD && MD->getParent()->getDescribedClassTemplate()) {
           // Merge the old default argument into the new parameter.
@@ -2262,6 +2262,19 @@ struct BaseAndFieldInfo {
 };
 }
 
+/// \brief Determine whether the given indirect field declaration is somewhere
+/// within an anonymous union.
+static bool isWithinAnonymousUnion(IndirectFieldDecl *F) {
+  for (IndirectFieldDecl::chain_iterator C = F->chain_begin(), 
+                                      CEnd = F->chain_end();
+       C != CEnd; ++C)
+    if (CXXRecordDecl *Record = dyn_cast<CXXRecordDecl>((*C)->getDeclContext()))
+      if (Record->isUnion())
+        return true;
+        
+  return false;
+}
+
 static bool CollectFieldInitializer(Sema &SemaRef, BaseAndFieldInfo &Info,
                                     FieldDecl *Field, 
                                     IndirectFieldDecl *Indirect = 0) {
@@ -2290,6 +2303,12 @@ static bool CollectFieldInitializer(Sema &SemaRef, BaseAndFieldInfo &Info,
     Info.AllToInit.push_back(Init);
     return false;
   }
+
+  // Don't build an implicit initializer for union members if none was
+  // explicitly specified.
+  if (Field->getParent()->isUnion() ||
+      (Indirect && isWithinAnonymousUnion(Indirect)))
+    return false;
 
   // Don't try to build an implicit initializer if there were semantic
   // errors in any of the initializers (and therefore we might be
@@ -2325,19 +2344,6 @@ Sema::SetDelegatingInitializer(CXXConstructorDecl *Constructor,
 
   DelegatingCtorDecls.push_back(Constructor);
 
-  return false;
-}
-
-/// \brief Determine whether the given indirect field declaration is somewhere
-/// within an anonymous union.
-static bool isWithinAnonymousUnion(IndirectFieldDecl *F) {
-  for (IndirectFieldDecl::chain_iterator C = F->chain_begin(), 
-                                      CEnd = F->chain_end();
-       C != CEnd; ++C)
-    if (CXXRecordDecl *Record = dyn_cast<CXXRecordDecl>((*C)->getDeclContext()))
-      if (Record->isUnion())
-        return true;
-        
   return false;
 }
 
@@ -2461,17 +2467,6 @@ bool Sema::SetCtorInitializers(CXXConstructorDecl *Constructor,
       if (F->getType()->isIncompleteArrayType()) {
         assert(ClassDecl->hasFlexibleArrayMember() &&
                "Incomplete array type is not valid");
-        continue;
-      }
-      
-      // If this field is somewhere within an anonymous union, we only 
-      // initialize it if there's an explicit initializer.
-      if (isWithinAnonymousUnion(F)) {
-        if (CXXCtorInitializer *Init
-              = Info.AllBaseFields.lookup(F->getAnonField())) {
-          Info.AllToInit.push_back(Init);
-        }
-        
         continue;
       }
       
@@ -2773,8 +2768,9 @@ void Sema::ActOnMemInitializers(Decl *ConstructorDecl,
 void
 Sema::MarkBaseAndMemberDestructorsReferenced(SourceLocation Location,
                                              CXXRecordDecl *ClassDecl) {
-  // Ignore dependent contexts.
-  if (ClassDecl->isDependentContext())
+  // Ignore dependent contexts. Also ignore unions, since their members never
+  // have destructors implicitly called.
+  if (ClassDecl->isDependentContext() || ClassDecl->isUnion())
     return;
 
   // FIXME: all the access-control diagnostics are positioned on the

@@ -613,7 +613,7 @@ static void LangOptsToArgs(const LangOptions &Opts,
     Res.push_back("-fno-gnu-keywords");
   if (!Opts.GNUMode && Opts.GNUKeywords)
     Res.push_back("-fgnu-keywords");
-  if (Opts.Microsoft)
+  if (Opts.MicrosoftExt)
     Res.push_back("-fms-extensions");
   if (Opts.MSCVersion != 0)
     Res.push_back("-fmsc-version=" + llvm::utostr(Opts.MSCVersion));
@@ -1374,7 +1374,8 @@ static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args) {
   using namespace cc1options;
   Opts.Sysroot = Args.getLastArgValue(OPT_isysroot, "/");
   Opts.Verbose = Args.hasArg(OPT_v);
-  Opts.UseBuiltinIncludes = !Args.hasArg(OPT_nobuiltininc);
+  Opts.UseBuiltinIncludes = !Args.hasArg(OPT_nobuiltininc) &&
+                            !Args.hasArg(OPT_fms_compatibility);
   Opts.UseStandardIncludes = !Args.hasArg(OPT_nostdinc);
   Opts.UseStandardCXXIncludes = !Args.hasArg(OPT_nostdincxx);
   if (const Arg *A = Args.getLastArg(OPT_stdlib_EQ))
@@ -1655,7 +1656,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                                    OPT_fno_dollars_in_identifiers,
                                    Opts.DollarIdents);
   Opts.PascalStrings = Args.hasArg(OPT_fpascal_strings);
-  Opts.Microsoft = Args.hasArg(OPT_fms_extensions);
+  Opts.MicrosoftExt = Args.hasArg(OPT_fms_extensions);
+  Opts.MicrosoftMode = Args.hasArg(OPT_fms_compatibility);
   Opts.MSCVersion = Args.getLastArgIntValue(OPT_fmsc_version, 0, Diags);
   Opts.Borland = Args.hasArg(OPT_fborland_extensions);
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);

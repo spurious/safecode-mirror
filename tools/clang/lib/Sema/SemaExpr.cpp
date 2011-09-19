@@ -1441,7 +1441,7 @@ bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
           CXXMethodDecl *DepMethod = cast_or_null<CXXMethodDecl>(
               CurMethod->getInstantiatedFromMemberFunction());
           if (DepMethod) {
-            if (getLangOptions().Microsoft)
+            if (getLangOptions().MicrosoftExt)
               diagnostic = diag::warn_found_via_dependent_bases_lookup;
             Diag(R.getNameLoc(), diagnostic) << Name
               << FixItHint::CreateInsertion(R.getNameLoc(), "this->");
@@ -2601,7 +2601,7 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok) {
           // To be compatible with MSVC, hex integer literals ending with the
           // LL or i64 suffix are always signed in Microsoft mode.
           if (!Literal.isUnsigned && (ResultVal[LongLongSize-1] == 0 ||
-              (getLangOptions().Microsoft && Literal.isLongLong)))
+              (getLangOptions().MicrosoftExt && Literal.isLongLong)))
             Ty = Context.LongLongTy;
           else if (AllowUnsigned)
             Ty = Context.UnsignedLongLongTy;
@@ -5074,6 +5074,23 @@ ExprResult Sema::ActOnConditionalOp(SourceLocation QuestionLoc,
                               OK));
 }
 
+/// SelfInClassMethodType - convet type of 'self' in class method
+/// to pointer to root of method's class.
+static void
+SelfInClassMethodType(Sema &S, Expr *selfExpr, QualType &SelfType) {
+  if (const ObjCMethodDecl *MD = S.GetMethodIfSelfExpr(selfExpr))
+    if (MD->isClassMethod()) {
+      const ObjCInterfaceDecl *Root = 0;
+      if (const ObjCInterfaceDecl * IDecl = MD->getClassInterface())
+      do {
+        Root = IDecl;
+      } while ((IDecl = IDecl->getSuperClass()));
+      if (Root)
+        SelfType = S.Context.getObjCObjectPointerType(
+                                                   S.Context.getObjCInterfaceType(Root)); 
+    }
+}
+
 // checkPointerTypesForAssignment - This is a very tricky routine (despite
 // being closely modeled after the C99 spec:-). The odd characteristic of this
 // routine is it effectively iqnores the qualifiers on the top level pointee.
@@ -5308,6 +5325,8 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     Kind = CK_NoOp;
     return Compatible;
   }
+
+  SelfInClassMethodType(*this, RHS.get(), RHSType);
 
   // If the left-hand side is a reference type, then we are in a
   // (rare!) case where we've allowed the use of references in C,
@@ -9564,7 +9583,7 @@ void Sema::DiagnoseAssignmentAsCondition(Expr *E) {
       Selector Sel = ME->getSelector();
 
       // self = [<foo> init...]
-      if (isSelfExpr(Op->getLHS()) && Sel.getNameForSlot(0).startswith("init"))
+      if (GetMethodIfSelfExpr(Op->getLHS()) && Sel.getNameForSlot(0).startswith("init"))
         diagnostic = diag::warn_condition_is_idiomatic_assignment;
 
       // <foo> = [<bar> nextObject]

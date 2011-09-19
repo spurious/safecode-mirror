@@ -1665,7 +1665,7 @@ bool Sema::IsPointerConversion(Expr *From, QualType FromType, QualType ToType,
   }
 
   // MSVC allows implicit function to void* type conversion.
-  if (getLangOptions().Microsoft && FromPointeeType->isFunctionType() &&
+  if (getLangOptions().MicrosoftExt && FromPointeeType->isFunctionType() &&
       ToPointeeType->isVoidType()) {
     ConvertedType = BuildSimilarlyQualifiedPointerType(FromTypePtr,
                                                        ToPointeeType,
@@ -2865,6 +2865,25 @@ CompareStandardConversionSequences(Sema &S,
         return ImplicitConversionSequence::Worse;      
     }
   }
+
+  // In Microsoft mode, prefer an integral conversion to a
+  // floating-to-integral conversion if the integral conversion
+  // is between types of the same size.
+  // For example:
+  // void f(float);
+  // void f(int);
+  // int main {
+  //    long a;
+  //    f(a);
+  // }
+  // Here, MSVC will call f(int) instead of generating a compile error
+  // as clang will do in standard mode.
+  if (S.getLangOptions().MicrosoftMode &&
+      SCS1.Second == ICK_Integral_Conversion &&
+      SCS2.Second == ICK_Floating_Integral && 
+      S.Context.getTypeSize(SCS1.getFromType()) ==
+      S.Context.getTypeSize(SCS1.getToType(2)))
+    return ImplicitConversionSequence::Better;
 
   return ImplicitConversionSequence::Indistinguishable;
 }
@@ -8373,7 +8392,7 @@ Sema::BuildOverloadedCallExpr(Scope *S, Expr *Fn, UnresolvedLookupExpr *ULE,
     // create a type dependent CallExpr. The goal is to postpone name lookup
     // to instantiation time to be able to search into type dependent base
     // classes.
-    if (getLangOptions().Microsoft && CurContext->isDependentContext() && 
+    if (getLangOptions().MicrosoftExt && CurContext->isDependentContext() && 
         isa<CXXMethodDecl>(CurContext)) {
       CallExpr *CE = new (Context) CallExpr(Context, Fn, Args, NumArgs,
                                           Context.DependentTy, VK_RValue,
@@ -9209,7 +9228,7 @@ Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
 
 
       // Microsoft supports direct constructor calls.
-      if (getLangOptions().Microsoft && isa<CXXConstructorDecl>(Func)) {
+      if (getLangOptions().MicrosoftExt && isa<CXXConstructorDecl>(Func)) {
         AddOverloadCandidate(cast<CXXConstructorDecl>(Func), I.getPair(), Args, NumArgs,
                              CandidateSet);
       } else if ((Method = dyn_cast<CXXMethodDecl>(Func))) {

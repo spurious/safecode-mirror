@@ -379,7 +379,6 @@ void Clang::AddPreprocessingOptions(const Driver &D,
   // If a module path was provided, pass it along. Otherwise, use a temporary
   // directory.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_cache_path)) {
-    CmdArgs.push_back(A->getValue(Args));
     A->claim();
     A->render(Args, CmdArgs);
   } else {
@@ -1789,6 +1788,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
                    getToolChain().getTriple().getOS() == llvm::Triple::Win32))
     CmdArgs.push_back("-fms-extensions");
+
+  // -fms-compatibility=0 is default.
+  if (Args.hasFlag(options::OPT_fms_compatibility, options::OPT_fno_ms_compatibility,
+                   getToolChain().getTriple().getOS() == llvm::Triple::Win32))
+    CmdArgs.push_back("-fms-compatibility");
 
   // -fmsc-version=1300 is default.
   if (Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
