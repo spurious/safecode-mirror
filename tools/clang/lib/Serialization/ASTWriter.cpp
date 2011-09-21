@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Serialization/ASTWriter.h"
-#include "clang/Serialization/ASTSerializationListener.h"
 #include "ASTCommon.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/IdentifierResolver.h"
@@ -1711,10 +1710,10 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
 }
 
 void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
-  if (PPRec.begin(Chain) == PPRec.end(Chain))
+  if (PPRec.local_begin() == PPRec.local_end())
     return;
 
-  SmallVector<uint32_t, 64> PreprocessedEntityOffsets;
+  SmallVector<PPEntityOffset, 64> PreprocessedEntityOffsets;
 
   // Enter the preprocessor block.
   Stream.EnterSubblock(PREPROCESSOR_DETAIL_BLOCK_ID, 3);
@@ -1728,9 +1727,6 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
   {
     BitCodeAbbrev *Abbrev = new BitCodeAbbrev();
     Abbrev->Add(BitCodeAbbrevOp(PPD_INCLUSION_DIRECTIVE));
-    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // index
-    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // start location
-    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // end location
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 32)); // filename length
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // in quotes
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // kind
@@ -1743,42 +1739,25 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
     + NUM_PREDEF_PP_ENTITY_IDS;
   unsigned NextPreprocessorEntityID = FirstPreprocessorEntityID;
   RecordData Record;
-  uint64_t BitsInChain = Chain? Chain->TotalModulesSizeInBits : 0;
-  for (PreprocessingRecord::iterator E = PPRec.begin(Chain),
-                                  EEnd = PPRec.end(Chain);
+  for (PreprocessingRecord::iterator E = PPRec.local_begin(),
+                                  EEnd = PPRec.local_end();
        E != EEnd; 
        (void)++E, ++NumPreprocessingRecords, ++NextPreprocessorEntityID) {
     Record.clear();
 
-    PreprocessedEntityOffsets.push_back(Stream.GetCurrentBitNo());
+    PreprocessedEntityOffsets.push_back(PPEntityOffset((*E)->getSourceRange(),
+                                                     Stream.GetCurrentBitNo()));
 
     if (MacroDefinition *MD = dyn_cast<MacroDefinition>(*E)) {
       // Record this macro definition's ID.
       MacroDefinitions[MD] = NextPreprocessorEntityID;
       
-      // Notify the serialization listener that we're serializing this entity.
-      if (SerializationListener)
-        SerializationListener->SerializedPreprocessedEntity(*E, 
-          BitsInChain + Stream.GetCurrentBitNo());
-      
-      Record.push_back(NextPreprocessorEntityID);
-      AddSourceLocation(MD->getSourceRange().getBegin(), Record);
-      AddSourceLocation(MD->getSourceRange().getEnd(), Record);
       AddIdentifierRef(MD->getName(), Record);
-      AddSourceLocation(MD->getLocation(), Record);
       Stream.EmitRecord(PPD_MACRO_DEFINITION, Record);
       continue;
     }
 
-    // Notify the serialization listener that we're serializing this entity.
-    if (SerializationListener)
-      SerializationListener->SerializedPreprocessedEntity(*E, 
-        BitsInChain + Stream.GetCurrentBitNo());
-
     if (MacroExpansion *ME = dyn_cast<MacroExpansion>(*E)) {
-      Record.push_back(NextPreprocessorEntityID);
-      AddSourceLocation(ME->getSourceRange().getBegin(), Record);
-      AddSourceLocation(ME->getSourceRange().getEnd(), Record);
       Record.push_back(ME->isBuiltinMacro());
       if (ME->isBuiltinMacro())
         AddIdentifierRef(ME->getName(), Record);
@@ -1790,9 +1769,6 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec) {
 
     if (InclusionDirective *ID = dyn_cast<InclusionDirective>(*E)) {
       Record.push_back(PPD_INCLUSION_DIRECTIVE);
-      Record.push_back(NextPreprocessorEntityID);
-      AddSourceLocation(ID->getSourceRange().getBegin(), Record);
-      AddSourceLocation(ID->getSourceRange().getEnd(), Record);
       Record.push_back(ID->getFileName().size());
       Record.push_back(ID->wasInQuotes());
       Record.push_back(static_cast<unsigned>(ID->getKind()));
@@ -2718,8 +2694,7 @@ void ASTWriter::SetSelectorOffset(Selector Sel, uint32_t Offset) {
 }
 
 ASTWriter::ASTWriter(llvm::BitstreamWriter &Stream)
-  : Stream(Stream), Context(0), Chain(0), SerializationListener(0), 
-    WritingAST(false),
+  : Stream(Stream), Context(0), Chain(0), WritingAST(false),
     FirstDeclID(NUM_PREDEF_DECL_IDS), NextDeclID(FirstDeclID),
     FirstTypeID(NUM_PREDEF_TYPE_IDS), NextTypeID(FirstTypeID),
     FirstIdentID(NUM_PREDEF_IDENT_IDS), NextIdentID(FirstIdentID), 
@@ -4044,5 +4019,3 @@ void ASTWriter::AddedObjCCategoryToInterface(const ObjCCategoryDecl *CatD,
   ChainedObjCCategoriesData Data =  { IFD, CatD, 0, 0 };
   LocalChainedObjCCategories.push_back(Data);
 }
-
-ASTSerializationListener::~ASTSerializationListener() { }

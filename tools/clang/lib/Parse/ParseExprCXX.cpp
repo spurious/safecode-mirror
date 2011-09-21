@@ -38,7 +38,7 @@ static int SelectDigraphErrorMessage(tok::TokenKind Kind) {
 static bool AreTokensAdjacent(Preprocessor &PP, Token &First, Token &Second) {
   SourceManager &SM = PP.getSourceManager();
   SourceLocation FirstLoc = SM.getSpellingLoc(First.getLocation());
-  SourceLocation FirstEnd = FirstLoc.getFileLocWithOffset(First.getLength());
+  SourceLocation FirstEnd = FirstLoc.getLocWithOffset(First.getLength());
   return FirstEnd == SM.getSpellingLoc(Second.getLocation());
 }
 
@@ -59,7 +59,7 @@ static void FixDigraph(Parser &P, Preprocessor &PP, Token &DigraphToken,
 
   // Update token information to reflect their change in token type.
   ColonToken.setKind(tok::coloncolon);
-  ColonToken.setLocation(ColonToken.getLocation().getFileLocWithOffset(-1));
+  ColonToken.setLocation(ColonToken.getLocation().getLocWithOffset(-1));
   ColonToken.setLength(2);
   DigraphToken.setKind(tok::less);
   DigraphToken.setLength(1);
@@ -68,6 +68,31 @@ static void FixDigraph(Parser &P, Preprocessor &PP, Token &DigraphToken,
   PP.EnterToken(ColonToken);
   if (!AtDigraph)
     PP.EnterToken(DigraphToken);
+}
+
+// Check for '<::' which should be '< ::' instead of '[:' when following
+// a template name.
+void Parser::CheckForTemplateAndDigraph(Token &Next, ParsedType ObjectType,
+                                        bool EnteringContext,
+                                        IdentifierInfo &II, CXXScopeSpec &SS) {
+  if (!Next.is(tok::l_square) || Next.getLength() != 2)
+    return;
+
+  Token SecondToken = GetLookAheadToken(2);
+  if (!SecondToken.is(tok::colon) || !AreTokensAdjacent(PP, Next, SecondToken))
+    return;
+
+  TemplateTy Template;
+  UnqualifiedId TemplateName;
+  TemplateName.setIdentifier(&II, Tok.getLocation());
+  bool MemberOfUnknownSpecialization;
+  if (!Actions.isTemplateName(getCurScope(), SS, /*hasTemplateKeyword=*/false,
+                              TemplateName, ObjectType, EnteringContext,
+                              Template, MemberOfUnknownSpecialization))
+    return;
+
+  FixDigraph(*this, PP, Next, SecondToken, tok::kw_template,
+             /*AtDigraph*/false);
 }
 
 /// \brief Parse global scope or nested-name-specifier if present.
@@ -341,28 +366,7 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
       continue;
     }
 
-    // Check for '<::' which should be '< ::' instead of '[:' when following
-    // a template name.
-    if (Next.is(tok::l_square) && Next.getLength() == 2) {
-      Token SecondToken = GetLookAheadToken(2);
-      if (SecondToken.is(tok::colon) &&
-          AreTokensAdjacent(PP, Next, SecondToken)) {
-        TemplateTy Template;
-        UnqualifiedId TemplateName;
-        TemplateName.setIdentifier(&II, Tok.getLocation());
-        bool MemberOfUnknownSpecialization;
-        if (Actions.isTemplateName(getCurScope(), SS,
-                                   /*hasTemplateKeyword=*/false,
-                                   TemplateName,
-                                   ObjectType,
-                                   EnteringContext,
-                                   Template,
-                                   MemberOfUnknownSpecialization)) {
-          FixDigraph(*this, PP, Next, SecondToken, tok::kw_template,
-                     /*AtDigraph*/false);
-        }
-      }
-    }
+    CheckForTemplateAndDigraph(Next, ObjectType, EnteringContext, II, SS);
 
     // nested-name-specifier:
     //   type-name '<'

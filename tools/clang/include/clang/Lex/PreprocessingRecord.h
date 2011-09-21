@@ -50,11 +50,8 @@ namespace clang {
       /// \brief A macro expansion.
       MacroExpansionKind,
       
-      /// \brief A preprocessing directive whose kind is not specified.
-      ///
-      /// This kind will be used for any preprocessing directive that does not
-      /// have a more specific kind within the \c DirectiveKind enumeration.
-      PreprocessingDirectiveKind,
+      /// \defgroup Preprocessing directives
+      /// @{
       
       /// \brief A macro definition.
       MacroDefinitionKind,
@@ -63,7 +60,9 @@ namespace clang {
       /// #import, or \c #include_next.
       InclusionDirectiveKind,
 
-      FirstPreprocessingDirective = PreprocessingDirectiveKind,
+      /// @}
+
+      FirstPreprocessingDirective = MacroDefinitionKind,
       LastPreprocessingDirective = InclusionDirectiveKind
     };
 
@@ -138,21 +137,16 @@ namespace clang {
   class MacroDefinition : public PreprocessingDirective {
     /// \brief The name of the macro being defined.
     const IdentifierInfo *Name;
-    
-    /// \brief The location of the macro name in the macro definition.
-    SourceLocation Location;
 
   public:
-    explicit MacroDefinition(const IdentifierInfo *Name, SourceLocation Location,
-                             SourceRange Range)
-      : PreprocessingDirective(MacroDefinitionKind, Range), Name(Name), 
-        Location(Location) { }
+    explicit MacroDefinition(const IdentifierInfo *Name, SourceRange Range)
+      : PreprocessingDirective(MacroDefinitionKind, Range), Name(Name) { }
     
     /// \brief Retrieve the name of the macro being defined.
     const IdentifierInfo *getName() const { return Name; }
     
     /// \brief Retrieve the location of the macro name in the definition.
-    SourceLocation getLocation() const { return Location; }
+    SourceLocation getLocation() const { return getSourceRange().getBegin(); }
     
     // Implement isa/cast/dyncast/etc.
     static bool classof(const PreprocessedEntity *PE) {
@@ -271,15 +265,18 @@ namespace clang {
     /// entity from being loaded.
     virtual PreprocessedEntity *ReadPreprocessedEntity(unsigned Index) = 0;
 
-    /// \brief Read the preprocessed entity at the given offset.
-    virtual PreprocessedEntity *
-    ReadPreprocessedEntityAtOffset(uint64_t Offset) = 0;
+    /// \brief Returns a pair of [Begin, End) indices of preallocated
+    /// preprocessed entities that \arg Range encompasses.
+    virtual std::pair<unsigned, unsigned>
+        findPreprocessedEntitiesInRange(SourceRange Range) = 0;
   };
   
   /// \brief A record of the steps taken while preprocessing a source file,
   /// including the various preprocessing directives processed, macros 
   /// expanded, etc.
   class PreprocessingRecord : public PPCallbacks {
+    SourceManager &SourceMgr;
+
     /// \brief Whether we should include nested macro expansions in
     /// the preprocessing record.
     bool IncludeNestedMacroExpansions;
@@ -329,7 +326,14 @@ namespace clang {
     unsigned getNumLoadedPreprocessedEntities() const {
       return LoadedPreprocessedEntities.size();
     }
-    
+
+    /// \brief Returns a pair of [Begin, End) indices of local preprocessed
+    /// entities that \arg Range encompasses.
+    std::pair<unsigned, unsigned>
+      findLocalPreprocessedEntitiesInRange(SourceRange Range) const;
+    unsigned findBeginLocalPreprocessedEntity(SourceLocation Loc) const;
+    unsigned findEndLocalPreprocessedEntity(SourceLocation Loc) const;
+
     /// \brief Allocate space for a new set of loaded preprocessed entities.
     ///
     /// \returns The index into the set of loaded preprocessed entities, which
@@ -341,7 +345,7 @@ namespace clang {
     
   public:
     /// \brief Construct a new preprocessing record.
-    explicit PreprocessingRecord(bool IncludeNestedMacroExpansions);
+    PreprocessingRecord(SourceManager &SM, bool IncludeNestedMacroExpansions);
     
     /// \brief Allocate memory in the preprocessing record.
     void *Allocate(unsigned Size, unsigned Align = 8) {
@@ -352,6 +356,8 @@ namespace clang {
     void Deallocate(void *Ptr) { }
 
     size_t getTotalMemory() const;
+
+    SourceManager &getSourceManager() const { return SourceMgr; }
 
     // Iteration over the preprocessed entities.
     class iterator {
@@ -467,9 +473,30 @@ namespace clang {
       }
     };
     friend class iterator;
-    
-    iterator begin(bool OnlyLocalEntities = false);
-    iterator end(bool OnlyLocalEntities = false);
+
+    /// \brief Begin iterator for all preprocessed entities.
+    iterator begin() {
+      return iterator(this, -(int)LoadedPreprocessedEntities.size());
+    }
+
+    /// \brief End iterator for all preprocessed entities.
+    iterator end() {
+      return iterator(this, PreprocessedEntities.size());
+    }
+
+    /// \brief Begin iterator for local, non-loaded, preprocessed entities.
+    iterator local_begin() {
+      return iterator(this, 0);
+    }
+
+    /// \brief End iterator for local, non-loaded, preprocessed entities.
+    iterator local_end() {
+      return iterator(this, PreprocessedEntities.size());
+    }
+
+    /// \brief Returns a pair of [Begin, End) iterators of preprocessed entities
+    /// that source range \arg R encompasses.
+    std::pair<iterator, iterator> getPreprocessedEntitiesInRange(SourceRange R);
 
     /// \brief Add a new preprocessed entity to this record.
     void addPreprocessedEntity(PreprocessedEntity *Entity);

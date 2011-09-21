@@ -248,6 +248,12 @@ private:
   /// \brief A map of negated SLocEntryIDs to the modules containing them.
   ContinuousRangeMap<unsigned, Module*, 64> GlobalSLocEntryMap;
 
+  typedef ContinuousRangeMap<unsigned, Module*, 64> GlobalSLocOffsetMapType;
+  
+  /// \brief A map of reversed (SourceManager::MaxLoadedOffset - SLocOffset)
+  /// SourceLocation offsets to the modules containing them.
+  GlobalSLocOffsetMapType GlobalSLocOffsetMap;
+  
   /// \brief Types that have already been loaded from the chain.
   ///
   /// When the pointer at index I is non-NULL, the type with
@@ -680,7 +686,23 @@ private:
   
   RecordLocation getLocalBitOffset(uint64_t GlobalOffset);
   uint64_t getGlobalBitOffset(Module &M, uint32_t LocalOffset);
-  
+
+  /// \brief Returns the first preprocessed entity ID that ends after \arg BLoc.
+  serialization::PreprocessedEntityID
+    findBeginPreprocessedEntity(SourceLocation BLoc) const;
+
+  /// \brief Returns the first preprocessed entity ID that begins after \arg ELoc.
+  serialization::PreprocessedEntityID
+    findEndPreprocessedEntity(SourceLocation ELoc) const;
+
+  /// \brief \arg SLocMapI points at a chunk of a module that contains no
+  /// preprocessed entities or the entities it contains are not the ones we are
+  /// looking for. Find the next module that contains entities and return the ID
+  /// of the first entry.
+  serialization::PreprocessedEntityID
+    findNextPreprocessedEntity(
+                        GlobalSLocOffsetMapType::const_iterator SLocMapI) const;
+
   void PassInterestingDeclsToConsumer();
 
   /// \brief Produce an error diagnostic and return true.
@@ -723,6 +745,8 @@ public:
 
   ~ASTReader();
 
+  SourceManager &getSourceManager() const { return SourceMgr; }
+  
   /// \brief Load the AST file designated by the given file name.
   ASTReadResult ReadAST(const std::string &FileName, ModuleKind Type);
 
@@ -772,8 +796,10 @@ public:
   /// entity from being loaded.
   virtual PreprocessedEntity *ReadPreprocessedEntity(unsigned Index);
 
-  /// \brief Read the preprocessed entity at the given offset.
-  virtual PreprocessedEntity *ReadPreprocessedEntityAtOffset(uint64_t Offset);
+  /// \brief Returns a pair of [Begin, End) indices of preallocated
+  /// preprocessed entities that \arg Range encompasses.
+  virtual std::pair<unsigned, unsigned>
+      findPreprocessedEntitiesInRange(SourceRange Range);
 
   /// \brief Read the header file information for the given file entry.
   virtual HeaderFileInfo GetHeaderFileInfo(const FileEntry *FE);
@@ -1142,16 +1168,12 @@ public:
                           unsigned &Idx);
 
   /// \brief Read a source location from raw form.
-  SourceLocation ReadSourceLocation(Module &Module, unsigned Raw) {
-    unsigned Flag = Raw & (1U << 31);
-    unsigned Offset = Raw & ~(1U << 31);
-    assert(Module.SLocRemap.find(Offset) != Module.SLocRemap.end() &&
+  SourceLocation ReadSourceLocation(Module &Module, unsigned Raw) const {
+    SourceLocation Loc = SourceLocation::getFromRawEncoding(Raw);
+    assert(Module.SLocRemap.find(Loc.getOffset()) != Module.SLocRemap.end() &&
            "Cannot find offset to remap.");
-    int Remap = Module.SLocRemap.find(Offset)->second;
-    Offset += Remap;
-    assert((Offset & (1U << 31)) == 0 &&
-           "Bad offset in reading source location");
-    return SourceLocation::getFromRawEncoding(Offset | Flag);
+    int Remap = Module.SLocRemap.find(Loc.getOffset())->second;
+    return Loc.getLocWithOffset(Remap);
   }
 
   /// \brief Read a source location.
@@ -1207,15 +1229,11 @@ public:
 
   /// \brief Reads the macro record located at the given offset.
   void ReadMacroRecord(Module &F, uint64_t Offset);
-
-  /// \brief Reads the preprocessed entity located at the current stream
-  /// position.
-  PreprocessedEntity *LoadPreprocessedEntity(Module &F);
       
   /// \brief Determine the global preprocessed entity ID that corresponds to
   /// the given local ID within the given module.
   serialization::PreprocessedEntityID 
-  getGlobalPreprocessedEntityID(Module &M, unsigned LocalID);
+  getGlobalPreprocessedEntityID(Module &M, unsigned LocalID) const;
   
   /// \brief Note that the identifier is a macro whose record will be loaded
   /// from the given AST file at the given (file-local) offset.

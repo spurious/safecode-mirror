@@ -280,7 +280,7 @@ bool Sema::isMicrosoftMissingTypename(const CXXScopeSpec *SS) {
       if (Context.hasSameUnqualifiedType(QualType(Ty, 1), Base->getType()))
         return true;
   } 
-  return false;
+  return CurContext->isFunctionOrMethod();
 }
 
 bool Sema::DiagnoseUnknownTypeName(const IdentifierInfo &II, 
@@ -362,7 +362,7 @@ bool Sema::DiagnoseUnknownTypeName(const IdentifierInfo &II,
       << &II << DC << SS->getRange();
   else if (isDependentScopeSpecifier(*SS)) {
     unsigned DiagID = diag::err_typename_missing;
-    if (getLangOptions().MicrosoftExt && isMicrosoftMissingTypename(SS))
+    if (getLangOptions().MicrosoftMode && isMicrosoftMissingTypename(SS))
       DiagID = diag::warn_typename_missing;
 
     Diag(SS->getRange().getBegin(), DiagID)
@@ -3734,6 +3734,13 @@ Sema::ActOnVariableDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
   
+  if (getLangOptions().OpenCL) {
+    // Set up the special work-group-local storage class for variables in the
+    // OpenCL __local address space.
+    if (R.getAddressSpace() == LangAS::opencl_local)
+      SC = SC_OpenCLWorkGroupLocal;
+  }
+
   bool isExplicitSpecialization = false;
   VarDecl *NewVD;
   if (!getLangOptions().CPlusPlus) {
@@ -3883,6 +3890,7 @@ Sema::ActOnVariableDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       case SC_Static:
       case SC_Extern:
       case SC_PrivateExtern:
+      case SC_OpenCLWorkGroupLocal:
         break;
       }
     }
@@ -5715,6 +5723,14 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init,
     }
   }
 
+  // OpenCL 1.1 6.5.2: "Variables allocated in the __local address space inside
+  // a kernel function cannot be initialized."
+  if (VDecl->getStorageClass() == SC_OpenCLWorkGroupLocal) {
+    Diag(VDecl->getLocation(), diag::err_local_cant_init);
+    VDecl->setInvalidDecl();
+    return;
+  }
+
   // Capture the variable that is being initialized and the style of
   // initialization.
   InitializedEntity Entity = InitializedEntity::InitializeVariable(VDecl);
@@ -6131,6 +6147,8 @@ void Sema::ActOnCXXForRangeDecl(Decl *D) {
   case SC_Register:
     Error = 4;
     break;
+  case SC_OpenCLWorkGroupLocal:
+    llvm_unreachable("Unexpected storage class");
   }
   // FIXME: constexpr isn't allowed here.
   //if (DS.isConstexprSpecified())

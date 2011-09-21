@@ -323,7 +323,7 @@ bool PCHValidator::ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
       assert(MacroLoc.second!=StringRef::npos && "Unable to find macro!");
       SourceLocation PCHMissingLoc =
           SourceMgr.getLocForStartOfFile(MacroLoc.first)
-            .getFileLocWithOffset(MacroLoc.second);
+            .getLocWithOffset(MacroLoc.second);
       Reader.Diag(PCHMissingLoc, diag::note_pch_macro_defined_as) << MacroName;
 
       ConflictingDefines = true;
@@ -346,7 +346,7 @@ bool PCHValidator::ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
     assert(MacroLoc.second!=StringRef::npos && "Unable to find macro!");
     SourceLocation PCHMissingLoc =
         SourceMgr.getLocForStartOfFile(MacroLoc.first)
-          .getFileLocWithOffset(MacroLoc.second);
+          .getLocWithOffset(MacroLoc.second);
     Reader.Diag(PCHMissingLoc, diag::note_using_macro_def_from_pch);
   }
 
@@ -1346,102 +1346,9 @@ void ASTReader::ReadMacroRecord(Module &F, uint64_t Offset) {
   return;
 }
 
-PreprocessedEntity *ASTReader::LoadPreprocessedEntity(Module &F) {
-  unsigned Code = F.PreprocessorDetailCursor.ReadCode();
-  switch (Code) {
-  case llvm::bitc::END_BLOCK:
-    return 0;
-    
-  case llvm::bitc::ENTER_SUBBLOCK:
-    Error("unexpected subblock record in preprocessor detail block");
-    return 0;
-      
-  case llvm::bitc::DEFINE_ABBREV:
-    Error("unexpected abbrevation record in preprocessor detail block");
-    return 0;
-      
-  default:
-    break;
-  }
-
-  if (!PP.getPreprocessingRecord()) {
-    Error("no preprocessing record");
-    return 0;
-  }
-  
-  // Read the record.
-  PreprocessingRecord &PPRec = *PP.getPreprocessingRecord();
-  const char *BlobStart = 0;
-  unsigned BlobLen = 0;
-  RecordData Record;
-  PreprocessorDetailRecordTypes RecType =
-    (PreprocessorDetailRecordTypes)F.PreprocessorDetailCursor.ReadRecord(
-                                             Code, Record, BlobStart, BlobLen);
-  switch (RecType) {
-  case PPD_MACRO_EXPANSION: {
-    bool isBuiltin = Record[3];
-    MacroExpansion *ME;
-    if (isBuiltin) {
-      ME = new (PPRec) MacroExpansion(getLocalIdentifier(F, Record[4]),
-                                 SourceRange(ReadSourceLocation(F, Record[1]),
-                                             ReadSourceLocation(F, Record[2])));
-    } else {
-      PreprocessedEntityID
-          GlobalID = getGlobalPreprocessedEntityID(F, Record[4]);
-      ME = new (PPRec) MacroExpansion(
-           cast<MacroDefinition>(PPRec.getLoadedPreprocessedEntity(GlobalID-1)),
-                                 SourceRange(ReadSourceLocation(F, Record[1]),
-                                             ReadSourceLocation(F, Record[2])));
-    }
-    return ME;
-  }
-      
-  case PPD_MACRO_DEFINITION: {
-    PreprocessedEntityID GlobalID = getGlobalPreprocessedEntityID(F, Record[0]);
-    
-    // Decode the identifier info and then check again; if the macro is
-    // still defined and associated with the identifier,
-    IdentifierInfo *II = getLocalIdentifier(F, Record[3]);
-    MacroDefinition *MD
-      = new (PPRec) MacroDefinition(II,
-                                    ReadSourceLocation(F, Record[4]),
-                                    SourceRange(
-                                          ReadSourceLocation(F, Record[1]),
-                                          ReadSourceLocation(F, Record[2])));
-
-    if (DeserializationListener)
-      DeserializationListener->MacroDefinitionRead(GlobalID, MD);
-
-    return MD;
-  }
-      
-  case PPD_INCLUSION_DIRECTIVE: {
-    const char *FullFileNameStart = BlobStart + Record[3];
-    const FileEntry *File
-      = PP.getFileManager().getFile(StringRef(FullFileNameStart,
-                                               BlobLen - Record[3]));
-    
-    // FIXME: Stable encoding
-    InclusionDirective::InclusionKind Kind
-      = static_cast<InclusionDirective::InclusionKind>(Record[5]);
-    InclusionDirective *ID
-      = new (PPRec) InclusionDirective(PPRec, Kind,
-                                       StringRef(BlobStart, Record[3]),
-                                       Record[4],
-                                       File,
-                                 SourceRange(ReadSourceLocation(F, Record[1]),
-                                             ReadSourceLocation(F, Record[2])));
-    return ID;
-  }
-  }
-  
-  Error("invalid offset in preprocessor detail block");
-  return 0;
-}
-
 PreprocessedEntityID 
-ASTReader::getGlobalPreprocessedEntityID(Module &M, unsigned LocalID) {
-  ContinuousRangeMap<uint32_t, int, 2>::iterator 
+ASTReader::getGlobalPreprocessedEntityID(Module &M, unsigned LocalID) const {
+  ContinuousRangeMap<uint32_t, int, 2>::const_iterator 
     I = M.PreprocessedEntityRemap.find(LocalID - NUM_PREDEF_PP_ENTITY_IDS);
   assert(I != M.PreprocessedEntityRemap.end() 
          && "Invalid index into preprocessed entity index remap");
@@ -2011,8 +1918,10 @@ ASTReader::ReadASTBlock(Module &F) {
     case SOURCE_LOCATION_OFFSETS: {
       F.SLocEntryOffsets = (const uint32_t *)BlobStart;
       F.LocalNumSLocEntries = Record[0];
+      unsigned SLocSpaceSize = Record[1];
       llvm::tie(F.SLocEntryBaseID, F.SLocEntryBaseOffset) =
-          SourceMgr.AllocateLoadedSLocEntries(F.LocalNumSLocEntries, Record[1]);
+          SourceMgr.AllocateLoadedSLocEntries(F.LocalNumSLocEntries,
+                                              SLocSpaceSize);
       // Make our entry in the range map. BaseID is negative and growing, so
       // we invert it. Because we invert it, though, we need the other end of
       // the range.
@@ -2020,6 +1929,12 @@ ASTReader::ReadASTBlock(Module &F) {
           unsigned(-F.SLocEntryBaseID) - F.LocalNumSLocEntries + 1;
       GlobalSLocEntryMap.insert(std::make_pair(RangeStart, &F));
       F.FirstLoc = SourceLocation::getFromRawEncoding(F.SLocEntryBaseOffset);
+
+      // SLocEntryBaseOffset is lower than MaxLoadedOffset and decreasing.
+      assert((F.SLocEntryBaseOffset & (1U << 31U)) == 0);
+      GlobalSLocOffsetMap.insert(
+          std::make_pair(SourceManager::MaxLoadedOffset - F.SLocEntryBaseOffset
+                           - SLocSpaceSize,&F));
 
       // Initialize the remapping table.
       // Invalid stays invalid.
@@ -2201,9 +2116,9 @@ ASTReader::ReadASTBlock(Module &F) {
     }
 
     case PPD_ENTITIES_OFFSETS: {
-      F.PreprocessedEntityOffsets = (const uint32_t *)BlobStart;
-      assert(BlobLen % sizeof(uint32_t) == 0);
-      F.NumPreprocessedEntities = BlobLen / sizeof(uint32_t);
+      F.PreprocessedEntityOffsets = (const PPEntityOffset *)BlobStart;
+      assert(BlobLen % sizeof(PPEntityOffset) == 0);
+      F.NumPreprocessedEntities = BlobLen / sizeof(PPEntityOffset);
 
       unsigned LocalBasePreprocessedEntityID = Record[0];
       
@@ -2500,23 +2415,15 @@ ASTReader::ASTReadResult ASTReader::ReadAST(const std::string &FileName,
   if (DeserializationListener)
     DeserializationListener->ReaderInitialized(this);
 
-  // If this AST file is a precompiled preamble, then set the main file ID of 
-  // the source manager to the file source file from which the preamble was
-  // built. This is the only valid way to use a precompiled preamble.
+  // If this AST file is a precompiled preamble, then set the preamble file ID
+  // of the source manager to the file source file from which the preamble was
+  // built.
   if (Type == MK_Preamble) {
-    if (OriginalFileID.isInvalid()) {
-      SourceLocation Loc
-        = SourceMgr.getLocation(FileMgr.getFile(getOriginalSourceFile()), 1, 1);
-      if (Loc.isValid())
-        OriginalFileID = SourceMgr.getDecomposedLoc(Loc).first;
-    }
-    else {
+    if (!OriginalFileID.isInvalid()) {
       OriginalFileID = FileID::get(ModuleMgr.getPrimaryModule().SLocEntryBaseID
                                         + OriginalFileID.getOpaqueValue() - 1);
+      SourceMgr.setPreambleFileID(OriginalFileID);
     }
-
-    if (!OriginalFileID.isInvalid())
-      SourceMgr.SetPreambleFileID(OriginalFileID);
   }
   
   return Success;
@@ -2633,9 +2540,11 @@ ASTReader::ASTReadResult ASTReader::ReadASTCore(StringRef FileName,
   // Preload SLocEntries.
   for (unsigned I = 0, N = M->PreloadSLocEntries.size(); I != N; ++I) {
     int Index = int(M->PreloadSLocEntries[I] - 1) + F.SLocEntryBaseID;
-    ASTReadResult Result = ReadSLocEntryRecord(Index);
-    if (Result != Success)
-      return Failure;
+    // Load it through the SourceManager and don't call ReadSLocEntryRecord()
+    // directly because the entry may have already been loaded in which case
+    // calling ReadSLocEntryRecord() directly would trigger an assertion in
+    // SourceManager.
+    SourceMgr.getLoadedSLocEntryByID(Index);
   }
 
 
@@ -2868,26 +2777,228 @@ bool ASTReader::ParseLanguageOptions(
 }
 
 PreprocessedEntity *ASTReader::ReadPreprocessedEntity(unsigned Index) {
+  PreprocessedEntityID PPID = Index+1;
   GlobalPreprocessedEntityMapType::iterator
     I = GlobalPreprocessedEntityMap.find(Index);
   assert(I != GlobalPreprocessedEntityMap.end() && 
          "Corrupted global preprocessed entity map");
   Module &M = *I->second;
   unsigned LocalIndex = Index - M.BasePreprocessedEntityID;
+  const PPEntityOffset &PPOffs = M.PreprocessedEntityOffsets[LocalIndex];
 
   SavedStreamPosition SavedPosition(M.PreprocessorDetailCursor);  
-  M.PreprocessorDetailCursor.JumpToBit(M.PreprocessedEntityOffsets[LocalIndex]);
-  return LoadPreprocessedEntity(M);
+  M.PreprocessorDetailCursor.JumpToBit(PPOffs.BitOffset);
+
+  unsigned Code = M.PreprocessorDetailCursor.ReadCode();
+  switch (Code) {
+  case llvm::bitc::END_BLOCK:
+    return 0;
+    
+  case llvm::bitc::ENTER_SUBBLOCK:
+    Error("unexpected subblock record in preprocessor detail block");
+    return 0;
+      
+  case llvm::bitc::DEFINE_ABBREV:
+    Error("unexpected abbrevation record in preprocessor detail block");
+    return 0;
+      
+  default:
+    break;
+  }
+
+  if (!PP.getPreprocessingRecord()) {
+    Error("no preprocessing record");
+    return 0;
+  }
+  
+  // Read the record.
+  SourceRange Range(ReadSourceLocation(M, PPOffs.Begin),
+                    ReadSourceLocation(M, PPOffs.End));
+  PreprocessingRecord &PPRec = *PP.getPreprocessingRecord();
+  const char *BlobStart = 0;
+  unsigned BlobLen = 0;
+  RecordData Record;
+  PreprocessorDetailRecordTypes RecType =
+    (PreprocessorDetailRecordTypes)M.PreprocessorDetailCursor.ReadRecord(
+                                             Code, Record, BlobStart, BlobLen);
+  switch (RecType) {
+  case PPD_MACRO_EXPANSION: {
+    bool isBuiltin = Record[0];
+    IdentifierInfo *Name = 0;
+    MacroDefinition *Def = 0;
+    if (isBuiltin)
+      Name = getLocalIdentifier(M, Record[1]);
+    else {
+      PreprocessedEntityID
+          GlobalID = getGlobalPreprocessedEntityID(M, Record[1]);
+      Def =cast<MacroDefinition>(PPRec.getLoadedPreprocessedEntity(GlobalID-1));
+    }
+
+    MacroExpansion *ME;
+    if (isBuiltin)
+      ME = new (PPRec) MacroExpansion(Name, Range);
+    else
+      ME = new (PPRec) MacroExpansion(Def, Range);
+
+    return ME;
+  }
+      
+  case PPD_MACRO_DEFINITION: {
+    // Decode the identifier info and then check again; if the macro is
+    // still defined and associated with the identifier,
+    IdentifierInfo *II = getLocalIdentifier(M, Record[0]);
+    MacroDefinition *MD
+      = new (PPRec) MacroDefinition(II, Range);
+
+    if (DeserializationListener)
+      DeserializationListener->MacroDefinitionRead(PPID, MD);
+
+    return MD;
+  }
+      
+  case PPD_INCLUSION_DIRECTIVE: {
+    const char *FullFileNameStart = BlobStart + Record[0];
+    const FileEntry *File
+      = PP.getFileManager().getFile(StringRef(FullFileNameStart,
+                                               BlobLen - Record[0]));
+    
+    // FIXME: Stable encoding
+    InclusionDirective::InclusionKind Kind
+      = static_cast<InclusionDirective::InclusionKind>(Record[2]);
+    InclusionDirective *ID
+      = new (PPRec) InclusionDirective(PPRec, Kind,
+                                       StringRef(BlobStart, Record[0]),
+                                       Record[1],
+                                       File,
+                                       Range);
+    return ID;
+  }
+  }
+  
+  Error("invalid offset in preprocessor detail block");
+  return 0;
 }
 
-PreprocessedEntity *ASTReader::ReadPreprocessedEntityAtOffset(uint64_t Offset) {
-  RecordLocation Loc = getLocalBitOffset(Offset);
+/// \brief \arg SLocMapI points at a chunk of a module that contains no
+/// preprocessed entities or the entities it contains are not the ones we are
+/// looking for. Find the next module that contains entities and return the ID
+/// of the first entry.
+PreprocessedEntityID ASTReader::findNextPreprocessedEntity(
+                       GlobalSLocOffsetMapType::const_iterator SLocMapI) const {
+  ++SLocMapI;
+  for (GlobalSLocOffsetMapType::const_iterator
+         EndI = GlobalSLocOffsetMap.end(); SLocMapI != EndI; ++SLocMapI) {
+    Module &M = *SLocMapI->second;
+    if (M.NumPreprocessedEntities)
+      return getGlobalPreprocessedEntityID(M, M.BasePreprocessedEntityID);
+  }
 
-  // Keep track of where we are in the stream, then jump back there
-  // after reading this entity.
-  SavedStreamPosition SavedPosition(Loc.F->PreprocessorDetailCursor);  
-  Loc.F->PreprocessorDetailCursor.JumpToBit(Loc.Offset);
-  return LoadPreprocessedEntity(*Loc.F);
+  return getTotalNumPreprocessedEntities();
+}
+
+namespace {
+
+template <unsigned PPEntityOffset::*PPLoc>
+struct PPEntityComp {
+  const ASTReader &Reader;
+  Module &M;
+
+  PPEntityComp(const ASTReader &Reader, Module &M) : Reader(Reader), M(M) { }
+
+  bool operator()(const PPEntityOffset &L, const PPEntityOffset &R) const {
+    SourceLocation LHS = getLoc(L);
+    SourceLocation RHS = getLoc(R);
+    return Reader.getSourceManager().isBeforeInTranslationUnit(LHS, RHS);
+  }
+
+  bool operator()(const PPEntityOffset &L, SourceLocation RHS) const {
+    SourceLocation LHS = getLoc(L);
+    return Reader.getSourceManager().isBeforeInTranslationUnit(LHS, RHS);
+  }
+
+  bool operator()(SourceLocation LHS, const PPEntityOffset &R) const {
+    SourceLocation RHS = getLoc(R);
+    return Reader.getSourceManager().isBeforeInTranslationUnit(LHS, RHS);
+  }
+
+  SourceLocation getLoc(const PPEntityOffset &PPE) const {
+    return Reader.ReadSourceLocation(M, PPE.*PPLoc);
+  }
+};
+
+}
+
+/// \brief Returns the first preprocessed entity ID that ends after \arg BLoc.
+PreprocessedEntityID
+ASTReader::findBeginPreprocessedEntity(SourceLocation BLoc) const {
+  if (SourceMgr.isLocalSourceLocation(BLoc))
+    return getTotalNumPreprocessedEntities();
+
+  GlobalSLocOffsetMapType::const_iterator
+    SLocMapI = GlobalSLocOffsetMap.find(SourceManager::MaxLoadedOffset -
+                                        BLoc.getOffset());
+  assert(SLocMapI != GlobalSLocOffsetMap.end() &&
+         "Corrupted global sloc offset map");
+
+  if (SLocMapI->second->NumPreprocessedEntities == 0)
+    return findNextPreprocessedEntity(SLocMapI);
+
+  Module &M = *SLocMapI->second;
+  typedef const PPEntityOffset *pp_iterator;
+  pp_iterator pp_begin = M.PreprocessedEntityOffsets;
+  pp_iterator pp_end = pp_begin + M.NumPreprocessedEntities;
+  pp_iterator PPI =
+      std::lower_bound(pp_begin, pp_end, BLoc,
+                       PPEntityComp<&PPEntityOffset::End>(*this, M));
+
+  if (PPI == pp_end)
+    return findNextPreprocessedEntity(SLocMapI);
+
+  return getGlobalPreprocessedEntityID(M,
+                                 M.BasePreprocessedEntityID + (PPI - pp_begin));
+}
+
+/// \brief Returns the first preprocessed entity ID that begins after \arg ELoc.
+PreprocessedEntityID
+ASTReader::findEndPreprocessedEntity(SourceLocation ELoc) const {
+  if (SourceMgr.isLocalSourceLocation(ELoc))
+    return getTotalNumPreprocessedEntities();
+
+  GlobalSLocOffsetMapType::const_iterator
+    SLocMapI = GlobalSLocOffsetMap.find(SourceManager::MaxLoadedOffset -
+                                        ELoc.getOffset());
+  assert(SLocMapI != GlobalSLocOffsetMap.end() &&
+         "Corrupted global sloc offset map");
+
+  if (SLocMapI->second->NumPreprocessedEntities == 0)
+    return findNextPreprocessedEntity(SLocMapI);
+
+  Module &M = *SLocMapI->second;
+  typedef const PPEntityOffset *pp_iterator;
+  pp_iterator pp_begin = M.PreprocessedEntityOffsets;
+  pp_iterator pp_end = pp_begin + M.NumPreprocessedEntities;
+  pp_iterator PPI =
+      std::upper_bound(pp_begin, pp_end, ELoc,
+                       PPEntityComp<&PPEntityOffset::Begin>(*this, M));
+
+  if (PPI == pp_end)
+    return findNextPreprocessedEntity(SLocMapI);
+
+  return getGlobalPreprocessedEntityID(M,
+                                 M.BasePreprocessedEntityID + (PPI - pp_begin));
+}
+
+/// \brief Returns a pair of [Begin, End) indices of preallocated
+/// preprocessed entities that \arg Range encompasses.
+std::pair<unsigned, unsigned>
+    ASTReader::findPreprocessedEntitiesInRange(SourceRange Range) {
+  if (Range.isInvalid())
+    return std::make_pair(0,0);
+  assert(!SourceMgr.isBeforeInTranslationUnit(Range.getEnd(),Range.getBegin()));
+
+  PreprocessedEntityID BeginID = findBeginPreprocessedEntity(Range.getBegin());
+  PreprocessedEntityID EndID = findEndPreprocessedEntity(Range.getEnd());
+  return std::make_pair(BeginID, EndID);
 }
 
 namespace {

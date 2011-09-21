@@ -29,7 +29,6 @@
 #include "clang/Frontend/FrontendOptions.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Serialization/ASTReader.h"
-#include "clang/Serialization/ASTSerializationListener.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
@@ -775,8 +774,7 @@ public:
   }
 };
 
-class PrecompilePreambleConsumer : public PCHGenerator, 
-                                   public ASTSerializationListener {
+class PrecompilePreambleConsumer : public PCHGenerator {
   ASTUnit &Unit;
   unsigned &Hash;                                   
   std::vector<Decl *> TopLevelDecls;
@@ -814,15 +812,6 @@ public:
         Unit.addTopLevelDeclFromPreamble(
                                       getWriter().getDeclID(TopLevelDecls[I]));
     }
-  }
-                                     
-  virtual void SerializedPreprocessedEntity(PreprocessedEntity *Entity,
-                                            uint64_t Offset) {
-    Unit.addPreprocessedEntityFromPreamble(Offset);
-  }
-                                     
-  virtual ASTSerializationListener *GetASTSerializationListener() {
-    return this;
   }
 };
 
@@ -922,16 +911,13 @@ bool ASTUnit::Parse(llvm::MemoryBuffer *OverrideMainBuffer) {
   
   // Clear out old caches and data.
   TopLevelDecls.clear();
-  PreprocessedEntities.clear();
   CleanTemporaryFiles();
-  PreprocessedEntitiesByFile.clear();
 
   if (!OverrideMainBuffer) {
     StoredDiagnostics.erase(
                     StoredDiagnostics.begin() + NumStoredDiagnosticsFromDriver,
                             StoredDiagnostics.end());
     TopLevelDeclsInPreamble.clear();
-    PreprocessedEntitiesInPreamble.clear();
   }
 
   // Create a file manager object to provide access to and cache the filesystem.
@@ -1200,7 +1186,7 @@ llvm::MemoryBuffer *ASTUnit::getMainBufferWithPrecompiledPreamble(
     if (Preamble.size() == NewPreamble.second.first &&
         PreambleEndsAtStartOfLine == NewPreamble.second.second &&
         NewPreamble.first->getBufferSize() < PreambleReservedSize-2 &&
-        memcmp(&Preamble[0], NewPreamble.first->getBufferStart(),
+        memcmp(Preamble.getBufferStart(), NewPreamble.first->getBufferStart(),
                NewPreamble.second.first) == 0) {
       // The preamble has not changed. We may be able to re-use the precompiled
       // preamble.
@@ -1332,7 +1318,9 @@ llvm::MemoryBuffer *ASTUnit::getMainBufferWithPrecompiledPreamble(
 
   // Save the preamble text for later; we'll need to compare against it for
   // subsequent reparses.
-  Preamble.assign(NewPreamble.first->getBufferStart(), 
+  StringRef MainFilename = PreambleInvocation->getFrontendOpts().Inputs[0].second;
+  Preamble.assign(FileMgr->getFile(MainFilename),
+                  NewPreamble.first->getBufferStart(), 
                   NewPreamble.first->getBufferStart() 
                                                   + NewPreamble.second.first);
   PreambleEndsAtStartOfLine = NewPreamble.second.second;
@@ -1405,8 +1393,6 @@ llvm::MemoryBuffer *ASTUnit::getMainBufferWithPrecompiledPreamble(
                           StoredDiagnostics.end());
   TopLevelDecls.clear();
   TopLevelDeclsInPreamble.clear();
-  PreprocessedEntities.clear();
-  PreprocessedEntitiesInPreamble.clear();
   
   // Create a file manager object to provide access to and cache the filesystem.
   Clang->setFileManager(new FileManager(Clang->getFileSystemOpts()));
@@ -1437,8 +1423,6 @@ llvm::MemoryBuffer *ASTUnit::getMainBufferWithPrecompiledPreamble(
     llvm::sys::Path(FrontendOpts.OutputFile).eraseFromDisk();
     Preamble.clear();
     TopLevelDeclsInPreamble.clear();
-    PreprocessedEntities.clear();
-    PreprocessedEntitiesInPreamble.clear();
     PreambleRebuildCounter = DefaultPreambleRebuildInterval;
     PreprocessorOpts.eraseRemappedFile(
                                PreprocessorOpts.remapped_file_buffer_end() - 1);
@@ -1507,48 +1491,6 @@ void ASTUnit::RealizeTopLevelDeclsFromPreamble() {
   }
   TopLevelDeclsInPreamble.clear();
   TopLevelDecls.insert(TopLevelDecls.begin(), Resolved.begin(), Resolved.end());
-}
-
-void ASTUnit::RealizePreprocessedEntitiesFromPreamble() {
-  if (!PP)
-    return;
-  
-  PreprocessingRecord *PPRec = PP->getPreprocessingRecord();
-  if (!PPRec)
-    return;
-  
-  ExternalPreprocessingRecordSource *External = PPRec->getExternalSource();
-  if (!External)
-    return;
-
-  for (unsigned I = 0, N = PreprocessedEntitiesInPreamble.size(); I != N; ++I) {
-    if (PreprocessedEntity *PE
-          = External->ReadPreprocessedEntityAtOffset(
-                                            PreprocessedEntitiesInPreamble[I]))
-      PreprocessedEntities.push_back(PE);
-  }
-  
-  if (PreprocessedEntities.empty())
-    return;
-  
-  PreprocessedEntities.insert(PreprocessedEntities.end(), 
-                              PPRec->begin(true), PPRec->end(true));
-}
-
-ASTUnit::pp_entity_iterator ASTUnit::pp_entity_begin() {
-  if (!PreprocessedEntitiesInPreamble.empty() &&
-      PreprocessedEntities.empty())
-    RealizePreprocessedEntitiesFromPreamble();
-  
-  return PreprocessedEntities.begin();
-}
-
-ASTUnit::pp_entity_iterator ASTUnit::pp_entity_end() {
-  if (!PreprocessedEntitiesInPreamble.empty() &&
-      PreprocessedEntities.empty())
-    RealizePreprocessedEntitiesFromPreamble();
-    
-  return PreprocessedEntities.end();
 }
 
 StringRef ASTUnit::getMainFileName() const {
@@ -2395,4 +2337,42 @@ void ASTUnit::TranslateStoredDiagnostics(
                                       SD.getMessage(), Loc, Ranges, FixIts));
   }
   Result.swap(Out);
+}
+
+SourceLocation ASTUnit::getLocation(const FileEntry *File,
+                                    unsigned Line, unsigned Col) const {
+  const SourceManager &SM = getSourceManager();
+  SourceLocation Loc;
+  if (!Preamble.empty() && Line <= Preamble.getNumLines())
+    Loc = SM.translateLineCol(SM.getPreambleFileID(), Line, Col);
+  else
+    Loc = SM.translateFileLineCol(File, Line, Col);
+
+  return SM.getMacroArgExpandedLocation(Loc);
+}
+
+SourceLocation ASTUnit::getLocation(const FileEntry *File,
+                                    unsigned Offset) const {
+  const SourceManager &SM = getSourceManager();
+  SourceLocation FileLoc;
+  if (!Preamble.empty() && Offset < Preamble.size())
+    FileLoc = SM.getLocForStartOfFile(SM.getPreambleFileID());
+  else
+    FileLoc = SM.translateFileLineCol(File, 1, 1);
+
+  return SM.getMacroArgExpandedLocation(FileLoc.getLocWithOffset(Offset));
+}
+
+void ASTUnit::PreambleData::countLines() const {
+  NumLines = 0;
+  if (empty())
+    return;
+
+  for (std::vector<char>::const_iterator
+         I = Buffer.begin(), E = Buffer.end(); I != E; ++I) {
+    if (*I == '\n')
+      ++NumLines;
+  }
+  if (Buffer.back() != '\n')
+    ++NumLines;
 }
