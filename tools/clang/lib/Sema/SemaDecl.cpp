@@ -1290,7 +1290,7 @@ NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned bid,
       parm->setScopeInfo(0, i);
       Params.push_back(parm);
     }
-    New->setParams(Params.data(), Params.size());
+    New->setParams(Params);
   }
 
   AddKnownFunctionAttributes(New);
@@ -1853,7 +1853,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, Decl *OldD) {
         Params.push_back(Param);
       }
 
-      New->setParams(Params.data(), Params.size());
+      New->setParams(Params);
     }
 
     return MergeCompatibleFunctionDecls(New, Old);
@@ -4873,7 +4873,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
            "Should not need args for typedef of non-prototype fn");
   }
   // Finally, we know we have the right number of parameters, install them.
-  NewFD->setParams(Params.data(), Params.size());
+  NewFD->setParams(Params);
 
   // Process the non-inheritable attributes on this declaration.
   ProcessDeclAttributes(S, NewFD, D,
@@ -8673,7 +8673,7 @@ void Sema::ActOnLastBitfield(SourceLocation DeclLoc,
 
 void Sema::ActOnFields(Scope* S,
                        SourceLocation RecLoc, Decl *EnclosingDecl,
-                       Decl **Fields, unsigned NumFields,
+                       llvm::ArrayRef<Decl *> Fields,
                        SourceLocation LBrac, SourceLocation RBrac,
                        AttributeList *Attr) {
   assert(EnclosingDecl && "missing record or interface decl");
@@ -8689,8 +8689,9 @@ void Sema::ActOnFields(Scope* S,
 
   RecordDecl *Record = dyn_cast<RecordDecl>(EnclosingDecl);
   bool ARCErrReported = false;
-  for (unsigned i = 0; i != NumFields; ++i) {
-    FieldDecl *FD = cast<FieldDecl>(Fields[i]);
+  for (llvm::ArrayRef<Decl *>::iterator i = Fields.begin(), end = Fields.end();
+       i != end; ++i) {
+    FieldDecl *FD = cast<FieldDecl>(*i);
 
     // Get the type for the field.
     const Type *FDTy = FD->getType().getTypePtr();
@@ -8725,10 +8726,10 @@ void Sema::ActOnFields(Scope* S,
       EnclosingDecl->setInvalidDecl();
       continue;
     } else if (FDTy->isIncompleteArrayType() && Record && 
-               ((i == NumFields - 1 && !Record->isUnion()) ||
+               ((i + 1 == Fields.end() && !Record->isUnion()) ||
                 ((getLangOptions().MicrosoftExt ||
                   getLangOptions().CPlusPlus) &&
-                 (i == NumFields - 1 || Record->isUnion())))) {
+                 (i + 1 == Fields.end() || Record->isUnion())))) {
       // Flexible array member.
       // Microsoft and g++ is more permissive regarding flexible array.
       // It will accept flexible array in union and also
@@ -8737,14 +8738,14 @@ void Sema::ActOnFields(Scope* S,
         if (Record->isUnion()) 
           Diag(FD->getLocation(), diag::ext_flexible_array_union_ms)
             << FD->getDeclName();
-        else if (NumFields == 1) 
+        else if (Fields.size() == 1) 
           Diag(FD->getLocation(), diag::ext_flexible_array_empty_aggregate_ms)
             << FD->getDeclName() << Record->getTagKind();
       } else if (getLangOptions().CPlusPlus) {
         if (Record->isUnion()) 
           Diag(FD->getLocation(), diag::ext_flexible_array_union_gnu)
             << FD->getDeclName();
-        else if (NumFields == 1) 
+        else if (Fields.size() == 1) 
           Diag(FD->getLocation(), diag::ext_flexible_array_empty_aggregate_gnu)
             << FD->getDeclName() << Record->getTagKind();
       } else if (NumNamedMembers < 1) {
@@ -8781,7 +8782,7 @@ void Sema::ActOnFields(Scope* S,
           // If this is a struct/class and this is not the last element, reject
           // it.  Note that GCC supports variable sized arrays in the middle of
           // structures.
-          if (i != NumFields-1)
+          if (i + 1 != Fields.end())
             Diag(FD->getLocation(), diag::ext_variable_sized_type_in_struct)
               << FD->getDeclName() << FD->getType();
           else {

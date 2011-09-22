@@ -1112,7 +1112,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(FunctionDecl *D,
       Params.push_back(Param);
     }
   }
-  Function->setParams(Params.data(), Params.size());
+  Function->setParams(Params);
 
   SourceLocation InstantiateAtPOI;
   if (TemplateParams) {
@@ -1485,7 +1485,7 @@ TemplateDeclInstantiator::VisitCXXMethodDecl(CXXMethodDecl *D,
   // Attach the parameters
   for (unsigned P = 0; P < Params.size(); ++P)
     Params[P]->setOwningFunction(Method);
-  Method->setParams(Params.data(), Params.size());
+  Method->setParams(Params);
 
   if (InitMethodInstantiation(Method, D))
     Method->setInvalidDecl();
@@ -1633,8 +1633,7 @@ Decl *TemplateDeclInstantiator::VisitNonTypeTemplateParmDecl(
     llvm::Optional<unsigned> NumExpansions = OrigNumExpansions;
     if (SemaRef.CheckParameterPacksForExpansion(Expansion.getEllipsisLoc(),
                                                 Pattern.getSourceRange(),
-                                                Unexpanded.data(),
-                                                Unexpanded.size(),
+                                                Unexpanded,
                                                 TemplateArgs,
                                                 Expand, RetainExpansion, 
                                                 NumExpansions))
@@ -2236,8 +2235,7 @@ TemplateDeclInstantiator::InitFunctionInstantiation(FunctionDecl *New,
                                           = PackExpansion->getNumExpansions();
         if (SemaRef.CheckParameterPacksForExpansion(New->getLocation(), 
                                                     SourceRange(),
-                                                    Unexpanded.data(), 
-                                                    Unexpanded.size(),
+                                                    Unexpanded,
                                                     TemplateArgs,
                                                     Expand, 
                                                     RetainExpansion,
@@ -2709,8 +2707,7 @@ Sema::InstantiateMemInitializers(CXXConstructorDecl *New,
       llvm::Optional<unsigned> NumExpansions;
       if (CheckParameterPacksForExpansion(Init->getEllipsisLoc(), 
                                           BaseTL.getSourceRange(),
-                                          Unexpanded.data(), 
-                                          Unexpanded.size(),
+                                          Unexpanded,
                                           TemplateArgs, ShouldExpand, 
                                           RetainExpansion,
                                           NumExpansions)) {
