@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstring>
 #include <algorithm>
@@ -66,11 +67,11 @@ protected:
   virtual ~Attr();
   
   void* operator new(size_t bytes) throw() {
-    assert(0 && "Attrs cannot be allocated with regular 'new'.");
+    llvm_unreachable("Attrs cannot be allocated with regular 'new'.");
     return 0;
   }
   void operator delete(void* data) throw() {
-    assert(0 && "Attrs cannot be released with regular 'delete'.");
+    llvm_unreachable("Attrs cannot be released with regular 'delete'.");
   }
 
 public:

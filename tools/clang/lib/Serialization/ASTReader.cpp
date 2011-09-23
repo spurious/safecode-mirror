@@ -2947,9 +2947,28 @@ ASTReader::findBeginPreprocessedEntity(SourceLocation BLoc) const {
   typedef const PPEntityOffset *pp_iterator;
   pp_iterator pp_begin = M.PreprocessedEntityOffsets;
   pp_iterator pp_end = pp_begin + M.NumPreprocessedEntities;
-  pp_iterator PPI =
-      std::lower_bound(pp_begin, pp_end, BLoc,
-                       PPEntityComp<&PPEntityOffset::End>(*this, M));
+
+  size_t Count = M.NumPreprocessedEntities;
+  size_t Half;
+  pp_iterator First = pp_begin;
+  pp_iterator PPI;
+
+  // Do a binary search manually instead of using std::lower_bound because
+  // The end locations of entities may be unordered (when a macro expansion
+  // is inside another macro argument), but for this case it is not important
+  // whether we get the first macro expansion or its containing macro.
+  while (Count > 0) {
+    Half = Count/2;
+    PPI = First;
+    std::advance(PPI, Half);
+    if (SourceMgr.isBeforeInTranslationUnit(ReadSourceLocation(M, PPI->End),
+                                            BLoc)){
+      First = PPI;
+      ++First;
+      Count = Count - Half - 1;
+    } else
+      Count = Half;
+  }
 
   if (PPI == pp_end)
     return findNextPreprocessedEntity(SLocMapI);
@@ -4974,7 +4993,7 @@ ASTReader::ReadTemplateName(Module &F, const RecordData &Record,
   }
   }
 
-  assert(0 && "Unhandled template name kind!");
+  llvm_unreachable("Unhandled template name kind!");
   return TemplateName();
 }
 
@@ -5014,7 +5033,7 @@ ASTReader::ReadTemplateArgument(Module &F,
   }
   }
 
-  assert(0 && "Unhandled template argument kind!");
+  llvm_unreachable("Unhandled template argument kind!");
   return TemplateArgument();
 }
 

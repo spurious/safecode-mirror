@@ -977,6 +977,10 @@ DeduceTemplateArguments(Sema &S,
   //     cv-list T
   if (const TemplateTypeParmType *TemplateTypeParm
         = Param->getAs<TemplateTypeParmType>()) {
+    // Just skip any attempts to deduce from a placeholder type.
+    if (Arg->isPlaceholderType())
+      return Sema::TDK_Success;
+    
     unsigned Index = TemplateTypeParm->getIndex();
     bool RecanonicalizeArg = false;
 
@@ -1535,7 +1539,7 @@ DeduceTemplateArguments(Sema &S,
 
   switch (Param.getKind()) {
   case TemplateArgument::Null:
-    assert(false && "Null template argument in parameter list");
+    llvm_unreachable("Null template argument in parameter list");
     break;
 
   case TemplateArgument::Type:
@@ -1826,7 +1830,7 @@ static bool isSameTemplateArg(ASTContext &Context,
 
   switch (X.getKind()) {
     case TemplateArgument::Null:
-      assert(false && "Comparing NULL template argument");
+      llvm_unreachable("Comparing NULL template argument");
       break;
 
     case TemplateArgument::Type:
