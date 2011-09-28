@@ -32,35 +32,35 @@
 
 #include <vector>
 
-using namespace llvm;
+namespace llvm
+{
 
-NAMESPACE_SC_BEGIN
+  /**
+   * Pass that secures C standard library string calls via transforms
+   */
+  class StringTransform : public ModulePass
+  {
+  private:
+    // Private methods
+    bool transform(Module &M, const StringRef FunctionName, const unsigned argc, const unsigned pool_argc, const Type *ReturnTy, Statistic &statistic);
 
-/**
- * Pass that secures C standard library string calls via transforms
- */
-class StringTransform : public ModulePass {
-private:
-  // Private methods
-  bool transform(Module &M, const StringRef FunctionName, const unsigned argc, const unsigned pool_argc, const Type *ReturnTy, Statistic &statistic);
+    // Private variables
+    TargetData *tdata;
 
-  // Private variables
-  TargetData *tdata;
+  public:
+    static char ID;
+    StringTransform() : ModulePass(ID) {}
+    virtual bool runOnModule(Module &M);
 
-public:
-  static char ID;
-  StringTransform() : ModulePass((intptr_t)&ID) {}
-  virtual bool runOnModule(Module &M);
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // Require TargetData
+      AU.addRequired<TargetData>();
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    // Require TargetData
-    AU.addRequired<TargetData>();
+      // No modification of control flow graph
+      AU.setPreservesCFG();
+    }
+  };
 
-    // No modification of control flow graph
-    AU.setPreservesCFG();
-  }
-};
-
-NAMESPACE_SC_END
+}
 
 #endif

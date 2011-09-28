@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // bcmp() with too long value for length of comparison.
 

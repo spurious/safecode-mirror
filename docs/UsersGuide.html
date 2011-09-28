@@ -87,7 +87,7 @@ located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed):
 
 <ul>
   <li><tt>clang -fmemsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
-  -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++</tt></li>
+  -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++</tt></li>
 </ul>
 </p>
 
@@ -107,8 +107,8 @@ the following:
 <li> Set the environment variable CXX to $PREFIX/clang++.</li>
 <li> Set the environment variable CFLAGS to "-g -fmemsafety"</li>
 <li> Set the environment variable LDFLAGS to
-     "-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lstdc++" where
-     $PREFIX is the directory into which SAFECode was installed.
+"-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++"
+where $PREFIX is the directory into which SAFECode was installed.
 <li> Run the configure script</li>
 <li> Type "make" to compile the source code.</li>
 </ol>

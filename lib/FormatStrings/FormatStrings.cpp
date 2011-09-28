@@ -8,13 +8,15 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a pass to insert calls to runtime wrapper functions for
-// printf() and related format string functions.
+// printf(), scanf(), and related format string functions.
 //
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "formatstrings"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/LLVMContext.h"
+#include "llvm/Support/CallSite.h"
 #include "llvm/Support/IRBuilder.h"
 
 #include "safecode/FormatStrings.h"
@@ -25,42 +27,39 @@
 #include <vector>
 #include <algorithm>
 
-using namespace llvm;
-
 using std::map;
 using std::max;
 using std::set;
 using std::vector;
 
-NAMESPACE_SC_BEGIN
+namespace llvm
+{
 
 static RegisterPass<FormatStringTransform>
 R("formatstrings", "Secure calls to format string functions");
 
-STATISTIC(stat_printf,   "Number of calls to printf() that were secured");
-STATISTIC(stat_fprintf,  "Number of calls to fprintf() that were secured");
-STATISTIC(stat_sprintf,  "Number of calls to sprintf() that were secured");
-STATISTIC(stat_snprintf, "Number of calls to snprintf() that were secured");
-STATISTIC(stat_err,      "Number of calls to err() that were secured");
-STATISTIC(stat_errx,     "Number of calls to errx() that were secured");
-STATISTIC(stat_warn,     "Number of calls to warn() that were secured");
-STATISTIC(stat_warnx,    "Number of calls to warnx() that were secured");
-STATISTIC(stat_syslog,   "Number of calls to syslog() that were secured");
-STATISTIC(stat_scanf,    "Number of calls to scanf() that were secured");
-STATISTIC(stat_fscanf,   "Number of calls to fscanf() that were secured");
-STATISTIC(stat_sscanf,   "Number of calls to sscanf() that were secured");
-STATISTIC(
-  stat___printf_chk,   "Number of calls to __printf_chk() that were secured"
-);
-STATISTIC(
-  stat___fprintf_chk,  "Number of calls to __fprintf_chk() that were secured"
-);
-STATISTIC(
-  stat___sprintf_chk,  "Number of calls to __sprintf_chk() that were secured"
-);
-STATISTIC(
-  stat___snprintf_chk, "Number of calls to __snprintf_chk() that were secured"
-);
+#define ADD_STATISTIC_FOR(func) \
+  STATISTIC(stat_ ## func, "Number of calls to " #func "() that were secured()")
+
+ADD_STATISTIC_FOR(printf);
+ADD_STATISTIC_FOR(fprintf);
+ADD_STATISTIC_FOR(sprintf);
+ADD_STATISTIC_FOR(snprintf);
+ADD_STATISTIC_FOR(err);
+ADD_STATISTIC_FOR(errx);
+ADD_STATISTIC_FOR(warn);
+ADD_STATISTIC_FOR(warnx);
+ADD_STATISTIC_FOR(syslog);
+ADD_STATISTIC_FOR(scanf);
+ADD_STATISTIC_FOR(fscanf);
+ADD_STATISTIC_FOR(sscanf);
+ADD_STATISTIC_FOR(__printf_chk);
+ADD_STATISTIC_FOR(__fprintf_chk);
+ADD_STATISTIC_FOR(__sprintf_chk);
+ADD_STATISTIC_FOR(__snprintf_chk);
+ADD_STATISTIC_FOR(__isoc99_scanf);
+ADD_STATISTIC_FOR(__isoc99_fscanf);
+ADD_STATISTIC_FOR(__isoc99_sscanf);
 
 char FormatStringTransform::ID = 0;
 
@@ -69,75 +68,93 @@ char FormatStringTransform::ID = 0;
 // format string function.
 //
 // Inputs:
-//   C    - the context to build types from
-//   argc - the expected number of (fixed) arguments the function type takes
+//   argc - the expected number of fixed arguments the function type takes
 //   F    - the original function type
 //
 FunctionType *
-FormatStringTransform::buildTransformedFunctionType(LLVMContext &C,
-                                                    unsigned argc,
-                                                    const FunctionType *F)
+FormatStringTransform::xfrmFType(unsigned argc,
+                                 FunctionType *F,
+                                 LLVMContext &ctx) const
 {
-  const Type *int8ptr = Type::getInt8PtrTy(C);
-  FunctionType::param_iterator i     = F->param_begin();
-  FunctionType::param_iterator end   = F->param_end();
-  vector<const Type *> NewParams;
-
+  Type *int8ptr = Type::getInt8PtrTy(ctx);
+  FunctionType::param_iterator i   = F->param_begin();
+  FunctionType::param_iterator end = F->param_end();
+  vector<Type *> NewParamTypes;
+  // This line might be a problem if the function wasn't declared in the module.
   assert(F->getNumParams() == argc && "Incorrect number of argument!");
-
-  NewParams.push_back(int8ptr);
+  //
+  // The initial argument is a pointer to the call_info structure.
+  //
+  NewParamTypes.push_back(int8ptr);
+  //
+  // Append all other arguments.
+  //
   while (i != end)
   {
     if (isa<PointerType>((Type *) *i))
-      NewParams.push_back(int8ptr);
+      NewParamTypes.push_back(int8ptr);
     else
-      NewParams.push_back(*i);
+      NewParamTypes.push_back(*i);
     ++i;
   }
-
-  return FunctionType::get(F->getReturnType(), NewParams, true);
+  return FunctionType::get(F->getReturnType(), NewParamTypes, true);
 }
 
 bool
 FormatStringTransform::runOnModule(Module &M)
 {
   //
-  // Get the intrinsics we will use.
-  //
-  InsertSCIntrinsic &I = getAnalysis<InsertSCIntrinsic>();
-  FSParameter = I.getIntrinsic("sc.fsparameter").F;
-  FSCallInfo  = I.getIntrinsic("sc.fscallinfo").F;
-  //
   // Get the type of the pointer_info structure.
   //
-  makePointerInfoType(M.getContext());
+  PointerInfoType = makePointerInfoType(M.getContext());
+
+  FSCallInfo = FSParameter = 0;
 
   bool changed = false;
 
-  changed |= transform(M, "printf",   1, "pool_printf",   stat_printf);
-  changed |= transform(M, "fprintf",  2, "pool_fprintf",  stat_fprintf);
-  changed |= transform(M, "sprintf",  2, "pool_sprintf",  stat_sprintf);
-  changed |= transform(M, "snprintf", 3, "pool_snprintf", stat_snprintf);
-  changed |= transform(M, "err",      2, "pool_err",      stat_err);
-  changed |= transform(M, "errx",     2, "pool_errx",     stat_errx);
-  changed |= transform(M, "warn",     1, "pool_warn",     stat_warn);
-  changed |= transform(M, "warnx",    1, "pool_warnx",    stat_warnx);
-  changed |= transform(M, "syslog",   2, "pool_syslog",   stat_syslog);
-  changed |= transform(M, "scanf",    1, "pool_scanf",    stat_scanf);
-  changed |= transform(M, "fscanf",   2, "pool_fscanf",   stat_fscanf);
-  changed |= transform(M, "sscanf",   2, "pool_sscanf",   stat_sscanf);
-  changed |= transform(
-    M, "__printf_chk",   2, "pool___printf_chk",   stat___printf_chk
-  );
-  changed |= transform(
-    M, "__fprintf_chk",  3, "pool___fprintf_chk",  stat___fprintf_chk
-  );
-  changed |= transform(
-    M, "__sprintf_chk",  4, "pool___sprintf_chk",  stat___sprintf_chk
-  );
-  changed |= transform(
-    M, "__snprintf_chk", 5, "pool___snprintf_chk", stat___snprintf_chk
-  );
+  struct FormatStringFuncEntry
+  {
+    const char *name;
+    unsigned fargc;
+    Statistic *stat;
+    const char *replacement;
+  } Entries[] =
+  {
+    { "printf",          1, &stat_printf,          "pool_printf"              },
+    { "fprintf",         2, &stat_fprintf,         "pool_fprintf"             },
+    { "sprintf",         2, &stat_sprintf,         "pool_sprintf"             },
+    { "snprintf",        3, &stat_snprintf,        "pool_snprintf"            },
+    { "err",             2, &stat_err,             "pool_err",                },
+    { "errx",            2, &stat_errx,            "pool_errx",               },
+    { "warn",            1, &stat_warn,            "pool_warn",               },
+    { "warnx",           1, &stat_warnx,           "pool_warnx",              },
+    { "syslog",          2, &stat_syslog,          "pool_syslog",             },
+    { "scanf",           1, &stat_scanf,           "pool_scanf",              },
+    { "fscanf",          2, &stat_fscanf,          "pool_fscanf",             },
+    { "sscanf",          2, &stat_sscanf,          "pool_sscanf",             },
+    //
+    // The __printf_chk() family is like printf(), but it attempts to make sure
+    // the stack isn't accessed improperly. The SAFECode runtime also does this
+    // (and more) so we can transform calls to this function.
+    //
+    { "__printf_chk",    2, &stat___printf_chk,    "pool___printf_chk",       },
+    { "__fprintf_chk",   3, &stat___fprintf_chk,   "pool___fprintf_chk",      },
+    { "__sprintf_chk",   4, &stat___sprintf_chk,   "pool___sprintf_chk",      },
+    { "__snprintf_chk",  5, &stat___snprintf_chk,  "pool___snprintf_chk",     },
+    //
+    // The __isoc99_scanf() family is found in glibc and is like scanf() without
+    // GNU extensions, which is the same functionality as the SAFECode version.
+    //
+    { "__isoc99_scanf",  1, &stat___isoc99_scanf,  "pool_scanf",              },
+    { "__isoc99_fscanf", 2, &stat___isoc99_fscanf, "pool_fscanf",             },
+    { "__isoc99_sscanf", 2, &stat___isoc99_sscanf, "pool_sscanf",             }
+  };
+
+  for (size_t i = 0; i < sizeof(Entries) / sizeof(FormatStringFuncEntry); i++)
+  {
+    FormatStringFuncEntry &e = Entries[i];
+    changed |= transform(M, e.name, e.fargc, e.replacement, *e.stat);
+  }
 
   //
   // The transformations use placehold arrays of size 0. This call changes
@@ -147,6 +164,47 @@ FormatStringTransform::runOnModule(Module &M)
     fillArraySizes(M);
 
   return changed;
+}
+
+//
+// Adds declarations of the format string function intrinsics
+// sc.fsparameter and sc.callinfo into the given module.
+//
+// Sets the value of FSParameter and FSCallInfo to the relevant intrinsics.
+//
+void
+FormatStringTransform::addFormatStringIntrinsics(Module &M)
+{
+  Type *int8    = Type::getInt8Ty(M.getContext());
+  Type *int32   = Type::getInt32Ty(M.getContext());
+  Type *int8ptr = Type::getInt8PtrTy(M.getContext());
+  //
+  // Build parameter lists.
+  //
+  vector<Type *> FSPArgs =
+    args<Type *>::list(int8ptr, int8ptr, int8ptr, int8);
+  vector<Type *> FSCIArgs = args<Type *>::list(int8ptr, int32);
+  //
+  // Build the function types.
+  //
+  FunctionType *FSParameterType = FunctionType::get(int8ptr, FSPArgs, false);
+  FunctionType *FSCallInfoType  = FunctionType::get(int8ptr, FSCIArgs, true);
+  //
+  // Check if the functions are already declared.
+  //
+  Function *FSParameterInModule = M.getFunction("__sc_fsparameter");
+  Function *FSCallInfoInModule  = M.getFunction("__sc_fscallinfo");
+  if (FSParameterInModule != 0)
+    assert(FSParameterInModule->getFunctionType() == FSParameterType &&
+      "Intrinsic declared with wrong type!");
+  if (FSCallInfoInModule != 0)
+    assert(FSCallInfoInModule->getFunctionType() == FSCallInfoType &&
+      "Intrinsic declared with wrong type!");
+  //
+  // Add the function declarations to the module and globally for this pass.
+  //
+  FSParameter = M.getOrInsertFunction("__sc_fsparameter", FSParameterType);
+  FSCallInfo  = M.getOrInsertFunction("__sc_fscallinfo",  FSCallInfoType);
 }
 
 //
@@ -165,16 +223,16 @@ FormatStringTransform::runOnModule(Module &M)
 // be wrapped around a pointer_info structure. The space for the call_info
 // and pointer_info structures is allocated on the stack.
 //
-//
 // Inputs:
 //  M           - a reference to the current Module
 //  name        - the name of the function to transform
 //  argc        - the number of (fixed) arguments to the function
-//  replacement - the name of the replacemant function
+//  replacement - the name of the resulting function
 //  stat        - a statistic pertaining to the number of transfomations
 //                that have been performed
 //
-// This function returns true if the module was modified, false otherwise.
+// Returns:
+//  This function returns true if the module was modified, false otherwise.
 //
 bool
 FormatStringTransform::transform(Module &M,
@@ -184,31 +242,26 @@ FormatStringTransform::transform(Module &M,
                                  Statistic &stat)
 {
   Function *f = M.getFunction(name);
-
   if (f == 0)
     return false;
 
-  vector<CallInst *> CallInstructions;
+  vector<CallSite> Calls;
 
   //
   // Locate all the instructions which call the named function.
   //
-  for (Function::use_iterator i = f->use_begin();
-       i != f->use_end();
-       ++i)
+  for (Function::use_iterator i = f->use_begin(); i != f->use_end(); ++i)
   {
-    CallInst *I;
-    if (((I = dyn_cast<CallInst>(*i)) && I->getCalledFunction() != f) || I == 0)
+    CallSite C(*i);
+    if (!C || C.getCalledFunction() != f)
       continue;
-    CallInstructions.push_back(I);
+    Calls.push_back(C);
   }
 
-  if (CallInstructions.empty())
+  if (Calls.empty())
     return false;
 
-  FunctionType *rType = buildTransformedFunctionType(f->getContext(),
-                                                     argc,
-                                                     f->getFunctionType());
+  FunctionType *rType = xfrmFType(argc, f->getFunctionType(), f->getContext());
   Function *found = M.getFunction(replacement);
   assert((found == 0 || found->getFunctionType() == rType) && 
     "Replacement function already declared in module with incorrect type");
@@ -216,20 +269,27 @@ FormatStringTransform::transform(Module &M,
   Value *replacementFunc = M.getOrInsertFunction(replacement, rType);
 
   //
-  // Iterate over the found call instructions and replace them with the
-  // transformed calls.
+  // If we get this far, make sure the intrinsics have been declared so we can
+  // call them.
   //
-  for (vector<CallInst*>::iterator i = CallInstructions.begin();
-       i != CallInstructions.end();
-       ++i)
+  if (FSParameter == 0 || FSCallInfo == 0)
+    addFormatStringIntrinsics(M);
+
+  //
+  // Iterate over the found call sites and replace them with transformed
+  // calls.
+  //
+  vector<CallSite>::iterator i = Calls.begin();
+  vector<CallSite>::iterator end = Calls.end();
+  while (i != end)
   {
-    CallInst *OldCall = *i;
-    CallInst *NewCall = buildSecuredCall(replacementFunc, *OldCall);
+    Instruction *OldCall = i->getInstruction();
+    CallInst *NewCall = buildSecuredCall(replacementFunc, *i);
     NewCall->insertBefore(OldCall);
     OldCall->replaceAllUsesWith(NewCall);
     OldCall->eraseFromParent();
-
     ++stat;
+    ++i;
   }
 
   return true;
@@ -244,19 +304,19 @@ FormatStringTransform::fillArraySizes(Module &M)
 {
   LLVMContext &C = M.getContext();
   IRBuilder<> builder(C);
-  const Type *int8ptr = Type::getInt8PtrTy(C);
-  const Type *int32 = Type::getInt32Ty(C);
+  Type *int8ptr = Type::getInt8PtrTy(C);
+  Type *int32 = Type::getInt32Ty(C);
 
   //
   // Make the CallInfo structure allocations the right size.
   //
-  for (map<Function *, unsigned>::iterator i = CallInfoStructUsage.begin();
-       i != CallInfoStructUsage.end();
+  for (map<Function *, unsigned>::iterator i = CallInfoWhitelistSizes.begin();
+       i != CallInfoWhitelistSizes.end();
        ++i)
   {
     Function *f = i->first;
     unsigned count = i->second;
-    const Type *CIType = makeCallInfoType(C, count);
+    Type *CIType = makeCallInfoType(C, count);
     AllocaInst *newAlloc = builder.CreateAlloca(CIType);
     Instruction *newCast = cast<Instruction>(
       builder.CreateBitCast(newAlloc, int8ptr)
@@ -282,13 +342,12 @@ FormatStringTransform::fillArraySizes(Module &M)
   //
   // Make the PointerInfo structure array allocations the right size.
   //
-  for (map<Function *, unsigned>::iterator i = PointerInfoFuncArrayUsage.begin();
-       i != PointerInfoFuncArrayUsage.end();
+  for (map<Function *, unsigned>::iterator i = PointerInfoAllocSizes.begin();
+       i != PointerInfoAllocSizes.end();
        ++i)
   {
     Function *f = i->first;
-    Instruction *oldAlloc  = PointerInfoStructures[f];
-
+    Instruction *oldAlloc = PointerInfoStructures[f];
     Value *sz = ConstantInt::get(int32, i->second);
     AllocaInst *newAlloc = builder.CreateAlloca(PointerInfoType, sz);
     newAlloc->insertBefore(oldAlloc);
@@ -298,38 +357,39 @@ FormatStringTransform::fillArraySizes(Module &M)
 
 }
 
-
 //
-// Builds a call to sc.fsparameter which registers the given parameter as a
+// Builds a call to fsparameter which registers the given parameter as a
 // pointer.
 //
 // Inputs:
-//  i         - the instruction associated with the pointer parameter
-//  parameter - the pointer parameter to register
+//   arg - the pointer value / instruction pair to register
 //
-// The function inserts the call to sc.fsparameter before the instruction i.
-// Since only one call is needed to sc.fsparameter per pointer and instruction,
+// The function inserts the call to fsparameter before the associated
+// instruction.
+// Since only one call is needed to fsparameter per pointer / instruction pair,
 // the function keeps track of redundant calls to itself and returns the same
 // Value each time.
 //
 // Output:
-// The function returns a Value which is the result of wrapping the pointer
-// parameter using sc.fsparameter. The type is i8 *.
+//   The function returns a Value which is the result of wrapping the pointer
+//   parameter using fsparameter. The type is i8 *.
 //
 Value *
-FormatStringTransform::registerPointerParameter(Instruction *i,
-                                                Value *parameter)
+FormatStringTransform::wrapPointerArgument(PointerArgument arg)
 {
   //
   // Determine if the value has already been registered for this instruction.
+  // If so, return the registered value.
   //
-  PointerInfoForParameter index(i, parameter);
+  if (FSParameterCalls.find(arg) != FSParameterCalls.end())
+    return FSParameterCalls[arg];
 
-  if (FSParameterCalls.find(index) != FSParameterCalls.end())
-    return FSParameterCalls[index];
+  Instruction *i = arg.first;
+  Value *ptr     = arg.second;
 
   Function *f = i->getParent()->getParent();
-  IRBuilder<> builder(i->getContext());
+  LLVMContext &ctx = f->getContext();
+  IRBuilder<> builder(ctx);
 
   //
   // Otherwise use the next free PointerInfo structure.
@@ -337,82 +397,76 @@ FormatStringTransform::registerPointerParameter(Instruction *i,
   // First determine if the array of PointerInfo structures has already
   // been allocated on the function's stack. If not, do so.
   //
-  if (PointerInfoStructures.find(f) == PointerInfoStructures.end())
+  if (PointerInfoAllocSizes.find(f) == PointerInfoAllocSizes.end())
   {
-    Value *zero = ConstantInt::get(Type::getInt32Ty(i->getContext()), 0);
+    Value *zero = ConstantInt::get(Type::getInt32Ty(ctx), 0);
     AllocaInst *allocation = builder.CreateAlloca(PointerInfoType, zero);
-
     //
     // Allocate the array at the entry point of the function.
     //
     BasicBlock::InstListType &instList =
       i->getParent()->getParent()->getEntryBlock().getInstList();
     instList.insert(instList.begin(), allocation);
-
     PointerInfoStructures[f] = allocation;
-    PointerInfoFuncArrayUsage[f] = 0;
+    PointerInfoAllocSizes[f] = 0;
   }
 
   if (PointerInfoArrayUsage.find(i) == PointerInfoArrayUsage.end())
     PointerInfoArrayUsage[i] = 0;
 
   //
-  // Index into the next free position in the PointerInfo array.
+  // This is the index of the array that will be used.
   //
   const unsigned nextStructure = PointerInfoArrayUsage[i]++;
-  const Type *int8     = Type::getInt8Ty(i->getContext());
-  const Type *int8ptr  = Type::getInt8PtrTy(i->getContext());
+  Type *int8    = Type::getInt8Ty(ctx);
+  Type *int8ptr = Type::getInt8PtrTy(ctx);
 
   //
   // Update the per-function count of the number of pointer_info structures
   // that are used. This used is for allocating the correct size on the stack in
   // fillArraySizes().
   //
-  PointerInfoFuncArrayUsage[f] =
-    max(PointerInfoFuncArrayUsage[f], 1 + nextStructure);
+  PointerInfoAllocSizes[f] = max(PointerInfoAllocSizes[f], 1 + nextStructure);
 
+  //
+  // Index into the next free position in the PointerInfo array.
+  //
   Value *array = PointerInfoStructures[f];
-
   Instruction *gep = cast<Instruction>(
     builder.CreateConstGEP1_32(array, nextStructure)
   );
   Instruction *bitcast = cast<Instruction>(
     builder.CreateBitCast(gep, int8ptr)
   );
-
   gep->insertBefore(i);
   bitcast->insertBefore(i);
 
   //
-  // Create the sc.fsparameter call and insert it before the given instruction.
+  // Create the fsparameter call and insert it before the given instruction.
   // Also store it for later use if necessary (if the same parameter is
-  // registered for the same instruction)
+  // registered for the same instruction).
   //
-  Value *castedParameter = parameter;
+  Value *castedParameter = ptr;
   if (castedParameter->getType() != int8ptr)
   {
-    castedParameter = builder.CreateBitCast(parameter, int8ptr);
+    castedParameter = builder.CreateBitCast(ptr, int8ptr);
     if (isa<Instruction>(castedParameter))
       cast<Instruction>(castedParameter)->insertBefore(i);
   }
-
   vector<Value *> FSArgs(4);
   FSArgs[0] = ConstantPointerNull::get(cast<PointerType>(int8ptr));
   FSArgs[1] = castedParameter;
   FSArgs[2] = bitcast;
   FSArgs[3] = ConstantInt::get(int8, 0);
-
-  CallInst *FSCall =
-    builder.CreateCall(FSParameter, FSArgs.begin(), FSArgs.end());
+  CallInst *FSCall = builder.CreateCall(FSParameter, FSArgs);
   FSCall->insertBefore(i);
-
-  FSParameterCalls[index] = FSCall;
+  FSParameterCalls[arg] = FSCall;
 
   return FSCall;
 }
 
 //
-// Builds a call to sc.callinfo which registers information about the given
+// Builds a call to callinfo which registers information about the given
 // call to a format string function.
 //
 // Inputs:
@@ -426,33 +480,31 @@ FormatStringTransform::registerPointerParameter(Instruction *i,
 // transformed format string function like pool_printf.
 //
 Value *
-FormatStringTransform::registerCallInformation(Instruction *i,
-                                               uint32_t vargc,
-                                               const set<Value *> &PVArguments)
+FormatStringTransform::addCallInfo(Instruction *i,
+                                   uint32_t vargc,
+                                   const set<Value *> &PVArguments)
 {
-  IRBuilder<> builder(i->getContext());
-
+  LLVMContext &ctx = i->getContext();
+  IRBuilder<> builder(ctx);
   const unsigned pargc = PVArguments.size();
-  const Type *int8ptr  = Type::getInt8PtrTy(i->getContext());
+  Type *int8ptr  = Type::getInt8PtrTy(ctx);
 
   Function *f = i->getParent()->getParent();
-
   //
   // Allocate the CallInfo structure at the entry point of the function if
   // necessary. The allocated structure will be a placeholder.
   //
   if (CallInfoStructures.find(f) == CallInfoStructures.end())
   {
-    Value *zero = ConstantInt::get(Type::getInt32Ty(i->getContext()), 0);
-    const Type *CInfoType = makeCallInfoType(i->getContext(), 0);
+    Value *zero = ConstantInt::get(Type::getInt32Ty(ctx), 0);
+    Type *CInfoType = makeCallInfoType(ctx, 0);
     AllocaInst *allocation = builder.CreateAlloca(CInfoType, zero);
 
     //
-    // Put this CallInfo structure on the stack at the function entry.
+    // Place this allocation at the function entry.
     //
     BasicBlock::InstListType &instList =
       i->getParent()->getParent()->getEntryBlock().getInstList();
-
     instList.insert(instList.begin(), allocation);
 
     //
@@ -465,7 +517,7 @@ FormatStringTransform::registerCallInformation(Instruction *i,
     bitcast->insertAfter(allocation);
 
     CallInfoStructures[f]  = bitcast;
-    CallInfoStructUsage[f] = 0;
+    CallInfoWhitelistSizes[f] = 0;
   }
 
   //
@@ -474,21 +526,19 @@ FormatStringTransform::registerCallInformation(Instruction *i,
   // with enough space to hold a whitelist for each registered
   // call in the function.
   //
-  CallInfoStructUsage[f] = max(CallInfoStructUsage[f], pargc);
+  CallInfoWhitelistSizes[f] = max(CallInfoWhitelistSizes[f], pargc);
 
   Value *cInfo = CallInfoStructures[f];
-
   Value *null = ConstantPointerNull::get(cast<PointerType>(int8ptr));
   vector<Value *> Params;
 
+  //
+  // Build the parameters to the callinfo call.
+  //
   Params.push_back(cInfo);
-
   Params.push_back(
-    ConstantInt::get(Type::getInt32Ty(i->getContext()), vargc)
+    ConstantInt::get(Type::getInt32Ty(ctx), vargc)
   );
-
-  //Params.push_back(null);
-
   set<Value *>::const_iterator start = PVArguments.begin();
   set<Value *>::const_iterator end   = PVArguments.end();
   while (start != end)
@@ -501,8 +551,14 @@ FormatStringTransform::registerCallInformation(Instruction *i,
   // completed call instruction.
   //
   Params.push_back(null);
-  CallInst *c = builder.CreateCall(FSCallInfo, Params.begin(), Params.end());
+  CallInst *c = builder.CreateCall(FSCallInfo, Params);
   c->insertBefore(i);
+  //
+  // Add to the new call instruction any debugging metadata that the old call
+  // had. This will be passed over to the call to the transformed function.
+  //
+  if (MDNode *DebugMetaData = i->getMetadata("dbg"))
+    c->setMetadata("dbg", DebugMetaData);
 
   return c;
 }
@@ -513,55 +569,56 @@ FormatStringTransform::registerCallInformation(Instruction *i,
 // arguments to the old call are first wrapped using sc.fsparameter before
 // being passed into the new call.
 //
+// Inputs:
+//   newFunc - the function to which a call will be built
+//   oldCall - a reference to the CallSite to tranform
+//
+// Returns:
+//   This function returns a CallInst that replaces the old instruction.
+//
 CallInst *
-FormatStringTransform::buildSecuredCall(Value *newFunc,
-                                        CallInst &oldCall)
+FormatStringTransform::buildSecuredCall(Value *newFunc, CallSite &oldCall)
 {
   set<Value *> pointerVArgs;
-
-  const unsigned fargc =
+  const unsigned fargc = \
     oldCall.getCalledFunction()->getFunctionType()->getNumParams();
-  const unsigned argc  = oldCall.getNumOperands() - 1;
+  const unsigned argc  = oldCall.arg_size();
   const unsigned vargc = argc - fargc;
-
-  vector<Value *> NewArgs(1);
-
+  vector<Value *> NewArgs(1 + argc);
+  Instruction *cInst = oldCall.getInstruction();
   //
   // Build the parameters to the new call, creating wrappers with
   // sc.fsparameter when necessary.
   //
-
-  for (unsigned i = 1; i <= argc; ++i)
+  for (unsigned i = 0; i < argc; ++i)
   {
-    Value *arg = oldCall.getOperand(i);
+    Value *arg = oldCall.getArgument(i);
     if (!isa<PointerType>(arg->getType()))
+      NewArgs[i + 1] = arg;
+    else
     {
-      NewArgs.push_back(arg);
-      continue;
+      Value *wrapped = wrapPointerArgument(PointerArgument(cInst, arg));
+      NewArgs[i + 1] = wrapped;
+      //
+      // If this is a variable pointer argument, it should be registered with
+      // the callinfo intrinsic.
+      //
+      if (i >= fargc)
+        pointerVArgs.insert(wrapped);
     }
-    Value *wrapped = registerPointerParameter(&oldCall, arg);
-    NewArgs.push_back(wrapped);
-    //
-    // If this is a variable pointer argument, it should be registered with
-    // sc.callinfo.
-    //
-    if (i > fargc)
-      pointerVArgs.insert(wrapped);
   }
-
   //
-  // Build the CallInfo structure to the new call.
+  // Build the CallInfo structure for the new call.
   //
-  NewArgs[0] = registerCallInformation(&oldCall, vargc, pointerVArgs);
-
+  NewArgs[0] = addCallInfo(cInst, vargc, pointerVArgs);
   //
   // Construct the new call instruction.
   //
-  return CallInst::Create(newFunc, NewArgs.begin(), NewArgs.end());
+  return CallInst::Create(newFunc, NewArgs);
 }
 
 //
-// Creates and stores the type of the PointerInfo structure.
+// Creates the type of the PointerInfo structure.
 // This is defined in FormatStringRuntime.h as
 //
 //   typedef struct
@@ -580,16 +637,15 @@ FormatStringTransform::buildSecuredCall(Value *newFunc,
 //  - flags holds various information about the pointer, regarding completeness
 //    etc.
 //
-const Type *
-FormatStringTransform::makePointerInfoType(LLVMContext &C)
+Type *
+FormatStringTransform::makePointerInfoType(LLVMContext &ctx) const
 {
-  const Type *int8         = Type::getInt8Ty(C);
-  const Type *int8ptr      = Type::getInt8PtrTy(C);
-  const Type *int8ptr_arr2 = ArrayType::get(int8ptr, 2);
-  vector<const Type *> PointerInfoFields =
-    args<const Type *>::list(int8ptr, int8ptr, int8ptr_arr2, int8);
-
-  return (PointerInfoType = StructType::get(C, PointerInfoFields));
+  Type *int8         = Type::getInt8Ty(ctx);
+  Type *int8ptr      = Type::getInt8PtrTy(ctx);
+  Type *int8ptr_arr2 = ArrayType::get(int8ptr, 2);
+  vector<Type *> PointerInfoFields =
+    args<Type *>::list(int8ptr, int8ptr, int8ptr_arr2, int8);
+  return StructType::get(ctx, PointerInfoFields);
 }
 
 //
@@ -614,16 +670,15 @@ FormatStringTransform::makePointerInfoType(LLVMContext &C)
 //    in the array being NULL. These pointers are the only values which the
 //    wrapper callee will treat as vararg pointer arguments.
 //
-const Type *
-FormatStringTransform::makeCallInfoType(LLVMContext &C, unsigned argc)
+Type *
+FormatStringTransform::makeCallInfoType(LLVMContext &ctx, unsigned argc) const
 {
-  const Type *int32       = Type::getInt32Ty(C);
-  const Type *int8ptr     = Type::getInt8PtrTy(C);
-  const Type *int8ptr_arr = ArrayType::get(int8ptr, 1 + argc);
-  vector<const Type *> CallInfoFields =
-    args<const Type *>::list(int32, int32, int32, int8ptr, int8ptr_arr);
-
-  return StructType::get(C, CallInfoFields);
+  Type *int32       = Type::getInt32Ty(ctx);
+  Type *int8ptr     = Type::getInt8PtrTy(ctx);
+  Type *int8ptr_arr = ArrayType::get(int8ptr, 1 + argc);
+  vector<Type *> CallInfoFields =
+    args<Type *>::list(int32, int32, int32, int8ptr, int8ptr_arr);
+  return StructType::get(ctx, CallInfoFields);
 }
 
-NAMESPACE_SC_END
+}

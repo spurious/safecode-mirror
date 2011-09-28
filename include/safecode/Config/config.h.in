@@ -103,6 +103,18 @@
 /* Define to 1 if you have the `fwrite_unlocked' function. */
 #undef HAVE_FWRITE_UNLOCKED
 
+/* Define to 1 if you have the `mempcpy' function. */
+#undef HAVE_MEMPCPY
+
+/* Define to 1 if you have the `strcasestr' function. */
+#undef HAVE_STRCASESTR
+
+/* Define to 1 if you have the `stpcpy' function. */
+#undef HAVE_STPCPY
+
+/* Define to 1 if you have the `strnlen' function. */
+#undef HAVE_STRNLEN
+
 /* Set to 1 if the finite function is found in <ieeefp.h> */
 #undef HAVE_FINITE_IN_IEEEFP_H
 

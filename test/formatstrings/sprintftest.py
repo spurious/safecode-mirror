@@ -1,6 +1,6 @@
 # RUN: mkdir -p %t
 # RUN: python %s > %t/sprintftest.c
-# RUN: test.sh -f -p -t %t %t/sprintftest.c
+# RUN: test.sh -p -t %t %t/sprintftest.c
 
 #
 # Generate a C program to test sprintf().

@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // Call index() on an unterminated string, and the character to find
 // is not inside the string.

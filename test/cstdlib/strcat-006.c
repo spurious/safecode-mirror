@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // strcat() onto the end of an object that is not nul terminated,
 // but the front of the object is.

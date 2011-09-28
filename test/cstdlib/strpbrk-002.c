@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // strpbrk() on an unterminated set of characters to search for.
 

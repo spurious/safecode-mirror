@@ -1,4 +1,4 @@
-// RUN: test.sh -c -p -t %t %s
+// RUN: test.sh -p -t %t %s
 
 // strncat() where the source array does not overlap with the destination
 // string but they share the same terminator. This should pass, since the

@@ -38,7 +38,9 @@
 
 #include "safecode/ArrayBoundsCheck.h"
 #include "safecode/CFIChecks.h"
+#include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
+#include "safecode/FormatStrings.h"
 #include "safecode/InitAllocas.h"
 #include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
@@ -201,6 +203,11 @@ void EmitAssemblyHelper::CreatePasses() {
 
   // Add the memory safety passes
   if (CodeGenOpts.MemSafety) {
+
+    // C standard library / format string function transforms
+    MPM->add (new StringTransform());
+    MPM->add (new FormatStringTransform());
+
     MPM->add (new InitAllocas());
     MPM->add (new RegisterGlobalVariables());
     MPM->add (new RegisterMainArgs());

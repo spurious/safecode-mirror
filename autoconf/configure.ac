@@ -76,6 +76,7 @@ dnl * Checks for library functions.
 dnl **************************************************************************
 
 AC_CHECK_FUNCS(fgetc_unlocked fwrite_unlocked)
+AC_CHECK_FUNCS(mempcpy strcasestr stpcpy strnlen)
 
 dnl **************************************************************************
 dnl * Enable various compile-time options

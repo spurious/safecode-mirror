@@ -38,7 +38,6 @@
 #include "safecode/Utility.h"
 
 #include <cstdlib>
-#include <iostream>
 #include <vector>
 
 using namespace llvm;
@@ -298,9 +297,15 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   const FunctionType * FuncType = F->getFunctionType();
   std::vector<Type *> ParamTypes (FuncType->param_begin(),
                                   FuncType->param_end());
-  ParamTypes.push_back (Int32Type);
-  ParamTypes.push_back (VoidPtrTy);
-  ParamTypes.push_back (Int32Type);
+  //
+  // See note on vararg functions below.
+  //
+  if (!F->isVarArg())
+  {
+    ParamTypes.push_back (Int32Type);
+    ParamTypes.push_back (VoidPtrTy);
+    ParamTypes.push_back (Int32Type);
+  }
 
   //
   // Check to see if the debug version of the function already exists.
@@ -309,9 +314,14 @@ DebugInstrument::transformFunction (Function * F, GetSourceInfo & SI) {
   if (F->getParent()->getFunction(F->getName().str() + "_debug"))
     hadToCreateFunction = false;
 
+  //
+  // Create the expected type of the debug version. Note: For functions that
+  // take a variable number of arguments, this is set up so that the debugging
+  // information will be pushed back at the end of the variable argument list.
+  //
   FunctionType * DebugFuncType = FunctionType::get (FuncType->getReturnType(),
                                                     ParamTypes,
-                                                    false);
+                                                    F->isVarArg());
   std::string funcdebugname = F->getName().str() + "_debug";
   Constant * FDebug = F->getParent()->getOrInsertFunction (funcdebugname,
                                                            DebugFuncType);
@@ -447,39 +457,43 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_unregister"), LInfo);
   transformFunction (M.getFunction ("pool_unregister_stack"), LInfo);
 
-  // Standard C library functions
-  transformFunction(M.getFunction("pool_strcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_strncpy"), LInfo);
-  transformFunction(M.getFunction("pool_strlen"),  LInfo);
-  transformFunction(M.getFunction("pool_strchr"),  LInfo);
-  transformFunction(M.getFunction("pool_strrchr"), LInfo);
-  transformFunction(M.getFunction("pool_strncat"), LInfo);
-  transformFunction(M.getFunction("pool_strcat"),  LInfo);
-  transformFunction(M.getFunction("pool_strstr"),  LInfo);
-  transformFunction(M.getFunction("pool_strpbrk"), LInfo);
+  // Format string function intrinsic
+  transformFunction (M.getFunction ("__sc_fscallinfo"), LInfo);
 
-  transformFunction(M.getFunction("pool_strcmp"),  LInfo);
-  transformFunction(M.getFunction("pool_strncmp"), LInfo);
-  transformFunction(M.getFunction("pool_memcmp"),  LInfo);
-  transformFunction(M.getFunction("pool_strspn"),  LInfo);
-  transformFunction(M.getFunction("pool_strcspn"), LInfo);
-  transformFunction(M.getFunction("pool_memccpy"), LInfo);
-  transformFunction(M.getFunction("pool_memchr"),  LInfo);
-  transformFunction(M.getFunction("pool_stpcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_bcmp"),    LInfo);
-  transformFunction(M.getFunction("pool_bcopy"),   LInfo);
-  transformFunction(M.getFunction("pool_index"),   LInfo);
-  transformFunction(M.getFunction("pool_rindex"),  LInfo);
-  transformFunction(M.getFunction("pool_strcasestr"),  LInfo);
-  transformFunction(M.getFunction("pool_strcasecmp"),  LInfo);
-  transformFunction(M.getFunction("pool_strncasecmp"), LInfo);
-
-#if 0
-  transformFunction(M.getFunction("pool_memcpy"),  LInfo);
-  transformFunction(M.getFunction("pool_mempcpy"), LInfo);
-  transformFunction(M.getFunction("pool_memmove"), LInfo);
-  transformFunction(M.getFunction("pool_memset"),  LInfo);
-#endif
+  // Standard C library wrappers
+  transformFunction (M.getFunction ("pool_memccpy"), LInfo);
+  transformFunction (M.getFunction ("pool_memchr"), LInfo);
+  transformFunction (M.getFunction ("pool_memcmp"), LInfo);
+  transformFunction (M.getFunction ("pool_memcpy"), LInfo);
+  transformFunction (M.getFunction ("pool_memmove"), LInfo);
+  transformFunction (M.getFunction ("pool_memset"), LInfo);
+  transformFunction (M.getFunction ("pool_strcat"), LInfo);
+  transformFunction (M.getFunction ("pool_strchr"), LInfo);
+  transformFunction (M.getFunction ("pool_strcmp"), LInfo);
+  transformFunction (M.getFunction ("pool_strcoll"), LInfo);
+  transformFunction (M.getFunction ("pool_strcpy"), LInfo);
+  transformFunction (M.getFunction ("pool_strcspn"), LInfo);
+  transformFunction (M.getFunction ("pool_strlen"), LInfo);
+  transformFunction (M.getFunction ("pool_strncat"), LInfo);
+  transformFunction (M.getFunction ("pool_strncmp"), LInfo);
+  transformFunction (M.getFunction ("pool_strncpy"), LInfo);
+  transformFunction (M.getFunction ("pool_strpbrk"), LInfo);
+  transformFunction (M.getFunction ("pool_strrchr"), LInfo);
+  transformFunction (M.getFunction ("pool_strspn"), LInfo);
+  transformFunction (M.getFunction ("pool_strstr"), LInfo);
+  transformFunction (M.getFunction ("pool_strxfrm"), LInfo);
+  transformFunction (M.getFunction ("pool_mempcpy"), LInfo);
+  transformFunction (M.getFunction ("pool_strcasestr"), LInfo);
+  transformFunction (M.getFunction ("pool_stpcpy"), LInfo);
+  transformFunction (M.getFunction ("pool_strnlen"), LInfo);
+  transformFunction (M.getFunction ("pool_bcmp"), LInfo);
+  transformFunction (M.getFunction ("pool_bcopy"), LInfo);
+  transformFunction (M.getFunction ("pool_bzero"), LInfo);
+  transformFunction (M.getFunction ("pool_index"), LInfo);
+  transformFunction (M.getFunction ("pool_rindex"), LInfo);
+  transformFunction (M.getFunction ("pool_strcasestr"), LInfo);
+  transformFunction (M.getFunction ("pool_strcasecmp"), LInfo);
+  transformFunction (M.getFunction ("pool_strncasecmp"), LInfo);
 
   return true;
 }

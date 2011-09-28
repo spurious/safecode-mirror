@@ -1,4 +1,4 @@
-// RUN: test.sh -c -p -t %t %s
+// RUN: test.sh -p -t %t %s
 
 // This is an example of the correct usage of index().
 

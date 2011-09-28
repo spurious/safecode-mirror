@@ -1,6 +1,6 @@
 /*
 
-  RUN: test.sh -f -p -t %t %s
+  RUN: test.sh -p -t %t %s
 
  */
 

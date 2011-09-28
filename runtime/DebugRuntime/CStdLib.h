@@ -1,4 +1,4 @@
-//===------- CStdLib.h - CStdLib transform pass runtime helper functions -------===//
+//===------- CStdLib.h - CStdLib runtime helper functions -----------------===//
 // 
 //                          The SAFECode Compiler
 //
@@ -9,10 +9,12 @@
 //
 // This file provides all external functions included by the CStdLib pass.
 //
-//===--------------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #ifndef _CSTDLIB_H
 #define _CSTDLIB_H
+
+#include "../include/CStdLibSupport.h"
 
 #include "DebugReport.h"
 #include "PoolAllocator.h"
@@ -25,6 +27,7 @@
 // Default versions of arguments to debug functions
 #define DEFAULT_TAG 0
 #define DEFAULT_SRC_INFO "<Unknown>", 0
+#define DEFAULTS DEFAULT_TAG, DEFAULT_SRC_INFO
 #define SRC_INFO_ARGS SourceFile, lineNo
 
 using namespace llvm;
@@ -104,7 +107,7 @@ namespace {
 
 
   extern "C" {
-    inline size_t strnlen(const char *s, size_t maxlen) {
+    inline size_t _strnlen(const char *s, size_t maxlen) {
       size_t i;
       for (i = 0; i < maxlen && s[i]; ++i)
         ;
@@ -173,7 +176,7 @@ namespace {
   inline bool
   isTerminated(const char *start, void *end, size_t &p) {
     size_t max = 1 + ((char *)end - (const char *)start), len;
-    len = strnlen((const char *)start, max);
+    len = _strnlen((const char *)start, max);
     p = len;
     if (len == max)
       return false;
@@ -195,9 +198,9 @@ namespace {
    */
   inline bool
   isOverlapped(const void* ptr1Start, 
-                           const void* ptr1End, 
-                           const void* ptr2Start, 
-                           const void* ptr2End){
+               const void* ptr1End, 
+               const void* ptr2Start, 
+               const void* ptr2End) {
     if( ((long int)ptr1Start>(long int)ptr2End && (long int)ptr1End>(long int)ptr2Start) || 
         ((long int)ptr1Start<(long int)ptr2End && (long int)ptr1End<(long int)ptr2Start)  )
       return false;
@@ -239,6 +242,14 @@ namespace {
      completeness bitwise vector. */
   #define ARG1_COMPLETE(c) ((bool) (c & 0x1))
   #define ARG2_COMPLETE(c) ((bool) (c & 0x2))
+
+  /* Return the number of bytes between a and b, inclusive. */
+  static inline size_t byte_range(const void *a, const void *b) {
+    return 1 + (char *) b - (char *) a;
+  }
+
+  /* Use this stream for reporting errors. */
+  static std::ostream &err = std::cout;
 
   /**
    * This function attempts to verify that given string pointer points to

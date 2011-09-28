@@ -1,6 +1,6 @@
 # RUN: mkdir -p %t
 # RUN: python %s > %t/sscanftest.c
-# RUN: test.sh -f -p -t %t %t/sscanftest.c
+# RUN: test.sh -p -t %t %t/sscanftest.c
 
 #
 # Generate a C program to test sscanf().
@@ -126,6 +126,7 @@ def build_test(n, input, fmt, rval, wrvals):
 top = \
 '''#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 /* Very crude floating point equality tests. */

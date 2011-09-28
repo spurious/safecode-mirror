@@ -1,7 +1,7 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // Call strchr() on an unterminated string, and the character
-// to find is inside the string.
+// to find is not inside the string.
 
 #include <string.h>
 
@@ -9,6 +9,6 @@ int main()
 {
   char a[1000];
   memset(a, 'a', 1000);
-  strchr(a, 'a');
+  strchr(a, 't');
   return 0;
 }

@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // Call index() on an unterminated tail.
 
@@ -7,6 +7,6 @@
 int main()
 {
   char string[6] = "\00012345";
-  index(&string[1], '5');
+  index(&string[1], '6');
   return 0;
 }

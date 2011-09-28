@@ -8,9 +8,9 @@ PARALLEL_DIRS = \
                OptimizeChecks \
                RewriteOOB \
                DebugInstrumentation \
+               FormatStrings \
+               CStdLib \
 #               BaggyBoundsChecks \
-#               CStdLib \
-#               FormatStrings \
 #               StackSafety \
 #               SpeculativeChecking \
 #               DanglingPointers \

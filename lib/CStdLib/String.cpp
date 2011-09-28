@@ -12,70 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-//
-// The CStdLib Transformations
-//
-// The following files contain all modifications relevant to this functionality:
-//
-// In SAFECode:
-//
-//   include/runtime/DebugRuntime/CStdlib.h:
-//     This file contains helper functions for the runtime wrapper functions.
-//
-//   include/runtime/DebugRuntime/string.cpp:
-//   include/runtime/DebugRuntime/strings.cpp:
-//     These are the locations for the implementations of the runtime wrapper
-//     functions. string.cpp holds functions from string.h; strings.cpp holds
-//     functions which are from strings.h.
-//
-//   include/safecode/CStdLib.h:
-//   lib/CStdLib/String.cpp:
-//     This is the StringTransform pass which replaces CStdLib function calls
-//     with calls to runtime wrapper functions.
-//
-//   include/safecode/CompleteChecks.h:
-//   lib/InsertPoolChecks/CompleteChecks.cpp:
-//     The CompleteChecks::makeCStdLibCallsComplete() method fills in the
-//     bitwise completeness vectors for the transformed runtime function calls.
-//
-//   lib/DebugInstrumentation/DebugInstrumentation.cpp:
-//     This contains information on adding debugging instrumentation to the
-//     runtime function calls.
-//  
-//   tools/Sc/sc.cpp:
-//     This sets up the StringTransform and other passes, and contains a table
-//     for lowering the intrinsic names.
-//
-//   test/Makefile:
-//   test/cstdlib/*:
-//     Test suite specifically for CStdLib functions.
-//
-// In poolalloc:
-//
-//   include/dsa/CStdLib.h:
-//     This header contains a table with pool argument count information for
-//     the runtime wrapper functions.
-//
-//   include/PoolAlloc/PoolAllocate.h:
-//   lib/PoolAllocate/PoolAllocate.cpp:
-//     The PoolAllocate class includes a function used to access the information
-//     in the CStdLib pool argument count table.
-//
-//   lib/PoolAllocate/TransformFunctionBody.cpp:
-//     This pass inserts the pools into the runtime functions during Automatic
-//     Pool Allocation.
-//
-//   lib/PoolAllocate/PASimple.cpp:
-//     This pass inserts the pools into the runtime functions during Simple
-//     Pool Allocation.
-//
-//   lib/DSA/StdLibPass.cpp:
-//     This file contains a table with entries to allow DSA to recognize the
-//     runtime wrapper functions.
-//
-
-
 //
 // To add a new function to the CStdLib checks, the following modifications are
 // necessary:
@@ -83,12 +19,10 @@
 // In SAFECode:
 //
 //   - Add the pool_* prototype of the function to
-//     include/safecode/Runtime/DebugRuntime.h.
+//     runtime/include/CStdLibSupport.h.
 //
 //   - Implement the pool_* version of the function in the relevant file in
 //     runtime/DebugRuntime.
-//
-//   - Add the pool_* function to the RuntimeDebug table in tools/Sc/sc.cpp.
 //
 //   - Add debug instrumentation information to
 //     lib/DebugInstrumentation/DebugInstrumentation.cpp.
@@ -108,56 +42,65 @@
 
 
 #include "safecode/CStdLib.h"
+#include "safecode/Config/config.h"
 
-NAMESPACE_SC_BEGIN
+using namespace llvm;
+
+namespace llvm
+{
 
 // Identifier variable for the pass
 char StringTransform::ID = 0;
 
 // Statistics counters
 
-#if 0
-STATISTIC(stat_transform_memcpy, "Total memcpy() calls transformed");
-STATISTIC(stat_transform_memmove, "Total memmove() calls transformed");
-STATISTIC(stat_transform_mempcpy, "Total mempcpy() calls transformed");
-STATISTIC(stat_transform_memset, "Total memset() calls transformed");
-STATISTIC(stat_transform_strlcat, "Total strlcat() calls transformed");
-STATISTIC(stat_transform_strlcpy, "Total strlcpy() calls transformed");
-STATISTIC(stat_transform_wcscpy, "Total wcscpy() calls transformed");
-STATISTIC(stat_transform_wmemcpy, "Total wmemcpy() calls transformed");
-STATISTIC(stat_transform_wmemmove, "Total wmemmove() calls transformed");
+STATISTIC(st_xform_memccpy, "Total memccpy() calls transformed");
+STATISTIC(st_xform_memchr,  "Total memchr() calls transformed");
+STATISTIC(st_xform_memcmp,  "Total memcmp() calls transformed");
+STATISTIC(st_xform_memcpy,  "Total memcpy() calls transformed");
+STATISTIC(st_xform_memmove, "Total memmove() calls transformed");
+STATISTIC(st_xform_memset,  "Total memset() calls transformed");
+STATISTIC(st_xform_strcat,  "Total strcat() calls transformed");
+STATISTIC(st_xform_strchr,  "Total strchr() calls transformed");
+STATISTIC(st_xform_strcmp,  "Total strcmp() calls transformed");
+STATISTIC(st_xform_strcoll, "Total strcoll() calls transformed");
+STATISTIC(st_xform_strcpy,  "Total strcpy() calls transformed");
+STATISTIC(st_xform_strcspn, "Total strcspn() calls transformed");
+// strerror_r
+STATISTIC(st_xform_strlen,  "Total strlen() calls transformed");
+STATISTIC(st_xform_strncat, "Total strncat() calls transformed");
+STATISTIC(st_xform_strncmp, "Total strncmp() calls transformed");
+STATISTIC(st_xform_strncpy, "Total strncpy() calls transformed");
+STATISTIC(st_xform_strpbrk, "Total strpbrk() calls transformed");
+STATISTIC(st_xform_strrchr, "Total strrchr() calls transformed");
+STATISTIC(st_xform_strspn,  "Total strspn() calls transformed");
+STATISTIC(st_xform_strstr,  "Total strstr() calls transformed");
+STATISTIC(st_xform_strxfrm, "Total strxfrm() calls transformed");
+// strtok, strtok_r, strxfrm
+
+#ifdef HAVE_MEMPCPY
+STATISTIC(st_xform_mempcpy,  "Total mempcpy() calls transformed");
+#endif
+#ifdef HAVE_STRCASESTR
+STATISTIC(st_xform_strcasestr,  "Total strcasestr() calls transformed");
+#endif
+#ifdef HAVE_STPCPY
+STATISTIC(st_xform_stpcpy,  "Total stpcpy() calls transformed");
+#endif
+#ifdef HAVE_STRNLEN
+STATISTIC(st_xform_strnlen, "Total strnlen() calls transformed");
 #endif
 
-STATISTIC(stat_transform_strncpy, "Total strncpy() calls transformed");
-STATISTIC(stat_transform_strcpy,  "Total strcpy() calls transformed");
-STATISTIC(stat_transform_stpcpy,  "Total stpcpy() calls transformed");
-STATISTIC(stat_transform_strlen,  "Total strlen() calls transformed");
-STATISTIC(stat_transform_strnlen, "Total strnlen() calls transformed");
-STATISTIC(stat_transform_strchr,  "Total strchr() calls transformed");
-STATISTIC(stat_transform_strrchr, "Total strrchr() calls transformed");
-STATISTIC(stat_transform_strcat,  "Total strcat() calls transformed");
-STATISTIC(stat_transform_strncat, "Total strncat() calls transformed");
-STATISTIC(stat_transform_strstr,  "Total strstr() calls transformed");
-STATISTIC(stat_transform_strpbrk, "Total strpbrk() calls transformed");
-STATISTIC(stat_transform_strcmp,  "Total strcmp() calls transformed");
-STATISTIC(stat_transform_strncmp, "Total strncmp() calls transformed");
-STATISTIC(stat_transform_memcmp,  "Total memcmp() calls transformed");
-STATISTIC(stat_transform_strspn,  "Total strspn() calls transformed");
-STATISTIC(stat_transform_strcspn, "Total strcspn() calls transformed");
-STATISTIC(stat_transform_memccpy, "Total memccpy() calls transformed");
-STATISTIC(stat_transform_memchr,  "Total memchr() calls transformed");
-STATISTIC(stat_transform_bcmp,    "Total bcmp() calls transformed");
-STATISTIC(stat_transform_bcopy,   "Total bcopy() calls transformed");
-STATISTIC(stat_transform_index,   "Total index() calls transformed");
-STATISTIC(stat_transform_rindex,  "Total rindex() calls transformed");
-STATISTIC(stat_transform_strcasestr,  "Total strcasestr() calls transformed");
-STATISTIC(stat_transform_strcasecmp,  "Total strcasecmp() calls transformed");
-STATISTIC(stat_transform_strncasecmp, "Total strncasecmp() calls transformed");
-
+STATISTIC(st_xform_bcmp,    "Total bcmp() calls transformed");
+STATISTIC(st_xform_bcopy,   "Total bcopy() calls transformed");
+STATISTIC(st_xform_bzero,   "Total bzero() calls transformed");
+STATISTIC(st_xform_index,   "Total index() calls transformed");
+STATISTIC(st_xform_rindex,  "Total rindex() calls transformed");
+STATISTIC(st_xform_strcasecmp,  "Total strcasecmp() calls transformed");
+STATISTIC(st_xform_strncasecmp, "Total strncasecmp() calls transformed");
 
 static RegisterPass<StringTransform>
 ST("string_transform", "Secure C standard string library calls");
-
 
 /**
  * Entry point for the LLVM pass that transforms C standard string library calls
@@ -166,55 +109,65 @@ ST("string_transform", "Secure C standard string library calls");
  * @return  Whether we modified the module
  */
 bool
-StringTransform::runOnModule(Module &M) {
+StringTransform::runOnModule(Module &M)
+{
   // Flags whether we modified the module.
   bool modified = false;
 
   tdata = &getAnalysis<TargetData>();
 
   // Create needed pointer types (char * == i8 * == VoidPtrTy).
-  const Type *Int8Ty  = IntegerType::getInt8Ty(M.getContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
+  Type *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());
   // Determine the type of size_t for functions that return this result.
-  const Type *SizeTTy = tdata->getIntPtrType(M.getContext());
-  const Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
-  const Type *VoidTy  = Type::getVoidTy(M.getContext());
+  Type *SizeTTy = tdata->getIntPtrType(M.getContext());
+  // Create other return types (int, void).
+  Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  Type *VoidTy  = Type::getVoidTy(M.getContext());
 
-  modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, stat_transform_strcpy);
-  modified |= transform(M, "stpcpy",  2, 2, VoidPtrTy, stat_transform_stpcpy);
-  modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, stat_transform_strncpy);
-  modified |= transform(M, "strlen",  1, 1, SizeTTy,   stat_transform_strlen);
-  modified |= transform(M, "strnlen", 2, 1, SizeTTy,   stat_transform_strnlen);
-  modified |= transform(M, "strchr",  2, 1, VoidPtrTy, stat_transform_strchr);
-  modified |= transform(M, "strrchr", 2, 1, VoidPtrTy, stat_transform_strrchr);
-  modified |= transform(M, "strcat",  2, 2, VoidPtrTy, stat_transform_strcat);
-  modified |= transform(M, "strncat", 3, 2, VoidPtrTy, stat_transform_strncat);
-  modified |= transform(M, "strstr",  2, 2, VoidPtrTy, stat_transform_strstr);
-  modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, stat_transform_strpbrk);
-  modified |= transform(M, "strcmp",  2, 2, Int32Ty,   stat_transform_strcmp);
-  modified |= transform(M, "strncmp", 3, 2, Int32Ty,   stat_transform_strncmp);
-  modified |= transform(M, "memcmp",  3, 2, Int32Ty,   stat_transform_memcmp);
-  modified |= transform(M, "strcspn", 2, 2, SizeTTy,   stat_transform_strcspn);
-  modified |= transform(M, "strspn",  2, 2, SizeTTy,   stat_transform_strspn);
-  modified |= transform(M, "memccpy", 4, 2, VoidPtrTy, stat_transform_memccpy);
-  modified |= transform(M, "memchr",  3, 1, VoidPtrTy, stat_transform_memchr);
-  modified |= transform(M, "bcmp",    3, 2, Int32Ty,   stat_transform_bcmp);
-  modified |= transform(M, "bcopy",   3, 2, VoidTy,    stat_transform_bcopy);
-  modified |= transform(M, "index",   2, 1, VoidPtrTy, stat_transform_index);
-  modified |= transform(M, "rindex",  2, 1, VoidPtrTy, stat_transform_rindex);
-  modified |= transform(M, "strcasestr",  2, 2, VoidPtrTy,
-    stat_transform_strcasestr);
-  modified |= transform(M, "strcasecmp",  2, 2, Int32Ty,
-    stat_transform_strcasecmp);
-  modified |= transform(M, "strncasecmp", 3, 2, Int32Ty,
-    stat_transform_strncasecmp);
-
-#if 0
-  modified |= transform(M, "memcpy", 3, 2, VoidPtrTy, stat_transform_memcpy);
-  modified |= transform(M, "memmove", 3, 2, VoidPtrTy, stat_transform_memmove);
-  modified |= transform(M, "mempcpy", 3, 2, VoidPtrTy, stat_transform_mempcpy);
-  modified |= transform(M, "memset", 3, 1, VoidPtrTy, stat_transform_memset);
+  // Functions from <string.h>
+  modified |= transform(M, "memccpy", 4, 2, VoidPtrTy, st_xform_memccpy);
+  modified |= transform(M, "memchr",  3, 1, VoidPtrTy, st_xform_memchr);
+  modified |= transform(M, "memcmp",  3, 2, Int32Ty,   st_xform_memcmp);
+  modified |= transform(M, "memcpy",  3, 2, Int32Ty,   st_xform_memcpy);
+  modified |= transform(M, "memmove", 3, 2, VoidPtrTy, st_xform_memmove);
+  modified |= transform(M, "memset",  2, 1, VoidPtrTy, st_xform_memset);
+  modified |= transform(M, "strcat",  2, 2, VoidPtrTy, st_xform_strcat);
+  modified |= transform(M, "strchr",  2, 1, VoidPtrTy, st_xform_strchr);
+  modified |= transform(M, "strcmp",  2, 2, Int32Ty,   st_xform_strcmp);
+  modified |= transform(M, "strcoll", 2, 2, Int32Ty,   st_xform_strcoll);
+  modified |= transform(M, "strcpy",  2, 2, VoidPtrTy, st_xform_strcpy);
+  modified |= transform(M, "strcspn", 2, 2, SizeTTy,   st_xform_strcspn);
+  // modified |= handle_strerror_r(M);
+  modified |= transform(M, "strlen",  1, 1, SizeTTy,   st_xform_strlen);
+  modified |= transform(M, "strncat", 3, 2, VoidPtrTy, st_xform_strncat);
+  modified |= transform(M, "strncmp", 3, 2, Int32Ty,   st_xform_strncmp);
+  modified |= transform(M, "strncpy", 3, 2, VoidPtrTy, st_xform_strncpy);
+  modified |= transform(M, "strpbrk", 2, 2, VoidPtrTy, st_xform_strpbrk);
+  modified |= transform(M, "strrchr", 2, 1, VoidPtrTy, st_xform_strrchr);
+  modified |= transform(M, "strspn",  2, 2, SizeTTy,   st_xform_strspn);
+  modified |= transform(M, "strstr",  2, 2, VoidPtrTy, st_xform_strstr);
+  modified |= transform(M, "strxfrm", 3, 2, SizeTTy,   st_xform_strxfrm);
+  // Extensions to <string.h>
+#ifdef HAVE_MEMPCPY
+  modified |= transform(M, "mempcpy", 3, 2, VoidPtrTy, st_xform_mempcpy);
 #endif
+#ifdef HAVE_STRCASESTR
+  modified |= transform(M, "strcasestr", 2, 2, VoidPtrTy, st_xform_strcasestr);
+#endif
+#ifdef HAVE_STPCPY
+  modified |= transform(M, "stpcpy",  2, 2, VoidPtrTy, st_xform_stpcpy);
+#endif
+#ifdef HAVE_STRNLEN
+  modified |= transform(M, "strnlen", 2, 1, SizeTTy,   st_xform_strnlen);
+#endif
+  // Functions from <strings.h>
+  modified |= transform(M, "bcmp",    3, 2, Int32Ty,   st_xform_bcmp);
+  modified |= transform(M, "bcopy",   3, 2, VoidTy,    st_xform_bcopy);
+  modified |= transform(M, "bzero",   2, 1, VoidTy,    st_xform_bzero);
+  modified |= transform(M, "index",   2, 1, VoidPtrTy, st_xform_index);
+  modified |= transform(M, "rindex",  2, 1, VoidPtrTy, st_xform_rindex);
+  modified |= transform(M, "strcasecmp", 2, 2, Int32Ty, st_xform_strcasecmp);
+  modified |= transform(M, "strncasecmp", 3, 2, Int32Ty, st_xform_strncasecmp);
 
   return modified;
 }
@@ -256,105 +209,99 @@ StringTransform::transform(Module &M,
                            const unsigned argc,
                            const unsigned pool_argc,
                            const Type *ReturnTy,
-                           Statistic &statistic) {
-  // Flag whether we modified the module.
-  bool modified = false;
+                           Statistic &statistic)
+{
+  // Check whether the number of pool arguments is small enough for all
+  // pointer completeness information to be contained in one 8-bit quantity.
+  assert(pool_argc <= 8 && "Unsupported number of pointer arguments!");
 
-  // Create void pointer type for null pool handle.
-  const Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
+  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
+  // The pool handle type is a void pointer (i8 *).
+  PointerType *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());
   Function *F = M.getFunction(FunctionName);
   if (!F)
-    return modified;
+    return false; // Function does not exist in module.
 
-  // Scan through the module for the desired function to transform.
-  for (Value::use_iterator UI = F->use_begin(), UE = F->use_end(); UI != UE;) {
-    Instruction *I = dyn_cast<Instruction>(UI);
-    ++UI; // Replacement invalidates the user,
-          // so must increment the iterator beforehand.
+  std::vector<Instruction *> toModify;
+  std::vector<Instruction *>::iterator modifyIter, modifyEnd;
 
+  // Scan through the module for calls of the desired function to transform.
+  for (Value::use_iterator UI = F->use_begin(), UE = F->use_end();
+       UI != UE;
+       ++UI)
+  {
+    Instruction *I = dyn_cast<Instruction>(*UI);
     if (!I)
       continue;
-
-    uint8_t complete = 0;
     CallSite CS(I);
     Function *CalledF = CS.getCalledFunction();
-
     if (F != CalledF)
       continue;
-
     // Check that the function uses the correct number of arguments.
-    if (CS.arg_size() != argc) {
-      I->dump();
-      assert(CS.arg_size() == argc && "Incorrect number of arguments!");
-      continue;
-    }
-
+    assert(CS.arg_size() == argc && "Incorrect number of arguments!");
     // Check for correct return type.
     if (CalledF->getReturnType() != ReturnTy)
       continue;
+    toModify.push_back(I);
+  }
 
-    // Create null pool handles.
-    Value *PH = ConstantPointerNull::get(VoidPtrTy);
+  // Return early if we've found nothing to modify.
+  if (toModify.empty())
+    return false;
 
+  FunctionType *F_type = F->getFunctionType();
+  // Build the type of the transformed function. This type has pool_argc
+  // initial arguments of type i8 *.
+  std::vector<Type *> ParamTy(pool_argc, VoidPtrTy);
+  // Append the argument types of the original function to the new function's
+  // argument types.
+  for (unsigned i = 0; i < F_type->getNumParams(); ++i)
+    ParamTy.push_back(F_type->getParamType(i));
+  // Finally append the type for the completeness bit vector.
+  ParamTy.push_back(Int8Ty);
+  FunctionType *FT = FunctionType::get(F_type->getReturnType(), ParamTy, false);
+  // Build the actual transformed function.
+  Constant *F_pool = M.getOrInsertFunction("pool_" + FunctionName.str(), FT);
+
+  // This is a placeholder value for the pool handles (to be "filled in" later
+  // by poolalloc).
+  Value *PH = ConstantPointerNull::get(VoidPtrTy);
+
+  // Transform every valid use of the function that was found.
+  for (modifyIter = toModify.begin(), modifyEnd = toModify.end();
+       modifyIter != modifyEnd;
+       ++modifyIter)
+  {
+    Instruction *I = cast<Instruction>(*modifyIter);
     // Construct vector of parameters to transformed function call.
-    SmallVector<Value *, 6> Params;
-
-    if (pool_argc <= 8) {
-      // Insert space for the pool handles.
-      for (unsigned i = 1; i <= pool_argc; i++) {
-        Params.push_back(PH);
-      }
-      // Insert the original parameters.
-      for (unsigned i = 1; i <= pool_argc; i++) {
-        Params.push_back(I->getOperand(i));
-      }
-    } else {
-      assert("Unsupported number of pool arguments!");
-      continue;
+    std::vector<Value *> Params;
+    // Insert space for the pool handles.
+    for (unsigned i = 0; i < pool_argc; i++)
+      Params.push_back(PH);
+    // Insert the original parameters.
+    for (unsigned i = 0; i < argc; i++)
+    {
+      Value *f = I->getOperand(i);
+      Params.push_back(f);
     }
-
-    // FunctionType::get() needs std::vector<>
-    std::vector<const Type *> ParamTy(2 * pool_argc, VoidPtrTy);
-
-    const Type *Ty = NULL;
-
-    // Add the remaining (non-pool) arguments.
-    if (argc > pool_argc) {
-      unsigned i = argc - pool_argc;
-
-      for (; i > 0; --i) {
-        Params.push_back(I->getOperand(argc - i + 1));
-        Ty = I->getOperand(argc - i + 1)->getType();
-        ParamTy.push_back(Ty);
-      }
-    }
-
     // Add the DSA completeness bitwise vector.
-    Params.push_back(ConstantInt::get(Int8Ty, complete));
-    ParamTy.push_back(Int8Ty);
-
-    // Construct the transformed function.
-    FunctionType *FT = FunctionType::get(F->getReturnType(), ParamTy, false);
-    Constant *F_pool = M.getOrInsertFunction("pool_" + FunctionName.str(), FT);
-
+    Params.push_back(ConstantInt::get(Int8Ty, 0));
     // Create the call instruction for the transformed function and insert it
     // before the current instruction.
-    CallInst *C = CallInst::Create(F_pool, Params.begin(), Params.end(), "", I);
-    
+    CallInst *C = CallInst::Create(F_pool, Params, "", I);
+    // Transfer debugging metadata if it exists from the old call into the new
+    // one.
+    if (MDNode *DebugNode = I->getMetadata("dbg"))
+      C->setMetadata("dbg", DebugNode);
     // Replace all uses of the function with its transformed equivalent.
     I->replaceAllUsesWith(C);
     I->eraseFromParent();
-
-    // Record the transform.
+    // Record the transformation.
     ++statistic;
-
-    // Mark the module as modified and continue to the next function call.
-    modified = true;
   }
 
-  return modified;
+  // If we've reached here, the module has been modified.
+  return true;
 }
 
-NAMESPACE_SC_END
+}

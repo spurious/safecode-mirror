@@ -1,4 +1,4 @@
-// RUN: test.sh -c -e -t %t %s
+// RUN: test.sh -e -t %t %s
 
 // stpcpy() with destination buffer too short for source string.
 // SAFECode should complain.

@@ -8,7 +8,7 @@ LEVEL=../..
 #
 # Give the name of a library.  This will build a dynamic version.
 #
-LIBRARYNAME=FormatStrings
+LIBRARYNAME=formatstrings
 
 #
 # Include Makefile.common so we know what to do.

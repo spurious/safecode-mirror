@@ -5,8 +5,6 @@
 #
 
 expect_error=1
-format_strings=0
-cstdlib_checks=0
 
 usage()
 {
@@ -15,16 +13,12 @@ usage()
   echo '   -t dir    directory to use for testing'
   echo '   -p        expect no SAFEcode errors from the test case'
   echo '   -e        expect a SAFEcode error from the test case'
-  echo '   -c        enable CStdLib runtime checks'
-  echo '   -f        enable format string function runtime checks'
 }
 
 # Process the arguments.
 while getopts hept:cf option
   do
     case $option in
-      f) format_strings=1;;
-      c) cstdlib_checks=1;;
       e) expect_error=1;;
       p) expect_error=0;;
       t) testdir=$OPTARG;;
@@ -44,12 +38,8 @@ then
   exit 1
 fi
 
-llvmgcc=@LLVMGCC@
-gxx=@CXX@
 sc=@SC@
-llc=@LLC@
 sc_lib=@SC_LIB@
-llvmas=@LLVMAS@
 
 filename=$1
 # Directory to use for temporary files.
@@ -63,16 +53,12 @@ case $filebase in
      *) echo "unknown file type"
         exit 1;;
 esac
-# Bitcode object
-bcfile=$testdir/${prefix}.bc
-# Bitcode with SAFECode transformations
-scobj=$testdir/${prefix}.sc.bc
-# Compiled version of SAFECode transformations
-scasm=$testdir/${prefix}.sc.s
+# SAFECode-compiled bitcode
+llfile=$testdir/${prefix}.sc.ll
+# Compiled executable
+scfile=$testdir/${prefix}.sc
 # SAFECode compilation log
 sclog=$testdir/${prefix}.sc.log
-# Final executable
-scfile=$testdir/${prefix}.sc
 # Executable output
 scout=$testdir/${prefix}.sc.output
 
@@ -87,44 +73,15 @@ setupdir()
 {
   # Add temporary directory.
   mkdir -p $testdir
-  # Remove previous temporary files, if any.
-  rm -f $bcfile $scobj $scasm $scfile $scout
 }
 
 # Compile the bitcode of the test.
 compile()
 {
-  # Compile input file to bitcode.
-  case $filetype in
-     c) $llvmgcc -c -emit-llvm -o $bcfile $filename;;
-    ll) $llvmas $filename -o $bcfile;;
-  esac
-  # Build the flags to the call to sc.
-  cstdlib_opt=''
-  fstring_opt=''
-  if [ $cstdlib_checks -eq 1 ]
-  then
-    cstdlib_opt='-disable-cstdlib=false'
-  fi
-  if [ $format_strings -eq 1 ]
-  then
-    fstring_opt='-disable-printfchecks=false'
-  fi
-  scflags=$cstdlib_opt' '$fstring_opt
-  # Run SAFECode with specified flags.
-  $sc -terminate   \
-      -pa=apa      \
-      -stats       \
-      -time-passes \
-      $scflags     \
-      -o $scobj $bcfile >& $sclog
-  # Compile native assembly file from processed bitcode.
-  $llc -o $scasm $scobj
-  # Build and link test.
-  $gxx -o $scfile $scasm \
-          $sc_lib/libsc_dbg_rt.a \
-          $sc_lib/libpoolalloc_bitmap.a \
-          $sc_lib/libgdtoa.a
+  # Create bitcode file with SAFECode passes.
+  $sc -g -S -emit-llvm -fmemsafety -o $llfile $filename 2>&1 | tee $sclog
+  # Compile and link bitcode.
+  $sc -o $scfile $llfile $sc_lib/libsc_dbg_rt.a $sc_lib/libpoolalloc_bitmap.a $sc_lib/libgdtoa.a -lstdc++
 }
 
 # Run test and check results.

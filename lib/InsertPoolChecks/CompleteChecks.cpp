@@ -335,7 +335,7 @@ CompleteChecks::makeComplete (Module & M, const struct CheckInfo & CheckInfo) {
 void
 CompleteChecks::makeFSParameterCallsComplete(Module &M)
 {
-  Function *sc_fsparameter = M.getFunction("sc.fsparameter");
+  Function *sc_fsparameter = M.getFunction("__sc_fsparameter");
 
   if (sc_fsparameter == NULL)
     return;
