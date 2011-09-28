@@ -29,7 +29,8 @@ TEST_OBJDIR := @testobjdir@
 
 # All of the code should additionally look inside the pool allocation source
 # code for include files
-SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall -pedantic
+#SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall -pedantic
+SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Wall -pedantic
 # Code won't compile on newer gcc (4.4) due to strict aliasing violations
 SC_FLAGS += -fno-strict-aliasing
 CFLAGS   += $(SC_FLAGS)
