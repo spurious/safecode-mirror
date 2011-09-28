@@ -120,6 +120,7 @@ namespace {
     }
   }
 
+#if 0
   /**
    * Optimized inline assembly implementation of strncpy that returns the number
    * of characters copied (including \0)
@@ -133,7 +134,7 @@ namespace {
   strncpy_asm(char *dst, const char *src, size_t size) {
     long copied;
 
-  /*#if defined(i386) || defined(__i386__) || defined(__x86__)
+  /*#if defined(i386) || defined(__i386__) || defined(__x86__) */
     __asm__ __volatile__(
       "0: xorl      %%ecx, %%ecx      \n"
       "   cmpl      %%edi, %%ecx      \n"
@@ -152,13 +153,13 @@ namespace {
       : "a"(dst), "S"(dst), "d"(src), "D"(size)
       : "%ecx", "memory"
     );
-  #else*/
+   /* #else */
     strncpy(dst, src, size);
     copied = strnlen(dst, size - 1);
-  //#endif
 
     return copied;
   }
+#endif
 
   /**
    * Check for string termination.
