@@ -229,13 +229,27 @@ StringTransform::transform(Module &M,
   for (Value::use_iterator UI = F->use_begin(), UE = F->use_end();
        UI != UE;
        ++UI) {
+    //
+    // Determine whether this is a call to the desired function (as opposed to
+    // a pointer to the function being passed as a parameter or used in some
+    // other LLVM instruction).
+    //
+
+    // The use is not an instruction
     Instruction *I = dyn_cast<Instruction>(*UI);
     if (!I)
       continue;
+
+    // The use is not a call or invoke instruction.
     CallSite CS(I);
+    if (CS.getInstruction() == 0)
+      continue;
+
+    // The use is a call or invoke that does not call the function
     Function *CalledF = CS.getCalledFunction();
     if (F != CalledF)
       continue;
+
     // Check that the function uses the correct number of arguments.
     assert(CS.arg_size() == argc && "Incorrect number of arguments!");
     // Check for correct return type.
