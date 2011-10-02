@@ -1,4 +1,4 @@
-//===-- VerifyDiagnosticsClient.h - Verifying Diagnostic Client -*- C++ -*-===//
+//===- VerifyDiagnosticConsumer.h - Verifying Diagnostic Client -*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -15,12 +15,12 @@
 
 namespace clang {
 
-class Diagnostic;
+class DiagnosticsEngine;
 class TextDiagnosticBuffer;
 
-/// VerifyDiagnosticsClient - Create a diagnostic client which will use markers
-/// in the input source to check that all the emitted diagnostics match those
-/// expected.
+/// VerifyDiagnosticConsumer - Create a diagnostic client which will use
+/// markers in the input source to check that all the emitted diagnostics match
+/// those expected.
 ///
 /// USING THE DIAGNOSTIC CHECKER:
 ///
@@ -62,10 +62,10 @@ class TextDiagnosticBuffer;
 ///   // expected-error-re {{variable has has type 'struct (.*)'}}
 ///   // expected-error-re {{variable has has type 'struct[[:space:]](.*)'}}
 ///
-class VerifyDiagnosticsClient : public DiagnosticClient {
+class VerifyDiagnosticConsumer: public DiagnosticConsumer {
 public:
-  Diagnostic &Diags;
-  DiagnosticClient *PrimaryClient;
+  DiagnosticsEngine &Diags;
+  DiagnosticConsumer *PrimaryClient;
   bool OwnsPrimaryClient;
   llvm::OwningPtr<TextDiagnosticBuffer> Buffer;
   Preprocessor *CurrentPreprocessor;
@@ -78,16 +78,18 @@ public:
   /// Create a new verifying diagnostic client, which will issue errors to \arg
   /// the currently-attached diagnostic client when a diagnostic does not match 
   /// what is expected (as indicated in the source file).
-  VerifyDiagnosticsClient(Diagnostic &Diags);
-  ~VerifyDiagnosticsClient();
+  VerifyDiagnosticConsumer(DiagnosticsEngine &Diags);
+  ~VerifyDiagnosticConsumer();
 
   virtual void BeginSourceFile(const LangOptions &LangOpts,
                                const Preprocessor *PP);
 
   virtual void EndSourceFile();
 
-  virtual void HandleDiagnostic(Diagnostic::Level DiagLevel,
-                                const DiagnosticInfo &Info);
+  virtual void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
+                                const Diagnostic &Info);
+  
+  virtual DiagnosticConsumer *clone(DiagnosticsEngine &Diags) const;
 };
 
 } // end namspace clang

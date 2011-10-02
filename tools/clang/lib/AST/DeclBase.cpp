@@ -137,14 +137,14 @@ bool Decl::isTemplateDecl() const {
   return isa<TemplateDecl>(this);
 }
 
-bool Decl::isDefinedOutsideFunctionOrMethod() const {
-  for (const DeclContext *DC = getDeclContext(); 
-       DC && !DC->isTranslationUnit(); 
+const DeclContext *Decl::getParentFunctionOrMethod() const {
+  for (const DeclContext *DC = getDeclContext();
+       DC && !DC->isTranslationUnit() && !DC->isNamespace(); 
        DC = DC->getParent())
     if (DC->isFunctionOrMethod())
-      return false;
+      return DC;
 
-  return true;
+  return 0;
 }
 
 
@@ -572,7 +572,6 @@ Decl *Decl::castFromDeclContext (const DeclContext *D) {
         return static_cast<NAME##Decl*>(const_cast<DeclContext*>(D));
 #include "clang/AST/DeclNodes.inc"
       llvm_unreachable("a decl that inherits DeclContext isn't handled");
-      return 0;
   }
 }
 
@@ -592,7 +591,6 @@ DeclContext *Decl::castToDeclContext(const Decl *D) {
         return static_cast<NAME##Decl*>(const_cast<Decl*>(D));
 #include "clang/AST/DeclNodes.inc"
       llvm_unreachable("a decl that inherits DeclContext isn't handled");
-      return 0;
   }
 }
 

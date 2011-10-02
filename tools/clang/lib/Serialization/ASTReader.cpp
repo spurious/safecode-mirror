@@ -2676,7 +2676,7 @@ void ASTReader::InitializeContext() {
 /// file.
 std::string ASTReader::getOriginalSourceFile(const std::string &ASTFileName,
                                              FileManager &FileMgr,
-                                             Diagnostic &Diags) {
+                                             DiagnosticsEngine &Diags) {
   // Open the AST file.
   std::string ErrStr;
   llvm::OwningPtr<llvm::MemoryBuffer> Buffer;
@@ -3072,7 +3072,7 @@ HeaderFileInfo ASTReader::GetHeaderFileInfo(const FileEntry *FE) {
   return HeaderFileInfo();
 }
 
-void ASTReader::ReadPragmaDiagnosticMappings(Diagnostic &Diag) {
+void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
   for (ModuleIterator I = ModuleMgr.begin(), E = ModuleMgr.end(); I != E; ++I) {
     Module &F = *(*I);
     unsigned Idx = 0;
@@ -3090,6 +3090,7 @@ void ASTReader::ReadPragmaDiagnosticMappings(Diagnostic &Diag) {
           break; // no more diag/map pairs for this location.
         }
         diag::Mapping Map = (diag::Mapping)F.PragmaDiagMappings[Idx++];
+        // The user bit gets set by WritePragmaDiagnosticMappings.
         Diag.setDiagnosticMapping(DiagID, Map, Loc);
       }
     }
@@ -4994,7 +4995,6 @@ ASTReader::ReadTemplateName(Module &F, const RecordData &Record,
   }
 
   llvm_unreachable("Unhandled template name kind!");
-  return TemplateName();
 }
 
 TemplateArgument
@@ -5034,7 +5034,6 @@ ASTReader::ReadTemplateArgument(Module &F,
   }
 
   llvm_unreachable("Unhandled template argument kind!");
-  return TemplateArgument();
 }
 
 TemplateParameterList *

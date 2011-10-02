@@ -44,7 +44,7 @@ namespace clang {
   class ASTRecordLayout;
   class BlockExpr;
   class CharUnits;
-  class Diagnostic;
+  class DiagnosticsEngine;
   class Expr;
   class ExternalASTSource;
   class ASTMutationListener;
@@ -342,6 +342,8 @@ class ASTContext : public llvm::RefCountedBase<ASTContext> {
   friend class ASTWriter;
   
   const TargetInfo *Target;
+  clang::PrintingPolicy PrintingPolicy;
+  
 public:
   IdentifierTable &Idents;
   SelectorTable &Selectors;
@@ -349,8 +351,13 @@ public:
   mutable DeclarationNameTable DeclarationNames;
   llvm::OwningPtr<ExternalASTSource> ExternalSource;
   ASTMutationListener *Listener;
-  clang::PrintingPolicy PrintingPolicy;
 
+  clang::PrintingPolicy getPrintingPolicy() const { return PrintingPolicy; }
+
+  void setPrintingPolicy(clang::PrintingPolicy Policy) {
+    PrintingPolicy = Policy;
+  }
+  
   SourceManager& getSourceManager() { return SourceMgr; }
   const SourceManager& getSourceManager() const { return SourceMgr; }
   void *Allocate(unsigned Size, unsigned Align = 8) const {
@@ -374,7 +381,7 @@ public:
   
   const LangOptions& getLangOptions() const { return LangOpts; }
 
-  Diagnostic &getDiagnostics() const;
+  DiagnosticsEngine &getDiagnostics() const;
 
   FullSourceLoc getFullLoc(SourceLocation Loc) const {
     return FullSourceLoc(Loc,SourceMgr);
@@ -1503,6 +1510,10 @@ public:
                                      bool Unqualified = false);
   
   QualType mergeObjCGCQualifiers(QualType, QualType);
+    
+  bool FunctionTypesMatchOnNSConsumedAttrs(
+         const FunctionProtoType *FromFunctionType,
+         const FunctionProtoType *ToFunctionType);
 
   void ResetObjCLayout(const ObjCContainerDecl *CD) {
     ObjCLayouts[CD] = 0;

@@ -114,7 +114,7 @@ def Alias : InheritableAttr {
 }
 
 def Aligned : InheritableAttr {
-  let Spellings = ["align", "aligned"];
+  let Spellings = ["aligned"];
   let Subjects = [NonBitField, NormalVar, Tag];
   let Args = [AlignedArgument<"Alignment">];
   let Namespaces = ["", "std"];
@@ -169,6 +169,23 @@ def CarriesDependency : InheritableParamAttr {
 
 def CDecl : InheritableAttr {
   let Spellings = ["cdecl", "__cdecl"];
+}
+
+// cf_audited_transfer indicates that the given function has been
+// audited and has been marked with the appropriate cf_consumed and
+// cf_returns_retained attributes.  It is generally applied by
+// '#pragma clang arc_cf_code_audited' rather than explicitly.
+def CFAuditedTransfer : InheritableAttr {
+  let Spellings = ["cf_audited_transfer"];
+  let Subjects = [Function];
+}
+
+// cf_unknown_transfer is an explicit opt-out of cf_audited_transfer.
+// It indicates that the function has unknown or unautomatable
+// transfer semantics.
+def CFUnknownTransfer : InheritableAttr {
+  let Spellings = ["cf_unknown_transfer"];
+  let Subjects = [Function];
 }
 
 def CFReturnsRetained : InheritableAttr {
@@ -360,6 +377,12 @@ def NoInstrumentFunction : InheritableAttr {
 
 def NoThrow : InheritableAttr {
   let Spellings = ["nothrow"];
+}
+
+def NSBridged : InheritableAttr {
+  let Spellings = ["ns_bridged"];
+  let Subjects = [Record];
+  let Args = [IdentifierArgument<"BridgedType">];
 }
 
 def NSReturnsRetained : InheritableAttr {

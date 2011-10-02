@@ -2277,15 +2277,14 @@ void CGObjCGNU::EmitThrowStmt(CodeGenFunction &CGF,
   llvm::Value *ExceptionAsObject;
 
   if (const Expr *ThrowExpr = S.getThrowExpr()) {
-    llvm::Value *Exception = CGF.EmitScalarExpr(ThrowExpr);
+    llvm::Value *Exception = CGF.EmitObjCThrowOperand(ThrowExpr);
     ExceptionAsObject = Exception;
   } else {
     assert((!CGF.ObjCEHValueStack.empty() && CGF.ObjCEHValueStack.back()) &&
            "Unexpected rethrow outside @catch block.");
     ExceptionAsObject = CGF.ObjCEHValueStack.back();
   }
-  ExceptionAsObject =
-      CGF.Builder.CreateBitCast(ExceptionAsObject, IdTy, "tmp");
+  ExceptionAsObject = CGF.Builder.CreateBitCast(ExceptionAsObject, IdTy);
 
   // Note: This may have to be an invoke, if we want to support constructs like:
   // @try {

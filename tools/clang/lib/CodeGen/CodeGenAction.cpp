@@ -30,7 +30,7 @@ using namespace llvm;
 
 namespace clang {
   class BackendConsumer : public ASTConsumer {
-    Diagnostic &Diags;
+    DiagnosticsEngine &Diags;
     BackendAction Action;
     const CodeGenOptions &CodeGenOpts;
     const TargetOptions &TargetOpts;
@@ -45,7 +45,7 @@ namespace clang {
     llvm::OwningPtr<llvm::Module> TheModule;
 
   public:
-    BackendConsumer(BackendAction action, Diagnostic &_Diags,
+    BackendConsumer(BackendAction action, DiagnosticsEngine &_Diags,
                     const CodeGenOptions &compopts,
                     const TargetOptions &targetopts,
                     const LangOptions &langopts,
@@ -276,7 +276,6 @@ static raw_ostream *GetOutputStream(CompilerInstance &CI,
   }
 
   llvm_unreachable("Invalid action!");
-  return 0;
 }
 
 ASTConsumer *CodeGenAction::CreateASTConsumer(CompilerInstance &CI,
@@ -329,8 +328,8 @@ void CodeGenAction::ExecuteAction() {
       StringRef Msg = Err.getMessage();
       if (Msg.startswith("error: "))
         Msg = Msg.substr(7);
-      unsigned DiagID = CI.getDiagnostics().getCustomDiagID(Diagnostic::Error,
-                                                            Msg);
+      unsigned DiagID = CI.getDiagnostics().getCustomDiagID(
+          DiagnosticsEngine::Error, Msg);
 
       CI.getDiagnostics().Report(Loc, DiagID);
       return;

@@ -327,7 +327,6 @@ void CoreEngine::HandleBlockExit(const CFGBlock * B, ExplodedNode *Pred) {
     switch (Term->getStmtClass()) {
       default:
         llvm_unreachable("Analysis for this terminator not implemented.");
-        break;
 
       case Stmt::BinaryOperatorClass: // '&&' and '||'
         HandleBranch(cast<BinaryOperator>(Term)->getLHS(), Term, B, Pred);
@@ -698,13 +697,18 @@ ExplodedNode*
 SwitchNodeBuilder::generateDefaultCaseNode(const ProgramState *St,
                                            bool isSink) {
   // Get the block for the default case.
-  assert (Src->succ_rbegin() != Src->succ_rend());
+  assert(Src->succ_rbegin() != Src->succ_rend());
   CFGBlock *DefaultBlock = *Src->succ_rbegin();
 
+  // Sanity check for default blocks that are unreachable and not caught
+  // by earlier stages.
+  if (!DefaultBlock)
+    return NULL;
+  
   bool IsNew;
 
   ExplodedNode *Succ = Eng.G->getNode(BlockEdge(Src, DefaultBlock,
-                                       Pred->getLocationContext()), St, &IsNew);
+                                      Pred->getLocationContext()), St, &IsNew);
   Succ->addPredecessor(Pred, *Eng.G);
 
   if (IsNew) {
@@ -785,26 +789,8 @@ void CallEnterNodeBuilder::generateNode(const ProgramState *state) {
     // Create a new AnalysisManager with components of the callee's
     // TranslationUnit.
     // The Diagnostic is  actually shared when we create ASTUnits from AST files.
-    AnalysisManager AMgr(TU->getASTContext(), TU->getDiagnostic(), 
-                         OldMgr.getLangOptions(), 
-                         OldMgr.getPathDiagnosticClient(),
-                         OldMgr.getStoreManagerCreator(),
-                         OldMgr.getConstraintManagerCreator(),
-                         OldMgr.getCheckerManager(),
-                         OldMgr.getIndexer(),
-                         OldMgr.getMaxNodes(), OldMgr.getMaxVisit(),
-                         OldMgr.shouldVisualizeGraphviz(),
-                         OldMgr.shouldVisualizeUbigraph(),
-                         OldMgr.shouldPurgeDead(),
-                         OldMgr.shouldEagerlyAssume(),
-                         OldMgr.shouldTrimGraph(),
-                         OldMgr.shouldInlineCall(),
-                     OldMgr.getAnalysisContextManager().getUseUnoptimizedCFG(),
-                     OldMgr.getAnalysisContextManager().
-                         getCFGBuildOptions().AddImplicitDtors,
-                     OldMgr.getAnalysisContextManager().
-                         getCFGBuildOptions().AddInitializers,
-                     OldMgr.shouldEagerlyTrimExplodedGraph());
+    AnalysisManager AMgr(TU->getASTContext(), TU->getDiagnostic(), OldMgr);
+
     // Create the new engine.
     // FIXME: This cast isn't really safe.
     bool GCEnabled = static_cast<ExprEngine&>(Eng.SubEng).isObjCGCEnabled();

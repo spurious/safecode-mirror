@@ -1794,8 +1794,8 @@ public:
   }
 
   /// \brief Determine whether this function should be inlined, because it is
-  /// either marked "inline" or is a member function of a C++ class that
-  /// was defined in the class body.
+  /// either marked "inline" or "constexpr" or is a member function of a class
+  /// that was defined in the class body.
   bool isInlined() const;
 
   bool isInlineDefinitionExternallyVisible() const;
@@ -2352,6 +2352,9 @@ private:
   /// in the syntax of a declarator.
   bool IsEmbeddedInDeclarator : 1;
 
+  /// /brief True if this tag is free standing, e.g. "struct foo;".
+  bool IsFreeStanding : 1;
+
 protected:
   // These are used by (and only defined for) EnumDecl.
   unsigned NumPositiveBits : 8;
@@ -2402,6 +2405,7 @@ protected:
     IsDefinition = false;
     IsBeingDefined = false;
     IsEmbeddedInDeclarator = false;
+    IsFreeStanding = false;
     setPreviousDeclaration(PrevDecl);
   }
 
@@ -2460,6 +2464,11 @@ public:
   }
   void setEmbeddedInDeclarator(bool isInDeclarator) {
     IsEmbeddedInDeclarator = isInDeclarator;
+  }
+
+  bool isFreeStanding() const { return IsFreeStanding; }
+  void setFreeStanding(bool isFreeStanding = true) {
+    IsFreeStanding = isFreeStanding;
   }
 
   /// \brief Whether this declaration declares a type that is
@@ -3043,7 +3052,8 @@ public:
 /// into a diagnostic with <<.
 inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
                                            const NamedDecl* ND) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(ND), Diagnostic::ak_nameddecl);
+  DB.AddTaggedVal(reinterpret_cast<intptr_t>(ND),
+                  DiagnosticsEngine::ak_nameddecl);
   return DB;
 }
 

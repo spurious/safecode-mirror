@@ -31,12 +31,12 @@
 #include <algorithm>
 using namespace clang;
 
-void clang::ProcessWarningOptions(Diagnostic &Diags,
+void clang::ProcessWarningOptions(DiagnosticsEngine &Diags,
                                   const DiagnosticOptions &Opts) {
   Diags.setSuppressSystemWarnings(true);  // Default to -Wno-system-headers
   Diags.setIgnoreAllWarnings(Opts.IgnoreWarnings);
   Diags.setShowOverloads(
-    static_cast<Diagnostic::OverloadsShown>(Opts.ShowOverloads));
+    static_cast<DiagnosticsEngine::OverloadsShown>(Opts.ShowOverloads));
   
   // Handle -ferror-limit
   if (Opts.ErrorLimit)
@@ -48,11 +48,11 @@ void clang::ProcessWarningOptions(Diagnostic &Diags,
   // extension diagnostics onto WARNING or ERROR unless the user has futz'd
   // around with them explicitly.
   if (Opts.PedanticErrors)
-    Diags.setExtensionHandlingBehavior(Diagnostic::Ext_Error);
+    Diags.setExtensionHandlingBehavior(DiagnosticsEngine::Ext_Error);
   else if (Opts.Pedantic)
-    Diags.setExtensionHandlingBehavior(Diagnostic::Ext_Warn);
+    Diags.setExtensionHandlingBehavior(DiagnosticsEngine::Ext_Warn);
   else
-    Diags.setExtensionHandlingBehavior(Diagnostic::Ext_Ignore);
+    Diags.setExtensionHandlingBehavior(DiagnosticsEngine::Ext_Ignore);
 
   for (unsigned i = 0, e = Opts.Warnings.size(); i != e; ++i) {
     StringRef Opt = Opts.Warnings[i];
@@ -75,6 +75,13 @@ void clang::ProcessWarningOptions(Diagnostic &Diags,
       Diags.setSuppressSystemWarnings(!isPositive);
       continue;
     }
+    
+    // -Weverything is a special case as well.  It implicitly enables all
+    // warnings, including ones not explicitly in a warning group.
+    if (Opt == "everything") {
+      Diags.setEnableAllWarnings(true);
+      continue;
+    }
 
     // -Werror/-Wno-error is a special case, not controlled by the option table.
     // It also has the "specifier" form of -Werror=foo and -Werror-foo.
@@ -94,15 +101,12 @@ void clang::ProcessWarningOptions(Diagnostic &Diags,
         continue;
       }
 
-      // -Werror=foo maps foo to Error, -Wno-error=foo maps it to Warning.
-      Mapping = isPositive ? diag::MAP_ERROR : diag::MAP_WARNING_NO_WERROR;
-      Opt = Specifier;
-    }
-    
-    // -Weverything is a special case as well.  It implicitly enables all
-    // warnings, including ones not explicitly in a warning group.
-    if (Opt == "everything") {
-      Diags.setEnableAllWarnings(true);
+      // Set the warning as error flag for this specifier.
+      if (Diags.setDiagnosticGroupWarningAsError(Specifier, isPositive)) {
+        Diags.Report(isPositive ? diag::warn_unknown_warning_option :
+                     diag::warn_unknown_negative_warning_option)
+          << ("-W" + Opt.str());
+      }
       continue;
     }
 
@@ -123,15 +127,19 @@ void clang::ProcessWarningOptions(Diagnostic &Diags,
         continue;
       }
 
-      // -Wfatal-errors=foo maps foo to Fatal, -Wno-fatal-errors=foo
-      // maps it to Error.
-      Mapping = isPositive ? diag::MAP_FATAL : diag::MAP_ERROR_NO_WFATAL;
-      Opt = Specifier;
+      // Set the error as fatal flag for this specifier.
+      if (Diags.setDiagnosticGroupErrorAsFatal(Specifier, isPositive)) {
+        Diags.Report(isPositive ? diag::warn_unknown_warning_option :
+                     diag::warn_unknown_negative_warning_option)
+          << ("-W" + Opt.str());
+      }
+      continue;
     }
 
-    if (Diags.setDiagnosticGroupMapping(Opt, Mapping))
+    if (Diags.setDiagnosticGroupMapping(Opt, Mapping)) {
       Diags.Report(isPositive ? diag::warn_unknown_warning_option :
                    diag::warn_unknown_negative_warning_option)
           << ("-W" + Opt.str());
+    }
   }
 }

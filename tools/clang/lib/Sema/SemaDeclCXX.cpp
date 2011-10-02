@@ -502,6 +502,20 @@ bool Sema::MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old) {
     }
   }
 
+  // C++0x [dcl.constexpr]p1: If any declaration of a function or function
+  // template has a constexpr specifier then all its declarations shall
+  // contain the constexpr specifier. [Note: An explicit specialization can
+  // differ from the template declaration with respect to the constexpr
+  // specifier. -- end note]
+  //
+  // FIXME: Don't reject changes in constexpr in explicit specializations.
+  if (New->isConstexpr() != Old->isConstexpr()) {
+    Diag(New->getLocation(), diag::err_constexpr_redecl_mismatch)
+      << New << New->isConstexpr();
+    Diag(Old->getLocation(), diag::note_previous_declaration);
+    Invalid = true;
+  }
+
   if (CheckEquivalentExceptionSpec(Old, New))
     Invalid = true;
 
@@ -600,6 +614,359 @@ void Sema::CheckCXXDefaultArguments(FunctionDecl *FD) {
       }
     }
   }
+}
+
+// CheckConstexprParameterTypes - Check whether a function's parameter types
+// are all literal types. If so, return true. If not, produce a suitable
+// diagnostic depending on @p CCK and return false.
+static bool CheckConstexprParameterTypes(Sema &SemaRef, const FunctionDecl *FD,
+                                         Sema::CheckConstexprKind CCK) {
+  unsigned ArgIndex = 0;
+  const FunctionProtoType *FT = FD->getType()->getAs<FunctionProtoType>();
+  for (FunctionProtoType::arg_type_iterator i = FT->arg_type_begin(),
+       e = FT->arg_type_end(); i != e; ++i, ++ArgIndex) {
+    const ParmVarDecl *PD = FD->getParamDecl(ArgIndex);
+    SourceLocation ParamLoc = PD->getLocation();
+    if (!(*i)->isDependentType() &&
+        SemaRef.RequireLiteralType(ParamLoc, *i, CCK == Sema::CCK_Declaration ?
+                            SemaRef.PDiag(diag::err_constexpr_non_literal_param)
+                                     << ArgIndex+1 << PD->getSourceRange()
+                                     << isa<CXXConstructorDecl>(FD) :
+                                   SemaRef.PDiag(),
+                                   /*AllowIncompleteType*/ true)) {
+      if (CCK == Sema::CCK_NoteNonConstexprInstantiation)
+        SemaRef.Diag(ParamLoc, diag::note_constexpr_tmpl_non_literal_param)
+          << ArgIndex+1 << PD->getSourceRange()
+          << isa<CXXConstructorDecl>(FD) << *i;
+      return false;
+    }
+  }
+  return true;
+}
+
+// CheckConstexprFunctionDecl - Check whether a function declaration satisfies
+// the requirements of a constexpr function declaration or a constexpr
+// constructor declaration. Return true if it does, false if not.
+//
+// This implements C++0x [dcl.constexpr]p3,4, as amended by N3308.
+//
+// \param CCK Specifies whether to produce diagnostics if the function does not
+// satisfy the requirements.
+bool Sema::CheckConstexprFunctionDecl(const FunctionDecl *NewFD,
+                                      CheckConstexprKind CCK) {
+  assert((CCK != CCK_NoteNonConstexprInstantiation ||
+          (NewFD->getTemplateInstantiationPattern() &&
+           NewFD->getTemplateInstantiationPattern()->isConstexpr())) &&
+         "only constexpr templates can be instantiated non-constexpr");
+
+  if (const CXXConstructorDecl *CD = dyn_cast<CXXConstructorDecl>(NewFD)) {
+    // C++0x [dcl.constexpr]p4:
+    //  In the definition of a constexpr constructor, each of the parameter
+    //  types shall be a literal type.
+    if (!CheckConstexprParameterTypes(*this, NewFD, CCK))
+      return false;
+
+    //  In addition, either its function-body shall be = delete or = default or
+    //  it shall satisfy the following constraints:
+    //  - the class shall not have any virtual base classes;
+    const CXXRecordDecl *RD = CD->getParent();
+    if (RD->getNumVBases()) {
+      // Note, this is still illegal if the body is = default, since the
+      // implicit body does not satisfy the requirements of a constexpr
+      // constructor. We also reject cases where the body is = delete, as
+      // required by N3308.
+      if (CCK != CCK_Instantiation) {
+        Diag(NewFD->getLocation(),
+             CCK == CCK_Declaration ? diag::err_constexpr_virtual_base
+                                    : diag::note_constexpr_tmpl_virtual_base)
+          << RD->isStruct() << RD->getNumVBases();
+        for (CXXRecordDecl::base_class_const_iterator I = RD->vbases_begin(),
+               E = RD->vbases_end(); I != E; ++I)
+          Diag(I->getSourceRange().getBegin(),
+               diag::note_constexpr_virtual_base_here) << I->getSourceRange();
+      }
+      return false;
+    }
+  } else {
+    // C++0x [dcl.constexpr]p3:
+    //  The definition of a constexpr function shall satisfy the following
+    //  constraints:
+    // - it shall not be virtual;
+    const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(NewFD);
+    if (Method && Method->isVirtual()) {
+      if (CCK != CCK_Instantiation) {
+        Diag(NewFD->getLocation(),
+             CCK == CCK_Declaration ? diag::err_constexpr_virtual
+                                    : diag::note_constexpr_tmpl_virtual);
+
+        // If it's not obvious why this function is virtual, find an overridden
+        // function which uses the 'virtual' keyword.
+        const CXXMethodDecl *WrittenVirtual = Method;
+        while (!WrittenVirtual->isVirtualAsWritten())
+          WrittenVirtual = *WrittenVirtual->begin_overridden_methods();
+        if (WrittenVirtual != Method)
+          Diag(WrittenVirtual->getLocation(), 
+               diag::note_overridden_virtual_function);
+      }
+      return false;
+    }
+
+    // - its return type shall be a literal type;
+    QualType RT = NewFD->getResultType();
+    if (!RT->isDependentType() &&
+        RequireLiteralType(NewFD->getLocation(), RT, CCK == CCK_Declaration ?
+                           PDiag(diag::err_constexpr_non_literal_return) :
+                           PDiag(),
+                           /*AllowIncompleteType*/ true)) {
+      if (CCK == CCK_NoteNonConstexprInstantiation)
+        Diag(NewFD->getLocation(),
+             diag::note_constexpr_tmpl_non_literal_return) << RT;
+      return false;
+    }
+
+    // - each of its parameter types shall be a literal type;
+    if (!CheckConstexprParameterTypes(*this, NewFD, CCK))
+      return false;
+  }
+
+  return true;
+}
+
+/// Check the given declaration statement is legal within a constexpr function
+/// body. C++0x [dcl.constexpr]p3,p4.
+///
+/// \return true if the body is OK, false if we have diagnosed a problem.
+static bool CheckConstexprDeclStmt(Sema &SemaRef, const FunctionDecl *Dcl,
+                                   DeclStmt *DS) {
+  // C++0x [dcl.constexpr]p3 and p4:
+  //  The definition of a constexpr function(p3) or constructor(p4) [...] shall
+  //  contain only
+  for (DeclStmt::decl_iterator DclIt = DS->decl_begin(),
+         DclEnd = DS->decl_end(); DclIt != DclEnd; ++DclIt) {
+    switch ((*DclIt)->getKind()) {
+    case Decl::StaticAssert:
+    case Decl::Using:
+    case Decl::UsingShadow:
+    case Decl::UsingDirective:
+    case Decl::UnresolvedUsingTypename:
+      //   - static_assert-declarations
+      //   - using-declarations,
+      //   - using-directives,
+      continue;
+
+    case Decl::Typedef:
+    case Decl::TypeAlias: {
+      //   - typedef declarations and alias-declarations that do not define
+      //     classes or enumerations,
+      TypedefNameDecl *TN = cast<TypedefNameDecl>(*DclIt);
+      if (TN->getUnderlyingType()->isVariablyModifiedType()) {
+        // Don't allow variably-modified types in constexpr functions.
+        TypeLoc TL = TN->getTypeSourceInfo()->getTypeLoc();
+        SemaRef.Diag(TL.getBeginLoc(), diag::err_constexpr_vla)
+          << TL.getSourceRange() << TL.getType()
+          << isa<CXXConstructorDecl>(Dcl);
+        return false;
+      }
+      continue;
+    }
+
+    case Decl::Enum:
+    case Decl::CXXRecord:
+      // As an extension, we allow the declaration (but not the definition) of
+      // classes and enumerations in all declarations, not just in typedef and
+      // alias declarations.
+      if (cast<TagDecl>(*DclIt)->isThisDeclarationADefinition()) {
+        SemaRef.Diag(DS->getLocStart(), diag::err_constexpr_type_definition)
+          << isa<CXXConstructorDecl>(Dcl);
+        return false;
+      }
+      continue;
+
+    case Decl::Var:
+      SemaRef.Diag(DS->getLocStart(), diag::err_constexpr_var_declaration)
+        << isa<CXXConstructorDecl>(Dcl);
+      return false;
+
+    default:
+      SemaRef.Diag(DS->getLocStart(), diag::err_constexpr_body_invalid_stmt)
+        << isa<CXXConstructorDecl>(Dcl);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/// Check that the given field is initialized within a constexpr constructor.
+///
+/// \param Dcl The constexpr constructor being checked.
+/// \param Field The field being checked. This may be a member of an anonymous
+///        struct or union nested within the class being checked.
+/// \param Inits All declarations, including anonymous struct/union members and
+///        indirect members, for which any initialization was provided.
+/// \param Diagnosed Set to true if an error is produced.
+static void CheckConstexprCtorInitializer(Sema &SemaRef,
+                                          const FunctionDecl *Dcl,
+                                          FieldDecl *Field,
+                                          llvm::SmallSet<Decl*, 16> &Inits,
+                                          bool &Diagnosed) {
+  if (!Inits.count(Field)) {
+    if (!Diagnosed) {
+      SemaRef.Diag(Dcl->getLocation(), diag::err_constexpr_ctor_missing_init);
+      Diagnosed = true;
+    }
+    SemaRef.Diag(Field->getLocation(), diag::note_constexpr_ctor_missing_init);
+  } else if (Field->isAnonymousStructOrUnion()) {
+    const RecordDecl *RD = Field->getType()->castAs<RecordType>()->getDecl();
+    for (RecordDecl::field_iterator I = RD->field_begin(), E = RD->field_end();
+         I != E; ++I)
+      // If an anonymous union contains an anonymous struct of which any member
+      // is initialized, all members must be initialized.
+      if (!RD->isUnion() || Inits.count(*I))
+        CheckConstexprCtorInitializer(SemaRef, Dcl, *I, Inits, Diagnosed);
+  }
+}
+
+/// Check the body for the given constexpr function declaration only contains
+/// the permitted types of statement. C++11 [dcl.constexpr]p3,p4.
+///
+/// \return true if the body is OK, false if we have diagnosed a problem.
+bool Sema::CheckConstexprFunctionBody(const FunctionDecl *Dcl, Stmt *Body) {
+  if (isa<CXXTryStmt>(Body)) {
+    // C++0x [dcl.constexpr]p3:
+    //  The definition of a constexpr function shall satisfy the following
+    //  constraints: [...]
+    // - its function-body shall be = delete, = default, or a
+    //   compound-statement
+    //
+    // C++0x [dcl.constexpr]p4:
+    //  In the definition of a constexpr constructor, [...]
+    // - its function-body shall not be a function-try-block;
+    Diag(Body->getLocStart(), diag::err_constexpr_function_try_block)
+      << isa<CXXConstructorDecl>(Dcl);
+    return false;
+  }
+
+  // - its function-body shall be [...] a compound-statement that contains only
+  CompoundStmt *CompBody = cast<CompoundStmt>(Body);
+
+  llvm::SmallVector<SourceLocation, 4> ReturnStmts;
+  for (CompoundStmt::body_iterator BodyIt = CompBody->body_begin(),
+         BodyEnd = CompBody->body_end(); BodyIt != BodyEnd; ++BodyIt) {
+    switch ((*BodyIt)->getStmtClass()) {
+    case Stmt::NullStmtClass:
+      //   - null statements,
+      continue;
+
+    case Stmt::DeclStmtClass:
+      //   - static_assert-declarations
+      //   - using-declarations,
+      //   - using-directives,
+      //   - typedef declarations and alias-declarations that do not define
+      //     classes or enumerations,
+      if (!CheckConstexprDeclStmt(*this, Dcl, cast<DeclStmt>(*BodyIt)))
+        return false;
+      continue;
+
+    case Stmt::ReturnStmtClass:
+      //   - and exactly one return statement;
+      if (isa<CXXConstructorDecl>(Dcl))
+        break;
+
+      ReturnStmts.push_back((*BodyIt)->getLocStart());
+      // FIXME
+      // - every constructor call and implicit conversion used in initializing
+      //   the return value shall be one of those allowed in a constant
+      //   expression.
+      // Deal with this as part of a general check that the function can produce
+      // a constant expression (for [dcl.constexpr]p5).
+      continue;
+
+    default:
+      break;
+    }
+
+    Diag((*BodyIt)->getLocStart(), diag::err_constexpr_body_invalid_stmt)
+      << isa<CXXConstructorDecl>(Dcl);
+    return false;
+  }
+
+  if (const CXXConstructorDecl *Constructor
+        = dyn_cast<CXXConstructorDecl>(Dcl)) {
+    const CXXRecordDecl *RD = Constructor->getParent();
+    // - every non-static data member and base class sub-object shall be
+    //   initialized;
+    if (RD->isUnion()) {
+      // DR1359: Exactly one member of a union shall be initialized.
+      if (Constructor->getNumCtorInitializers() == 0) {
+        Diag(Dcl->getLocation(), diag::err_constexpr_union_ctor_no_init);
+        return false;
+      }
+    } else if (!Constructor->isDelegatingConstructor()) {
+      assert(RD->getNumVBases() == 0 && "constexpr ctor with virtual bases");
+
+      // Skip detailed checking if we have enough initializers, and we would
+      // allow at most one initializer per member.
+      bool AnyAnonStructUnionMembers = false;
+      unsigned Fields = 0;
+      for (CXXRecordDecl::field_iterator I = RD->field_begin(),
+           E = RD->field_end(); I != E; ++I, ++Fields) {
+        if ((*I)->isAnonymousStructOrUnion()) {
+          AnyAnonStructUnionMembers = true;
+          break;
+        }
+      }
+      if (AnyAnonStructUnionMembers ||
+          Constructor->getNumCtorInitializers() != RD->getNumBases() + Fields) {
+        // Check initialization of non-static data members. Base classes are
+        // always initialized so do not need to be checked. Dependent bases
+        // might not have initializers in the member initializer list.
+        llvm::SmallSet<Decl*, 16> Inits;
+        for (CXXConstructorDecl::init_const_iterator
+               I = Constructor->init_begin(), E = Constructor->init_end();
+             I != E; ++I) {
+          if (FieldDecl *FD = (*I)->getMember())
+            Inits.insert(FD);
+          else if (IndirectFieldDecl *ID = (*I)->getIndirectMember())
+            Inits.insert(ID->chain_begin(), ID->chain_end());
+        }
+
+        bool Diagnosed = false;
+        for (CXXRecordDecl::field_iterator I = RD->field_begin(),
+             E = RD->field_end(); I != E; ++I)
+          CheckConstexprCtorInitializer(*this, Dcl, *I, Inits, Diagnosed);
+        if (Diagnosed)
+          return false;
+      }
+    }
+
+    // FIXME
+    // - every constructor involved in initializing non-static data members
+    //   and base class sub-objects shall be a constexpr constructor;
+    // - every assignment-expression that is an initializer-clause appearing
+    //   directly or indirectly within a brace-or-equal-initializer for
+    //   a non-static data member that is not named by a mem-initializer-id
+    //   shall be a constant expression; and
+    // - every implicit conversion used in converting a constructor argument
+    //   to the corresponding parameter type and converting
+    //   a full-expression to the corresponding member type shall be one of
+    //   those allowed in a constant expression.
+    // Deal with these as part of a general check that the function can produce
+    // a constant expression (for [dcl.constexpr]p5).
+  } else {
+    if (ReturnStmts.empty()) {
+      Diag(Dcl->getLocation(), diag::err_constexpr_body_no_return);
+      return false;
+    }
+    if (ReturnStmts.size() > 1) {
+      Diag(ReturnStmts.back(), diag::err_constexpr_body_multiple_return);
+      for (unsigned I = 0; I < ReturnStmts.size() - 1; ++I)
+        Diag(ReturnStmts[I], diag::note_constexpr_body_previous_return);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /// isCurrentClassName - Determine whether the identifier II is the
@@ -1239,14 +1606,8 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   if (Init)
     AddInitializerToDecl(Member, Init, false,
                          DS.getTypeSpecType() == DeclSpec::TST_auto);
-  else if (DS.getTypeSpecType() == DeclSpec::TST_auto &&
-           DS.getStorageClassSpec() == DeclSpec::SCS_static) {
-    // C++0x [dcl.spec.auto]p4: 'auto' can only be used in the type of a static
-    // data member if a brace-or-equal-initializer is provided.
-    Diag(Loc, diag::err_auto_var_requires_init)
-      << Name << cast<ValueDecl>(Member)->getType();
-    Member->setInvalidDecl();
-  }
+  else if (DS.getStorageClassSpec() == DeclSpec::SCS_static)
+    ActOnUninitializedDecl(Member, DS.getTypeSpecType() == DeclSpec::TST_auto);
 
   FinalizeDeclaration(Member);
 
@@ -1342,7 +1703,21 @@ static bool FindBaseInitializer(Sema &SemaRef,
   return DirectBaseSpec || VirtualBaseSpec;
 }
 
-/// ActOnMemInitializer - Handle a C++ member initializer.
+/// \brief Handle a C++ member initializer using braced-init-list syntax.
+MemInitResult
+Sema::ActOnMemInitializer(Decl *ConstructorD,
+                          Scope *S,
+                          CXXScopeSpec &SS,
+                          IdentifierInfo *MemberOrBase,
+                          ParsedType TemplateTypeTy,
+                          SourceLocation IdLoc,
+                          Expr *InitList,
+                          SourceLocation EllipsisLoc) {
+  return BuildMemInitializer(ConstructorD, S, SS, MemberOrBase, TemplateTypeTy,
+                             IdLoc, MultiInitializer(InitList), EllipsisLoc);
+}
+
+/// \brief Handle a C++ member initializer using parentheses syntax.
 MemInitResult
 Sema::ActOnMemInitializer(Decl *ConstructorD,
                           Scope *S,
@@ -1353,6 +1728,22 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
                           SourceLocation LParenLoc,
                           Expr **Args, unsigned NumArgs,
                           SourceLocation RParenLoc,
+                          SourceLocation EllipsisLoc) {
+  return BuildMemInitializer(ConstructorD, S, SS, MemberOrBase, TemplateTypeTy,
+                             IdLoc, MultiInitializer(LParenLoc, Args, NumArgs,
+                                                     RParenLoc),
+                             EllipsisLoc);
+}
+
+/// \brief Handle a C++ member initializer.
+MemInitResult
+Sema::BuildMemInitializer(Decl *ConstructorD,
+                          Scope *S,
+                          CXXScopeSpec &SS,
+                          IdentifierInfo *MemberOrBase,
+                          ParsedType TemplateTypeTy,
+                          SourceLocation IdLoc,
+                          const MultiInitializer &Args,
                           SourceLocation EllipsisLoc) {
   if (!ConstructorD)
     return true;
@@ -1388,26 +1779,23 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
       = ClassDecl->lookup(MemberOrBase);
     if (Result.first != Result.second) {
       Member = dyn_cast<FieldDecl>(*Result.first);
-    
+
       if (Member) {
         if (EllipsisLoc.isValid())
           Diag(EllipsisLoc, diag::err_pack_expansion_member_init)
-            << MemberOrBase << SourceRange(IdLoc, RParenLoc);
-        
-        return BuildMemberInitializer(Member, (Expr**)Args, NumArgs, IdLoc,
-                                    LParenLoc, RParenLoc);
+            << MemberOrBase << SourceRange(IdLoc, Args.getEndLoc());
+
+        return BuildMemberInitializer(Member, Args, IdLoc);
       }
-      
+
       // Handle anonymous union case.
       if (IndirectFieldDecl* IndirectField
             = dyn_cast<IndirectFieldDecl>(*Result.first)) {
         if (EllipsisLoc.isValid())
           Diag(EllipsisLoc, diag::err_pack_expansion_member_init)
-            << MemberOrBase << SourceRange(IdLoc, RParenLoc);
+            << MemberOrBase << SourceRange(IdLoc, Args.getEndLoc());
 
-         return BuildMemberInitializer(IndirectField, (Expr**)Args,
-                                       NumArgs, IdLoc,
-                                       LParenLoc, RParenLoc);
+         return BuildMemberInitializer(IndirectField, Args, IdLoc);
       }
     }
   }
@@ -1466,8 +1854,7 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
             Diag(Member->getLocation(), diag::note_previous_decl)
               << CorrectedQuotedStr;
 
-            return BuildMemberInitializer(Member, (Expr**)Args, NumArgs, IdLoc,
-                                          LParenLoc, RParenLoc);
+            return BuildMemberInitializer(Member, Args, IdLoc);
           }
         } else if (TypeDecl *Type = Corr.getCorrectionDeclAs<TypeDecl>()) {
           const CXXBaseSpecifier *DirectBaseSpec;
@@ -1496,7 +1883,7 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
 
       if (!TyD && BaseType.isNull()) {
         Diag(IdLoc, diag::err_mem_init_not_member_or_class)
-          << MemberOrBase << SourceRange(IdLoc, RParenLoc);
+          << MemberOrBase << SourceRange(IdLoc, Args.getEndLoc());
         return true;
       }
     }
@@ -1516,8 +1903,7 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
   if (!TInfo)
     TInfo = Context.getTrivialTypeSourceInfo(BaseType, IdLoc);
 
-  return BuildBaseInitializer(BaseType, TInfo, (Expr **)Args, NumArgs, 
-                              LParenLoc, RParenLoc, ClassDecl, EllipsisLoc);
+  return BuildBaseInitializer(BaseType, TInfo, Args, ClassDecl, EllipsisLoc);
 }
 
 /// Checks a member initializer expression for cases where reference (or
@@ -1644,10 +2030,9 @@ static bool InitExprContainsUninitializedFields(const Stmt *S,
 }
 
 MemInitResult
-Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
-                             unsigned NumArgs, SourceLocation IdLoc,
-                             SourceLocation LParenLoc,
-                             SourceLocation RParenLoc) {
+Sema::BuildMemberInitializer(ValueDecl *Member,
+                             const MultiInitializer &Args,
+                             SourceLocation IdLoc) {
   FieldDecl *DirectMember = dyn_cast<FieldDecl>(Member);
   IndirectFieldDecl *IndirectMember = dyn_cast<IndirectFieldDecl>(Member);
   assert((DirectMember || IndirectMember) &&
@@ -1660,9 +2045,13 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
   //   foo(foo)
   // where foo is not also a parameter to the constructor.
   // TODO: implement -Wuninitialized and fold this into that framework.
-  for (unsigned i = 0; i < NumArgs; ++i) {
+  for (MultiInitializer::iterator I = Args.begin(), E = Args.end();
+       I != E; ++I) {
     SourceLocation L;
-    if (InitExprContainsUninitializedFields(Args[i], Member, &L)) {
+    Expr *Arg = *I;
+    if (DesignatedInitExpr *DIE = dyn_cast<DesignatedInitExpr>(Arg))
+      Arg = DIE->getInit();
+    if (InitExprContainsUninitializedFields(Arg, Member, &L)) {
       // FIXME: Return true in the case when other fields are used before being
       // uninitialized. For example, let this field be the i'th field. When
       // initializing the i'th field, throw a warning if any of the >= i'th
@@ -1673,17 +2062,13 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
     }
   }
 
-  bool HasDependentArg = false;
-  for (unsigned i = 0; i < NumArgs; i++)
-    HasDependentArg |= Args[i]->isTypeDependent();
+  bool HasDependentArg = Args.isTypeDependent();
 
   Expr *Init;
   if (Member->getType()->isDependentType() || HasDependentArg) {
     // Can't check initialization for a member of dependent type or when
     // any of the arguments are type-dependent expressions.
-    Init = new (Context) ParenListExpr(Context, LParenLoc, Args, NumArgs,
-                                       RParenLoc,
-                                       Member->getType().getNonReferenceType());
+    Init = Args.CreateInitExpr(Context,Member->getType().getNonReferenceType());
 
     DiscardCleanupsInEvaluationContext();
   } else {
@@ -1692,17 +2077,14 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
       DirectMember ? InitializedEntity::InitializeMember(DirectMember, 0)
                    : InitializedEntity::InitializeMember(IndirectMember, 0);
     InitializationKind Kind =
-      InitializationKind::CreateDirect(IdLoc, LParenLoc, RParenLoc);
+      InitializationKind::CreateDirect(IdLoc, Args.getStartLoc(),
+                                       Args.getEndLoc());
 
-    InitializationSequence InitSeq(*this, MemberEntity, Kind, Args, NumArgs);
-
-    ExprResult MemberInit =
-      InitSeq.Perform(*this, MemberEntity, Kind,
-                      MultiExprArg(*this, Args, NumArgs), 0);
+    ExprResult MemberInit = Args.PerformInit(*this, MemberEntity, Kind);
     if (MemberInit.isInvalid())
       return true;
 
-    CheckImplicitConversions(MemberInit.get(), LParenLoc);
+    CheckImplicitConversions(MemberInit.get(), Args.getStartLoc());
 
     // C++0x [class.base.init]p7:
     //   The initialization of each base and member constitutes a
@@ -1719,9 +2101,8 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
     // initializer. However, deconstructing the ASTs is a dicey process,
     // and this approach is far more likely to get the corner cases right.
     if (CurContext->isDependentContext()) {
-      Init = new (Context) ParenListExpr(
-          Context, LParenLoc, Args, NumArgs, RParenLoc,
-          Member->getType().getNonReferenceType());
+      Init = Args.CreateInitExpr(Context,
+                                 Member->getType().getNonReferenceType());
     } else {
       Init = MemberInit.get();
       CheckForDanglingReferenceOrPointer(*this, Member, Init, IdLoc);
@@ -1730,21 +2111,19 @@ Sema::BuildMemberInitializer(ValueDecl *Member, Expr **Args,
 
   if (DirectMember) {
     return new (Context) CXXCtorInitializer(Context, DirectMember,
-                                                    IdLoc, LParenLoc, Init,
-                                                    RParenLoc);
+                                                    IdLoc, Args.getStartLoc(),
+                                                    Init, Args.getEndLoc());
   } else {
     return new (Context) CXXCtorInitializer(Context, IndirectMember,
-                                                    IdLoc, LParenLoc, Init,
-                                                    RParenLoc);
+                                                    IdLoc, Args.getStartLoc(),
+                                                    Init, Args.getEndLoc());
   }
 }
 
 MemInitResult
 Sema::BuildDelegatingInitializer(TypeSourceInfo *TInfo,
-                                 Expr **Args, unsigned NumArgs,
+                                 const MultiInitializer &Args,
                                  SourceLocation NameLoc,
-                                 SourceLocation LParenLoc,
-                                 SourceLocation RParenLoc,
                                  CXXRecordDecl *ClassDecl) {
   SourceLocation Loc = TInfo->getTypeLoc().getLocalSourceRange().getBegin();
   if (!LangOpts.CPlusPlus0x)
@@ -1755,13 +2134,10 @@ Sema::BuildDelegatingInitializer(TypeSourceInfo *TInfo,
   InitializedEntity DelegationEntity = InitializedEntity::InitializeDelegation(
                                      QualType(ClassDecl->getTypeForDecl(), 0));
   InitializationKind Kind =
-    InitializationKind::CreateDirect(NameLoc, LParenLoc, RParenLoc);
+    InitializationKind::CreateDirect(NameLoc, Args.getStartLoc(),
+                                     Args.getEndLoc());
 
-  InitializationSequence InitSeq(*this, DelegationEntity, Kind, Args, NumArgs);
-
-  ExprResult DelegationInit =
-    InitSeq.Perform(*this, DelegationEntity, Kind,
-                    MultiExprArg(*this, Args, NumArgs), 0);
+  ExprResult DelegationInit = Args.PerformInit(*this, DelegationEntity, Kind);
   if (DelegationInit.isInvalid())
     return true;
 
@@ -1770,7 +2146,7 @@ Sema::BuildDelegatingInitializer(TypeSourceInfo *TInfo,
     = ConExpr->getConstructor();
   assert(Constructor && "Delegating constructor with no target?");
 
-  CheckImplicitConversions(DelegationInit.get(), LParenLoc);
+  CheckImplicitConversions(DelegationInit.get(), Args.getStartLoc());
 
   // C++0x [class.base.init]p7:
   //   The initialization of each base and member constitutes a
@@ -1780,24 +2156,22 @@ Sema::BuildDelegatingInitializer(TypeSourceInfo *TInfo,
     return true;
 
   assert(!CurContext->isDependentContext());
-  return new (Context) CXXCtorInitializer(Context, Loc, LParenLoc, Constructor,
+  return new (Context) CXXCtorInitializer(Context, Loc, Args.getStartLoc(),
+                                          Constructor,
                                           DelegationInit.takeAs<Expr>(),
-                                          RParenLoc);
+                                          Args.getEndLoc());
 }
 
 MemInitResult
 Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
-                           Expr **Args, unsigned NumArgs, 
-                           SourceLocation LParenLoc, SourceLocation RParenLoc, 
+                           const MultiInitializer &Args,
                            CXXRecordDecl *ClassDecl,
                            SourceLocation EllipsisLoc) {
-  bool HasDependentArg = false;
-  for (unsigned i = 0; i < NumArgs; i++)
-    HasDependentArg |= Args[i]->isTypeDependent();
+  bool HasDependentArg = Args.isTypeDependent();
 
   SourceLocation BaseLoc
     = BaseTInfo->getTypeLoc().getLocalSourceRange().getBegin();
-  
+
   if (!BaseType->isDependentType() && !BaseType->isRecordType())
     return Diag(BaseLoc, diag::err_base_init_does_not_name_class)
              << BaseType << BaseTInfo->getTypeLoc().getLocalSourceRange();
@@ -1814,28 +2188,26 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
     // This is a pack expansion.
     if (!BaseType->containsUnexpandedParameterPack())  {
       Diag(EllipsisLoc, diag::err_pack_expansion_without_parameter_packs)
-        << SourceRange(BaseLoc, RParenLoc);
-      
+        << SourceRange(BaseLoc, Args.getEndLoc());
+
       EllipsisLoc = SourceLocation();
     }
   } else {
     // Check for any unexpanded parameter packs.
     if (DiagnoseUnexpandedParameterPack(BaseLoc, BaseTInfo, UPPC_Initializer))
       return true;
-    
-    for (unsigned I = 0; I != NumArgs; ++I)
-      if (DiagnoseUnexpandedParameterPack(Args[I]))
-        return true;
+
+    if (Args.DiagnoseUnexpandedParameterPack(*this))
+      return true;
   }
-  
+
   // Check for direct and virtual base classes.
   const CXXBaseSpecifier *DirectBaseSpec = 0;
   const CXXBaseSpecifier *VirtualBaseSpec = 0;
   if (!Dependent) { 
     if (Context.hasSameUnqualifiedType(QualType(ClassDecl->getTypeForDecl(),0),
                                        BaseType))
-      return BuildDelegatingInitializer(BaseTInfo, Args, NumArgs, BaseLoc,
-                                        LParenLoc, RParenLoc, ClassDecl);
+      return BuildDelegatingInitializer(BaseTInfo, Args, BaseLoc, ClassDecl);
 
     FindBaseInitializer(*this, ClassDecl, BaseType, DirectBaseSpec, 
                         VirtualBaseSpec);
@@ -1862,18 +2234,14 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
   if (Dependent) {
     // Can't check initialization for a base of dependent type or when
     // any of the arguments are type-dependent expressions.
-    ExprResult BaseInit
-      = Owned(new (Context) ParenListExpr(Context, LParenLoc, Args, NumArgs,
-                                          RParenLoc, BaseType));
+    Expr *BaseInit = Args.CreateInitExpr(Context, BaseType);
 
     DiscardCleanupsInEvaluationContext();
 
-    return new (Context) CXXCtorInitializer(Context, BaseTInfo, 
-                                                    /*IsVirtual=*/false,
-                                                    LParenLoc, 
-                                                    BaseInit.takeAs<Expr>(),
-                                                    RParenLoc,
-                                                    EllipsisLoc);
+    return new (Context) CXXCtorInitializer(Context, BaseTInfo,
+                                            /*IsVirtual=*/false,
+                                            Args.getStartLoc(), BaseInit,
+                                            Args.getEndLoc(), EllipsisLoc);
   }
 
   // C++ [base.class.init]p2:
@@ -1893,18 +2261,15 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
   InitializedEntity BaseEntity =
     InitializedEntity::InitializeBase(Context, BaseSpec, VirtualBaseSpec);
   InitializationKind Kind = 
-    InitializationKind::CreateDirect(BaseLoc, LParenLoc, RParenLoc);
-  
-  InitializationSequence InitSeq(*this, BaseEntity, Kind, Args, NumArgs);
-  
-  ExprResult BaseInit =
-    InitSeq.Perform(*this, BaseEntity, Kind, 
-                    MultiExprArg(*this, Args, NumArgs), 0);
+    InitializationKind::CreateDirect(BaseLoc, Args.getStartLoc(),
+                                     Args.getEndLoc());
+
+  ExprResult BaseInit = Args.PerformInit(*this, BaseEntity, Kind);
   if (BaseInit.isInvalid())
     return true;
 
-  CheckImplicitConversions(BaseInit.get(), LParenLoc);
-  
+  CheckImplicitConversions(BaseInit.get(), Args.getStartLoc());
+
   // C++0x [class.base.init]p7:
   //   The initialization of each base and member constitutes a 
   //   full-expression.
@@ -1919,24 +2284,14 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
   // of the information that we have about the base
   // initializer. However, deconstructing the ASTs is a dicey process,
   // and this approach is far more likely to get the corner cases right.
-  if (CurContext->isDependentContext()) {
-    ExprResult Init
-      = Owned(new (Context) ParenListExpr(Context, LParenLoc, Args, NumArgs,
-                                          RParenLoc, BaseType));
-    return new (Context) CXXCtorInitializer(Context, BaseTInfo,
-                                                    BaseSpec->isVirtual(),
-                                                    LParenLoc, 
-                                                    Init.takeAs<Expr>(),
-                                                    RParenLoc,
-                                                    EllipsisLoc);
-  }
+  if (CurContext->isDependentContext())
+    BaseInit = Owned(Args.CreateInitExpr(Context, BaseType));
 
   return new (Context) CXXCtorInitializer(Context, BaseTInfo,
-                                                  BaseSpec->isVirtual(),
-                                                  LParenLoc, 
-                                                  BaseInit.takeAs<Expr>(),
-                                                  RParenLoc,
-                                                  EllipsisLoc);
+                                          BaseSpec->isVirtual(),
+                                          Args.getStartLoc(),
+                                          BaseInit.takeAs<Expr>(),
+                                          Args.getEndLoc(), EllipsisLoc);
 }
 
 // Create a static_cast\<T&&>(expr).
@@ -2573,7 +2928,7 @@ DiagnoseBaseOrMemInitializerOrder(Sema &SemaRef,
     CXXCtorInitializer *Init = Inits[InitIndex];
     if (SemaRef.Diags.getDiagnosticLevel(diag::warn_initializer_out_of_order,
                                          Init->getSourceLocation())
-          != Diagnostic::Ignored) {
+          != DiagnosticsEngine::Ignored) {
       ShouldCheckOrder = true;
       break;
     }
@@ -3235,6 +3590,47 @@ void Sema::CheckCompletedCXXClass(CXXRecordDecl *Record) {
          M != MEnd; ++M) {
       if (!(*M)->isStatic())
         DiagnoseHiddenVirtualMethods(Record, *M);
+    }
+  }
+
+  // C++0x [dcl.constexpr]p8: A constexpr specifier for a non-static member
+  // function that is not a constructor declares that member function to be
+  // const. [...] The class of which that function is a member shall be
+  // a literal type.
+  //
+  // It's fine to diagnose constructors here too: such constructors cannot
+  // produce a constant expression, so are ill-formed (no diagnostic required).
+  //
+  // If the class has virtual bases, any constexpr members will already have
+  // been diagnosed by the checks performed on the member declaration, so
+  // suppress this (less useful) diagnostic.
+  if (LangOpts.CPlusPlus0x && !Record->isDependentType() &&
+      !Record->isLiteral() && !Record->getNumVBases()) {
+    for (CXXRecordDecl::method_iterator M = Record->method_begin(),
+                                     MEnd = Record->method_end();
+         M != MEnd; ++M) {
+      if ((*M)->isConstexpr()) {
+        switch (Record->getTemplateSpecializationKind()) {
+        case TSK_ImplicitInstantiation:
+        case TSK_ExplicitInstantiationDeclaration:
+        case TSK_ExplicitInstantiationDefinition:
+          // If a template instantiates to a non-literal type, but its members
+          // instantiate to constexpr functions, the template is technically
+          // ill-formed, but we allow it for sanity. Such members are treated as
+          // non-constexpr.
+          (*M)->setConstexpr(false);
+          continue;
+
+        case TSK_Undeclared:
+        case TSK_ExplicitSpecialization:
+          RequireLiteralType((*M)->getLocation(), Context.getRecordType(Record),
+                             PDiag(diag::err_constexpr_method_non_literal));
+          break;
+        }
+
+        // Only produce one error per class.
+        break;
+      }
     }
   }
 
@@ -4603,7 +4999,7 @@ static bool FindHiddenVirtualMethod(const CXXBaseSpecifier *Specifier,
 /// overriding any.
 void Sema::DiagnoseHiddenVirtualMethods(CXXRecordDecl *DC, CXXMethodDecl *MD) {
   if (Diags.getDiagnosticLevel(diag::warn_overloaded_virtual,
-                               MD->getLocation()) == Diagnostic::Ignored)
+                               MD->getLocation()) == DiagnosticsEngine::Ignored)
     return;
   if (MD->getDeclName().getNameKind() != DeclarationName::Identifier)
     return;
@@ -8733,10 +9129,21 @@ void Sema::AddCXXDirectInitializerToDecl(Decl *RealDecl,
     return;
   }
 
-  CheckImplicitConversions(Result.get(), LParenLoc);
+  Expr *Init = Result.get();
+  CheckImplicitConversions(Init, LParenLoc);
   
-  Result = MaybeCreateExprWithCleanups(Result);
-  VDecl->setInit(Result.takeAs<Expr>());
+  if (VDecl->isConstexpr() && !VDecl->isInvalidDecl() &&
+      !Init->isValueDependent() &&
+      !Init->isConstantInitializer(Context,
+                                   VDecl->getType()->isReferenceType())) {
+    // FIXME: Improve this diagnostic to explain why the initializer is not
+    // a constant expression.
+    Diag(VDecl->getLocation(), diag::err_constexpr_var_requires_const_init)
+      << VDecl << Init->getSourceRange();
+  }
+
+  Init = MaybeCreateExprWithCleanups(Init);
+  VDecl->setInit(Init);
   VDecl->setCXXDirectInitializer(true);
 
   CheckCompleteVariableDeclaration(VDecl);
@@ -9978,7 +10385,6 @@ void Sema::SetDeclDefaulted(Decl *Dcl, SourceLocation DefaultLoc) {
 
     case CXXInvalid:
       llvm_unreachable("Invalid special member.");
-      break;
     }
   } else {
     Diag(DefaultLoc, diag::err_default_special_members);
@@ -10302,7 +10708,10 @@ bool Sema::DefineUsedVTables() {
     // Optionally warn if we're emitting a weak vtable.
     if (Class->getLinkage() == ExternalLinkage &&
         Class->getTemplateSpecializationKind() != TSK_ImplicitInstantiation) {
-      if (!KeyFunction || (KeyFunction->hasBody() && KeyFunction->isInlined()))
+      const FunctionDecl *KeyFunctionDef = 0;
+      if (!KeyFunction || 
+          (KeyFunction->hasBody(KeyFunctionDef) && 
+           KeyFunctionDef->isInlined()))
         Diag(Class->getLocation(), diag::warn_weak_vtable) << Class;
     }
   }

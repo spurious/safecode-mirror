@@ -57,7 +57,7 @@ class ModuleLoader;
 /// like the #include stack, token expansion, etc.
 ///
 class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
-  Diagnostic        *Diags;
+  DiagnosticsEngine        *Diags;
   LangOptions       &Features;
   const TargetInfo  *Target;
   FileManager       &FileMgr;
@@ -165,6 +165,10 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   /// \brief The source location of the __import_module__ keyword we just
   /// lexed, if any.
   SourceLocation ModuleImportLoc;
+
+  /// \brief The source location of the currently-active
+  /// #pragma clang arc_cf_code_audited begin.
+  SourceLocation PragmaARCCFCodeAuditedLoc;
   
   /// \brief True if we hit the code-completion point.
   bool CodeCompletionReached;
@@ -322,7 +326,7 @@ private:  // Cached tokens state.
   MacroInfo *getInfoForMacro(IdentifierInfo *II) const;
   
 public:
-  Preprocessor(Diagnostic &diags, LangOptions &opts,
+  Preprocessor(DiagnosticsEngine &diags, LangOptions &opts,
                const TargetInfo *target,
                SourceManager &SM, HeaderSearch &Headers,
                ModuleLoader &TheModuleLoader,
@@ -338,8 +342,8 @@ public:
   /// \param Target Information about the target.
   void Initialize(const TargetInfo &Target);
   
-  Diagnostic &getDiagnostics() const { return *Diags; }
-  void setDiagnostics(Diagnostic &D) { Diags = &D; }
+  DiagnosticsEngine &getDiagnostics() const { return *Diags; }
+  void setDiagnostics(DiagnosticsEngine &D) { Diags = &D; }
 
   const LangOptions &getLangOptions() const { return Features; }
   const TargetInfo &getTargetInfo() const { return *Target; }
@@ -720,6 +724,19 @@ public:
     getDiagnostics().setSuppressAllDiagnostics(true);
   }
 
+  /// \brief The location of the currently-active #pragma clang
+  /// arc_cf_code_audited begin.  Returns an invalid location if there
+  /// is no such pragma active.
+  SourceLocation getPragmaARCCFCodeAuditedLoc() const {
+    return PragmaARCCFCodeAuditedLoc;
+  }
+
+  /// \brief Set the location of the currently-active #pragma clang
+  /// arc_cf_code_audited begin.  An invalid location ends the pragma.
+  void setPragmaARCCFCodeAuditedLoc(SourceLocation Loc) {
+    PragmaARCCFCodeAuditedLoc = Loc;
+  }
+
   /// \brief Instruct the preprocessor to skip part of the main
   /// the main source file.
   ///
@@ -1057,7 +1074,8 @@ private:
   /// already seen one so a #else directive is a duplicate.  When this returns,
   /// the caller can lex the first valid token.
   void SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
-                                    bool FoundNonSkipPortion, bool FoundElse);
+                                    bool FoundNonSkipPortion, bool FoundElse,
+                                    SourceLocation ElseLoc = SourceLocation());
 
   /// PTHSkipExcludedConditionalBlock - A fast PTH version of
   ///  SkipExcludedConditionalBlock.

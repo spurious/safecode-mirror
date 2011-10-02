@@ -509,7 +509,7 @@ llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const CXXMethodDecl *MD) {
   // Get the function pointer (or index if this is a virtual function).
   llvm::Constant *MemPtr[2];
   if (MD->isVirtual()) {
-    uint64_t Index = CGM.getVTables().getMethodVTableIndex(MD);
+    uint64_t Index = CGM.getVTableContext().getMethodVTableIndex(MD);
 
     const ASTContext &Context = getContext();
     CharUnits PointerWidth =
@@ -1131,7 +1131,7 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     // Load the first byte of the guard variable.
     llvm::Type *PtrTy = Builder.getInt8PtrTy();
     llvm::LoadInst *LI = 
-      Builder.CreateLoad(Builder.CreateBitCast(GuardVariable, PtrTy), "tmp");
+      Builder.CreateLoad(Builder.CreateBitCast(GuardVariable, PtrTy));
     LI->setAlignment(1);
 
     // Itanium ABI:

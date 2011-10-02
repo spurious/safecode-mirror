@@ -20,6 +20,8 @@ clang_createCXCursorSet
 clang_createIndex
 clang_createTranslationUnit
 clang_createTranslationUnitFromSourceFile
+clang_Cursor_getTranslationUnit
+clang_Cursor_isNull
 clang_defaultCodeCompleteOptions
 clang_defaultDiagnosticDisplayOptions
 clang_defaultEditingTranslationUnitOptions
@@ -41,6 +43,8 @@ clang_equalRanges
 clang_equalTypes
 clang_executeOnThread
 clang_formatDiagnostic
+clang_getArrayElementType
+clang_getArraySize
 clang_getCString
 clang_getCXTUResourceUsage
 clang_getCXXAccessSpecifier
@@ -138,6 +142,7 @@ clang_isUnexposed
 clang_isVirtualBase
 clang_isVolatileQualifiedType
 clang_parseTranslationUnit
+clang_Range_isNull
 clang_remap_dispose
 clang_remap_getFilenames
 clang_remap_getNumFiles

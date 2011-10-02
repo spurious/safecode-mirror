@@ -193,7 +193,8 @@ void Preprocessor::CheckEndOfDirective(const char *DirType, bool EnableMacros) {
 /// the first valid token.
 void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
                                                 bool FoundNonSkipPortion,
-                                                bool FoundElse) {
+                                                bool FoundElse,
+                                                SourceLocation ElseLoc) {
   ++NumSkipped;
   assert(CurTokenLexer == 0 && CurPPLexer && "Lexing a macro, not a file?");
 
@@ -389,6 +390,11 @@ void Preprocessor::SkipExcludedConditionalBlock(SourceLocation IfTokenLoc,
   // of the file, just stop skipping and return to lexing whatever came after
   // the #if block.
   CurPPLexer->LexingRawMode = false;
+
+  if (Callbacks) {
+    SourceLocation BeginLoc = ElseLoc.isValid() ? ElseLoc : IfTokenLoc;
+    Callbacks->SourceRangeSkipped(SourceRange(BeginLoc, Tok.getLocation()));
+  }
 }
 
 void Preprocessor::PTHSkipExcludedConditionalBlock() {
@@ -1211,6 +1217,15 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
     return;
   }
 
+  // Complain about attempts to #include files in an audit pragma.
+  if (PragmaARCCFCodeAuditedLoc.isValid()) {
+    Diag(HashLoc, diag::err_pp_include_in_arc_cf_code_audited);
+    Diag(PragmaARCCFCodeAuditedLoc, diag::note_pragma_entered_here);
+
+    // Immediately leave the pragma.
+    PragmaARCCFCodeAuditedLoc = SourceLocation();
+  }
+
   // Search include directories.
   const DirectoryLookup *CurDir;
   llvm::SmallString<1024> SearchPath;
@@ -1616,7 +1631,7 @@ void Preprocessor::HandleDefineDirective(Token &DefineTok) {
   // warn-because-unused-macro set. If it gets used it will be removed from set.
   if (isInPrimaryFile() && // don't warn for include'd macros.
       Diags->getDiagnosticLevel(diag::pp_macro_not_used,
-                               MI->getDefinitionLoc()) != Diagnostic::Ignored) {
+          MI->getDefinitionLoc()) != DiagnosticsEngine::Ignored) {
     MI->setIsWarnIfUnused(true);
     WarnUnusedMacroLocs.insert(MI->getDefinitionLoc());
   }
@@ -1817,7 +1832,7 @@ void Preprocessor::HandleElseDirective(Token &Result) {
 
   // Finally, skip the rest of the contents of this block.
   SkipExcludedConditionalBlock(CI.IfLoc, /*Foundnonskip*/true,
-                               /*FoundElse*/true);
+                               /*FoundElse*/true, Result.getLocation());
 
   if (Callbacks)
     Callbacks->Else();
@@ -1850,7 +1865,8 @@ void Preprocessor::HandleElifDirective(Token &ElifToken) {
 
   // Finally, skip the rest of the contents of this block.
   SkipExcludedConditionalBlock(CI.IfLoc, /*Foundnonskip*/true,
-                               /*FoundElse*/CI.FoundElse);
+                               /*FoundElse*/CI.FoundElse,
+                               ElifToken.getLocation());
 
   if (Callbacks)
     Callbacks->Elif(SourceRange(ConditionalBegin, ConditionalEnd));

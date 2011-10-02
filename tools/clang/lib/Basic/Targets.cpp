@@ -1165,10 +1165,134 @@ class X86TargetInfo : public TargetInfo {
   bool HasAES;
   bool HasAVX;
 
+  /// \brief Enumeration of all of the X86 CPUs supported by Clang.
+  ///
+  /// Each enumeration represents a particular CPU supported by Clang. These
+  /// loosely correspond to the options passed to '-march' or '-mtune' flags.
+  enum CPUKind {
+    CK_Generic,
+
+    /// \name i386
+    /// i386-generation processors.
+    //@{
+    CK_i386,
+    //@}
+
+    /// \name i486
+    /// i486-generation processors.
+    //@{
+    CK_i486,
+    CK_WinChipC6,
+    CK_WinChip2,
+    CK_C3,
+    //@}
+
+    /// \name i586
+    /// i586-generation processors, P5 microarchitecture based.
+    //@{
+    CK_i586,
+    CK_Pentium,
+    CK_PentiumMMX,
+    //@}
+
+    /// \name i686
+    /// i686-generation processors, P6 / Pentium M microarchitecture based.
+    //@{
+    CK_i686,
+    CK_PentiumPro,
+    CK_Pentium2,
+    CK_Pentium3,
+    CK_Pentium3M,
+    CK_PentiumM,
+    CK_C3_2,
+
+    /// This enumerator is a bit odd, as GCC no longer accepts -march=yonah.
+    /// Clang however has some logic to suport this.
+    // FIXME: Warn, deprecate, and potentially remove this.
+    CK_Yonah,
+    //@}
+
+    /// \name Netburst
+    /// Netburst microarchitecture based processors.
+    //@{
+    CK_Pentium4,
+    CK_Pentium4M,
+    CK_Prescott,
+    CK_Nocona,
+    //@}
+
+    /// \name Core
+    /// Core microarchitecture based processors.
+    //@{
+    CK_Core2,
+
+    /// This enumerator, like \see CK_Yonah, is a bit odd. It is another
+    /// codename which GCC no longer accepts as an option to -march, but Clang
+    /// has some logic for recognizing it.
+    // FIXME: Warn, deprecate, and potentially remove this.
+    CK_Penryn,
+    //@}
+
+    /// \name Atom
+    /// Atom processors
+    //@{
+    CK_Atom,
+    //@}
+
+    /// \name Nehalem
+    /// Nehalem microarchitecture based processors.
+    //@{
+    CK_Corei7,
+    CK_Corei7AVX,
+    CK_CoreAVXi,
+    //@}
+
+    /// \name K6
+    /// K6 architecture processors.
+    //@{
+    CK_K6,
+    CK_K6_2,
+    CK_K6_3,
+    //@}
+
+    /// \name K7
+    /// K7 architecture processors.
+    //@{
+    CK_Athlon,
+    CK_AthlonThunderbird,
+    CK_Athlon4,
+    CK_AthlonXP,
+    CK_AthlonMP,
+    //@}
+
+    /// \name K8
+    /// K8 architecture processors.
+    //@{
+    CK_Athlon64,
+    CK_Athlon64SSE3,
+    CK_AthlonFX,
+    CK_K8,
+    CK_K8SSE3,
+    CK_Opteron,
+    CK_OpteronSSE3,
+
+    /// This specification is deprecated and will be removed in the future.
+    /// Users should prefer \see CK_K8.
+    // FIXME: Warn on this when the CPU is set to it.
+    CK_x86_64,
+    //@}
+
+    /// \name Geode
+    /// Geode processors.
+    //@{
+    CK_Geode
+    //@}
+  } CPU;
+
 public:
   X86TargetInfo(const std::string& triple)
     : TargetInfo(triple), SSELevel(NoSSE), MMX3DNowLevel(NoMMX3DNow),
-      HasAES(false), HasAVX(false) {
+      HasAES(false), HasAVX(false), CPU(CK_Generic) {
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
   }
   virtual void getTargetBuiltins(const Builtin::Info *&Records,
@@ -1202,16 +1326,122 @@ public:
   virtual bool setFeatureEnabled(llvm::StringMap<bool> &Features,
                                  const std::string &Name,
                                  bool Enabled) const;
-  virtual void getDefaultFeatures(const std::string &CPU,
-                                  llvm::StringMap<bool> &Features) const;
+  virtual void getDefaultFeatures(llvm::StringMap<bool> &Features) const;
   virtual void HandleTargetFeatures(std::vector<std::string> &Features);
   virtual const char* getABI() const {
     return MMX3DNowLevel == NoMMX3DNow ? "no-mmx" : "";
   }
+  virtual bool setCPU(const std::string &Name) {
+    CPU = llvm::StringSwitch<CPUKind>(Name)
+      .Case("i386", CK_i386)
+      .Case("i486", CK_i486)
+      .Case("winchip-c6", CK_WinChipC6)
+      .Case("winchip2", CK_WinChip2)
+      .Case("c3", CK_C3)
+      .Case("i586", CK_i586)
+      .Case("pentium", CK_Pentium)
+      .Case("pentium-mmx", CK_PentiumMMX)
+      .Case("i686", CK_i686)
+      .Case("pentiumpro", CK_PentiumPro)
+      .Case("pentium2", CK_Pentium2)
+      .Case("pentium3", CK_Pentium3)
+      .Case("pentium3m", CK_Pentium3M)
+      .Case("pentium-m", CK_PentiumM)
+      .Case("c3-2", CK_C3_2)
+      .Case("yonah", CK_Yonah)
+      .Case("pentium4", CK_Pentium4)
+      .Case("pentium4m", CK_Pentium4M)
+      .Case("prescott", CK_Prescott)
+      .Case("nocona", CK_Nocona)
+      .Case("core2", CK_Core2)
+      .Case("penryn", CK_Penryn)
+      .Case("atom", CK_Atom)
+      .Case("corei7", CK_Corei7)
+      .Case("corei7-avx", CK_Corei7AVX)
+      .Case("core-avx-i", CK_CoreAVXi)
+      .Case("k6", CK_K6)
+      .Case("k6-2", CK_K6_2)
+      .Case("k6-3", CK_K6_3)
+      .Case("athlon", CK_Athlon)
+      .Case("athlon-tbird", CK_AthlonThunderbird)
+      .Case("athlon-4", CK_Athlon4)
+      .Case("athlon-xp", CK_AthlonXP)
+      .Case("athlon-mp", CK_AthlonMP)
+      .Case("athlon64", CK_Athlon64)
+      .Case("athlon64-sse3", CK_Athlon64SSE3)
+      .Case("athlon-fx", CK_AthlonFX)
+      .Case("k8", CK_K8)
+      .Case("k8-sse3", CK_K8SSE3)
+      .Case("opteron", CK_Opteron)
+      .Case("opteron-sse3", CK_OpteronSSE3)
+      .Case("x86-64", CK_x86_64)
+      .Case("geode", CK_Geode)
+      .Default(CK_Generic);
+
+    // Perform any per-CPU checks necessary to determine if this CPU is
+    // acceptable.
+    // FIXME: This results in terrible diagnostics. Clang just says the CPU is
+    // invalid without explaining *why*.
+    switch (CPU) {
+    case CK_Generic:
+      // No processor selected!
+      return false;
+
+    case CK_i386:
+    case CK_i486:
+    case CK_WinChipC6:
+    case CK_WinChip2:
+    case CK_C3:
+    case CK_i586:
+    case CK_Pentium:
+    case CK_PentiumMMX:
+    case CK_i686:
+    case CK_PentiumPro:
+    case CK_Pentium2:
+    case CK_Pentium3:
+    case CK_Pentium3M:
+    case CK_PentiumM:
+    case CK_Yonah:
+    case CK_C3_2:
+    case CK_Pentium4:
+    case CK_Pentium4M:
+    case CK_Prescott:
+    case CK_K6:
+    case CK_K6_2:
+    case CK_K6_3:
+    case CK_Athlon:
+    case CK_AthlonThunderbird:
+    case CK_Athlon4:
+    case CK_AthlonXP:
+    case CK_AthlonMP:
+    case CK_Geode:
+      // Only accept certain architectures when compiling in 32-bit mode.
+      if (PointerWidth != 32)
+        return false;
+
+      // Fallthrough
+    case CK_Nocona:
+    case CK_Core2:
+    case CK_Penryn:
+    case CK_Atom:
+    case CK_Corei7:
+    case CK_Corei7AVX:
+    case CK_CoreAVXi:
+    case CK_Athlon64:
+    case CK_Athlon64SSE3:
+    case CK_AthlonFX:
+    case CK_K8:
+    case CK_K8SSE3:
+    case CK_Opteron:
+    case CK_OpteronSSE3:
+    case CK_x86_64:
+      return true;
+    }
+    llvm_unreachable("Unhandled CPU kind");
+  }
 };
 
-void X86TargetInfo::getDefaultFeatures(const std::string &CPU,
-                                       llvm::StringMap<bool> &Features) const {
+void X86TargetInfo::getDefaultFeatures(llvm::StringMap<bool> &Features) const {
   // FIXME: This should not be here.
   Features["3dnow"] = false;
   Features["3dnowa"] = false;
@@ -1234,57 +1464,100 @@ void X86TargetInfo::getDefaultFeatures(const std::string &CPU,
   if (PointerWidth == 64)
     Features["sse2"] = Features["sse"] = Features["mmx"] = true;
 
-  if (CPU == "generic" || CPU == "i386" || CPU == "i486" || CPU == "i586" ||
-      CPU == "pentium" || CPU == "i686" || CPU == "pentiumpro")
-    ;
-  else if (CPU == "pentium-mmx" || CPU == "pentium2")
+  switch (CPU) {
+  case CK_Generic:
+  case CK_i386:
+  case CK_i486:
+  case CK_i586:
+  case CK_Pentium:
+  case CK_i686:
+  case CK_PentiumPro:
+    break;
+  case CK_PentiumMMX:
+  case CK_Pentium2:
     setFeatureEnabled(Features, "mmx", true);
-  else if (CPU == "pentium3") {
+    break;
+  case CK_Pentium3:
+  case CK_Pentium3M:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse", true);
-  } else if (CPU == "pentium-m" || CPU == "pentium4" || CPU == "x86-64") {
+    break;
+  case CK_PentiumM:
+  case CK_Pentium4:
+  case CK_Pentium4M:
+  case CK_x86_64:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse2", true);
-  } else if (CPU == "yonah" || CPU == "prescott" || CPU == "nocona") {
+    break;
+  case CK_Yonah:
+  case CK_Prescott:
+  case CK_Nocona:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse3", true);
-  } else if (CPU == "core2") {
+    break;
+  case CK_Core2:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "ssse3", true);
-  } else if (CPU == "penryn") {
+    break;
+  case CK_Penryn:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse4", true);
     Features["sse42"] = false;
-  } else if (CPU == "atom") {
+    break;
+  case CK_Atom:
     setFeatureEnabled(Features, "mmx", true);
-    setFeatureEnabled(Features, "sse3", true);
-  } else if (CPU == "corei7") {
+    setFeatureEnabled(Features, "ssse3", true);
+    break;
+  case CK_Corei7:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse4", true);
     setFeatureEnabled(Features, "aes", true);
-  } else if (CPU == "corei7-avx") {
+    break;
+  case CK_Corei7AVX:
+  case CK_CoreAVXi:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse4", true);
     setFeatureEnabled(Features, "aes", true);
     //setFeatureEnabled(Features, "avx", true);
-  } else if (CPU == "k6" || CPU == "winchip-c6")
+    break;
+  case CK_K6:
+  case CK_WinChipC6:
     setFeatureEnabled(Features, "mmx", true);
-  else if (CPU == "k6-2" || CPU == "k6-3" || CPU == "athlon" ||
-           CPU == "athlon-tbird" || CPU == "winchip2" || CPU == "c3") {
+    break;
+  case CK_K6_2:
+  case CK_K6_3:
+  case CK_WinChip2:
+  case CK_C3:
     setFeatureEnabled(Features, "3dnow", true);
-  } else if (CPU == "athlon-4" || CPU == "athlon-xp" || CPU == "athlon-mp") {
+    break;
+  case CK_Athlon:
+  case CK_AthlonThunderbird:
+  case CK_Geode:
+    setFeatureEnabled(Features, "3dnowa", true);
+    break;
+  case CK_Athlon4:
+  case CK_AthlonXP:
+  case CK_AthlonMP:
     setFeatureEnabled(Features, "sse", true);
     setFeatureEnabled(Features, "3dnowa", true);
-  } else if (CPU == "k8" || CPU == "opteron" || CPU == "athlon64" ||
-           CPU == "athlon-fx") {
+    break;
+  case CK_K8:
+  case CK_Opteron:
+  case CK_Athlon64:
+  case CK_AthlonFX:
     setFeatureEnabled(Features, "sse2", true);
     setFeatureEnabled(Features, "3dnowa", true);
-  } else if (CPU == "k8-sse3") {
+    break;
+  case CK_K8SSE3:
+  case CK_OpteronSSE3:
+  case CK_Athlon64SSE3:
     setFeatureEnabled(Features, "sse3", true);
     setFeatureEnabled(Features, "3dnowa", true);
-  } else if (CPU == "c3-2") {
+    break;
+  case CK_C3_2:
     setFeatureEnabled(Features, "mmx", true);
     setFeatureEnabled(Features, "sse", true);
+    break;
   }
 }
 
@@ -1405,8 +1678,8 @@ void X86TargetInfo::HandleTargetFeatures(std::vector<std::string> &Features) {
     Features.erase(it);
 }
 
-/// X86TargetInfo::getTargetDefines - Return a set of the X86-specific #defines
-/// that are not tied to a specific subtarget.
+/// X86TargetInfo::getTargetDefines - Return the set of the X86-specific macro
+/// definitions for this particular subtarget.
 void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
                                      MacroBuilder &Builder) const {
   // Target identification.
@@ -1421,25 +1694,152 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     DefineStd(Builder, "i386", Opts);
   }
 
-  if (HasAES)
-    Builder.defineMacro("__AES__");
-
-  if (HasAVX)
-    Builder.defineMacro("__AVX__");
+  // Subtarget options.
+  // FIXME: We are hard-coding the tune parameters based on the CPU, but they
+  // truly should be based on -mtune options.
+  switch (CPU) {
+  case CK_Generic:
+    break;
+  case CK_i386:
+    // The rest are coming from the i386 define above.
+    Builder.defineMacro("__tune_i386__");
+    break;
+  case CK_i486:
+  case CK_WinChipC6:
+  case CK_WinChip2:
+  case CK_C3:
+    Builder.defineMacro("__i486");
+    Builder.defineMacro("__i486__");
+    Builder.defineMacro("__tune_i486__");
+    break;
+  case CK_PentiumMMX:
+    Builder.defineMacro("__pentium_mmx__");
+    Builder.defineMacro("__tune_pentium_mmx__");
+    // Fallthrough
+  case CK_i586:
+  case CK_Pentium:
+    Builder.defineMacro("__i586");
+    Builder.defineMacro("__i586__");
+    Builder.defineMacro("__tune_i586__");
+    Builder.defineMacro("__pentium");
+    Builder.defineMacro("__pentium__");
+    Builder.defineMacro("__tune_pentium__");
+    break;
+  case CK_Pentium3:
+  case CK_Pentium3M:
+  case CK_PentiumM:
+    Builder.defineMacro("__tune_pentium3__");
+    // Fallthrough
+  case CK_Pentium2:
+  case CK_C3_2:
+    Builder.defineMacro("__tune_pentium2__");
+    // Fallthrough
+  case CK_PentiumPro:
+    Builder.defineMacro("__tune_i686__");
+    Builder.defineMacro("__tune_pentiumpro__");
+    // Fallthrough
+  case CK_i686:
+    Builder.defineMacro("__i686");
+    Builder.defineMacro("__i686__");
+    // Strangely, __tune_i686__ isn't defined by GCC when CPU == i686.
+    Builder.defineMacro("__pentiumpro");
+    Builder.defineMacro("__pentiumpro__");
+    break;
+  case CK_Pentium4:
+  case CK_Pentium4M:
+    Builder.defineMacro("__pentium4");
+    Builder.defineMacro("__pentium4__");
+    Builder.defineMacro("__tune_pentium4__");
+    break;
+  case CK_Yonah:
+  case CK_Prescott:
+  case CK_Nocona:
+    Builder.defineMacro("__nocona");
+    Builder.defineMacro("__nocona__");
+    Builder.defineMacro("__tune_nocona__");
+    break;
+  case CK_Core2:
+  case CK_Penryn:
+    Builder.defineMacro("__core2");
+    Builder.defineMacro("__core2__");
+    Builder.defineMacro("__tune_core2__");
+    break;
+  case CK_Atom:
+    Builder.defineMacro("__atom");
+    Builder.defineMacro("__atom__");
+    Builder.defineMacro("__tune_atom__");
+    break;
+  case CK_Corei7:
+  case CK_Corei7AVX:
+  case CK_CoreAVXi:
+    Builder.defineMacro("__corei7");
+    Builder.defineMacro("__corei7__");
+    Builder.defineMacro("__tune_corei7__");
+    break;
+  case CK_K6_2:
+    Builder.defineMacro("__k6_2__");
+    Builder.defineMacro("__tune_k6_2__");
+    // Fallthrough
+  case CK_K6_3:
+    if (CPU != CK_K6_2) {  // In case of fallthrough
+      // FIXME: GCC may be enabling these in cases where some other k6
+      // architecture is specified but -m3dnow is explicitly provided. The
+      // exact semantics need to be determined and emulated here.
+      Builder.defineMacro("__k6_3__");
+      Builder.defineMacro("__tune_k6_3__");
+    }
+    // Fallthrough
+  case CK_K6:
+    Builder.defineMacro("__k6");
+    Builder.defineMacro("__k6__");
+    Builder.defineMacro("__tune_k6__");
+    break;
+  case CK_Athlon:
+  case CK_AthlonThunderbird:
+  case CK_Athlon4:
+  case CK_AthlonXP:
+  case CK_AthlonMP:
+    Builder.defineMacro("__athlon");
+    Builder.defineMacro("__athlon__");
+    Builder.defineMacro("__tune_athlon__");
+    if (SSELevel != NoSSE) {
+      Builder.defineMacro("__athlon_sse__");
+      Builder.defineMacro("__tune_athlon_sse__");
+    }
+    break;
+  case CK_K8:
+  case CK_K8SSE3:
+  case CK_x86_64:
+  case CK_Opteron:
+  case CK_OpteronSSE3:
+  case CK_Athlon64:
+  case CK_Athlon64SSE3:
+  case CK_AthlonFX:
+    Builder.defineMacro("__k8");
+    Builder.defineMacro("__k8__");
+    Builder.defineMacro("__tune_k8__");
+    break;
+  case CK_Geode:
+    Builder.defineMacro("__geode");
+    Builder.defineMacro("__geode__");
+    Builder.defineMacro("__tune_geode__");
+    break;
+  }
 
   // Target properties.
   Builder.defineMacro("__LITTLE_ENDIAN__");
-
-  // Subtarget options.
-  Builder.defineMacro("__nocona");
-  Builder.defineMacro("__nocona__");
-  Builder.defineMacro("__tune_nocona__");
   Builder.defineMacro("__REGISTER_PREFIX__", "");
 
   // Define __NO_MATH_INLINES on linux/x86 so that we don't get inline
   // functions in glibc header files that use FP Stack inline asm which the
   // backend can't deal with (PR879).
   Builder.defineMacro("__NO_MATH_INLINES");
+
+  if (HasAES)
+    Builder.defineMacro("__AES__");
+
+  if (HasAVX)
+    Builder.defineMacro("__AVX__");
 
   // Each case falls through to the previous one here.
   switch (SSELevel) {
@@ -2036,8 +2436,7 @@ public:
     return true;
   }
 
-  void getDefaultFeatures(const std::string &CPU,
-                          llvm::StringMap<bool> &Features) const {
+  void getDefaultFeatures(llvm::StringMap<bool> &Features) const {
     if (CPU == "arm1136jf-s" || CPU == "arm1176jzf-s" || CPU == "mpcore")
       Features["vfp2"] = true;
     else if (CPU == "cortex-a8" || CPU == "cortex-a9")
@@ -2720,8 +3119,7 @@ public:
     CPU = Name;
     return true;
   }
-  void getDefaultFeatures(const std::string &CPU,
-                          llvm::StringMap<bool> &Features) const {
+  void getDefaultFeatures(llvm::StringMap<bool> &Features) const {
     Features[ABI] = true;
     Features[CPU] = true;
   }
@@ -3011,8 +3409,7 @@ public:
                         "f32:32:32-f64:64:64-p:32:32:32-v128:32:32";
   }
 
-  void getDefaultFeatures(const std::string &CPU,
-                          llvm::StringMap<bool> &Features) const {
+  void getDefaultFeatures(llvm::StringMap<bool> &Features) const {
   }
   virtual void getArchDefines(const LangOptions &Opts,
                               MacroBuilder &Builder) const {
@@ -3293,7 +3690,7 @@ static TargetInfo *AllocateTarget(const std::string &T) {
 
 /// CreateTargetInfo - Return the target info object for the specified target
 /// triple.
-TargetInfo *TargetInfo::CreateTargetInfo(Diagnostic &Diags,
+TargetInfo *TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
                                          TargetOptions &Opts) {
   llvm::Triple Triple(Opts.Triple);
 
@@ -3325,7 +3722,7 @@ TargetInfo *TargetInfo::CreateTargetInfo(Diagnostic &Diags,
   // Compute the default target features, we need the target to handle this
   // because features may have dependencies on one another.
   llvm::StringMap<bool> Features;
-  Target->getDefaultFeatures(Opts.CPU, Features);
+  Target->getDefaultFeatures(Features);
 
   // Apply the user specified deltas.
   for (std::vector<std::string>::const_iterator it = Opts.Features.begin(),

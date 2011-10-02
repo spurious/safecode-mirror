@@ -73,7 +73,7 @@ class ItaniumMangleContext : public MangleContext {
   
 public:
   explicit ItaniumMangleContext(ASTContext &Context,
-                                Diagnostic &Diags)
+                                DiagnosticsEngine &Diags)
     : MangleContext(Context, Diags) { }
 
   uint64_t getAnonymousStructId(const TagDecl *TD) {
@@ -1070,7 +1070,6 @@ void CXXNameMangler::mangleUnqualifiedName(const NamedDecl *ND,
   case DeclarationName::ObjCOneArgSelector:
   case DeclarationName::ObjCMultiArgSelector:
     llvm_unreachable("Can't mangle Objective-C selector names here!");
-    break;
 
   case DeclarationName::CXXConstructorName:
     if (ND == Structor)
@@ -1125,7 +1124,6 @@ void CXXNameMangler::mangleUnqualifiedName(const NamedDecl *ND,
 
   case DeclarationName::CXXUsingDirective:
     llvm_unreachable("Can't mangle a using directive name!");
-    break;
   }
 }
 
@@ -1513,7 +1511,6 @@ CXXNameMangler::mangleOperatorName(OverloadedOperatorKind OO, unsigned Arity) {
   case OO_None:
   case NUM_OVERLOADED_OPERATORS:
     llvm_unreachable("Not an overloaded operator");
-    break;
   }
 }
 
@@ -2252,8 +2249,8 @@ recurse:
   case Expr::AsTypeExprClass:
   {
     // As bad as this diagnostic is, it's better than crashing.
-    Diagnostic &Diags = Context.getDiags();
-    unsigned DiagID = Diags.getCustomDiagID(Diagnostic::Error,
+    DiagnosticsEngine &Diags = Context.getDiags();
+    unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                      "cannot yet mangle expression type %0");
     Diags.Report(E->getExprLoc(), DiagID)
       << E->getStmtClassName() << E->getSourceRange();
@@ -2262,9 +2259,9 @@ recurse:
 
   // Even gcc-4.5 doesn't mangle this.
   case Expr::BinaryConditionalOperatorClass: {
-    Diagnostic &Diags = Context.getDiags();
+    DiagnosticsEngine &Diags = Context.getDiags();
     unsigned DiagID =
-      Diags.getCustomDiagID(Diagnostic::Error,
+      Diags.getCustomDiagID(DiagnosticsEngine::Error,
                 "?: operator with omitted middle operand cannot be mangled");
     Diags.Report(E->getExprLoc(), DiagID)
       << E->getStmtClassName() << E->getSourceRange();
@@ -2423,8 +2420,8 @@ recurse:
       Out << 'a';
       break;
     case UETT_VecStep:
-      Diagnostic &Diags = Context.getDiags();
-      unsigned DiagID = Diags.getCustomDiagID(Diagnostic::Error,
+      DiagnosticsEngine &Diags = Context.getDiags();
+      unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                      "cannot yet mangle vec_step expression");
       Diags.Report(DiagID);
       return;
@@ -3336,6 +3333,6 @@ void ItaniumMangleContext::mangleCXXRTTIName(QualType Ty,
 }
 
 MangleContext *clang::createItaniumMangleContext(ASTContext &Context,
-                                                 Diagnostic &Diags) {
+                                                 DiagnosticsEngine &Diags) {
   return new ItaniumMangleContext(Context, Diags);
 }

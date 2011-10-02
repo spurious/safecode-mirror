@@ -284,6 +284,7 @@ void ASTDeclReader::VisitTagDecl(TagDecl *TD) {
   TD->setTagKind((TagDecl::TagKind)Record[Idx++]);
   TD->setDefinition(Record[Idx++]);
   TD->setEmbeddedInDeclarator(Record[Idx++]);
+  TD->setFreeStanding(Record[Idx++]);
   TD->setRBraceLoc(ReadSourceLocation(Record, Idx));
   if (Record[Idx++]) { // hasExtInfo
     TagDecl::ExtInfo *Info = new (Reader.getContext()) TagDecl::ExtInfo();
@@ -346,7 +347,6 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->IdentifierNamespace = Record[Idx++];
   switch ((FunctionDecl::TemplatedKind)Record[Idx++]) {
   default: llvm_unreachable("Unhandled TemplatedKind!");
-    break;
   case FunctionDecl::TK_NonTemplate:
     break;
   case FunctionDecl::TK_FunctionTemplate:
@@ -1481,7 +1481,6 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   case DECL_CONTEXT_LEXICAL:
   case DECL_CONTEXT_VISIBLE:
     llvm_unreachable("Record cannot be de-serialized with ReadDeclRecord");
-    break;
   case DECL_TYPEDEF:
     D = TypedefDecl::Create(Context, 0, SourceLocation(), SourceLocation(),
                             0, 0);

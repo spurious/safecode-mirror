@@ -242,7 +242,7 @@ void ExprEngine::ProcessStmt(const CFGStmt S, StmtNodeBuilder& builder) {
   const LocationContext *LC = EntryNode->getLocationContext();
   SymbolReaper SymReaper(LC, currentStmt, SymMgr, getStoreManager());
 
-  if (AMgr.shouldPurgeDead()) {
+  if (AMgr.getPurgeMode() != PurgeNone) {
     getCheckerManager().runCheckersForLiveSymbols(CleanedState, SymReaper);
 
     const StackFrameContext *SFC = LC->getCurrentStackFrame();
@@ -1031,7 +1031,6 @@ void ExprEngine::processIndirectGoto(IndirectGotoNodeBuilder &builder) {
     }
 
     llvm_unreachable("No block with label.");
-    return;
   }
 
   if (isa<loc::ConcreteInt>(V) || isa<UndefinedVal>(V)) {

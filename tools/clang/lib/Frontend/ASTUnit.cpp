@@ -448,27 +448,33 @@ public:
   }
 };
 
-class StoredDiagnosticClient : public DiagnosticClient {
+class StoredDiagnosticConsumer : public DiagnosticConsumer {
   SmallVectorImpl<StoredDiagnostic> &StoredDiags;
   
 public:
-  explicit StoredDiagnosticClient(
+  explicit StoredDiagnosticConsumer(
                           SmallVectorImpl<StoredDiagnostic> &StoredDiags)
     : StoredDiags(StoredDiags) { }
   
-  virtual void HandleDiagnostic(Diagnostic::Level Level,
-                                const DiagnosticInfo &Info);
+  virtual void HandleDiagnostic(DiagnosticsEngine::Level Level,
+                                const Diagnostic &Info);
+  
+  DiagnosticConsumer *clone(DiagnosticsEngine &Diags) const {
+    // Just drop any diagnostics that come from cloned consumers; they'll
+    // have different source managers anyway.
+    return new IgnoringDiagConsumer();
+  }
 };
 
 /// \brief RAII object that optionally captures diagnostics, if
 /// there is no diagnostic client to capture them already.
 class CaptureDroppedDiagnostics {
-  Diagnostic &Diags;
-  StoredDiagnosticClient Client;
-  DiagnosticClient *PreviousClient;
+  DiagnosticsEngine &Diags;
+  StoredDiagnosticConsumer Client;
+  DiagnosticConsumer *PreviousClient;
 
 public:
-  CaptureDroppedDiagnostics(bool RequestCapture, Diagnostic &Diags, 
+  CaptureDroppedDiagnostics(bool RequestCapture, DiagnosticsEngine &Diags,
                           SmallVectorImpl<StoredDiagnostic> &StoredDiags)
     : Diags(Diags), Client(StoredDiags), PreviousClient(0)
   {
@@ -488,10 +494,10 @@ public:
 
 } // anonymous namespace
 
-void StoredDiagnosticClient::HandleDiagnostic(Diagnostic::Level Level,
-                                              const DiagnosticInfo &Info) {
+void StoredDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level Level,
+                                              const Diagnostic &Info) {
   // Default implementation (Warnings/errors count).
-  DiagnosticClient::HandleDiagnostic(Level, Info);
+  DiagnosticConsumer::HandleDiagnostic(Level, Info);
 
   StoredDiags.push_back(StoredDiagnostic(Level, Info));
 }
@@ -507,25 +513,25 @@ llvm::MemoryBuffer *ASTUnit::getBufferForFile(StringRef Filename,
 }
 
 /// \brief Configure the diagnostics object for use with ASTUnit.
-void ASTUnit::ConfigureDiags(llvm::IntrusiveRefCntPtr<Diagnostic> &Diags,
+void ASTUnit::ConfigureDiags(llvm::IntrusiveRefCntPtr<DiagnosticsEngine> &Diags,
                              const char **ArgBegin, const char **ArgEnd,
                              ASTUnit &AST, bool CaptureDiagnostics) {
   if (!Diags.getPtr()) {
     // No diagnostics engine was provided, so create our own diagnostics object
     // with the default options.
     DiagnosticOptions DiagOpts;
-    DiagnosticClient *Client = 0;
+    DiagnosticConsumer *Client = 0;
     if (CaptureDiagnostics)
-      Client = new StoredDiagnosticClient(AST.StoredDiagnostics);
+      Client = new StoredDiagnosticConsumer(AST.StoredDiagnostics);
     Diags = CompilerInstance::createDiagnostics(DiagOpts, ArgEnd- ArgBegin, 
                                                 ArgBegin, Client);
   } else if (CaptureDiagnostics) {
-    Diags->setClient(new StoredDiagnosticClient(AST.StoredDiagnostics));
+    Diags->setClient(new StoredDiagnosticConsumer(AST.StoredDiagnostics));
   }
 }
 
 ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
-                                  llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                   const FileSystemOptions &FileSystemOpts,
                                   bool OnlyLocalDecls,
                                   RemappedFile *RemappedFiles,
@@ -536,8 +542,8 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<ASTUnit>
     ASTUnitCleanup(AST.get());
-  llvm::CrashRecoveryContextCleanupRegistrar<Diagnostic,
-    llvm::CrashRecoveryContextReleaseRefCleanup<Diagnostic> >
+  llvm::CrashRecoveryContextCleanupRegistrar<DiagnosticsEngine,
+    llvm::CrashRecoveryContextReleaseRefCleanup<DiagnosticsEngine> >
     DiagCleanup(Diags.getPtr());
 
   ConfigureDiags(Diags, 0, 0, *AST, CaptureDiagnostics);
@@ -1498,7 +1504,7 @@ StringRef ASTUnit::getMainFileName() const {
 }
 
 ASTUnit *ASTUnit::create(CompilerInvocation *CI,
-                         llvm::IntrusiveRefCntPtr<Diagnostic> Diags) {
+                         llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags) {
   llvm::OwningPtr<ASTUnit> AST;
   AST.reset(new ASTUnit(false));
   ConfigureDiags(Diags, 0, 0, *AST, /*CaptureDiagnostics=*/false);
@@ -1512,7 +1518,7 @@ ASTUnit *ASTUnit::create(CompilerInvocation *CI,
 }
 
 ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(CompilerInvocation *CI,
-                                   llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                              ASTFrontendAction *Action) {
   assert(CI && "A CompilerInvocation is required");
 
@@ -1530,8 +1536,8 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(CompilerInvocation *CI,
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<ASTUnit>
     ASTUnitCleanup(AST.get());
-  llvm::CrashRecoveryContextCleanupRegistrar<Diagnostic,
-    llvm::CrashRecoveryContextReleaseRefCleanup<Diagnostic> >
+  llvm::CrashRecoveryContextCleanupRegistrar<DiagnosticsEngine,
+    llvm::CrashRecoveryContextReleaseRefCleanup<DiagnosticsEngine> >
     DiagCleanup(Diags.getPtr());
 
   // We'll manage file buffers ourselves.
@@ -1653,7 +1659,7 @@ bool ASTUnit::LoadFromCompilerInvocation(bool PrecompilePreamble) {
 }
 
 ASTUnit *ASTUnit::LoadFromCompilerInvocation(CompilerInvocation *CI,
-                                   llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                              bool OnlyLocalDecls,
                                              bool CaptureDiagnostics,
                                              bool PrecompilePreamble,
@@ -1675,8 +1681,8 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocation(CompilerInvocation *CI,
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<ASTUnit>
     ASTUnitCleanup(AST.get());
-  llvm::CrashRecoveryContextCleanupRegistrar<Diagnostic,
-    llvm::CrashRecoveryContextReleaseRefCleanup<Diagnostic> >
+  llvm::CrashRecoveryContextCleanupRegistrar<DiagnosticsEngine,
+    llvm::CrashRecoveryContextReleaseRefCleanup<DiagnosticsEngine> >
     DiagCleanup(Diags.getPtr());
 
   return AST->LoadFromCompilerInvocation(PrecompilePreamble)? 0 : AST.take();
@@ -1684,7 +1690,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocation(CompilerInvocation *CI,
 
 ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
                                       const char **ArgEnd,
-                                    llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                                    llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                       StringRef ResourceFilesPath,
                                       bool OnlyLocalDecls,
                                       bool CaptureDiagnostics,
@@ -1759,8 +1765,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
   llvm::CrashRecoveryContextCleanupRegistrar<CompilerInvocation,
     llvm::CrashRecoveryContextReleaseRefCleanup<CompilerInvocation> >
     CICleanup(CI.getPtr());
-  llvm::CrashRecoveryContextCleanupRegistrar<Diagnostic,
-    llvm::CrashRecoveryContextReleaseRefCleanup<Diagnostic> >
+  llvm::CrashRecoveryContextCleanupRegistrar<DiagnosticsEngine,
+    llvm::CrashRecoveryContextReleaseRefCleanup<DiagnosticsEngine> >
     DiagCleanup(Diags.getPtr());
 
   return AST->LoadFromCompilerInvocation(PrecompilePreamble) ? 0 : AST.take();
@@ -2070,7 +2076,7 @@ void ASTUnit::CodeComplete(StringRef File, unsigned Line, unsigned Column,
                            bool IncludeMacros, 
                            bool IncludeCodePatterns,
                            CodeCompleteConsumer &Consumer,
-                           Diagnostic &Diag, LangOptions &LangOpts,
+                           DiagnosticsEngine &Diag, LangOptions &LangOpts,
                            SourceManager &SourceMgr, FileManager &FileMgr,
                    SmallVectorImpl<StoredDiagnostic> &StoredDiagnostics,
              SmallVectorImpl<const llvm::MemoryBuffer *> &OwnedBuffers) {
@@ -2342,25 +2348,57 @@ void ASTUnit::TranslateStoredDiagnostics(
 SourceLocation ASTUnit::getLocation(const FileEntry *File,
                                     unsigned Line, unsigned Col) const {
   const SourceManager &SM = getSourceManager();
-  SourceLocation Loc;
-  if (!Preamble.empty() && Line <= Preamble.getNumLines())
-    Loc = SM.translateLineCol(SM.getPreambleFileID(), Line, Col);
-  else
-    Loc = SM.translateFileLineCol(File, Line, Col);
-
+  SourceLocation Loc = SM.translateFileLineCol(File, Line, Col);
   return SM.getMacroArgExpandedLocation(Loc);
 }
 
 SourceLocation ASTUnit::getLocation(const FileEntry *File,
                                     unsigned Offset) const {
   const SourceManager &SM = getSourceManager();
-  SourceLocation FileLoc;
-  if (!Preamble.empty() && Offset < Preamble.size())
-    FileLoc = SM.getLocForStartOfFile(SM.getPreambleFileID());
-  else
-    FileLoc = SM.translateFileLineCol(File, 1, 1);
-
+  SourceLocation FileLoc = SM.translateFileLineCol(File, 1, 1);
   return SM.getMacroArgExpandedLocation(FileLoc.getLocWithOffset(Offset));
+}
+
+/// \brief If \arg Loc is a loaded location from the preamble, returns
+/// the corresponding local location of the main file, otherwise it returns
+/// \arg Loc.
+SourceLocation ASTUnit::mapLocationFromPreamble(SourceLocation Loc) {
+  FileID PreambleID;
+  if (SourceMgr)
+    PreambleID = SourceMgr->getPreambleFileID();
+
+  if (Loc.isInvalid() || Preamble.empty() || PreambleID.isInvalid())
+    return Loc;
+
+  unsigned Offs;
+  if (SourceMgr->isInFileID(Loc, PreambleID, &Offs) && Offs < Preamble.size()) {
+    SourceLocation FileLoc
+        = SourceMgr->getLocForStartOfFile(SourceMgr->getMainFileID());
+    return FileLoc.getLocWithOffset(Offs);
+  }
+
+  return Loc;
+}
+
+/// \brief If \arg Loc is a local location of the main file but inside the
+/// preamble chunk, returns the corresponding loaded location from the
+/// preamble, otherwise it returns \arg Loc.
+SourceLocation ASTUnit::mapLocationToPreamble(SourceLocation Loc) {
+  FileID PreambleID;
+  if (SourceMgr)
+    PreambleID = SourceMgr->getPreambleFileID();
+
+  if (Loc.isInvalid() || Preamble.empty() || PreambleID.isInvalid())
+    return Loc;
+
+  unsigned Offs;
+  if (SourceMgr->isInFileID(Loc, SourceMgr->getMainFileID(), &Offs) &&
+      Offs < Preamble.size()) {
+    SourceLocation FileLoc = SourceMgr->getLocForStartOfFile(PreambleID);
+    return FileLoc.getLocWithOffset(Offs);
+  }
+
+  return Loc;
 }
 
 void ASTUnit::PreambleData::countLines() const {

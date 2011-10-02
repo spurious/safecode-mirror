@@ -25,7 +25,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/StaticAnalyzer/Core/PathDiagnosticClients.h"
+#include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
 
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
@@ -42,15 +42,15 @@ using namespace ento;
 static ExplodedNode::Auditor* CreateUbiViz();
 
 //===----------------------------------------------------------------------===//
-// Special PathDiagnosticClients.
+// Special PathDiagnosticConsumers.
 //===----------------------------------------------------------------------===//
 
-static PathDiagnosticClient*
-createPlistHTMLDiagnosticClient(const std::string& prefix,
+static PathDiagnosticConsumer*
+createPlistHTMLDiagnosticConsumer(const std::string& prefix,
                                 const Preprocessor &PP) {
-  PathDiagnosticClient *PD =
-    createHTMLDiagnosticClient(llvm::sys::path::parent_path(prefix), PP);
-  return createPlistDiagnosticClient(prefix, PP, PD);
+  PathDiagnosticConsumer *PD =
+    createHTMLDiagnosticConsumer(llvm::sys::path::parent_path(prefix), PP);
+  return createPlistDiagnosticConsumer(prefix, PP, PD);
 }
 
 //===----------------------------------------------------------------------===//
@@ -68,7 +68,7 @@ public:
   ArrayRef<std::string> Plugins;
 
   // PD is owned by AnalysisManager.
-  PathDiagnosticClient *PD;
+  PathDiagnosticConsumer *PD;
 
   StoreManagerCreator CreateStoreMgr;
   ConstraintManagerCreator CreateConstraintMgr;
@@ -85,7 +85,7 @@ public:
   }
 
   void DigestAnalyzerOptions() {
-    // Create the PathDiagnosticClient.
+    // Create the PathDiagnosticConsumer.
     if (!OutDir.empty()) {
       switch (Opts.AnalysisDiagOpt) {
       default:
@@ -96,7 +96,7 @@ public:
     } else if (Opts.AnalysisDiagOpt == PD_TEXT) {
       // Create the text client even without a specified output file since
       // it just uses diagnostic notes.
-      PD = createTextPathDiagnosticClient("", PP);
+      PD = createTextPathDiagnosticConsumer("", PP);
     }
 
     // Create the analyzer component creators.
@@ -152,7 +152,7 @@ public:
                                   /* Indexer */ 0, 
                                   Opts.MaxNodes, Opts.MaxLoop,
                                   Opts.VisualizeEGDot, Opts.VisualizeEGUbi,
-                                  Opts.PurgeDead, Opts.EagerlyAssume,
+                                  Opts.AnalysisPurgeOpt, Opts.EagerlyAssume,
                                   Opts.TrimGraph, Opts.InlineCall,
                                   Opts.UnoptimizedCFG, Opts.CFGAddImplicitDtors,
                                   Opts.CFGAddInitializers,
@@ -244,9 +244,9 @@ void AnalysisConsumer::HandleTranslationUnit(ASTContext &C) {
   // After all decls handled, run checkers on the entire TranslationUnit.
   checkerMgr->runCheckersOnEndOfTranslationUnit(TU, *Mgr, BR);
 
-  // Explicitly destroy the PathDiagnosticClient.  This will flush its output.
+  // Explicitly destroy the PathDiagnosticConsumer.  This will flush its output.
   // FIXME: This should be replaced with something that doesn't rely on
-  // side-effects in PathDiagnosticClient's destructor. This is required when
+  // side-effects in PathDiagnosticConsumer's destructor. This is required when
   // used with option -disable-free.
   Mgr.reset(NULL);
 }
@@ -267,7 +267,7 @@ static void RunPathSensitiveChecks(AnalysisConsumer &C, AnalysisManager &mgr,
 void AnalysisConsumer::HandleCode(Decl *D) {
 
   // Don't run the actions if an error has occurred with parsing the file.
-  Diagnostic &Diags = PP.getDiagnostics();
+  DiagnosticsEngine &Diags = PP.getDiagnostics();
   if (Diags.hasErrorOccurred() || Diags.hasFatalErrorOccurred())
     return;
 

@@ -1210,7 +1210,7 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
   CGDebugInfo *DI = getDebugInfo();
   if (DI) {
     DI->setLocation(S.getSourceRange().getBegin());
-    DI->EmitRegionStart(Builder);
+    DI->EmitLexicalBlockStart(Builder);
   }
 
   // The local variable comes into scope immediately.
@@ -1340,8 +1340,7 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
   EmitBlock(WasMutatedBB);
   llvm::Value *V =
     Builder.CreateBitCast(Collection,
-                          ConvertType(getContext().getObjCIdType()),
-                          "tmp");
+                          ConvertType(getContext().getObjCIdType()));
   CallArgList Args2;
   Args2.add(RValue::get(V), getContext().getObjCIdType());
   // FIXME: We shouldn't need to get the function info here, the runtime already
@@ -1468,7 +1467,7 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
 
   if (DI) {
     DI->setLocation(S.getSourceRange().getEnd());
-    DI->EmitRegionEnd(Builder);
+    DI->EmitLexicalBlockEnd(Builder);
   }
 
   // Leave the cleanup we entered in ARC.
@@ -2387,6 +2386,30 @@ CodeGenFunction::EmitARCRetainAutoreleaseScalarExpr(const Expr *e) {
   return value;
 }
 
+llvm::Value *CodeGenFunction::EmitObjCThrowOperand(const Expr *expr) {
+  // In ARC, retain and autorelease the expression.
+  if (getLangOptions().ObjCAutoRefCount) {
+    // Do so before running any cleanups for the full-expression.
+    // tryEmitARCRetainScalarExpr does make an effort to do things
+    // inside cleanups, but there are crazy cases like
+    //   @throw A().foo;
+    // where a full retain+autorelease is required and would
+    // otherwise happen after the destructor for the temporary.
+    CodeGenFunction::RunCleanupsScope cleanups(*this);
+    if (const ExprWithCleanups *ewc = dyn_cast<ExprWithCleanups>(expr))
+      expr = ewc->getSubExpr();
+
+    return EmitARCRetainAutoreleaseScalarExpr(expr);
+  }
+
+  // Otherwise, use the normal scalar-expression emission.  The
+  // exception machinery doesn't do anything special with the
+  // exception like retaining it, so there's no safety associated with
+  // only running cleanups after the throw has started, and when it
+  // matters it tends to be substantially inferior code.
+  return EmitScalarExpr(expr);
+}
+
 std::pair<LValue,llvm::Value*>
 CodeGenFunction::EmitARCStoreStrong(const BinaryOperator *e,
                                     bool ignored) {
@@ -2443,7 +2466,7 @@ void CodeGenFunction::EmitObjCAutoreleasePoolStmt(
   CGDebugInfo *DI = getDebugInfo();
   if (DI) {
     DI->setLocation(S.getLBracLoc());
-    DI->EmitRegionStart(Builder);
+    DI->EmitLexicalBlockStart(Builder);
   }
 
   // Keep track of the current cleanup stack depth.
@@ -2462,7 +2485,7 @@ void CodeGenFunction::EmitObjCAutoreleasePoolStmt(
 
   if (DI) {
     DI->setLocation(S.getRBracLoc());
-    DI->EmitRegionEnd(Builder);
+    DI->EmitLexicalBlockEnd(Builder);
   }
 }
 

@@ -46,6 +46,8 @@ add_clang_library(clangAST
   Type.cpp
   TypeLoc.cpp
   TypePrinter.cpp
+  VTableBuilder.cpp
+  VTTBuilder.cpp
   )
 
 add_dependencies(clangAST ClangARMNeon ClangAttrClasses ClangAttrList 

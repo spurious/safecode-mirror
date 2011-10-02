@@ -325,7 +325,7 @@ ExprResult Sema::BuildCXXTypeId(QualType TypeInfoType,
     QualType UnqualT = Context.getUnqualifiedArrayType(T, Quals);
     if (!Context.hasSameType(T, UnqualT)) {
       T = UnqualT;
-      E = ImpCastExprToType(E, UnqualT, CK_NoOp, CastCategory(E)).take();
+      E = ImpCastExprToType(E, UnqualT, CK_NoOp, E->getValueKind()).take();
     }
   }
 
@@ -545,7 +545,7 @@ ExprResult Sema::CheckCXXThrowOperand(SourceLocation ThrowLoc, Expr *E,
   //   or "pointer to function returning T", [...]
   if (E->getType().hasQualifiers())
     E = ImpCastExprToType(E, E->getType().getUnqualifiedType(), CK_NoOp,
-                      CastCategory(E)).take();
+                          E->getValueKind()).take();
 
   ExprResult Res = DefaultFunctionArrayConversion(E);
   if (Res.isInvalid())
@@ -1526,7 +1526,6 @@ bool Sema::FindAllocationOverload(SourceLocation StartLoc, SourceRange Range,
   }
   }
   llvm_unreachable("Unreachable, bad result from BestViableFunction");
-  return true;
 }
 
 
@@ -2182,7 +2181,6 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
 
   case ImplicitConversionSequence::EllipsisConversion:
     llvm_unreachable("Cannot perform an ellipsis conversion");
-    return Owned(From);
 
   case ImplicitConversionSequence::BadConversion:
     return ExprError();
@@ -2285,7 +2283,6 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
 
   default:
     llvm_unreachable("Improper first standard conversion");
-    break;
   }
 
   // Perform the second implicit conversion
@@ -2433,7 +2430,7 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
       return ExprError();
 
     From = ImpCastExprToType(From, ToType.getNonReferenceType(),
-                      CK_DerivedToBase, CastCategory(From),
+                      CK_DerivedToBase, From->getValueKind(),
                       &BasePath, CCK).take();
     break;
   }
@@ -2525,7 +2522,6 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
   case ICK_Qualification:
   case ICK_Num_Conversion_Kinds:
     llvm_unreachable("Improper second standard conversion");
-    break;
   }
 
   switch (SCS.Third) {
@@ -2537,7 +2533,7 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     // The qualification keeps the category of the inner expression, unless the
     // target type isn't a reference.
     ExprValueKind VK = ToType->isReferenceType() ?
-                                  CastCategory(From) : VK_RValue;
+                                  From->getValueKind() : VK_RValue;
     From = ImpCastExprToType(From, ToType.getNonLValueExprType(Context),
                              CK_NoOp, VK, /*BasePath=*/0, CCK).take();
 
@@ -2551,7 +2547,6 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
 
   default:
     llvm_unreachable("Improper third standard conversion");
-    break;
   }
 
   return Owned(From);
@@ -3344,8 +3339,7 @@ QualType Sema::CheckPointerToMemberOperands(ExprResult &LHS, ExprResult &RHS,
     }
     // Cast LHS to type of use.
     QualType UseType = isIndirect ? Context.getPointerType(Class) : Class;
-    ExprValueKind VK =
-        isIndirect ? VK_RValue : CastCategory(LHS.get());
+    ExprValueKind VK = isIndirect ? VK_RValue : LHS.get()->getValueKind();
 
     CXXCastPath BasePath;
     BuildBasePathArray(Paths, BasePath);
@@ -3561,7 +3555,6 @@ static bool FindConditionalOverload(Sema &Self, ExprResult &LHS, ExprResult &RHS
 
     case OR_Deleted:
       llvm_unreachable("Conditional operator has only built-in overloads");
-      break;
   }
   return true;
 }
@@ -4643,7 +4636,7 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE) {
   if (FullExpr.isInvalid())
     return ExprError();
 
-  CheckImplicitConversions(FullExpr.get());
+  CheckImplicitConversions(FullExpr.get(), FullExpr.get()->getExprLoc());
   return MaybeCreateExprWithCleanups(FullExpr);
 }
 

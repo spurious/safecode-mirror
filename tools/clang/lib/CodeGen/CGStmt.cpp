@@ -35,16 +35,14 @@ void CodeGenFunction::EmitStopPoint(const Stmt *S) {
       DI->setLocation(S->getLocEnd());
     else
       DI->setLocation(S->getLocStart());
-    DI->UpdateLineDirectiveRegion(Builder);
-    DI->EmitStopPoint(Builder);
+    DI->EmitLocation(Builder);
   }
 }
 
 void CodeGenFunction::EmitStmt(const Stmt *S) {
   assert(S && "Null statement?");
 
-  // Check if we can handle this without bothering to generate an
-  // insert point or debug info.
+  // These statements have their own debug info handling.
   if (EmitSimpleStmt(S))
     return;
 
@@ -139,11 +137,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S) {
   case Stmt::ObjCAtCatchStmtClass:
     llvm_unreachable(
                     "@catch statements should be handled by EmitObjCAtTryStmt");
-    break;
   case Stmt::ObjCAtFinallyStmtClass:
     llvm_unreachable(
                   "@finally statements should be handled by EmitObjCAtTryStmt");
-    break;
   case Stmt::ObjCAtThrowStmtClass:
     EmitObjCAtThrowStmt(cast<ObjCAtThrowStmt>(*S));
     break;
@@ -196,7 +192,7 @@ RValue CodeGenFunction::EmitCompoundStmt(const CompoundStmt &S, bool GetLast,
   CGDebugInfo *DI = getDebugInfo();
   if (DI) {
     DI->setLocation(S.getLBracLoc());
-    DI->EmitRegionStart(Builder);
+    DI->EmitLexicalBlockStart(Builder);
   }
 
   // Keep track of the current cleanup stack depth.
@@ -208,7 +204,7 @@ RValue CodeGenFunction::EmitCompoundStmt(const CompoundStmt &S, bool GetLast,
 
   if (DI) {
     DI->setLocation(S.getRBracLoc());
-    DI->EmitRegionEnd(Builder);
+    DI->EmitLexicalBlockEnd(Builder);
   }
 
   RValue RV;
@@ -576,7 +572,7 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S) {
   CGDebugInfo *DI = getDebugInfo();
   if (DI) {
     DI->setLocation(S.getSourceRange().getBegin());
-    DI->EmitRegionStart(Builder);
+    DI->EmitLexicalBlockStart(Builder);
   }
 
   // Evaluate the first part before the loop.
@@ -658,7 +654,7 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S) {
 
   if (DI) {
     DI->setLocation(S.getSourceRange().getEnd());
-    DI->EmitRegionEnd(Builder);
+    DI->EmitLexicalBlockEnd(Builder);
   }
 
   // Emit the fall-through block.
@@ -673,7 +669,7 @@ void CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S) {
   CGDebugInfo *DI = getDebugInfo();
   if (DI) {
     DI->setLocation(S.getSourceRange().getBegin());
-    DI->EmitRegionStart(Builder);
+    DI->EmitLexicalBlockStart(Builder);
   }
 
   // Evaluate the first pieces before the loop.
@@ -732,7 +728,7 @@ void CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S) {
 
   if (DI) {
     DI->setLocation(S.getSourceRange().getEnd());
-    DI->EmitRegionEnd(Builder);
+    DI->EmitLexicalBlockEnd(Builder);
   }
 
   // Emit the fall-through block.
@@ -878,7 +874,7 @@ void CodeGenFunction::EmitCaseStmtRange(const CaseStmt &S) {
 
   // Emit range check.
   llvm::Value *Diff =
-    Builder.CreateSub(SwitchInsn->getCondition(), Builder.getInt(LHS),  "tmp");
+    Builder.CreateSub(SwitchInsn->getCondition(), Builder.getInt(LHS));
   llvm::Value *Cond =
     Builder.CreateICmpULE(Diff, Builder.getInt(Range), "inbounds");
   Builder.CreateCondBr(Cond, CaseDest, FalseDest);

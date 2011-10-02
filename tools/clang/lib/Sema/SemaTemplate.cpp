@@ -2683,7 +2683,6 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param,
     switch (Arg.getArgument().getKind()) {
     case TemplateArgument::Null:
       llvm_unreachable("Should never see a NULL template argument here");
-      return true;
 
     case TemplateArgument::Expression: {
       TemplateArgument Result;
@@ -2806,7 +2805,6 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param,
   switch (Arg.getArgument().getKind()) {
   case TemplateArgument::Null:
     llvm_unreachable("Should never see a NULL template argument here");
-    return true;
 
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
@@ -3906,7 +3904,8 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     bool ObjCLifetimeConversion;
     if (IsQualificationConversion(ArgType, ParamType.getNonReferenceType(),
                                   false, ObjCLifetimeConversion)) {
-      Arg = ImpCastExprToType(Arg, ParamType, CK_NoOp, CastCategory(Arg)).take();
+      Arg = ImpCastExprToType(Arg, ParamType, CK_NoOp,
+                              Arg->getValueKind()).take();
     } else if (!Context.hasSameUnqualifiedType(ArgType,
                                            ParamType.getNonReferenceType())) {
       // We can't perform this conversion.
@@ -3977,7 +3976,8 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     // Types match exactly: nothing more to do here.
   } else if (IsQualificationConversion(ArgType, ParamType, false, 
                                        ObjCLifetimeConversion)) {
-    Arg = ImpCastExprToType(Arg, ParamType, CK_NoOp, CastCategory(Arg)).take();
+    Arg = ImpCastExprToType(Arg, ParamType, CK_NoOp,
+                            Arg->getValueKind()).take();
   } else {
     // We can't perform this conversion.
     Diag(Arg->getSourceRange().getBegin(),
@@ -5218,7 +5218,6 @@ Sema::CheckSpecializationInstantiationRedecl(SourceLocation NewLoc,
   case TSK_Undeclared:
   case TSK_ImplicitInstantiation:
     llvm_unreachable("Don't check implicit instantiations here");
-    return false;
 
   case TSK_ExplicitSpecialization:
     switch (PrevTSK) {
@@ -5351,8 +5350,6 @@ Sema::CheckSpecializationInstantiationRedecl(SourceLocation NewLoc,
   }
 
   llvm_unreachable("Missing specialization/instantiation case?");
-
-  return false;
 }
 
 /// \brief Perform semantic analysis for the given dependent function
@@ -6732,7 +6729,7 @@ Sema::getTemplateArgumentBindingsText(const TemplateParameterList *Params,
     }
 
     Out << " = ";
-    Args[I].print(Context.PrintingPolicy, Out);
+    Args[I].print(getPrintingPolicy(), Out);
   }
 
   Out << ']';

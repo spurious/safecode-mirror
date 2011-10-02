@@ -11,7 +11,7 @@ CLANG_LEVEL := ..
 
 ifndef NO_RUNTIME_LIBS
 
-PARALLEL_DIRS  := compiler-rt
+PARALLEL_DIRS  := compiler-rt libcxx
 
 endif
 

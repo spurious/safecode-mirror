@@ -282,7 +282,6 @@ def warn_sizeof_pointer_type_memaccess : Warning<
 def warn_strlcpycat_wrong_size : Warning<
   "size argument in %0 call appears to be size of the source; expected the size of "
   "the destination">,
-  DefaultIgnore,
   InGroup<DiagGroup<"strlcpy-strlcat-size">>;
 def note_strlcpycat_wrong_size : Note<
   "change size argument to be the size of the destination">;
@@ -516,6 +515,9 @@ def warn_default_atomic_custom_getter_setter : Warning<
 def err_use_continuation_class : Error<
   "illegal redeclaration of property in continuation class %0"
   " (attribute must be 'readwrite', while its primary must be 'readonly')">;
+def error_type_mismatch_continuation_class : Error<
+  "type of property %0 in continuation class does not match "
+  "property type in primary class">;
 def err_use_continuation_class_redeclaration_readwrite : Error<
   "illegal redeclaration of 'readwrite' property in continuation class %0"
   " (perhaps you intended this to be a 'readwrite' redeclaration of a "
@@ -552,8 +554,7 @@ def warn_arc_perform_selector_leaks : Warning<
   "performSelector may cause a leak because its selector is unknown">,
   InGroup<DiagGroup<"arc-performSelector-leaks">>;
 def err_gc_weak_property_strong_type : Error<
-  "weak attribute declared on a __strong type property"
-  "in GC mode">;
+  "weak attribute declared on a __strong type property in GC mode">;
 
 def error_synthesized_ivar_yet_not_supported : Error<
   "instance variable synthesis not yet supported"
@@ -1184,7 +1185,78 @@ def err_constexpr_tag : Error<
 def err_constexpr_dtor : Error<"destructor cannot be marked constexpr">;
 def err_constexpr_no_declarators : Error<
   "constexpr can only be used in variable and function declarations">;
-  
+def err_invalid_constexpr_var_decl : Error<
+  "constexpr variable declaration must be a definition">;
+def err_constexpr_var_requires_init : Error<
+  "declaration of constexpr variable %0 requires an initializer">;
+def err_constexpr_initialized_static_member : Error<
+  "definition of initialized static data member %0 cannot be marked constexpr">;
+def err_constexpr_var_requires_const_init : Error<
+  "constexpr variable %0 must be initialized by a constant expression">;
+def err_constexpr_redecl_mismatch : Error<
+  "%select{non-constexpr declaration of %0 follows constexpr declaration"
+  "|constexpr declaration of %0 follows non-constexpr declaration}1">;
+def note_constexpr_redecl_mismatch : Note<
+  "previous declaration was %select{not |}0marked constexpr">;
+def err_constexpr_virtual : Error<"virtual function cannot be constexpr">;
+def note_constexpr_tmpl_virtual : Note<"function template instantiation is not "
+  "constexpr because it is virtual">;
+def err_constexpr_virtual_base : Error<"constexpr constructor not allowed in "
+  "%select{class|struct}0 with virtual base %plural{1:class|:classes}1">;
+def note_constexpr_tmpl_virtual_base : Note<"constructor template instantiation is "
+  "not constexpr because %select{class|struct}0 has virtual base "
+  "%plural{1:class|:classes}1">;
+def note_non_literal_virtual_base : Note<"%select{class|struct}0 with virtual "
+  "base %plural{1:class|:classes}1 is not a literal type">;
+def note_constexpr_virtual_base_here : Note<"virtual base class declared here">;
+def err_constexpr_non_literal_return : Error<
+  "constexpr function's return type %0 is not a literal type">;
+def note_constexpr_tmpl_non_literal_return : Note<
+  "function template instantiation is not constexpr because return type %0 is "
+  "not a literal type">;
+def err_constexpr_non_literal_param : Error<
+  "constexpr %select{function|constructor}1's %ordinal0 parameter type %2 is "
+  "not a literal type">;
+def note_constexpr_tmpl_non_literal_param : Note<
+  "%select{function|constructor}1 template instantiation is not constexpr "
+  "because %ordinal0 parameter type %2 is not a literal type">;
+def err_constexpr_body_invalid_stmt : Error<
+  "statement not allowed in constexpr %select{function|constructor}0">;
+def err_constexpr_type_definition : Error<
+  "types cannot be defined in a constexpr %select{function|constructor}0">;
+def err_constexpr_vla : Error<
+  "variably-modified type %0 cannot be used in a constexpr "
+  "%select{function|constructor}1">;
+def err_constexpr_var_declaration : Error<
+  "variables cannot be declared in a constexpr %select{function|constructor}0">;
+def err_constexpr_body_no_return : Error<
+  "no return statement in constexpr function">;
+def err_constexpr_body_multiple_return : Error<
+  "multiple return statements in constexpr function">;
+def note_constexpr_body_previous_return : Note<
+  "previous return statement is here">;
+def err_constexpr_function_try_block : Error<
+  "function try block not allowed in constexpr %select{function|constructor}0">;
+def err_constexpr_union_ctor_no_init : Error<
+  "constexpr union constructor does not initialize any member">;
+def err_constexpr_ctor_missing_init : Error<
+  "constexpr constructor must initialize all members">;
+def note_constexpr_ctor_missing_init : Note<
+  "member not initialized by constructor">;
+def err_constexpr_method_non_literal : Error<
+  "non-literal type %0 cannot have constexpr members">;
+def note_non_literal_no_constexpr_ctors : Note<
+  "%0 is not literal because it is not an aggregate and has no constexpr "
+  "constructors other than copy or move constructors">;
+def note_non_literal_base_class : Note<
+  "%0 is not literal because it has base class %1 of non-literal type">;
+def note_non_literal_field : Note<
+  "%0 is not literal because it has data member %1 of non-literal type %2">;
+def note_non_literal_user_provided_dtor : Note<
+  "%0 is not literal because it has a user-provided destructor">;
+def note_non_literal_nontrivial_dtor : Note<
+  "%0 is not literal because it has a non-trivial destructor">;
+ 
 // Objective-C++
 def err_objc_decls_may_only_appear_in_global_scope : Error<
   "Objective-C declarations may only appear in global scope">;
@@ -1203,11 +1275,6 @@ def err_attribute_too_many_arguments : Error<
   "attribute takes no more than %0 argument%s0">;
 def err_attribute_too_few_arguments : Error<
   "attribute takes at least %0 argument%s0">;
-def err_iboutletcollection_type : Error<
-  "invalid type %0 as argument of iboutletcollection attribute">;
-def err_iboutletcollection_object_type : Error<
-  "%select{ivar|property}1 with iboutletcollection attribute must "
-  "have object type (invalid %0)">;
 def err_attribute_missing_parameter_name : Error<
   "attribute requires unquoted parameter">;
 def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
@@ -1334,7 +1401,7 @@ def err_attribute_wrong_decl_type : Error<
   "variables and functions|functions and methods|parameters|"
   "parameters and methods|functions, methods and blocks|"
   "classes and virtual methods|functions, methods, and parameters|"
-  "classes|virtual methods|class members|variables|methods}1">;
+  "classes|virtual methods|class members|variables|methods|structs}1">;
 def warn_function_attribute_wrong_type : Warning<
   "'%0' only applies to function types; type here is %1">;
 def warn_pointer_attribute_wrong_type : Warning<
@@ -1368,6 +1435,8 @@ def warn_label_attribute_not_unused : Warning<
 def err_invalid_pcs : Error<"Invalid PCS type">;
 def err_attribute_can_be_applied_only_to_value_decl : Error<
   "%0 attribute can only be applied to value declarations">;
+def warn_attribute_not_on_decl : Error<
+  "%0 attribute ignored when parsing type">;
 
 
 // Availability attribute
@@ -1474,6 +1543,9 @@ def warn_impcast_literal_float_to_integer : Warning<
   "implicit conversion turns literal floating-point number into integer: "
   "%0 to %1">,
   InGroup<DiagGroup<"literal-conversion">>, DefaultIgnore;
+def warn_impcast_string_literal_to_bool : Warning<
+  "implicit conversion turns string literal into bool: %0 to %1">,
+  InGroup<DiagGroup<"string-conversion">>, DefaultIgnore;
 def note_fix_integral_float_as_integer : Note<
   "this can be rewritten as an integer literal with the exact same value">;
 def warn_impcast_different_enum_types : Warning<
@@ -1553,6 +1625,11 @@ def warn_attribute_iboutlet : Warning<
   "%0 attribute can only be applied to instance variables or properties">;
 def warn_attribute_ibaction: Warning<
   "ibaction attribute can only be applied to Objective-C instance methods">;
+def err_iboutletcollection_type : Error<
+  "invalid type %0 as argument of iboutletcollection attribute">;
+def err_iboutlet_object_type : Error<
+  "%select{ivar|property}2 with %0 attribute must "
+  "be an object type (invalid %1)">;
 def err_attribute_overloadable_not_function : Error<
   "'overloadable' attribute can only be applied to a function">;
 def err_attribute_overloadable_missing : Error<
@@ -1568,6 +1645,8 @@ def warn_ns_attribute_wrong_return_type : Warning<
 def warn_ns_attribute_wrong_parameter_type : Warning<
   "%0 attribute only applies to %select{Objective-C object|pointer}1 "
   "parameters">;
+def err_ns_bridged_not_interface : Error<
+  "parameter of 'ns_bridged' attribute does not name an Objective-C class">;
 
 // Function Parameter Semantic Analysis.
 def err_param_with_void_type : Error<"argument may not have 'void' type">;
@@ -1727,6 +1806,16 @@ def note_ovl_candidate_bad_conv_incomplete : Note<"candidate "
     "function (the implicit move assignment operator)|"
     "constructor (inherited)}0%1 "
     "not viable: cannot convert argument of incomplete type %2 to %3">;
+def note_ovl_candidate_bad_list_argument : Note<"candidate "
+    "%select{function|function|constructor|"
+    "function |function |constructor |"
+    "constructor (the implicit default constructor)|"
+    "constructor (the implicit copy constructor)|"
+    "constructor (the implicit move constructor)|"
+    "function (the implicit copy assignment operator)|"
+    "function (the implicit move assignment operator)|"
+    "constructor (inherited)}0%1 "
+    "not viable: cannot convert initializer list argument to %3">;
 def note_ovl_candidate_bad_overload : Note<"candidate "
     "%select{function|function|constructor|"
     "function |function |constructor |"
@@ -3782,19 +3871,21 @@ def ext_typecheck_convert_incompatible_pointer : ExtWarn<
   "take the address with &|"
   "remove *|"
   "remove &}3">,
-  InGroup<DiagGroup<"incompatible-pointer-types">>;
+  InGroup<IncompatiblePointerTypes>;
 def ext_typecheck_convert_discards_qualifiers : ExtWarn<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
   "%select{from|to parameter of type|from a function with result type|to type|"
   "with an expression of type|to parameter of type|to type}2 %1 discards "
-  "qualifiers">;
+  "qualifiers">,
+  InGroup<IncompatiblePointerTypes>;
 def ext_nested_pointer_qualifier_mismatch : ExtWarn<
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
   " %0 "
   "%select{from|to parameter of type|from a function with result type|to type|"
   "with an expression of type|to parameter of type|to type}2 %1 discards "
-  "qualifiers in nested pointer types">;
+  "qualifiers in nested pointer types">,
+  InGroup<IncompatiblePointerTypes>;
 def warn_incompatible_vectors : Warning<
   "incompatible vector types "
   "%select{assigning to|passing|returning|converting|initializing|sending|casting}2"
@@ -3938,9 +4029,11 @@ def ext_typecheck_cond_incompatible_operands_nonstandard : ExtWarn<
 def err_cast_selector_expr : Error<
   "cannot type cast @selector expression">;
 def warn_typecheck_cond_incompatible_pointers : ExtWarn<
-  "pointer type mismatch (%0 and %1)">;
+  "pointer type mismatch (%0 and %1)">,
+  InGroup<DiagGroup<"pointer-type-mismatch">>;
 def warn_typecheck_cond_pointer_integer_mismatch : ExtWarn<
-  "pointer/integer type mismatch in conditional expression (%0 and %1)">;
+  "pointer/integer type mismatch in conditional expression (%0 and %1)">,
+  InGroup<DiagGroup<"conditional-type-mismatch">>;
 def err_typecheck_choose_expr_requires_constant : Error<
   "'__builtin_choose_expr' requires a constant expression">;
 def ext_typecheck_expression_not_constant_but_accepted : Extension<
@@ -4048,11 +4141,18 @@ def err_not_direct_base_or_virtual : Error<
 
 def err_in_class_initializer_non_const : Error<
   "non-const static data member must be initialized out of line">;
+def err_in_class_initializer_volatile : Error<
+  "static const volatile data member must be initialized out of line">;
 def err_in_class_initializer_bad_type : Error<
   "static data member of type %0 must be initialized out of line">;
 def ext_in_class_initializer_float_type : ExtWarn<
-  "in-class initializer for static data member of type %0 "
-  "is a C++0x extension">, InGroup<CXX0xStaticNonIntegralInitializer>;
+  "in-class initializer for static data member of type %0 is a GNU extension">,
+  InGroup<GNU>;
+def note_in_class_initializer_float_type_constexpr : Note<
+  "use 'constexpr' specifier to silence this warning">;
+def err_in_class_initializer_literal_type : Error<
+  "in-class initializer for static data member of type %0 requires "
+  "'constexpr' specifier">;
 def err_in_class_initializer_non_constant : Error<
   "in-class initializer is not a constant expression">;
 
@@ -4256,8 +4356,8 @@ def err_defaulted_copy_assign_const_param : Error<
   "the parameter for this explicitly-defaulted copy assignment operator is "
   "const, but a member or base requires it to be non-const">;
 def err_defaulted_copy_assign_quals : Error<
-  "an explicitly-defaulted copy assignment operator may not have 'const' "
-  "or 'volatile' qualifiers">;
+  "an explicitly-defaulted copy assignment operator may not have 'const', "
+  "'constexpr' or 'volatile' qualifiers">;
 def err_defaulted_move_ctor_params : Error<
   "an explicitly-defaulted move constructor must have exactly one parameter">;
 def err_defaulted_move_ctor_volatile_param : Error<
@@ -4282,8 +4382,8 @@ def err_defaulted_move_assign_const_param : Error<
   "the parameter for an explicitly-defaulted move assignment operator may not "
   "be const">;
 def err_defaulted_move_assign_quals : Error<
-  "an explicitly-defaulted move assignment operator may not have 'const' "
-  "or 'volatile' qualifiers">;
+  "an explicitly-defaulted move assignment operator may not have 'const', "
+  "'constexpr' or 'volatile' qualifiers">;
 def err_incorrect_defaulted_exception_spec : Error<
   "exception specification of explicitly defaulted %select{default constructor|"
   "copy constructor|move constructor|copy assignment operator|move assignment "
@@ -4620,6 +4720,12 @@ def err_c99_array_usage_cxx : Error<
   "C99-specific array features are not permitted in C++">;
 def err_double_requires_fp64 : Error<
   "use of type 'double' requires cl_khr_fp64 extension to be enabled">;
+def err_nsconsumed_attribute_mismatch : Error<
+  "overriding method has mismatched ns_consumed attribute on its"
+  " parameter">;
+def err_nsreturns_retained_attribute_mismatch : Error<
+  "overriding method has mismatched ns_returns_%select{not_retained|retained}0"
+  " attributes">;
   
 def note_getter_unavailable : Note<
   "or because setter is declared here, but no getter method %0 is found">;

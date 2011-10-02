@@ -99,7 +99,7 @@ class Parser : public CodeCompletionHandler {
   /// in the file. 
   Sema &Actions;
 
-  Diagnostic &Diags;
+  DiagnosticsEngine &Diags;
 
   /// ScopeCache - Cache scopes to reduce malloc traffic.
   enum { ScopeCacheSize = 16 };
@@ -1060,6 +1060,7 @@ private:
   void ParseLexedMemberInitializers(ParsingClass &Class);
   void ParseLexedMemberInitializer(LateParsedMemberInitializer &MI);
   Decl *ParseLexedObjCMethodDefs(LexedMethod &LM);
+  bool ConsumeAndStoreFunctionPrologue(CachedTokens &Toks);
   bool ConsumeAndStoreUntil(tok::TokenKind T1,
                             CachedTokens &Toks,
                             bool StopAtSemi = true,
@@ -1137,13 +1138,8 @@ private:
 
   bool isTokIdentifier_in() const;
 
-  /// \brief The context in which we are parsing an Objective-C type name.
-  enum ObjCTypeNameContext {
-    OTN_ResultType,
-    OTN_ParameterType
-  };
-  
-  ParsedType ParseObjCTypeName(ObjCDeclSpec &DS, ObjCTypeNameContext Context);
+  ParsedType ParseObjCTypeName(ObjCDeclSpec &DS, Declarator::TheContext Ctx,
+                               ParsedAttributes *ParamAttrs);
   void ParseObjCMethodRequirement();
   Decl *ParseObjCMethodPrototype(
             tok::ObjCKeywordKind MethodImplKind = tok::objc_not_keyword,
@@ -1408,7 +1404,7 @@ private:
   StmtResult ParseBreakStatement(ParsedAttributes &Attr);
   StmtResult ParseReturnStatement(ParsedAttributes &Attr);
   StmtResult ParseAsmStatement(bool &msAsm);
-  StmtResult FuzzyParseMicrosoftAsmStatement(SourceLocation AsmLoc);
+  StmtResult ParseMicrosoftAsmStatement(SourceLocation AsmLoc);
   bool ParseMicrosoftIfExistsCondition(bool& Result);
   void ParseMicrosoftIfExistsStatement(StmtVector &Stmts);
   void ParseMicrosoftIfExistsExternalDeclaration();
@@ -1507,8 +1503,8 @@ private:
 
   void ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS = AS_none);
 
-  void ParseObjCTypeQualifierList(ObjCDeclSpec &DS, 
-                                  ObjCTypeNameContext Context);
+  void ParseObjCTypeQualifierList(ObjCDeclSpec &DS,
+                                  Declarator::TheContext Context);
 
   void ParseEnumSpecifier(SourceLocation TagLoc, DeclSpec &DS,
                 const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
@@ -1683,7 +1679,6 @@ private:
   TypeResult ParseTypeName(SourceRange *Range = 0,
                            Declarator::TheContext Context
                              = Declarator::TypeNameContext,
-                           ObjCDeclSpec *objcQuals = 0,
                            AccessSpecifier AS = AS_none,
                            Decl **OwnedType = 0);
   void ParseBlockId();
@@ -1738,6 +1733,9 @@ private:
     if (getLang().CPlusPlus0x && isCXX0XAttributeSpecifier())
       ParseCXX0XAttributes(attrs, endLoc);
   }
+
+  void ParseCXX0XAttributeSpecifier(ParsedAttributes &attrs,
+                                    SourceLocation *EndLoc = 0);
   void ParseCXX0XAttributes(ParsedAttributesWithRange &attrs,
                             SourceLocation *EndLoc = 0);
 
@@ -1771,7 +1769,9 @@ private:
   void ParseDecltypeSpecifier(DeclSpec &DS);
   void ParseUnderlyingTypeSpecifier(DeclSpec &DS);
   
-  ExprResult ParseCXX0XAlignArgument(SourceLocation Start);
+  ExprResult ParseAlignArgument(SourceLocation Start);
+  void ParseAlignmentSpecifier(ParsedAttributes &Attrs,
+                               SourceLocation *endLoc = 0);
 
   VirtSpecifiers::Specifier isCXX0XVirtSpecifier() const;
   void ParseOptionalCXX0XVirtSpecifierSeq(VirtSpecifiers &VS);

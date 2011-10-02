@@ -56,11 +56,12 @@ class CGDebugInfo {
   bool BlockLiteralGenericSet;
   llvm::DIType BlockLiteralGeneric;
 
-  std::vector<llvm::TrackingVH<llvm::MDNode> > RegionStack;
+  // LexicalBlockStack - Keep track of our current nested lexical block.
+  std::vector<llvm::TrackingVH<llvm::MDNode> > LexicalBlockStack;
   llvm::DenseMap<const Decl *, llvm::WeakVH> RegionMap;
-  // FnBeginRegionCount - Keep track of RegionStack counter at the beginning
-  // of a function. This is used to pop unbalanced regions at the end of a
-  // function.
+  // FnBeginRegionCount - Keep track of LexicalBlockStack counter at the
+  // beginning of a function. This is used to pop unbalanced regions at
+  // the end of a function.
   std::vector<unsigned> FnBeginRegionCount;
 
   /// LineDirectiveFiles - This stack is used to keep track of 
@@ -149,6 +150,10 @@ class CGDebugInfo {
                          llvm::DIFile F,
                          SmallVectorImpl<llvm::Value *> &EltTys);
 
+  // UpdateLineDirectiveRegion - Update region stack only if #line directive
+  // has introduced scope change.
+  void UpdateLineDirectiveRegion(CGBuilderTy &Builder);
+
 public:
   CGDebugInfo(CodeGenModule &CGM);
   ~CGDebugInfo();
@@ -158,9 +163,9 @@ public:
   /// invalid it is ignored.
   void setLocation(SourceLocation Loc);
 
-  /// EmitStopPoint - Emit a call to llvm.dbg.stoppoint to indicate a change of
-  /// source line.
-  void EmitStopPoint(CGBuilderTy &Builder);
+  /// EmitLocation - Emit metadata to indicate a change in line/column
+  /// information in the source file.
+  void EmitLocation(CGBuilderTy &Builder);
 
   /// EmitFunctionStart - Emit a call to llvm.dbg.function.start to indicate
   /// start of a new function.
@@ -170,21 +175,17 @@ public:
   /// EmitFunctionEnd - Constructs the debug code for exiting a function.
   void EmitFunctionEnd(CGBuilderTy &Builder);
 
-  /// UpdateLineDirectiveRegion - Update region stack only if #line directive
-  /// has introduced scope change.
-  void UpdateLineDirectiveRegion(CGBuilderTy &Builder);
-
   /// UpdateCompletedType - Update type cache because the type is now
   /// translated.
   void UpdateCompletedType(const TagDecl *TD);
 
-  /// EmitRegionStart - Emit a call to llvm.dbg.region.start to indicate start
-  /// of a new block.
-  void EmitRegionStart(CGBuilderTy &Builder);
+  /// EmitLexicalBlockStart - Emit metadata to indicate the beginning of a
+  /// new lexical block and push the block onto the stack.
+  void EmitLexicalBlockStart(CGBuilderTy &Builder);
 
-  /// EmitRegionEnd - Emit call to llvm.dbg.region.end to indicate end of a
-  /// block.
-  void EmitRegionEnd(CGBuilderTy &Builder);
+  /// EmitLexicalBlockEnd - Emit metadata to indicate the end of a new lexical
+  /// block and pop the current block.
+  void EmitLexicalBlockEnd(CGBuilderTy &Builder);
 
   /// EmitDeclareOfAutoVariable - Emit call to llvm.dbg.declare for an automatic
   /// variable declaration.

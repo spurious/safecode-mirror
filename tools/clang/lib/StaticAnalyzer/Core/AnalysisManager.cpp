@@ -14,14 +14,16 @@
 using namespace clang;
 using namespace ento;
 
-AnalysisManager::AnalysisManager(ASTContext &ctx, Diagnostic &diags, 
-                                 const LangOptions &lang, PathDiagnosticClient *pd,
+AnalysisManager::AnalysisManager(ASTContext &ctx, DiagnosticsEngine &diags,
+                                 const LangOptions &lang,
+                                 PathDiagnosticConsumer *pd,
                                  StoreManagerCreator storemgr,
                                  ConstraintManagerCreator constraintmgr, 
                                  CheckerManager *checkerMgr,
                                  idx::Indexer *idxer,
                                  unsigned maxnodes, unsigned maxvisit,
-                                 bool vizdot, bool vizubi, bool purge,
+                                 bool vizdot, bool vizubi,
+                                 AnalysisPurgeMode purge,
                                  bool eager, bool trim,
                                  bool inlinecall, bool useUnoptimizedCFG,
                                  bool addImplicitDtors, bool addInitializers,
@@ -37,6 +39,32 @@ AnalysisManager::AnalysisManager(ASTContext &ctx, Diagnostic &diags,
 {
   AnaCtxMgr.getCFGBuildOptions().setAllAlwaysAdd();
 }
+
+AnalysisManager::AnalysisManager(ASTContext &ctx, DiagnosticsEngine &diags,
+                                 AnalysisManager &ParentAM)
+  : AnaCtxMgr(ParentAM.AnaCtxMgr.getUseUnoptimizedCFG(),
+              ParentAM.AnaCtxMgr.getCFGBuildOptions().AddImplicitDtors,
+              ParentAM.AnaCtxMgr.getCFGBuildOptions().AddInitializers),
+    Ctx(ctx), Diags(diags),
+    LangInfo(ParentAM.LangInfo), PD(ParentAM.getPathDiagnosticConsumer()),
+    CreateStoreMgr(ParentAM.CreateStoreMgr),
+    CreateConstraintMgr(ParentAM.CreateConstraintMgr),
+    CheckerMgr(ParentAM.CheckerMgr),
+    Idxer(ParentAM.Idxer),
+    AScope(ScopeDecl),
+    MaxNodes(ParentAM.MaxNodes),
+    MaxVisit(ParentAM.MaxVisit),
+    VisualizeEGDot(ParentAM.VisualizeEGDot),
+    VisualizeEGUbi(ParentAM.VisualizeEGUbi),
+    PurgeDead(ParentAM.PurgeDead),
+    EagerlyAssume(ParentAM.EagerlyAssume),
+    TrimGraph(ParentAM.TrimGraph),
+    InlineCall(ParentAM.InlineCall),
+    EagerlyTrimEGraph(ParentAM.EagerlyTrimEGraph)
+{
+  AnaCtxMgr.getCFGBuildOptions().setAllAlwaysAdd();
+}
+
 
 AnalysisContext *
 AnalysisManager::getAnalysisContextInAnotherTU(const Decl *D) {

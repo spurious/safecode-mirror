@@ -235,7 +235,13 @@ Sema::HandlePropertyInClassExtension(Scope *S,
                         /* lexicalDC = */ CDecl);
     return PDecl;
   }
-
+  if (PIDecl->getType().getCanonicalType() 
+      != PDecl->getType().getCanonicalType()) {
+    Diag(AtLoc, 
+         diag::error_type_mismatch_continuation_class) << PDecl->getType();
+    Diag(PIDecl->getLocation(), diag::note_property_declare);
+  }
+    
   // The property 'PIDecl's readonly attribute will be over-ridden
   // with continuation class's readwrite property attribute!
   unsigned PIkind = PIDecl->getPropertyAttributesAsWritten();
@@ -1147,7 +1153,8 @@ void Sema::CollectImmediateProperties(ObjCContainerDecl *CDecl,
       ObjCPropertyDecl *PropertyFromSuper = SuperPropMap[Prop->getIdentifier()];
       // Exclude property for protocols which conform to class's super-class, 
       // as super-class has to implement the property.
-      if (!PropertyFromSuper || PropertyFromSuper != Prop) {
+      if (!PropertyFromSuper || 
+          PropertyFromSuper->getIdentifier() != Prop->getIdentifier()) {
         ObjCPropertyDecl *&PropEntry = PropMap[Prop->getIdentifier()];
         if (!PropEntry)
           PropEntry = Prop;
@@ -1242,10 +1249,20 @@ ObjCPropertyDecl *Sema::LookupPropertyDecl(const ObjCContainerDecl *CDecl,
   return 0;
 }
 
+static IdentifierInfo * getDefaultSynthIvarName(ObjCPropertyDecl *Prop,
+                                                ASTContext &Ctx) {
+  llvm::SmallString<128> ivarName;
+  {
+    llvm::raw_svector_ostream os(ivarName);
+    os << '_' << Prop->getIdentifier()->getName();
+  }
+  return &Ctx.Idents.get(ivarName.str());
+}
+
 /// DefaultSynthesizeProperties - This routine default synthesizes all
 /// properties which must be synthesized in class's @implementation.
-void Sema::DefaultSynthesizeProperties (Scope *S, ObjCImplDecl* IMPDecl,
-                                        ObjCInterfaceDecl *IDecl) {
+void Sema::DefaultSynthesizeProperties(Scope *S, ObjCImplDecl* IMPDecl,
+                                       ObjCInterfaceDecl *IDecl) {
   
   llvm::DenseMap<IdentifierInfo *, ObjCPropertyDecl*> PropMap;
   CollectClassPropertyImplementations(IDecl, PropMap);
@@ -1282,7 +1299,8 @@ void Sema::DefaultSynthesizeProperties (Scope *S, ObjCImplDecl* IMPDecl,
     // to help users.
     ActOnPropertyImplDecl(S, SourceLocation(), SourceLocation(),
                           true,
-                          Prop->getIdentifier(), Prop->getIdentifier(),
+                          /* property = */ Prop->getIdentifier(),
+                          /* ivar = */ getDefaultSynthIvarName(Prop, Context),
                           SourceLocation());
   }
 }
@@ -1475,7 +1493,8 @@ void Sema::ProcessPropertyDecl(ObjCPropertyDecl *property,
           Context.VoidTy)
       Diag(SetterMethod->getLocation(), diag::err_setter_type_void);
     if (SetterMethod->param_size() != 1 ||
-        ((*SetterMethod->param_begin())->getType() != property->getType())) {
+        !Context.hasSameUnqualifiedType(
+          (*SetterMethod->param_begin())->getType(), property->getType())) {
       Diag(property->getLocation(),
            diag::warn_accessor_property_type_mismatch)
         << property->getDeclName()

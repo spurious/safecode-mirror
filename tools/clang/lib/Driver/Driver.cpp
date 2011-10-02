@@ -50,7 +50,7 @@ Driver::Driver(StringRef ClangExecutable,
                StringRef DefaultHostTriple,
                StringRef DefaultImageName,
                bool IsProduction, bool CXXIsProduction,
-               Diagnostic &Diags)
+               DiagnosticsEngine &Diags)
   : Opts(createDriverOptTable()), Diags(Diags),
     ClangExecutable(ClangExecutable), UseStdLib(true),
     DefaultHostTriple(DefaultHostTriple), DefaultImageName(DefaultImageName),
@@ -1114,7 +1114,6 @@ Action *Driver::ConstructPhaseAction(const ArgList &Args, phases::ID Phase,
   }
 
   llvm_unreachable("invalid phase in ConstructPhaseAction");
-  return 0;
 }
 
 bool Driver::IsUsingLTO(const ArgList &Args) const {
@@ -1190,7 +1189,8 @@ void Driver::BuildJobs(Compilation &C) const {
     Arg *A = *it;
 
     // FIXME: It would be nice to be able to send the argument to the
-    // Diagnostic, so that extra values, position, and so on could be printed.
+    // DiagnosticsEngine, so that extra values, position, and so on could be
+    // printed.
     if (!A->isClaimed()) {
       if (A->getOption().hasNoArgumentUnused())
         continue;
@@ -1477,33 +1477,45 @@ std::string Driver::GetFilePath(const char *Name, const ToolChain &TC) const {
   return Name;
 }
 
+static bool isPathExecutable(llvm::sys::Path &P, bool WantFile) {
+    bool Exists;
+    return (WantFile ? !llvm::sys::fs::exists(P.str(), Exists) && Exists
+                 : P.canExecute());
+}
+
 std::string Driver::GetProgramPath(const char *Name, const ToolChain &TC,
                                    bool WantFile) const {
+  std::string TargetSpecificExecutable(DefaultHostTriple + "-" + Name);
   // Respect a limited subset of the '-Bprefix' functionality in GCC by
   // attempting to use this prefix when lokup up program paths.
   for (Driver::prefix_list::const_iterator it = PrefixDirs.begin(),
        ie = PrefixDirs.end(); it != ie; ++it) {
     llvm::sys::Path P(*it);
+    P.appendComponent(TargetSpecificExecutable);
+    if (isPathExecutable(P, WantFile)) return P.str();
+    P.eraseComponent();
     P.appendComponent(Name);
-    bool Exists;
-    if (WantFile ? !llvm::sys::fs::exists(P.str(), Exists) && Exists
-                 : P.canExecute())
-      return P.str();
+    if (isPathExecutable(P, WantFile)) return P.str();
   }
 
   const ToolChain::path_list &List = TC.getProgramPaths();
   for (ToolChain::path_list::const_iterator
          it = List.begin(), ie = List.end(); it != ie; ++it) {
     llvm::sys::Path P(*it);
+    P.appendComponent(TargetSpecificExecutable);
+    if (isPathExecutable(P, WantFile)) return P.str();
+    P.eraseComponent();
     P.appendComponent(Name);
-    bool Exists;
-    if (WantFile ? !llvm::sys::fs::exists(P.str(), Exists) && Exists
-                 : P.canExecute())
-      return P.str();
+    if (isPathExecutable(P, WantFile)) return P.str();
   }
 
   // If all else failed, search the path.
-  llvm::sys::Path P(llvm::sys::Program::FindProgramByName(Name));
+  llvm::sys::Path
+      P(llvm::sys::Program::FindProgramByName(TargetSpecificExecutable));
+  if (!P.empty())
+    return P.str();
+
+  P = llvm::sys::Path(llvm::sys::Program::FindProgramByName(Name));
   if (!P.empty())
     return P.str();
 

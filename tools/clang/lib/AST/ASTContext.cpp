@@ -231,11 +231,11 @@ ASTContext::ASTContext(LangOptions& LOpts, SourceManager &SM,
     BlockDescriptorExtendedType(0), cudaConfigureCallDecl(0),
     NullTypeSourceInfo(QualType()),
     SourceMgr(SM), LangOpts(LOpts), 
-    AddrSpaceMap(0), Target(t),
+    AddrSpaceMap(0), Target(t), PrintingPolicy(LOpts),
     Idents(idents), Selectors(sels),
     BuiltinInfo(builtins),
     DeclarationNames(*this),
-    ExternalSource(0), Listener(0), PrintingPolicy(LOpts),
+    ExternalSource(0), Listener(0),
     LastSDM(0, 0),
     UniqueBlockByRefTypeID(0) 
 {
@@ -485,7 +485,7 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target) {
   InitBuiltinType(NullPtrTy,           BuiltinType::NullPtr);
 }
 
-Diagnostic &ASTContext::getDiagnostics() const {
+DiagnosticsEngine &ASTContext::getDiagnostics() const {
   return SourceMgr.getDiagnostics();
 }
 
@@ -705,7 +705,7 @@ CharUnits ASTContext::getDeclAlign(const Decl *D, bool RefAsPointee) const {
     // *except* on a struct or struct member, where it only increases
     // alignment unless 'packed' is also specified.
     //
-    // It is an error for [[align]] to decrease alignment, so we can
+    // It is an error for alignas to decrease alignment, so we can
     // ignore that possibility;  Sema should diagnose it.
     if (isa<FieldDecl>(D)) {
       UseAlignAttrOnly = D->hasAttr<PackedAttr>() ||
@@ -3219,7 +3219,6 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
 
   // Silence GCC warning
   llvm_unreachable("Unhandled template argument kind");
-  return TemplateArgument();
 }
 
 NestedNameSpecifier *
@@ -4386,7 +4385,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
           = TemplateSpecializationType::PrintTemplateArgumentList(
                                             TemplateArgs.data(),
                                             TemplateArgs.size(),
-                                            (*this).PrintingPolicy);
+                                            (*this).getPrintingPolicy());
 
         S += TemplateArgsStr;
       }
@@ -4584,8 +4583,9 @@ void ASTContext::getObjCEncodingForStructureImpl(RecordDecl *RDecl,
       if (base->isEmpty())
         continue;
       uint64_t offs = layout.getVBaseClassOffsetInBits(base);
-      FieldOrBaseOffsets.insert(FieldOrBaseOffsets.upper_bound(offs),
-                                std::make_pair(offs, base));
+      if (FieldOrBaseOffsets.find(offs) == FieldOrBaseOffsets.end())
+        FieldOrBaseOffsets.insert(FieldOrBaseOffsets.end(),
+                                  std::make_pair(offs, base));
     }
   }
 
@@ -4919,7 +4919,6 @@ CanQualType ASTContext::getFromTargetType(unsigned Type) const {
   }
 
   llvm_unreachable("Unhandled TargetInfo::IntType value");
-  return CanQualType();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5571,6 +5570,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (lproto->getTypeQuals() != rproto->getTypeQuals())
       return QualType();
 
+    if (LangOpts.ObjCAutoRefCount &&
+        !FunctionTypesMatchOnNSConsumedAttrs(rproto, lproto))
+      return QualType();
+      
     // Check argument compatibility
     SmallVector<QualType, 10> types;
     for (unsigned i = 0; i < lproto_nargs; i++) {
@@ -5595,6 +5598,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       if (getCanonicalType(argtype) != getCanonicalType(rargtype))
         allRTypes = false;
     }
+      
     if (allLTypes) return lhs;
     if (allRTypes) return rhs;
 
@@ -5749,13 +5753,11 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
 #include "clang/AST/TypeNodes.def"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
-    return QualType();
 
   case Type::LValueReference:
   case Type::RValueReference:
   case Type::MemberPointer:
     llvm_unreachable("C++ should never be in mergeTypes");
-    return QualType();
 
   case Type::ObjCInterface:
   case Type::IncompleteArray:
@@ -5763,7 +5765,6 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::FunctionProto:
   case Type::ExtVector:
     llvm_unreachable("Types are eliminated above");
-    return QualType();
 
   case Type::Pointer:
   {
@@ -5896,6 +5897,26 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   return QualType();
 }
 
+bool ASTContext::FunctionTypesMatchOnNSConsumedAttrs(
+                   const FunctionProtoType *FromFunctionType,
+                   const FunctionProtoType *ToFunctionType) {
+  if (FromFunctionType->hasAnyConsumedArgs() != 
+      ToFunctionType->hasAnyConsumedArgs())
+    return false;
+  FunctionProtoType::ExtProtoInfo FromEPI = 
+    FromFunctionType->getExtProtoInfo();
+  FunctionProtoType::ExtProtoInfo ToEPI = 
+    ToFunctionType->getExtProtoInfo();
+  if (FromEPI.ConsumedArguments && ToEPI.ConsumedArguments)
+    for (unsigned ArgIdx = 0, NumArgs = FromFunctionType->getNumArgs();
+         ArgIdx != NumArgs; ++ArgIdx)  {
+      if (FromEPI.ConsumedArguments[ArgIdx] != 
+          ToEPI.ConsumedArguments[ArgIdx])
+        return false;
+    }
+  return true;
+}
+
 /// mergeObjCGCQualifiers - This routine merges ObjC's GC attribute of 'LHS' and
 /// 'RHS' attributes and returns the merged version; including for function
 /// return types.
@@ -6015,7 +6036,6 @@ QualType ASTContext::getCorrespondingUnsignedType(QualType T) {
     return UnsignedInt128Ty;
   default:
     llvm_unreachable("Unexpected signed integer type");
-    return QualType();
   }
 }
 
@@ -6476,7 +6496,6 @@ MangleContext *ASTContext::createMangleContext() {
     return createMicrosoftMangleContext(*this, getDiagnostics());
   }
   llvm_unreachable("Unsupported ABI");
-  return 0;
 }
 
 CXXABI::~CXXABI() {}

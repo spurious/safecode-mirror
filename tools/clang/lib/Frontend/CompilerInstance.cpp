@@ -19,13 +19,13 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PTHManager.h"
-#include "clang/Frontend/ChainedDiagnosticClient.h"
+#include "clang/Frontend/ChainedDiagnosticConsumer.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/LogDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
-#include "clang/Frontend/VerifyDiagnosticsClient.h"
+#include "clang/Frontend/VerifyDiagnosticConsumer.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
@@ -53,7 +53,7 @@ void CompilerInstance::setInvocation(CompilerInvocation *Value) {
   Invocation = Value;
 }
 
-void CompilerInstance::setDiagnostics(Diagnostic *Value) {
+void CompilerInstance::setDiagnostics(DiagnosticsEngine *Value) {
   Diagnostics = Value;
 }
 
@@ -88,7 +88,7 @@ void CompilerInstance::setCodeCompletionConsumer(CodeCompleteConsumer *Value) {
 // Diagnostics
 static void SetUpBuildDumpLog(const DiagnosticOptions &DiagOpts,
                               unsigned argc, const char* const *argv,
-                              Diagnostic &Diags) {
+                              DiagnosticsEngine &Diags) {
   std::string ErrorInfo;
   llvm::OwningPtr<raw_ostream> OS(
     new llvm::raw_fd_ostream(DiagOpts.DumpBuildInformation.c_str(), ErrorInfo));
@@ -104,14 +104,14 @@ static void SetUpBuildDumpLog(const DiagnosticOptions &DiagOpts,
   (*OS) << '\n';
 
   // Chain in a diagnostic client which will log the diagnostics.
-  DiagnosticClient *Logger =
+  DiagnosticConsumer *Logger =
     new TextDiagnosticPrinter(*OS.take(), DiagOpts, /*OwnsOutputStream=*/true);
-  Diags.setClient(new ChainedDiagnosticClient(Diags.takeClient(), Logger));
+  Diags.setClient(new ChainedDiagnosticConsumer(Diags.takeClient(), Logger));
 }
 
 static void SetUpDiagnosticLog(const DiagnosticOptions &DiagOpts,
                                const CodeGenOptions *CodeGenOpts,
-                               Diagnostic &Diags) {
+                               DiagnosticsEngine &Diags) {
   std::string ErrorInfo;
   bool OwnsStream = false;
   raw_ostream *OS = &llvm::errs();
@@ -136,35 +136,42 @@ static void SetUpDiagnosticLog(const DiagnosticOptions &DiagOpts,
                                                           OwnsStream);
   if (CodeGenOpts)
     Logger->setDwarfDebugFlags(CodeGenOpts->DwarfDebugFlags);
-  Diags.setClient(new ChainedDiagnosticClient(Diags.takeClient(), Logger));
+  Diags.setClient(new ChainedDiagnosticConsumer(Diags.takeClient(), Logger));
 }
 
 void CompilerInstance::createDiagnostics(int Argc, const char* const *Argv,
-                                         DiagnosticClient *Client,
-                                         bool ShouldOwnClient) {
+                                         DiagnosticConsumer *Client,
+                                         bool ShouldOwnClient,
+                                         bool ShouldCloneClient) {
   Diagnostics = createDiagnostics(getDiagnosticOpts(), Argc, Argv, Client,
-                                  ShouldOwnClient, &getCodeGenOpts());
+                                  ShouldOwnClient, ShouldCloneClient,
+                                  &getCodeGenOpts());
 }
 
-llvm::IntrusiveRefCntPtr<Diagnostic> 
+llvm::IntrusiveRefCntPtr<DiagnosticsEngine> 
 CompilerInstance::createDiagnostics(const DiagnosticOptions &Opts,
                                     int Argc, const char* const *Argv,
-                                    DiagnosticClient *Client,
+                                    DiagnosticConsumer *Client,
                                     bool ShouldOwnClient,
+                                    bool ShouldCloneClient,
                                     const CodeGenOptions *CodeGenOpts) {
   llvm::IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  llvm::IntrusiveRefCntPtr<Diagnostic> Diags(new Diagnostic(DiagID));
+  llvm::IntrusiveRefCntPtr<DiagnosticsEngine>
+      Diags(new DiagnosticsEngine(DiagID));
 
   // Create the diagnostic client for reporting errors or for
   // implementing -verify.
-  if (Client)
-    Diags->setClient(Client, ShouldOwnClient);
-  else
+  if (Client) {
+    if (ShouldCloneClient)
+      Diags->setClient(Client->clone(*Diags), ShouldOwnClient);
+    else
+      Diags->setClient(Client, ShouldOwnClient);
+  } else
     Diags->setClient(new TextDiagnosticPrinter(llvm::errs(), Opts));
 
   // Chain in -verify checker, if requested.
   if (Opts.VerifyDiagnostics) 
-    Diags->setClient(new VerifyDiagnosticsClient(*Diags));
+    Diags->setClient(new VerifyDiagnosticConsumer(*Diags));
 
   // Chain in -diagnostic-log-file dumper, if requested.
   if (!Opts.DiagnosticLogFile.empty())
@@ -535,7 +542,7 @@ bool CompilerInstance::InitializeSourceManager(StringRef InputFile) {
 }
 
 bool CompilerInstance::InitializeSourceManager(StringRef InputFile,
-                                               Diagnostic &Diags,
+                                               DiagnosticsEngine &Diags,
                                                FileManager &FileMgr,
                                                SourceManager &SourceMgr,
                                                const FrontendOptions &Opts) {
@@ -690,7 +697,8 @@ static void compileModule(CompilerInstance &ImportingInstance,
   Instance.setInvocation(&*Invocation);
   Instance.createDiagnostics(/*argc=*/0, /*argv=*/0, 
                              &ImportingInstance.getDiagnosticClient(),
-                             /*ShouldOwnClient=*/false);
+                             /*ShouldOwnClient=*/true,
+                             /*ShouldCloneClient=*/true);
 
   // Construct a module-generating action.
   GeneratePCHAction CreateModuleAction(true);
@@ -698,13 +706,6 @@ static void compileModule(CompilerInstance &ImportingInstance,
   // Execute the action to actually build the module in-place.
   // FIXME: Need to synchronize when multiple processes do this.
   Instance.ExecuteAction(CreateModuleAction);
-  
-  // Tell the diagnostic client that it's (re-)starting to process a source
-  // file.
-  // FIXME: This is a hack. We probably want to clone the diagnostic client.
-  ImportingInstance.getDiagnosticClient()
-    .BeginSourceFile(ImportingInstance.getLangOpts(),
-                     &ImportingInstance.getPreprocessor());
 } 
 
 ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc, 
@@ -751,6 +752,8 @@ ModuleKey CompilerInstance::loadModule(SourceLocation ImportLoc,
       return 0;
     }
     
+    getDiagnostics().Report(ModuleNameLoc, diag::warn_module_build)
+      << ModuleName.getName();
     BuildingModule = true;
     compileModule(*this, ModuleName.getName(), ModuleFileName, UmbrellaHeader);
     ModuleFile = PP->getHeaderSearchInfo().lookupModule(ModuleName.getName());

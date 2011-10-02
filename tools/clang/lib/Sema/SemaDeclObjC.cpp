@@ -106,7 +106,7 @@ bool Sema::checkInitMethod(ObjCMethodDecl *method,
   return true;
 }
 
-bool Sema::CheckObjCMethodOverride(ObjCMethodDecl *NewMethod, 
+void Sema::CheckObjCMethodOverride(ObjCMethodDecl *NewMethod, 
                                    const ObjCMethodDecl *Overridden,
                                    bool IsImplementation) {
   if (Overridden->hasRelatedResultType() && 
@@ -156,8 +156,35 @@ bool Sema::CheckObjCMethodOverride(ObjCMethodDecl *NewMethod,
       Diag(Overridden->getLocation(), 
            diag::note_related_result_type_overridden);
   }
-  
-  return false;
+  if (getLangOptions().ObjCAutoRefCount) {
+    if ((NewMethod->hasAttr<NSReturnsRetainedAttr>() !=
+         Overridden->hasAttr<NSReturnsRetainedAttr>())) {
+        Diag(NewMethod->getLocation(),
+             diag::err_nsreturns_retained_attribute_mismatch) << 1;
+        Diag(Overridden->getLocation(), diag::note_previous_decl) 
+        << "method";
+    }
+    if ((NewMethod->hasAttr<NSReturnsNotRetainedAttr>() !=
+              Overridden->hasAttr<NSReturnsNotRetainedAttr>())) {
+        Diag(NewMethod->getLocation(),
+             diag::err_nsreturns_retained_attribute_mismatch) << 0;
+        Diag(Overridden->getLocation(), diag::note_previous_decl) 
+        << "method";
+    }
+    for (ObjCMethodDecl::param_iterator oi = Overridden->param_begin(),
+         ni = NewMethod->param_begin(), ne = NewMethod->param_end();
+         ni != ne; ++ni, ++oi) {
+      ParmVarDecl *oldDecl = (*oi);
+      ParmVarDecl *newDecl = (*ni);
+      if (newDecl->hasAttr<NSConsumedAttr>() != 
+          oldDecl->hasAttr<NSConsumedAttr>()) {
+        Diag(newDecl->getLocation(),
+             diag::err_nsconsumed_attribute_mismatch);
+        Diag(oldDecl->getLocation(), diag::note_previous_decl) 
+          << "parameter";
+      }
+    }
+  }
 }
 
 /// \brief Check a method declaration for compatibility with the Objective-C
@@ -308,10 +335,11 @@ void Sema::ActOnStartOfObjCMethodDef(Scope *FnBodyScope, Decl *D) {
     // Only do this if the current class actually has a superclass.
     if (IC->getSuperClass()) {
       ObjCShouldCallSuperDealloc = 
-        !Context.getLangOptions().ObjCAutoRefCount &&      
+        !(Context.getLangOptions().ObjCAutoRefCount ||
+          Context.getLangOptions().getGC() == LangOptions::GCOnly) &&
         MDecl->getMethodFamily() == OMF_dealloc;
       ObjCShouldCallSuperFinalize =
-        !Context.getLangOptions().ObjCAutoRefCount &&      
+        Context.getLangOptions().getGC() != LangOptions::NonGC &&
         MDecl->getMethodFamily() == OMF_finalize;
     }
   }
@@ -1430,7 +1458,7 @@ void Sema::CheckProtocolMethodDefs(SourceLocation ImpLoc,
             if (!MethodInClass || !MethodInClass->isSynthesized()) {
               unsigned DIAG = diag::warn_unimplemented_protocol_method;
               if (Diags.getDiagnosticLevel(DIAG, ImpLoc)
-                      != Diagnostic::Ignored) {
+                      != DiagnosticsEngine::Ignored) {
                 WarnUndefinedMethod(ImpLoc, method, IncompleteImpl, DIAG);
                 Diag(method->getLocation(), diag::note_method_declared_at);
                 Diag(CDecl->getLocation(), diag::note_required_for_protocol_at)
@@ -1448,7 +1476,8 @@ void Sema::CheckProtocolMethodDefs(SourceLocation ImpLoc,
         !ClsMap.count(method->getSelector()) &&
         (!Super || !Super->lookupClassMethod(method->getSelector()))) {
       unsigned DIAG = diag::warn_unimplemented_protocol_method;
-      if (Diags.getDiagnosticLevel(DIAG, ImpLoc) != Diagnostic::Ignored) {
+      if (Diags.getDiagnosticLevel(DIAG, ImpLoc) !=
+            DiagnosticsEngine::Ignored) {
         WarnUndefinedMethod(ImpLoc, method, IncompleteImpl, DIAG);
         Diag(method->getLocation(), diag::note_method_declared_at);
         Diag(IDecl->getLocation(), diag::note_required_for_protocol_at) <<
@@ -1954,7 +1983,7 @@ ObjCMethodDecl *Sema::LookupMethodInGlobalPool(Selector Sel, SourceRange R,
       (receiverIdOrClass && warn &&
        (Diags.getDiagnosticLevel(diag::warn_strict_multiple_method_decl,
                                  R.getBegin()) != 
-      Diagnostic::Ignored));
+      DiagnosticsEngine::Ignored));
     if (strictSelectorMatch)
       for (ObjCMethodList *Next = MethList.Next; Next; Next = Next->Next) {
         if (!MatchTwoMethodDeclarations(MethList.Method, Next->Method,

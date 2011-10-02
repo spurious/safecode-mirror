@@ -46,7 +46,7 @@ class ASTReader;
 class CodeCompleteConsumer;
 class CompilerInvocation;
 class Decl;
-class Diagnostic;
+class DiagnosticsEngine;
 class FileEntry;
 class FileManager;
 class HeaderSearch;
@@ -69,13 +69,13 @@ class GlobalCodeCompletionAllocator
 ///
 class ASTUnit : public ModuleLoader {
 private:
-  llvm::IntrusiveRefCntPtr<Diagnostic> Diagnostics;
-  llvm::IntrusiveRefCntPtr<FileManager>      FileMgr;
-  llvm::IntrusiveRefCntPtr<SourceManager>    SourceMgr;
-  llvm::OwningPtr<HeaderSearch>     HeaderInfo;
-  llvm::IntrusiveRefCntPtr<TargetInfo>       Target;
-  llvm::IntrusiveRefCntPtr<Preprocessor>     PP;
-  llvm::IntrusiveRefCntPtr<ASTContext>       Ctx;
+  llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics;
+  llvm::IntrusiveRefCntPtr<FileManager>       FileMgr;
+  llvm::IntrusiveRefCntPtr<SourceManager>     SourceMgr;
+  llvm::OwningPtr<HeaderSearch>               HeaderInfo;
+  llvm::IntrusiveRefCntPtr<TargetInfo>        Target;
+  llvm::IntrusiveRefCntPtr<Preprocessor>      PP;
+  llvm::IntrusiveRefCntPtr<ASTContext>        Ctx;
 
   FileSystemOptions FileSystemOpts;
 
@@ -175,6 +175,7 @@ private:
   /// \brief The file in which the precompiled preamble is stored.
   std::string PreambleFile;
   
+public:
   class PreambleData {
     const FileEntry *File;
     std::vector<char> Buffer;
@@ -203,9 +204,20 @@ private:
       return NumLines;
     }
 
+    SourceRange getSourceRange(const SourceManager &SM) const {
+      SourceLocation FileLoc = SM.getLocForStartOfFile(SM.getPreambleFileID());
+      return SourceRange(FileLoc, FileLoc.getLocWithOffset(size()-1));
+    }
+
   private:
     void countLines() const;
   };
+
+  const PreambleData &getPreambleData() const {
+    return Preamble;
+  }
+
+private:
 
   /// \brief The contents of the preamble that has been precompiled to
   /// \c PreambleFile.
@@ -240,8 +252,8 @@ private:
 
   /// \brief The number of warnings that occurred while parsing the preamble.
   ///
-  /// This value will be used to restore the state of the \c Diagnostic object
-  /// when re-using the precompiled preamble. Note that only the
+  /// This value will be used to restore the state of the \c DiagnosticsEngine
+  /// object when re-using the precompiled preamble. Note that only the
   /// number of warnings matters, since we will not save the preamble
   /// when any errors are present.
   unsigned NumWarningsInPreamble;
@@ -260,7 +272,7 @@ private:
   /// \brief The language options used when we load an AST file.
   LangOptions ASTFileLangOpts;
 
-  static void ConfigureDiags(llvm::IntrusiveRefCntPtr<Diagnostic> &Diags,
+  static void ConfigureDiags(llvm::IntrusiveRefCntPtr<DiagnosticsEngine> &Diags,
                              const char **ArgBegin, const char **ArgEnd,
                              ASTUnit &AST, bool CaptureDiagnostics);
 
@@ -420,8 +432,8 @@ public:
   bool isUnsafeToFree() const { return UnsafeToFree; }
   void setUnsafeToFree(bool Value) { UnsafeToFree = Value; }
 
-  const Diagnostic &getDiagnostics() const { return *Diagnostics; }
-  Diagnostic &getDiagnostics()             { return *Diagnostics; }
+  const DiagnosticsEngine &getDiagnostics() const { return *Diagnostics; }
+  DiagnosticsEngine &getDiagnostics()             { return *Diagnostics; }
   
   const SourceManager &getSourceManager() const { return *SourceMgr; }
         SourceManager &getSourceManager()       { return *SourceMgr; }
@@ -514,11 +526,29 @@ public:
                              unsigned Line, unsigned Col) const;
 
   /// \brief Get the source location for the given file:offset pair.
-  ///
-  /// The difference with SourceManager::getLocation is that this method checks
-  /// whether the requested location points inside the precompiled preamble
-  /// in which case the returned source location will be a "loaded" one.
   SourceLocation getLocation(const FileEntry *File, unsigned Offset) const;
+
+  /// \brief If \arg Loc is a loaded location from the preamble, returns
+  /// the corresponding local location of the main file, otherwise it returns
+  /// \arg Loc.
+  SourceLocation mapLocationFromPreamble(SourceLocation Loc);
+
+  /// \brief If \arg Loc is a local location of the main file but inside the
+  /// preamble chunk, returns the corresponding loaded location from the
+  /// preamble, otherwise it returns \arg Loc.
+  SourceLocation mapLocationToPreamble(SourceLocation Loc);
+
+  /// \brief \see mapLocationFromPreamble.
+  SourceRange mapRangeFromPreamble(SourceRange R) {
+    return SourceRange(mapLocationFromPreamble(R.getBegin()),
+                       mapLocationFromPreamble(R.getEnd()));
+  }
+
+  /// \brief \see mapLocationToPreamble.
+  SourceRange mapRangeToPreamble(SourceRange R) {
+    return SourceRange(mapLocationToPreamble(R.getBegin()),
+                       mapLocationToPreamble(R.getEnd()));
+  }
   
   // Retrieve the diagnostics associated with this AST
   typedef const StoredDiagnostic *stored_diag_iterator;
@@ -563,7 +593,7 @@ public:
 
   /// \brief Create a ASTUnit. Gets ownership of the passed CompilerInvocation. 
   static ASTUnit *create(CompilerInvocation *CI,
-                         llvm::IntrusiveRefCntPtr<Diagnostic> Diags);
+                         llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags);
 
   /// \brief Create a ASTUnit from an AST file.
   ///
@@ -574,7 +604,7 @@ public:
   ///
   /// \returns - The initialized ASTUnit or null if the AST failed to load.
   static ASTUnit *LoadFromASTFile(const std::string &Filename,
-                                  llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                   const FileSystemOptions &FileSystemOpts,
                                   bool OnlyLocalDecls = false,
                                   RemappedFile *RemappedFiles = 0,
@@ -606,7 +636,7 @@ public:
   /// \param Action - The ASTFrontendAction to invoke. Its ownership is not
   /// transfered.
   static ASTUnit *LoadFromCompilerInvocationAction(CompilerInvocation *CI,
-                                     llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                              ASTFrontendAction *Action = 0);
 
   /// LoadFromCompilerInvocation - Create an ASTUnit from a source file, via a
@@ -621,7 +651,7 @@ public:
   // FIXME: Move OnlyLocalDecls, UseBumpAllocator to setters on the ASTUnit, we
   // shouldn't need to specify them at construction time.
   static ASTUnit *LoadFromCompilerInvocation(CompilerInvocation *CI,
-                                     llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                              bool OnlyLocalDecls = false,
                                              bool CaptureDiagnostics = false,
                                              bool PrecompilePreamble = false,
@@ -645,7 +675,7 @@ public:
   // shouldn't need to specify them at construction time.
   static ASTUnit *LoadFromCommandLine(const char **ArgBegin,
                                       const char **ArgEnd,
-                                    llvm::IntrusiveRefCntPtr<Diagnostic> Diags,
+                              llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                       StringRef ResourceFilesPath,
                                       bool OnlyLocalDecls = false,
                                       bool CaptureDiagnostics = false,
@@ -686,7 +716,7 @@ public:
                     RemappedFile *RemappedFiles, unsigned NumRemappedFiles,
                     bool IncludeMacros, bool IncludeCodePatterns,
                     CodeCompleteConsumer &Consumer,
-                    Diagnostic &Diag, LangOptions &LangOpts,
+                    DiagnosticsEngine &Diag, LangOptions &LangOpts,
                     SourceManager &SourceMgr, FileManager &FileMgr,
                     SmallVectorImpl<StoredDiagnostic> &StoredDiagnostics,
               SmallVectorImpl<const llvm::MemoryBuffer *> &OwnedBuffers);

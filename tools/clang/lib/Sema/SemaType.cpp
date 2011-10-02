@@ -1752,7 +1752,8 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case Declarator::KNRTypeListContext:
       llvm_unreachable("K&R type lists aren't allowed in C++");
       break;
-    case Declarator::ObjCPrototypeContext:
+    case Declarator::ObjCParameterContext:
+    case Declarator::ObjCResultContext:
     case Declarator::PrototypeContext:
       Error = 0; // Function prototype
       break;
@@ -1760,7 +1761,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
       if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static)
         break;
       switch (cast<TagDecl>(SemaRef.CurContext)->getTagKind()) {
-      case TTK_Enum: llvm_unreachable("unhandled tag kind"); break;
+      case TTK_Enum: llvm_unreachable("unhandled tag kind");
       case TTK_Struct: Error = 1; /* Struct member */ break;
       case TTK_Union:  Error = 2; /* Union member */ break;
       case TTK_Class:  Error = 3; /* Class member */ break;
@@ -1861,7 +1862,8 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
         << SemaRef.Context.getTypeDeclType(OwnedTagDecl);
       break;
     case Declarator::PrototypeContext:
-    case Declarator::ObjCPrototypeContext:
+    case Declarator::ObjCParameterContext:
+    case Declarator::ObjCResultContext:
     case Declarator::KNRTypeListContext:
       // C++ [dcl.fct]p6:
       //   Types shall not be defined in return or parameter types.
@@ -2325,6 +2327,20 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       FreeFunction = (DC && !DC->isRecord());
     }
 
+    // C++0x [dcl.constexpr]p8: A constexpr specifier for a non-static member
+    // function that is not a constructor declares that function to be const.
+    if (D.getDeclSpec().isConstexprSpecified() && !FreeFunction &&
+        D.getName().getKind() != UnqualifiedId::IK_ConstructorName &&
+        D.getName().getKind() != UnqualifiedId::IK_ConstructorTemplateId &&
+        !(FnTy->getTypeQuals() & DeclSpec::TQ_const)) {
+      // Rebuild function type adding a 'const' qualifier.
+      FunctionProtoType::ExtProtoInfo EPI = FnTy->getExtProtoInfo();
+      EPI.TypeQuals |= DeclSpec::TQ_const;
+      T = Context.getFunctionType(FnTy->getResultType(), 
+                                  FnTy->arg_type_begin(),
+                                  FnTy->getNumArgs(), EPI);
+    }
+
     // C++0x [dcl.fct]p6:
     //   A ref-qualifier shall only be part of the function type for a
     //   non-static member function, the function type to which a pointer to
@@ -2468,7 +2484,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     
     case Declarator::FileContext:
     case Declarator::KNRTypeListContext:
-    case Declarator::ObjCPrototypeContext: // FIXME: special diagnostic here?
+    case Declarator::ObjCParameterContext:  // FIXME: special diagnostic here?
+    case Declarator::ObjCResultContext:     // FIXME: special diagnostic here?
     case Declarator::TypeNameContext:
     case Declarator::CXXNewContext:
     case Declarator::AliasDeclContext:
@@ -3050,6 +3067,12 @@ TypeResult Sema::ActOnTypeName(Scope *S, Declarator &D) {
   if (D.isInvalidType())
     return true;
 
+  // Make sure there are no unused decl attributes on the declarator.
+  // We don't want to do this for ObjC parameters because we're going
+  // to apply them to the actual parameter declaration.
+  if (D.getContext() != Declarator::ObjCParameterContext)
+    checkUnusedDeclAttributes(D);
+
   if (getLangOptions().CPlusPlus) {
     // Check that there are no default arguments (C++ only).
     CheckExtraCXXDefaultArguments(D);
@@ -3142,15 +3165,18 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
     return false;
 
   Sema &S = state.getSema();
+  SourceLocation AttrLoc = attr.getLoc();
+  if (AttrLoc.isMacroID())
+    AttrLoc = S.getSourceManager().getImmediateExpansionRange(AttrLoc).first;
 
   if (type.getQualifiers().getObjCLifetime()) {
-    S.Diag(attr.getLoc(), diag::err_attr_objc_ownership_redundant)
+    S.Diag(AttrLoc, diag::err_attr_objc_ownership_redundant)
       << type;
     return true;
   }
 
   if (!attr.getParameterName()) {
-    S.Diag(attr.getLoc(), diag::err_attribute_argument_n_not_string)
+    S.Diag(AttrLoc, diag::err_attribute_argument_n_not_string)
       << "objc_ownership" << 1;
     attr.setInvalid();
     return true;
@@ -3166,7 +3192,7 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
   else if (attr.getParameterName()->isStr("autoreleasing"))
     lifetime = Qualifiers::OCL_Autoreleasing;
   else {
-    S.Diag(attr.getLoc(), diag::warn_attribute_type_not_supported)
+    S.Diag(AttrLoc, diag::warn_attribute_type_not_supported)
       << "objc_ownership" << attr.getParameterName();
     attr.setInvalid();
     return true;
@@ -3184,7 +3210,7 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
 
   // If we have a valid source location for the attribute, use an
   // AttributedType instead.
-  if (attr.getLoc().isValid())
+  if (AttrLoc.isValid())
     type = S.Context.getAttributedType(AttributedType::attr_objc_ownership,
                                        origType, type);
 
@@ -3195,10 +3221,11 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
     // Actually, delay this until we know what we're parsing.
     if (S.DelayedDiagnostics.shouldDelayDiagnostics()) {
       S.DelayedDiagnostics.add(
-          sema::DelayedDiagnostic::makeForbiddenType(attr.getLoc(),
+          sema::DelayedDiagnostic::makeForbiddenType(
+              S.getSourceManager().getExpansionLoc(AttrLoc),
               diag::err_arc_weak_no_runtime, type, /*ignored*/ 0));
     } else {
-      S.Diag(attr.getLoc(), diag::err_arc_weak_no_runtime);
+      S.Diag(AttrLoc, diag::err_arc_weak_no_runtime);
     }
 
     attr.setInvalid();
@@ -3214,7 +3241,7 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
     if (const ObjCObjectPointerType *ObjT = T->getAs<ObjCObjectPointerType>()) {
       ObjCInterfaceDecl *Class = ObjT->getInterfaceDecl();
       if (Class->isArcWeakrefUnavailable()) {
-          S.Diag(attr.getLoc(), diag::err_arc_unsupported_weak_class);
+          S.Diag(AttrLoc, diag::err_arc_unsupported_weak_class);
           S.Diag(ObjT->getInterfaceDecl()->getLocation(), 
                  diag::note_class_declared);
       }
@@ -3740,30 +3767,37 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
 
     case AttributeList::AT_address_space:
       HandleAddressSpaceTypeAttribute(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
       break;
     OBJC_POINTER_TYPE_ATTRS_CASELIST:
       if (!handleObjCPointerTypeAttr(state, attr, type))
         distributeObjCPointerTypeAttr(state, attr, type);
+      attr.setUsedAsTypeAttr();
       break;
     case AttributeList::AT_vector_size:
       HandleVectorSizeAttr(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
       break;
     case AttributeList::AT_ext_vector_type:
       if (state.getDeclarator().getDeclSpec().getStorageClassSpec()
             != DeclSpec::SCS_typedef)
         HandleExtVectorTypeAttr(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
       break;
     case AttributeList::AT_neon_vector_type:
       HandleNeonVectorTypeAttr(type, attr, state.getSema(),
                                VectorType::NeonVector, "neon_vector_type");
+      attr.setUsedAsTypeAttr();
       break;
     case AttributeList::AT_neon_polyvector_type:
       HandleNeonVectorTypeAttr(type, attr, state.getSema(),
                                VectorType::NeonPolyVector,
                                "neon_polyvector_type");
+      attr.setUsedAsTypeAttr();
       break;
     case AttributeList::AT_opencl_image_access:
       HandleOpenCLImageAccessAttribute(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
       break;
 
     case AttributeList::AT_ns_returns_retained:
@@ -3772,6 +3806,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       // fallthrough into the function attrs
 
     FUNCTION_TYPE_ATTRS_CASELIST:
+      attr.setUsedAsTypeAttr();
+
       // Never process function type attributes as part of the
       // declaration-specifiers.
       if (isDeclSpec)
@@ -3972,6 +4008,118 @@ bool Sema::RequireCompleteType(SourceLocation Loc, QualType T,
                                unsigned DiagID) {
   return RequireCompleteType(Loc, T, PDiag(DiagID),
                              std::make_pair(SourceLocation(), PDiag(0)));
+}
+
+/// @brief Ensure that the type T is a literal type.
+///
+/// This routine checks whether the type @p T is a literal type. If @p T is an
+/// incomplete type, an attempt is made to complete it. If @p T is a literal
+/// type, or @p AllowIncompleteType is true and @p T is an incomplete type,
+/// returns false. Otherwise, this routine issues the diagnostic @p PD (giving
+/// it the type @p T), along with notes explaining why the type is not a
+/// literal type, and returns true.
+///
+/// @param Loc  The location in the source that the non-literal type
+/// diagnostic should refer to.
+///
+/// @param T  The type that this routine is examining for literalness.
+///
+/// @param PD The partial diagnostic that will be printed out if T is not a
+/// literal type.
+///
+/// @param AllowIncompleteType If true, an incomplete type will be considered
+/// acceptable.
+///
+/// @returns @c true if @p T is not a literal type and a diagnostic was emitted,
+/// @c false otherwise.
+bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
+                              const PartialDiagnostic &PD,
+                              bool AllowIncompleteType) {
+  assert(!T->isDependentType() && "type should not be dependent");
+
+  bool Incomplete = RequireCompleteType(Loc, T, 0);
+  if (T->isLiteralType() || (AllowIncompleteType && Incomplete))
+    return false;
+
+  if (PD.getDiagID() == 0)
+    return true;
+
+  Diag(Loc, PD) << T;
+
+  if (T->isVariableArrayType())
+    return true;
+
+  const RecordType *RT = T->getBaseElementTypeUnsafe()->getAs<RecordType>();
+  if (!RT)
+    return true;
+
+  const CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
+
+  // If the class has virtual base classes, then it's not an aggregate, and
+  // cannot have any constexpr constructors, so is non-literal. This is better
+  // to diagnose than the resulting absence of constexpr constructors.
+  if (RD->getNumVBases()) {
+    Diag(RD->getLocation(), diag::note_non_literal_virtual_base)
+      << RD->isStruct() << RD->getNumVBases();
+    for (CXXRecordDecl::base_class_const_iterator I = RD->vbases_begin(),
+           E = RD->vbases_end(); I != E; ++I)
+      Diag(I->getSourceRange().getBegin(),
+           diag::note_constexpr_virtual_base_here) << I->getSourceRange();
+  } else if (!RD->isAggregate() && !RD->hasConstexprNonCopyMoveConstructor()) {
+    Diag(RD->getLocation(), diag::note_non_literal_no_constexpr_ctors) << RD;
+
+    switch (RD->getTemplateSpecializationKind()) {
+    case TSK_Undeclared:
+    case TSK_ExplicitSpecialization:
+      break;
+
+    case TSK_ImplicitInstantiation:
+    case TSK_ExplicitInstantiationDeclaration:
+    case TSK_ExplicitInstantiationDefinition:
+      // If the base template had constexpr constructors which were
+      // instantiated as non-constexpr constructors, explain why.
+      for (CXXRecordDecl::ctor_iterator I = RD->ctor_begin(),
+           E = RD->ctor_end(); I != E; ++I) {
+        if ((*I)->isCopyConstructor() || (*I)->isMoveConstructor())
+          continue;
+
+        FunctionDecl *Base = (*I)->getInstantiatedFromMemberFunction();
+        if (Base && Base->isConstexpr())
+          CheckConstexprFunctionDecl(*I, CCK_NoteNonConstexprInstantiation);
+      }
+    }
+  } else if (RD->hasNonLiteralTypeFieldsOrBases()) {
+    for (CXXRecordDecl::base_class_const_iterator I = RD->bases_begin(),
+         E = RD->bases_end(); I != E; ++I) {
+      if (!I->getType()->isLiteralType()) {
+        Diag(I->getSourceRange().getBegin(),
+             diag::note_non_literal_base_class)
+          << RD << I->getType() << I->getSourceRange();
+        return true;
+      }
+    }
+    for (CXXRecordDecl::field_iterator I = RD->field_begin(),
+         E = RD->field_end(); I != E; ++I) {
+      if (!(*I)->getType()->isLiteralType()) {
+        Diag((*I)->getLocation(), diag::note_non_literal_field)
+          << RD << (*I) << (*I)->getType();
+        return true;
+      }
+    }
+  } else if (!RD->hasTrivialDestructor()) {
+    // All fields and bases are of literal types, so have trivial destructors.
+    // If this class's destructor is non-trivial it must be user-declared.
+    CXXDestructorDecl *Dtor = RD->getDestructor();
+    assert(Dtor && "class has literal fields and bases but no dtor?");
+    if (!Dtor)
+      return true;
+
+    Diag(Dtor->getLocation(), Dtor->isUserProvided() ?
+         diag::note_non_literal_user_provided_dtor :
+         diag::note_non_literal_nontrivial_dtor) << RD;
+  }
+
+  return true;
 }
 
 /// \brief Retrieve a version of the type 'T' that is elaborated by Keyword
