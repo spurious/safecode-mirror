@@ -228,8 +228,7 @@ StringTransform::transform(Module &M,
   // Scan through the module for calls of the desired function to transform.
   for (Value::use_iterator UI = F->use_begin(), UE = F->use_end();
        UI != UE;
-       ++UI)
-  {
+       ++UI) {
     Instruction *I = dyn_cast<Instruction>(*UI);
     if (!I)
       continue;
