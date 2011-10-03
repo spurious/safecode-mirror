@@ -25,6 +25,7 @@
 #include <string>
 
 namespace llvm {
+
 //
 // Function: isCheckingCall()
 //
