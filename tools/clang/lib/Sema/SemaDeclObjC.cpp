@@ -171,10 +171,11 @@ void Sema::CheckObjCMethodOverride(ObjCMethodDecl *NewMethod,
         Diag(Overridden->getLocation(), diag::note_previous_decl) 
         << "method";
     }
-    for (ObjCMethodDecl::param_iterator oi = Overridden->param_begin(),
-         ni = NewMethod->param_begin(), ne = NewMethod->param_end();
+    ObjCMethodDecl::param_const_iterator oi = Overridden->param_begin();
+    for (ObjCMethodDecl::param_iterator
+           ni = NewMethod->param_begin(), ne = NewMethod->param_end();
          ni != ne; ++ni, ++oi) {
-      ParmVarDecl *oldDecl = (*oi);
+      const ParmVarDecl *oldDecl = (*oi);
       ParmVarDecl *newDecl = (*ni);
       if (newDecl->hasAttr<NSConsumedAttr>() != 
           oldDecl->hasAttr<NSConsumedAttr>()) {
@@ -375,9 +376,9 @@ ActOnStartClassInterface(SourceLocation AtInterfaceLoc,
       // FIXME: don't leak the objects passed in!
       return IDecl;
     } else {
-      IDecl->setLocation(AtInterfaceLoc);
+      IDecl->setLocation(ClassLoc);
       IDecl->setForwardDecl(false);
-      IDecl->setClassLoc(ClassLoc);
+      IDecl->setAtStartLoc(AtInterfaceLoc);
       // If the forward decl was in a PCH, we need to write it again in a
       // dependent AST file.
       IDecl->setChangedSinceDeserialization(true);
@@ -594,8 +595,8 @@ Sema::ActOnStartProtocolInterface(SourceLocation AtProtoInterfaceLoc,
     // Repeat in dependent AST files.
     PDecl->setChangedSinceDeserialization(true);
   } else {
-    PDecl = ObjCProtocolDecl::Create(Context, CurContext,
-                                     AtProtoInterfaceLoc,ProtocolName);
+    PDecl = ObjCProtocolDecl::Create(Context, CurContext, ProtocolName,
+                                     ProtocolLoc, AtProtoInterfaceLoc);
     PushOnScopeChains(PDecl, TUScope);
     PDecl->setForwardDecl(false);
   }
@@ -695,8 +696,8 @@ Sema::ActOnForwardProtocolDeclaration(SourceLocation AtProtocolLoc,
     ObjCProtocolDecl *PDecl = LookupProtocol(Ident, IdentList[i].second);
     bool isNew = false;
     if (PDecl == 0) { // Not already seen?
-      PDecl = ObjCProtocolDecl::Create(Context, CurContext,
-                                       IdentList[i].second, Ident);
+      PDecl = ObjCProtocolDecl::Create(Context, CurContext, Ident,
+                                       IdentList[i].second, AtProtocolLoc);
       PushOnScopeChains(PDecl, TUScope, false);
       isNew = true;
     }
@@ -805,8 +806,8 @@ Decl *Sema::ActOnStartCategoryImplementation(
   }
 
   ObjCCategoryImplDecl *CDecl =
-    ObjCCategoryImplDecl::Create(Context, CurContext, AtCatImplLoc, CatName,
-                                 IDecl);
+    ObjCCategoryImplDecl::Create(Context, CurContext, CatName, IDecl,
+                                 ClassLoc, AtCatImplLoc);
   /// Check that class of this category is already completely declared.
   if (!IDecl || IDecl->isForwardDecl()) {
     Diag(ClassLoc, diag::err_undef_interface) << ClassName;
@@ -924,8 +925,8 @@ Decl *Sema::ActOnStartClassImplementation(
   }
 
   ObjCImplementationDecl* IMPDecl =
-    ObjCImplementationDecl::Create(Context, CurContext, AtClassImplLoc,
-                                   IDecl, SDecl);
+    ObjCImplementationDecl::Create(Context, CurContext, IDecl, SDecl,
+                                   ClassLoc, AtClassImplLoc);
 
   if (CheckObjCDeclScope(IMPDecl))
     return IMPDecl;
@@ -1860,12 +1861,12 @@ bool Sema::MatchTwoMethodDeclarations(const ObjCMethodDecl *left,
          != right->hasAttr<NSConsumesSelfAttr>()))
     return false;
 
-  ObjCMethodDecl::param_iterator
+  ObjCMethodDecl::param_const_iterator
     li = left->param_begin(), le = left->param_end(), ri = right->param_begin();
 
   for (; li != le; ++li, ++ri) {
     assert(ri != right->param_end() && "Param mismatch");
-    ParmVarDecl *lparm = *li, *rparm = *ri;
+    const ParmVarDecl *lparm = *li, *rparm = *ri;
 
     if (!matchTypes(Context, strategy, lparm->getType(), rparm->getType()))
       return false;
@@ -2489,7 +2490,7 @@ Decl *Sema::ActOnMethodDeclaration(
     SourceLocation MethodLoc, SourceLocation EndLoc,
     tok::TokenKind MethodType, 
     ObjCDeclSpec &ReturnQT, ParsedType ReturnType,
-    SourceLocation SelectorStartLoc,
+    ArrayRef<SourceLocation> SelectorLocs,
     Selector Sel,
     // optional arguments. The number of types/arguments is obtained
     // from the Sel.getNumArgs().
@@ -2523,11 +2524,12 @@ Decl *Sema::ActOnMethodDeclaration(
   } else { // get the type for "id".
     resultDeclType = Context.getObjCIdType();
     Diag(MethodLoc, diag::warn_missing_method_return_type)
-      << FixItHint::CreateInsertion(SelectorStartLoc, "(id)");
+      << FixItHint::CreateInsertion(SelectorLocs.front(), "(id)");
   }
 
   ObjCMethodDecl* ObjCMethod =
-    ObjCMethodDecl::Create(Context, MethodLoc, EndLoc, Sel, resultDeclType,
+    ObjCMethodDecl::Create(Context, MethodLoc, EndLoc, Sel,
+                           resultDeclType,
                            ResultTInfo,
                            CurContext,
                            MethodType == tok::minus, isVariadic,
@@ -2609,8 +2611,7 @@ Decl *Sema::ActOnMethodDeclaration(
     Params.push_back(Param);
   }
   
-  ObjCMethod->setMethodParams(Context, Params.data(), Params.size(),
-                              Sel.getNumArgs());
+  ObjCMethod->setMethodParams(Context, Params, SelectorLocs);
   ObjCMethod->setObjCDeclQualifier(
     CvtQTToAstBitMask(ReturnQT.getObjCDeclQualifier()));
 

@@ -15,6 +15,7 @@
 #define LLVM_CLANG_AST_DECLOBJC_H
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/SelectorLocationsKind.h"
 #include "llvm/ADT/STLExtras.h"
 
 namespace clang {
@@ -138,8 +139,9 @@ private:
   /// \brief Indicates whether this method has a related result type.
   unsigned RelatedResultType : 1;
   
-  // Number of args separated by ':' in a method declaration.
-  unsigned NumSelectorArgs;
+  /// \brief Whether the locations of the selector identifiers are in a
+  /// "standard" position, a enum SelectorLocationsKind.
+  unsigned SelLocsKind : 2;
 
   // Result type of this method.
   QualType MethodDeclType;
@@ -147,9 +149,10 @@ private:
   // Type source information for the result type.
   TypeSourceInfo *ResultTInfo;
 
-  /// ParamInfo - List of pointers to VarDecls for the formal parameters of this
-  /// Method.
-  ObjCList<ParmVarDecl> ParamInfo;
+  /// \brief Array of ParmVarDecls for the formal parameters of this method
+  /// and optionally followed by selector locations.
+  void *ParamsAndSelLocs;
+  unsigned NumParams;
 
   /// List of attributes for this method declaration.
   SourceLocation EndLoc; // the location of the ';' or '}'.
@@ -165,6 +168,43 @@ private:
   /// constructed by createImplicitParams.
   ImplicitParamDecl *CmdDecl;
 
+  SelectorLocationsKind getSelLocsKind() const {
+    return (SelectorLocationsKind)SelLocsKind;
+  }
+  bool hasStandardSelLocs() const {
+    return getSelLocsKind() != SelLoc_NonStandard;
+  }
+
+  /// \brief Get a pointer to the stored selector identifiers locations array.
+  /// No locations will be stored if HasStandardSelLocs is true.
+  SourceLocation *getStoredSelLocs() {
+    return reinterpret_cast<SourceLocation*>(getParams() + NumParams);
+  }
+  const SourceLocation *getStoredSelLocs() const {
+    return reinterpret_cast<const SourceLocation*>(getParams() + NumParams);
+  }
+
+  /// \brief Get a pointer to the stored selector identifiers locations array.
+  /// No locations will be stored if HasStandardSelLocs is true.
+  ParmVarDecl **getParams() {
+    return reinterpret_cast<ParmVarDecl **>(ParamsAndSelLocs);
+  }
+  const ParmVarDecl *const *getParams() const {
+    return reinterpret_cast<const ParmVarDecl *const *>(ParamsAndSelLocs);
+  }
+
+  /// \brief Get the number of stored selector identifiers locations.
+  /// No locations will be stored if HasStandardSelLocs is true.
+  unsigned getNumStoredSelLocs() const {
+    if (hasStandardSelLocs())
+      return 0;
+    return getNumSelectorLocs();
+  }
+
+  void setParamsAndSelLocs(ASTContext &C,
+                           ArrayRef<ParmVarDecl*> Params,
+                           ArrayRef<SourceLocation> SelLocs);
+
   ObjCMethodDecl(SourceLocation beginLoc, SourceLocation endLoc,
                  Selector SelInfo, QualType T,
                  TypeSourceInfo *ResultTInfo,
@@ -175,16 +215,17 @@ private:
                  bool isImplicitlyDeclared = false,
                  bool isDefined = false,
                  ImplementationControl impControl = None,
-                 bool HasRelatedResultType = false,
-                 unsigned numSelectorArgs = 0)
+                 bool HasRelatedResultType = false)
   : NamedDecl(ObjCMethod, contextDecl, beginLoc, SelInfo),
     DeclContext(ObjCMethod), Family(InvalidObjCMethodFamily),
     IsInstance(isInstance), IsVariadic(isVariadic),
     IsSynthesized(isSynthesized),
     IsDefined(isDefined),
     DeclImplementation(impControl), objcDeclQualifier(OBJC_TQ_None),
-    RelatedResultType(HasRelatedResultType), NumSelectorArgs(numSelectorArgs), 
+    RelatedResultType(HasRelatedResultType),
+    SelLocsKind(SelLoc_StandardNoSpace),
     MethodDeclType(T), ResultTInfo(ResultTInfo),
+    ParamsAndSelLocs(0), NumParams(0),
     EndLoc(endLoc), Body(0), SelfDecl(0), CmdDecl(0) {
     setImplicit(isImplicitlyDeclared);
   }
@@ -197,7 +238,8 @@ private:
 public:
   static ObjCMethodDecl *Create(ASTContext &C,
                                 SourceLocation beginLoc,
-                                SourceLocation endLoc, Selector SelInfo,
+                                SourceLocation endLoc,
+                                Selector SelInfo,
                                 QualType T, 
                                 TypeSourceInfo *ResultTInfo,
                                 DeclContext *contextDecl,
@@ -207,8 +249,7 @@ public:
                                 bool isImplicitlyDeclared = false,
                                 bool isDefined = false,
                                 ImplementationControl impControl = None,
-                                bool HasRelatedResultType = false,
-                                unsigned numSelectorArgs = 0);
+                                bool HasRelatedResultType = false);
 
   virtual ObjCMethodDecl *getCanonicalDecl();
   const ObjCMethodDecl *getCanonicalDecl() const {
@@ -227,17 +268,35 @@ public:
   /// \brief Note whether this method has a related result type.
   void SetRelatedResultType(bool RRT = true) { RelatedResultType = RRT; }
   
-  unsigned getNumSelectorArgs() const { return NumSelectorArgs; }
-  void setNumSelectorArgs(unsigned numSelectorArgs) { 
-    NumSelectorArgs = numSelectorArgs; 
-  }
-  
   // Location information, modeled after the Stmt API.
   SourceLocation getLocStart() const { return getLocation(); }
   SourceLocation getLocEnd() const { return EndLoc; }
   void setEndLoc(SourceLocation Loc) { EndLoc = Loc; }
   virtual SourceRange getSourceRange() const {
     return SourceRange(getLocation(), EndLoc);
+  }
+
+  SourceLocation getSelectorStartLoc() const { return getSelectorLoc(0); }
+  SourceLocation getSelectorLoc(unsigned Index) const {
+    assert(Index < getNumSelectorLocs() && "Index out of range!");
+    if (hasStandardSelLocs())
+      return getStandardSelectorLoc(Index, getSelector(),
+                                   getSelLocsKind() == SelLoc_StandardWithSpace,
+                      llvm::makeArrayRef(const_cast<ParmVarDecl**>(getParams()),
+                                         NumParams),
+                                   EndLoc);
+    return getStoredSelLocs()[Index];
+  }
+
+  void getSelectorLocs(SmallVectorImpl<SourceLocation> &SelLocs) const;
+
+  unsigned getNumSelectorLocs() const {
+    if (isImplicit())
+      return 0;
+    Selector Sel = getSelector();
+    if (Sel.isUnarySelector())
+      return 1;
+    return Sel.getNumArgs();
   }
 
   ObjCInterfaceDecl *getClassInterface();
@@ -260,25 +319,27 @@ public:
   void setResultTypeSourceInfo(TypeSourceInfo *TInfo) { ResultTInfo = TInfo; }
 
   // Iterator access to formal parameters.
-  unsigned param_size() const { return ParamInfo.size(); }
-  typedef ObjCList<ParmVarDecl>::iterator param_iterator;
-  param_iterator param_begin() const { return ParamInfo.begin(); }
-  param_iterator param_end() const { return ParamInfo.end(); }
+  unsigned param_size() const { return NumParams; }
+  typedef const ParmVarDecl *const *param_const_iterator;
+  typedef ParmVarDecl *const *param_iterator;
+  param_const_iterator param_begin() const { return getParams(); }
+  param_const_iterator param_end() const { return getParams() + NumParams; }
+  param_iterator param_begin() { return getParams(); }
+  param_iterator param_end() { return getParams() + NumParams; }
   // This method returns and of the parameters which are part of the selector
   // name mangling requirements.
-  param_iterator sel_param_end() const { 
-    return ParamInfo.begin() + NumSelectorArgs; 
+  param_const_iterator sel_param_end() const { 
+    return param_begin() + getSelector().getNumArgs(); 
   }
 
-  void setMethodParams(ASTContext &C, ParmVarDecl *const *List, unsigned Num,
-                       unsigned numSelectorArgs) {
-    ParamInfo.set(List, Num, C);
-    NumSelectorArgs = numSelectorArgs; 
-  }
+  void setMethodParams(ASTContext &C,
+                       ArrayRef<ParmVarDecl*> Params,
+                       ArrayRef<SourceLocation> SelLocs);
 
   // Iterator access to parameter types.
   typedef std::const_mem_fun_t<QualType, ParmVarDecl> deref_fun;
-  typedef llvm::mapped_iterator<param_iterator, deref_fun> arg_type_iterator;
+  typedef llvm::mapped_iterator<param_const_iterator, deref_fun>
+      arg_type_iterator;
 
   arg_type_iterator arg_type_begin() const {
     return llvm::map_iterator(param_begin(), deref_fun(&ParmVarDecl::getType));
@@ -341,6 +402,9 @@ public:
   static ObjCMethodDecl *castFromDeclContext(const DeclContext *DC) {
     return static_cast<ObjCMethodDecl *>(const_cast<DeclContext*>(DC));
   }
+
+  friend class ASTDeclReader;
+  friend class ASTDeclWriter;
 };
 
 /// ObjCContainerDecl - Represents a container for method declarations.
@@ -348,14 +412,17 @@ public:
 /// ObjCProtocolDecl, and ObjCImplDecl.
 ///
 class ObjCContainerDecl : public NamedDecl, public DeclContext {
+  SourceLocation AtStart;
+
   // These two locations in the range mark the end of the method container.
   // The first points to the '@' token, and the second to the 'end' token.
   SourceRange AtEnd;
 public:
 
-  ObjCContainerDecl(Kind DK, DeclContext *DC, SourceLocation L,
-                    IdentifierInfo *Id)
-    : NamedDecl(DK, DC, L, Id), DeclContext(DK) {}
+  ObjCContainerDecl(Kind DK, DeclContext *DC,
+                    IdentifierInfo *Id, SourceLocation nameLoc,
+                    SourceLocation atStartLoc)
+    : NamedDecl(DK, DC, nameLoc, Id), DeclContext(DK), AtStart(atStartLoc) {}
 
   // Iterator access to properties.
   typedef specific_decl_iterator<ObjCPropertyDecl> prop_iterator;
@@ -407,6 +474,9 @@ public:
 
   ObjCPropertyDecl *FindPropertyDeclaration(IdentifierInfo *PropertyId) const;
 
+  SourceLocation getAtStartLoc() const { return AtStart; }
+  void setAtStartLoc(SourceLocation Loc) { AtStart = Loc; }
+
   // Marks the end of the container.
   SourceRange getAtEndRange() const {
     return AtEnd;
@@ -416,7 +486,7 @@ public:
   }
 
   virtual SourceRange getSourceRange() const {
-    return SourceRange(getLocation(), getAtEndRange().getEnd());
+    return SourceRange(AtStart, getAtEndRange().getEnd());
   }
 
   // Implement isa/cast/dyncast/etc.
@@ -489,7 +559,6 @@ class ObjCInterfaceDecl : public ObjCContainerDecl {
   /// completed by the external AST source when required.
   mutable bool ExternallyCompleted : 1;
   
-  SourceLocation ClassLoc; // location of the class identifier.
   SourceLocation SuperClassLoc; // location of the super class identifier.
   SourceLocation EndLoc; // marks the '>', '}', or identifier.
 
@@ -684,12 +753,10 @@ public:
   ObjCMethodDecl *lookupPrivateMethod(const Selector &Sel, bool Instance=true);
 
   // Location information, modeled after the Stmt API.
-  SourceLocation getLocStart() const { return getLocation(); } // '@'interface
+  SourceLocation getLocStart() const { return getAtStartLoc(); } // '@'interface
   SourceLocation getLocEnd() const { return EndLoc; }
   void setLocEnd(SourceLocation LE) { EndLoc = LE; }
 
-  void setClassLoc(SourceLocation Loc) { ClassLoc = Loc; }
-  SourceLocation getClassLoc() const { return ClassLoc; }
   void setSuperClassLoc(SourceLocation Loc) { SuperClassLoc = Loc; }
   SourceLocation getSuperClassLoc() const { return SuperClassLoc; }
 
@@ -847,14 +914,17 @@ class ObjCProtocolDecl : public ObjCContainerDecl {
 
   SourceLocation EndLoc; // marks the '>' or identifier.
 
-  ObjCProtocolDecl(DeclContext *DC, SourceLocation L, IdentifierInfo *Id)
-    : ObjCContainerDecl(ObjCProtocol, DC, L, Id),
+  ObjCProtocolDecl(DeclContext *DC, IdentifierInfo *Id,
+                   SourceLocation nameLoc, SourceLocation atStartLoc)
+    : ObjCContainerDecl(ObjCProtocol, DC, Id, nameLoc, atStartLoc),
       isForwardProtoDecl(true) {
   }
 
 public:
   static ObjCProtocolDecl *Create(ASTContext &C, DeclContext *DC,
-                                  SourceLocation L, IdentifierInfo *Id);
+                                  IdentifierInfo *Id,
+                                  SourceLocation nameLoc,
+                                  SourceLocation atStartLoc);
 
   const ObjCProtocolList &getReferencedProtocols() const {
     return ReferencedProtocols;
@@ -894,7 +964,7 @@ public:
   void setForwardDecl(bool val) { isForwardProtoDecl = val; }
 
   // Location information, modeled after the Stmt API.
-  SourceLocation getLocStart() const { return getLocation(); } // '@'protocol
+  SourceLocation getLocStart() const { return getAtStartLoc(); } // '@'protocol
   SourceLocation getLocEnd() const { return EndLoc; }
   void setLocEnd(SourceLocation LE) { EndLoc = LE; }
 
@@ -1017,9 +1087,6 @@ class ObjCCategoryDecl : public ObjCContainerDecl {
 
   /// true of class extension has at least one bitfield ivar.
   bool HasSynthBitfield : 1;
-  
-  /// \brief The location of the '@' in '@interface'
-  SourceLocation AtLoc;
 
   /// \brief The location of the category name in this declaration.
   SourceLocation CategoryNameLoc;
@@ -1027,9 +1094,9 @@ class ObjCCategoryDecl : public ObjCContainerDecl {
   ObjCCategoryDecl(DeclContext *DC, SourceLocation AtLoc, 
                    SourceLocation ClassNameLoc, SourceLocation CategoryNameLoc,
                    IdentifierInfo *Id, ObjCInterfaceDecl *IDecl)
-    : ObjCContainerDecl(ObjCCategory, DC, ClassNameLoc, Id),
+    : ObjCContainerDecl(ObjCCategory, DC, Id, ClassNameLoc, AtLoc),
       ClassInterface(IDecl), NextClassCategory(0), HasSynthBitfield(false),
-      AtLoc(AtLoc), CategoryNameLoc(CategoryNameLoc) {
+      CategoryNameLoc(CategoryNameLoc) {
   }
 public:
 
@@ -1091,16 +1158,9 @@ public:
   bool ivar_empty() const {
     return ivar_begin() == ivar_end();
   }
-  
-  SourceLocation getAtLoc() const { return AtLoc; }
-  void setAtLoc(SourceLocation At) { AtLoc = At; }
 
   SourceLocation getCategoryNameLoc() const { return CategoryNameLoc; }
   void setCategoryNameLoc(SourceLocation Loc) { CategoryNameLoc = Loc; }
-
-  virtual SourceRange getSourceRange() const {
-    return SourceRange(AtLoc, getAtEndRange().getEnd());
-  }
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classof(const ObjCCategoryDecl *D) { return true; }
@@ -1115,10 +1175,12 @@ class ObjCImplDecl : public ObjCContainerDecl {
   ObjCInterfaceDecl *ClassInterface;
 
 protected:
-  ObjCImplDecl(Kind DK, DeclContext *DC, SourceLocation L,
-               ObjCInterfaceDecl *classInterface)
-    : ObjCContainerDecl(DK, DC, L,
-                        classInterface? classInterface->getIdentifier() : 0),
+  ObjCImplDecl(Kind DK, DeclContext *DC,
+               ObjCInterfaceDecl *classInterface,
+               SourceLocation nameLoc, SourceLocation atStartLoc)
+    : ObjCContainerDecl(DK, DC,
+                        classInterface? classInterface->getIdentifier() : 0,
+                        nameLoc, atStartLoc),
       ClassInterface(classInterface) {}
 
 public:
@@ -1175,13 +1237,17 @@ class ObjCCategoryImplDecl : public ObjCImplDecl {
   // Category name
   IdentifierInfo *Id;
 
-  ObjCCategoryImplDecl(DeclContext *DC, SourceLocation L, IdentifierInfo *Id,
-                       ObjCInterfaceDecl *classInterface)
-    : ObjCImplDecl(ObjCCategoryImpl, DC, L, classInterface), Id(Id) {}
+  ObjCCategoryImplDecl(DeclContext *DC, IdentifierInfo *Id,
+                       ObjCInterfaceDecl *classInterface,
+                       SourceLocation nameLoc, SourceLocation atStartLoc)
+    : ObjCImplDecl(ObjCCategoryImpl, DC, classInterface, nameLoc, atStartLoc),
+      Id(Id) {}
 public:
   static ObjCCategoryImplDecl *Create(ASTContext &C, DeclContext *DC,
-                                      SourceLocation L, IdentifierInfo *Id,
-                                      ObjCInterfaceDecl *classInterface);
+                                      IdentifierInfo *Id,
+                                      ObjCInterfaceDecl *classInterface,
+                                      SourceLocation nameLoc,
+                                      SourceLocation atStartLoc);
 
   /// getIdentifier - Get the identifier that names the category
   /// interface associated with this implementation.
@@ -1259,17 +1325,19 @@ class ObjCImplementationDecl : public ObjCImplDecl {
   /// true of class extension has at least one bitfield ivar.
   bool HasSynthBitfield : 1;
   
-  ObjCImplementationDecl(DeclContext *DC, SourceLocation L,
+  ObjCImplementationDecl(DeclContext *DC,
                          ObjCInterfaceDecl *classInterface,
-                         ObjCInterfaceDecl *superDecl)
-    : ObjCImplDecl(ObjCImplementation, DC, L, classInterface),
+                         ObjCInterfaceDecl *superDecl,
+                         SourceLocation nameLoc, SourceLocation atStartLoc)
+    : ObjCImplDecl(ObjCImplementation, DC, classInterface, nameLoc, atStartLoc),
        SuperClass(superDecl), IvarInitializers(0), NumIvarInitializers(0),
        HasCXXStructors(false), HasSynthBitfield(false) {}
 public:
   static ObjCImplementationDecl *Create(ASTContext &C, DeclContext *DC,
-                                        SourceLocation L,
                                         ObjCInterfaceDecl *classInterface,
-                                        ObjCInterfaceDecl *superDecl);
+                                        ObjCInterfaceDecl *superDecl,
+                                        SourceLocation nameLoc,
+                                        SourceLocation atStartLoc);
   
   /// init_iterator - Iterates through the ivar initializer list.
   typedef CXXCtorInitializer **init_iterator;

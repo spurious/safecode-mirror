@@ -1920,6 +1920,17 @@ def note_ovl_candidate_bad_base_to_derived_conv : Note<"candidate "
     "%select{base class pointer|superclass|base class object of type}2 %3 to "
     "%select{derived class pointer|subclass|derived class reference}2 %4 for "
     "%ordinal5 argument">;
+def note_ovl_candidate_bad_target : Note<
+    "candidate %select{function|function|constructor|"
+    "function |function |constructor |"
+    "constructor (the implicit default constructor)|"
+    "constructor (the implicit copy constructor)|"
+    "constructor (the implicit move constructor)|"
+    "function (the implicit copy assignment operator)|"
+    "function (the implicit move assignment operator)|"
+    "constructor (inherited)}0 not viable: call to "
+    "%select{__device__|__global__|__host__|__host__ __device__}1 function from"
+    " %select{__device__|__global__|__host__|__host__ __device__}2 function">;
 
 def note_ambiguous_type_conversion: Note<
     "because of ambiguity in conversion of %0 to %1">;
@@ -3954,16 +3965,20 @@ def note_function_with_incomplete_return_type_declared_here : Note<
 def err_call_incomplete_argument : Error<
   "argument type %0 is incomplete">;
 def err_typecheck_call_too_few_args : Error<
-  "too few arguments to %select{function|block|method}0 call, "
+  "too few %select{|||execution configuration }0arguments to "
+  "%select{function|block|method|kernel function}0 call, "
   "expected %1, have %2">;
 def err_typecheck_call_too_few_args_at_least : Error<
-  "too few arguments to %select{function|block|method}0 call, "
+  "too few %select{|||execution configuration }0arguments to "
+  "%select{function|block|method|kernel function}0 call, "
   "expected at least %1, have %2">;
 def err_typecheck_call_too_many_args : Error<
-  "too many arguments to %select{function|block|method}0 call, "
+  "too many %select{|||execution configuration }0arguments to "
+  "%select{function|block|method|kernel function}0 call, "
   "expected %1, have %2">;
 def err_typecheck_call_too_many_args_at_most : Error<
-  "too many arguments to %select{function|block|method}0 call, "
+  "too many %select{|||execution configuration }0arguments to "
+  "%select{function|block|method|kernel function}0 call, "
   "expected at most %1, have %2">;
 def note_callee_decl : Note<
   "%0 declared here">;
@@ -3986,6 +4001,11 @@ def err_config_scalar_return : Error<
   "CUDA special function 'cudaConfigureCall' must have scalar return type">;
 def err_kern_call_not_global_function : Error<
   "kernel call to non-global function %0">;
+def err_global_call_not_config : Error<
+  "call to global function %0 not configured">;
+def err_ref_bad_target : Error<
+  "reference to %select{__device__|__global__|__host__|__host__ __device__}0 "
+  "function %1 in %select{__device__|__global__|__host__|__host__ __device__}2 function">;
 
 
 def err_cannot_pass_objc_interface_to_vararg : Error<

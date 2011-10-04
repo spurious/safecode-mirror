@@ -2153,7 +2153,8 @@ void CodeGenModule::EmitObjCIvarInitializations(ObjCImplementationDecl *D) {
   // The constructor returns 'self'.
   ObjCMethodDecl *CTORMethod = ObjCMethodDecl::Create(getContext(), 
                                                 D->getLocation(),
-                                                D->getLocation(), cxxSelector,
+                                                D->getLocation(),
+                                                cxxSelector,
                                                 getContext().getObjCIdType(), 0, 
                                                 D, /*isInstance=*/true,
                                                 /*isVariadic=*/false,

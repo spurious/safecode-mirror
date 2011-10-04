@@ -407,7 +407,6 @@ void ASTDeclWriter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
   // FIXME: stable encoding for in/out/inout/bycopy/byref/oneway
   Record.push_back(D->getObjCDeclQualifier());
   Record.push_back(D->hasRelatedResultType());
-  Record.push_back(D->getNumSelectorArgs());
   Writer.AddTypeRef(D->getResultType(), Record);
   Writer.AddTypeSourceInfo(D->getResultTypeSourceInfo(), Record);
   Writer.AddSourceLocation(D->getLocEnd(), Record);
@@ -415,11 +414,20 @@ void ASTDeclWriter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
   for (ObjCMethodDecl::param_iterator P = D->param_begin(),
                                    PEnd = D->param_end(); P != PEnd; ++P)
     Writer.AddDeclRef(*P, Record);
+
+  Record.push_back(D->SelLocsKind);
+  unsigned NumStoredSelLocs = D->getNumStoredSelLocs();
+  SourceLocation *SelLocs = D->getStoredSelLocs();
+  Record.push_back(NumStoredSelLocs);
+  for (unsigned i = 0; i != NumStoredSelLocs; ++i)
+    Writer.AddSourceLocation(SelLocs[i], Record);
+
   Code = serialization::DECL_OBJC_METHOD;
 }
 
 void ASTDeclWriter::VisitObjCContainerDecl(ObjCContainerDecl *D) {
   VisitNamedDecl(D);
+  Writer.AddSourceLocation(D->getAtStartLoc(), Record);
   Writer.AddSourceRange(D->getAtEndRange(), Record);
   // Abstract class (no need to define a stable serialization::DECL code).
 }
@@ -456,7 +464,6 @@ void ASTDeclWriter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *D) {
   Writer.AddDeclRef(D->getCategoryList(), Record);
   Record.push_back(D->isForwardDecl());
   Record.push_back(D->isImplicitInterfaceDecl());
-  Writer.AddSourceLocation(D->getClassLoc(), Record);
   Writer.AddSourceLocation(D->getSuperClassLoc(), Record);
   Writer.AddSourceLocation(D->getLocEnd(), Record);
   Code = serialization::DECL_OBJC_INTERFACE;
@@ -535,7 +542,6 @@ void ASTDeclWriter::VisitObjCCategoryDecl(ObjCCategoryDecl *D) {
     Writer.AddSourceLocation(*PL, Record);
   Writer.AddDeclRef(D->getNextClassCategory(), Record);
   Record.push_back(D->hasSynthBitfield());
-  Writer.AddSourceLocation(D->getAtLoc(), Record);
   Writer.AddSourceLocation(D->getCategoryNameLoc(), Record);
   Code = serialization::DECL_OBJC_CATEGORY;
 }

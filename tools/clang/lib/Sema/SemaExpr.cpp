@@ -1379,6 +1379,20 @@ ExprResult
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        const DeclarationNameInfo &NameInfo,
                        const CXXScopeSpec *SS) {
+  if (getLangOptions().CUDA)
+    if (const FunctionDecl *Caller = dyn_cast<FunctionDecl>(CurContext))
+      if (const FunctionDecl *Callee = dyn_cast<FunctionDecl>(D)) {
+        CUDAFunctionTarget CallerTarget = IdentifyCUDATarget(Caller),
+                           CalleeTarget = IdentifyCUDATarget(Callee);
+        if (CheckCUDATarget(CallerTarget, CalleeTarget)) {
+          Diag(NameInfo.getLoc(), diag::err_ref_bad_target)
+            << CalleeTarget << D->getIdentifier() << CallerTarget;
+          Diag(D->getLocation(), diag::note_previous_decl)
+            << D->getIdentifier();
+          return ExprError();
+        }
+      }
+
   MarkDeclarationReferenced(NameInfo.getLoc(), D);
 
   Expr *E = DeclRefExpr::Create(Context,
@@ -3259,7 +3273,8 @@ Sema::ConvertArgumentsForCall(CallExpr *Call, Expr *Fn,
                               FunctionDecl *FDecl,
                               const FunctionProtoType *Proto,
                               Expr **Args, unsigned NumArgs,
-                              SourceLocation RParenLoc) {
+                              SourceLocation RParenLoc,
+                              bool IsExecConfig) {
   // Bail out early if calling a builtin with custom typechecking.
   // We don't need to do this in the 
   if (FDecl)
@@ -3271,17 +3286,24 @@ Sema::ConvertArgumentsForCall(CallExpr *Call, Expr *Fn,
   // assignment, to the types of the corresponding parameter, ...
   unsigned NumArgsInProto = Proto->getNumArgs();
   bool Invalid = false;
+  unsigned MinArgs = FDecl ? FDecl->getMinRequiredArguments() : NumArgsInProto;
+  unsigned FnKind = Fn->getType()->isBlockPointerType()
+                       ? 1 /* block */
+                       : (IsExecConfig ? 3 /* kernel function (exec config) */
+                                       : 0 /* function */);
 
   // If too few arguments are available (and we don't have default
   // arguments for the remaining parameters), don't make the call.
   if (NumArgs < NumArgsInProto) {
-    if (!FDecl || NumArgs < FDecl->getMinRequiredArguments()) {
-      Diag(RParenLoc, diag::err_typecheck_call_too_few_args)
-        << Fn->getType()->isBlockPointerType()
-        << NumArgsInProto << NumArgs << Fn->getSourceRange();
+    if (NumArgs < MinArgs) {
+      Diag(RParenLoc, MinArgs == NumArgsInProto
+                        ? diag::err_typecheck_call_too_few_args
+                        : diag::err_typecheck_call_too_few_args_at_least)
+        << FnKind
+        << MinArgs << NumArgs << Fn->getSourceRange();
 
       // Emit the location of the prototype.
-      if (FDecl && !FDecl->getBuiltinID())
+      if (FDecl && !FDecl->getBuiltinID() && !IsExecConfig)
         Diag(FDecl->getLocStart(), diag::note_callee_decl)
           << FDecl;
 
@@ -3295,14 +3317,16 @@ Sema::ConvertArgumentsForCall(CallExpr *Call, Expr *Fn,
   if (NumArgs > NumArgsInProto) {
     if (!Proto->isVariadic()) {
       Diag(Args[NumArgsInProto]->getLocStart(),
-           diag::err_typecheck_call_too_many_args)
-        << Fn->getType()->isBlockPointerType()
+           MinArgs == NumArgsInProto
+             ? diag::err_typecheck_call_too_many_args
+             : diag::err_typecheck_call_too_many_args_at_most)
+        << FnKind
         << NumArgsInProto << NumArgs << Fn->getSourceRange()
         << SourceRange(Args[NumArgsInProto]->getLocStart(),
                        Args[NumArgs-1]->getLocEnd());
 
       // Emit the location of the prototype.
-      if (FDecl && !FDecl->getBuiltinID())
+      if (FDecl && !FDecl->getBuiltinID() && !IsExecConfig)
         Diag(FDecl->getLocStart(), diag::note_callee_decl)
           << FDecl;
       
@@ -3436,7 +3460,7 @@ static ExprResult rebuildUnknownAnyFunction(Sema &S, Expr *fn);
 ExprResult
 Sema::ActOnCallExpr(Scope *S, Expr *Fn, SourceLocation LParenLoc,
                     MultiExprArg ArgExprs, SourceLocation RParenLoc,
-                    Expr *ExecConfig) {
+                    Expr *ExecConfig, bool IsExecConfig) {
   unsigned NumArgs = ArgExprs.size();
 
   // Since this might be a postfix expression, get rid of ParenListExprs.
@@ -3535,7 +3559,7 @@ Sema::ActOnCallExpr(Scope *S, Expr *Fn, SourceLocation LParenLoc,
     NDecl = cast<MemberExpr>(NakedFn)->getMemberDecl();
 
   return BuildResolvedCallExpr(Fn, NDecl, LParenLoc, Args, NumArgs, RParenLoc,
-                               ExecConfig);
+                               ExecConfig, IsExecConfig);
 }
 
 ExprResult
@@ -3550,7 +3574,8 @@ Sema::ActOnCUDAExecConfigExpr(Scope *S, SourceLocation LLLLoc,
   DeclRefExpr *ConfigDR = new (Context) DeclRefExpr(
       ConfigDecl, ConfigQTy, VK_LValue, LLLLoc);
 
-  return ActOnCallExpr(S, ConfigDR, LLLLoc, ExecConfig, GGGLoc, 0);
+  return ActOnCallExpr(S, ConfigDR, LLLLoc, ExecConfig, GGGLoc, 0,
+                       /*IsExecConfig=*/true);
 }
 
 /// ActOnAsTypeExpr - create a new asType (bitcast) from the arguments.
@@ -3585,7 +3610,7 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
                             SourceLocation LParenLoc,
                             Expr **Args, unsigned NumArgs,
                             SourceLocation RParenLoc,
-                            Expr *Config) {
+                            Expr *Config, bool IsExecConfig) {
   FunctionDecl *FDecl = dyn_cast_or_null<FunctionDecl>(NDecl);
 
   // Promote the function operand.
@@ -3655,6 +3680,11 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       if (!FuncT->getResultType()->isVoidType())
         return ExprError(Diag(LParenLoc, diag::err_kern_type_not_void_return)
             << Fn->getType() << Fn->getSourceRange());
+    } else {
+      // CUDA: Calls to global functions must be configured
+      if (FDecl && FDecl->hasAttr<CUDAGlobalAttr>())
+        return ExprError(Diag(LParenLoc, diag::err_global_call_not_config)
+            << FDecl->getName() << Fn->getSourceRange());
     }
   }
 
@@ -3670,7 +3700,7 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 
   if (const FunctionProtoType *Proto = dyn_cast<FunctionProtoType>(FuncT)) {
     if (ConvertArgumentsForCall(TheCall, Fn, FDecl, Proto, Args, NumArgs,
-                                RParenLoc))
+                                RParenLoc, IsExecConfig))
       return ExprError();
   } else {
     assert(isa<FunctionNoProtoType>(FuncT) && "Unknown FunctionType!");
@@ -7358,7 +7388,13 @@ ExprResult Sema::ConvertPropertyForRValue(Expr *E) {
             << PRE->getBase()->getType();
     }
   }
-  
+  else {
+    // lvalue-ness of an explicit property is determined by
+    // property type.
+    ObjCPropertyDecl *PDecl = PRE->getExplicitProperty();
+    VK = Expr::getValueKindForType(PDecl->getType());
+  }
+    
   E = ImplicitCastExpr::Create(Context, T, CK_GetObjCProperty,
                                E, 0, VK);
   
@@ -7382,7 +7418,7 @@ void Sema::ConvertPropertyForLValue(ExprResult &LHS, ExprResult &RHS,
     // setter, RHS expression is being passed to the setter argument. So,
     // type conversion (and comparison) is RHS to setter's argument type.
     if (const ObjCMethodDecl *SetterMD = PropRef->getImplicitPropertySetter()) {
-      ObjCMethodDecl::param_iterator P = SetterMD->param_begin();
+      ObjCMethodDecl::param_const_iterator P = SetterMD->param_begin();
       LHSTy = (*P)->getType();
       Consumed = (getLangOptions().ObjCAutoRefCount &&
                   (*P)->hasAttr<NSConsumedAttr>());
@@ -7401,7 +7437,7 @@ void Sema::ConvertPropertyForLValue(ExprResult &LHS, ExprResult &RHS,
     const ObjCMethodDecl *setter
       = PropRef->getExplicitProperty()->getSetterMethodDecl();
     if (setter) {
-      ObjCMethodDecl::param_iterator P = setter->param_begin();
+      ObjCMethodDecl::param_const_iterator P = setter->param_begin();
       LHSTy = (*P)->getType();
       Consumed = (*P)->hasAttr<NSConsumedAttr>();
     }
@@ -10099,7 +10135,7 @@ static ExprResult diagnoseUnknownAnyExpr(Sema &S, Expr *E) {
     d = mem->getMemberDecl();
   } else if (ObjCMessageExpr *msg = dyn_cast<ObjCMessageExpr>(E)) {
     diagID = diag::err_uncasted_call_of_unknown_any;
-    loc = msg->getSelectorLoc();
+    loc = msg->getSelectorStartLoc();
     d = msg->getMethodDecl();
     if (!d) {
       S.Diag(loc, diag::err_uncasted_send_to_unknown_any_method)

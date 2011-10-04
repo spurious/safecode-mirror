@@ -485,7 +485,6 @@ void ASTDeclReader::VisitObjCMethodDecl(ObjCMethodDecl *MD) {
   MD->setDeclImplementation((ObjCMethodDecl::ImplementationControl)Record[Idx++]);
   MD->setObjCDeclQualifier((Decl::ObjCDeclQualifier)Record[Idx++]);
   MD->SetRelatedResultType(Record[Idx++]);
-  MD->setNumSelectorArgs(unsigned(Record[Idx++]));
   MD->setResultType(Reader.readType(F, Record, Idx));
   MD->setResultTypeSourceInfo(GetTypeSourceInfo(Record, Idx));
   MD->setEndLoc(ReadSourceLocation(Record, Idx));
@@ -494,15 +493,21 @@ void ASTDeclReader::VisitObjCMethodDecl(ObjCMethodDecl *MD) {
   Params.reserve(NumParams);
   for (unsigned I = 0; I != NumParams; ++I)
     Params.push_back(ReadDeclAs<ParmVarDecl>(Record, Idx));
-  MD->setMethodParams(Reader.getContext(), Params.data(), NumParams,
-                      NumParams);
+
+  MD->SelLocsKind = Record[Idx++];
+  unsigned NumStoredSelLocs = Record[Idx++];
+  SmallVector<SourceLocation, 16> SelLocs;
+  SelLocs.reserve(NumStoredSelLocs);
+  for (unsigned i = 0; i != NumStoredSelLocs; ++i)
+    SelLocs.push_back(ReadSourceLocation(Record, Idx));
+
+  MD->setParamsAndSelLocs(Reader.getContext(), Params, SelLocs);
 }
 
 void ASTDeclReader::VisitObjCContainerDecl(ObjCContainerDecl *CD) {
   VisitNamedDecl(CD);
-  SourceLocation A = ReadSourceLocation(Record, Idx);
-  SourceLocation B = ReadSourceLocation(Record, Idx);
-  CD->setAtEndRange(SourceRange(A, B));
+  CD->setAtStartLoc(ReadSourceLocation(Record, Idx));
+  CD->setAtEndRange(ReadSourceRange(Record, Idx));
 }
 
 void ASTDeclReader::VisitObjCInterfaceDecl(ObjCInterfaceDecl *ID) {
@@ -544,7 +549,6 @@ void ASTDeclReader::VisitObjCInterfaceDecl(ObjCInterfaceDecl *ID) {
   ID->setIvarList(0);
   ID->setForwardDecl(Record[Idx++]);
   ID->setImplicitInterfaceDecl(Record[Idx++]);
-  ID->setClassLoc(ReadSourceLocation(Record, Idx));
   ID->setSuperClassLoc(ReadSourceLocation(Record, Idx));
   ID->setLocEnd(ReadSourceLocation(Record, Idx));
 }
@@ -617,7 +621,6 @@ void ASTDeclReader::VisitObjCCategoryDecl(ObjCCategoryDecl *CD) {
                       Reader.getContext());
   CD->NextClassCategory = ReadDeclAs<ObjCCategoryDecl>(Record, Idx);
   CD->setHasSynthBitfield(Record[Idx++]);
-  CD->setAtLoc(ReadSourceLocation(Record, Idx));
   CD->setCategoryNameLoc(ReadSourceLocation(Record, Idx));
 }
 
@@ -1626,7 +1629,8 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
                              0, QualType(), 0, ObjCIvarDecl::None);
     break;
   case DECL_OBJC_PROTOCOL:
-    D = ObjCProtocolDecl::Create(Context, 0, SourceLocation(), 0);
+    D = ObjCProtocolDecl::Create(Context, 0, 0, SourceLocation(),
+                                 SourceLocation());
     break;
   case DECL_OBJC_AT_DEFS_FIELD:
     D = ObjCAtDefsFieldDecl::Create(Context, 0, SourceLocation(),
@@ -1642,10 +1646,12 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     D = ObjCCategoryDecl::Create(Context, Decl::EmptyShell());
     break;
   case DECL_OBJC_CATEGORY_IMPL:
-    D = ObjCCategoryImplDecl::Create(Context, 0, SourceLocation(), 0, 0);
+    D = ObjCCategoryImplDecl::Create(Context, 0, 0, 0, SourceLocation(),
+                                     SourceLocation());
     break;
   case DECL_OBJC_IMPLEMENTATION:
-    D = ObjCImplementationDecl::Create(Context, 0, SourceLocation(), 0, 0);
+    D = ObjCImplementationDecl::Create(Context, 0, 0, 0, SourceLocation(),
+                                       SourceLocation());
     break;
   case DECL_OBJC_COMPATIBLE_ALIAS:
     D = ObjCCompatibleAliasDecl::Create(Context, 0, SourceLocation(), 0, 0);

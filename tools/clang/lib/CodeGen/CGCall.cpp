@@ -184,7 +184,7 @@ const CGFunctionInfo &CodeGenTypes::getFunctionInfo(const ObjCMethodDecl *MD) {
   ArgTys.push_back(Context.getCanonicalParamType(MD->getSelfDecl()->getType()));
   ArgTys.push_back(Context.getCanonicalParamType(Context.getObjCSelType()));
   // FIXME: Kill copy?
-  for (ObjCMethodDecl::param_iterator i = MD->param_begin(),
+  for (ObjCMethodDecl::param_const_iterator i = MD->param_begin(),
          e = MD->param_end(); i != e; ++i) {
     ArgTys.push_back(Context.getCanonicalParamType((*i)->getType()));
   }
@@ -739,6 +739,9 @@ void CodeGenModule::ConstructAttributeList(const CGFunctionInfo &FI,
 
     if (TargetDecl->hasAttr<NoReturnAttr>())
       FuncAttrs |= llvm::Attribute::NoReturn;
+
+    if (TargetDecl->hasAttr<ReturnsTwiceAttr>())
+      FuncAttrs |= llvm::Attribute::ReturnsTwice;
 
     // 'const' and 'pure' attribute functions are also nounwind.
     if (TargetDecl->hasAttr<ConstAttr>()) {

@@ -972,6 +972,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
   }
 
   SmallVector<IdentifierInfo *, 12> KeyIdents;
+  SmallVector<SourceLocation, 12> KeyLocs;
   SmallVector<Sema::ObjCArgInfo, 12> ArgInfos;
   ParseScope PrototypeScope(this,
                             Scope::FunctionPrototypeScope|Scope::DeclScope);
@@ -1027,6 +1028,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
 
     ArgInfos.push_back(ArgInfo);
     KeyIdents.push_back(SelIdent);
+    KeyLocs.push_back(selLoc);
 
     // Make sure the attributes persist.
     allParamAttrs.takeAllFrom(paramAttrs.getPool());
@@ -1044,8 +1046,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
     }
     
     // Check for another keyword selector.
-    SourceLocation Loc;
-    SelIdent = ParseObjCSelectorPiece(Loc);
+    SelIdent = ParseObjCSelectorPiece(selLoc);
     if (!SelIdent && Tok.isNot(tok::colon))
       break;
     // We have a selector or a colon, continue parsing.
@@ -1088,7 +1089,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
   Decl *Result
        = Actions.ActOnMethodDeclaration(getCurScope(), mLoc, Tok.getLocation(),
                                         mType, DSRet, ReturnType, 
-                                        selLoc, Sel, &ArgInfos[0], 
+                                        KeyLocs, Sel, &ArgInfos[0], 
                                         CParamInfo.data(), CParamInfo.size(),
                                         methodAttrs.getList(),
                                         MethodImplKind, isVariadic, MethodDefinition);
@@ -2219,15 +2220,15 @@ Parser::ParseObjCMessageExpressionBody(SourceLocation LBracLoc,
   SourceLocation Loc;
   IdentifierInfo *selIdent = ParseObjCSelectorPiece(Loc);
 
-  SourceLocation SelectorLoc = Loc;
-
   SmallVector<IdentifierInfo *, 12> KeyIdents;
+  SmallVector<SourceLocation, 12> KeyLocs;
   ExprVector KeyExprs(Actions);
 
   if (Tok.is(tok::colon)) {
     while (1) {
       // Each iteration parses a single keyword argument.
       KeyIdents.push_back(selIdent);
+      KeyLocs.push_back(Loc);
 
       if (Tok.isNot(tok::colon)) {
         Diag(Tok, diag::err_expected_colon);
@@ -2342,24 +2343,26 @@ Parser::ParseObjCMessageExpressionBody(SourceLocation LBracLoc,
   SourceLocation RBracLoc = ConsumeBracket(); // consume ']'
 
   unsigned nKeys = KeyIdents.size();
-  if (nKeys == 0)
+  if (nKeys == 0) {
     KeyIdents.push_back(selIdent);
+    KeyLocs.push_back(Loc);
+  }
   Selector Sel = PP.getSelectorTable().getSelector(nKeys, &KeyIdents[0]);
 
   if (SuperLoc.isValid())
     return Actions.ActOnSuperMessage(getCurScope(), SuperLoc, Sel,
-                                     LBracLoc, SelectorLoc, RBracLoc,
+                                     LBracLoc, KeyLocs, RBracLoc,
                                      MultiExprArg(Actions, 
                                                   KeyExprs.take(),
                                                   KeyExprs.size()));
   else if (ReceiverType)
     return Actions.ActOnClassMessage(getCurScope(), ReceiverType, Sel,
-                                     LBracLoc, SelectorLoc, RBracLoc,
+                                     LBracLoc, KeyLocs, RBracLoc,
                                      MultiExprArg(Actions, 
                                                   KeyExprs.take(), 
                                                   KeyExprs.size()));
   return Actions.ActOnInstanceMessage(getCurScope(), ReceiverExpr, Sel,
-                                      LBracLoc, SelectorLoc, RBracLoc,
+                                      LBracLoc, KeyLocs, RBracLoc,
                                       MultiExprArg(Actions, 
                                                    KeyExprs.take(), 
                                                    KeyExprs.size()));
