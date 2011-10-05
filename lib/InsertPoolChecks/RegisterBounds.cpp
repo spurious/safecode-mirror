@@ -340,10 +340,27 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
   LLVMContext & Context = AllocSite->getContext();
   Value * PH = ConstantPointerNull::get (getVoidPtrType (Context));
 
+
+  //
+  // Find a place to insert the registration.
+  //
   BasicBlock::iterator InsertPt = AllocSite;
   ++InsertPt;
 
+  //
+  // Find or create an LLVM value representing the size.  If that is not
+  // possible, do not register the memory object.
+  //
+  // We do not assert out here (like one would think) because autoconf scripts
+  // will create calls to strdup() with zero arguments.
+  //
   Value * AllocSize = info->getOrCreateAllocSize(AllocSite);
+  if (!AllocSize)
+    return;
+
+  //
+  // Cast the size to the correct type.
+  //
   if (!AllocSize->getType()->isIntegerTy(32)) {
     AllocSize = CastInst::CreateIntegerCast (AllocSize,
                                              Type::getInt32Ty(Context),
@@ -351,6 +368,10 @@ RegisterCustomizedAllocation::registerAllocationSite(CallInst * AllocSite, Alloc
                                              AllocSize->getName(),
                                              InsertPt);
   }
+
+  //
+  // Create the registration of the object in the pool.
+  //
   RegisterVariableIntoPool (PH, AllocSite, AllocSize, InsertPt);
 }
 

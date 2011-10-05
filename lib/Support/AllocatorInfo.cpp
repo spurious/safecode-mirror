@@ -91,16 +91,25 @@ StringAllocatorInfo::getOrCreateAllocSize (Value * AllocSite) const {
     return NULL;
 
   //
+  // See if this call has an argument.  If not, ignore it.  We do this because
+  // autoconf configure scripts will create calls to string functions with zero
+  // arguments just to see if the function exists.
+  //
+  CallSite CS(CI);
+  if (CS.arg_size() == 0)
+    return NULL;
+
+  //
   // Insert a call to strlen() to determine the length of the string that was
   // allocated.
   //
   Module * M = CI->getParent()->getParent()->getParent();
   Function * Strlen = M->getFunction ("strlen");
   assert (Strlen && "No strlen function in the module");
-  CallSite CS(CI);
   BasicBlock::iterator InsertPt = CI;
   ++InsertPt;
   Value * Length = CallInst::Create (Strlen, CS.getArgument(0), "", InsertPt);
+
   //
   // The size of the allocation is the string length plus one.
   //
