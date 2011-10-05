@@ -378,8 +378,6 @@ handle_s_directive(call_info *ci,
     {
       *len = maxbytes;
       cerr << "Reading string out of bounds!" << endl;
-      cerr << "string is: " << str << endl;
-      cerr << "object size is " << object_len(p) << endl;
       out_of_bounds_error(ci, p, maxbytes);
     }
     return;
@@ -612,7 +610,7 @@ internal_printf(const options_t &options,
 // Add the first 'len' bytes of 'ptr' to the output queue.
 //
 #define PRINT(ptr, len) do {                                                   \
-  iovp->iov_base = (ptr);                                             \
+  iovp->iov_base = (ptr);                                                      \
   iovp->iov_len = (len);                                                       \
   uio.uio_resid += (len);                                                      \
   iovp++;                                                                      \
@@ -632,10 +630,10 @@ internal_printf(const options_t &options,
   {                                                                            \
     while (n > PADSIZE)                                                        \
     {                                                                          \
-      PRINT((with), PADSIZE);                                                    \
+      PRINT((with), PADSIZE);                                                  \
       n -= PADSIZE;                                                            \
     }                                                                          \
-    PRINT((with), n);                                                            \
+    PRINT((with), n);                                                          \
   }                                                                            \
 } while (0)
 
