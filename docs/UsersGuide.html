@@ -106,12 +106,17 @@ the following:
 <li> Set the environment variable CC to $PREFIX/clang.</li>
 <li> Set the environment variable CXX to $PREFIX/clang++.</li>
 <li> Set the environment variable CFLAGS to "-g -fmemsafety"</li>
-<li> Set the environment variable LDFLAGS to
-"-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++"
-where $PREFIX is the directory into which SAFECode was installed.
+<li> Set the environment variable LDFLAGS to "-L$PREFIX/lib"
+where $PREFIX is the directory into which SAFECode was installed.</li>
+<li> Set the environment variable LIBS to
+"-lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++".</li>
 <li> Run the configure script</li>
 <li> Type "make" to compile the source code.</li>
 </ol>
+
+Note that some configure scripts may not use the LDFLAGS and LIBS variables
+properly.  If the above directions do not work, try setting LDFLAGS to
+"-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++".
 </div>
 
 <!-- *********************************************************************** -->
