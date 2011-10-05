@@ -17,7 +17,7 @@ This test serves two purposes:
 
 The list of warnings below should NEVER grow.  It should gradually shrink to 0.
 
-CHECK: Warnings without flags (305):
+CHECK: Warnings without flags (301):
 CHECK-NEXT:   backslash_newline_space
 CHECK-NEXT:   charize_microsoft_ext
 CHECK-NEXT:   ext_anon_param_requires_type_specifier
@@ -81,7 +81,6 @@ CHECK-NEXT:   ext_pp_include_next_directive
 CHECK-NEXT:   ext_pp_line_too_big
 CHECK-NEXT:   ext_pp_macro_redef
 CHECK-NEXT:   ext_pp_warning_directive
-CHECK-NEXT:   ext_predef_outside_function
 CHECK-NEXT:   ext_return_has_void_expr
 CHECK-NEXT:   ext_subscript_non_lvalue
 CHECK-NEXT:   ext_template_arg_extra_parens
@@ -124,7 +123,6 @@ CHECK-NEXT:   w_asm_qualifier_ignored
 CHECK-NEXT:   warn_accessor_property_type_mismatch
 CHECK-NEXT:   warn_anon_bitfield_width_exceeds_type_size
 CHECK-NEXT:   warn_asm_label_on_auto_decl
-CHECK-NEXT:   warn_atomic_property_rule
 CHECK-NEXT:   warn_attribute_ibaction
 CHECK-NEXT:   warn_attribute_iboutlet
 CHECK-NEXT:   warn_attribute_ignored
@@ -174,7 +172,6 @@ CHECK-NEXT:   warn_drv_assuming_mfloat_abi_is
 CHECK-NEXT:   warn_drv_clang_unsupported
 CHECK-NEXT:   warn_drv_conflicting_deployment_targets
 CHECK-NEXT:   warn_drv_input_file_unused
-CHECK-NEXT:   warn_drv_no_debug_w_integrated_as
 CHECK-NEXT:   warn_drv_not_using_clang_arch
 CHECK-NEXT:   warn_drv_not_using_clang_cpp
 CHECK-NEXT:   warn_drv_not_using_clang_cxx
@@ -240,7 +237,6 @@ CHECK-NEXT:   warn_objc_protocol_qualifier_missing_id
 CHECK-NEXT:   warn_octal_escape_too_large
 CHECK-NEXT:   warn_odr_tag_type_inconsistent
 CHECK-NEXT:   warn_on_superclass_use
-CHECK-NEXT:   warn_ownin_getter_rule
 CHECK-NEXT:   warn_param_default_argument_redefinition
 CHECK-NEXT:   warn_parens_disambiguated_as_function_decl
 CHECK-NEXT:   warn_partial_specs_not_deducible

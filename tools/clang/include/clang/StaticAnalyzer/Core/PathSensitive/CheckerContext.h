@@ -83,6 +83,10 @@ public:
   const ProgramState *getState() { return ST ? ST : Pred->getState(); }
   const Stmt *getStmt() const { return statement; }
 
+  /// \brief Returns the number of times the current block has been visited
+  /// along the analyzed path.
+  unsigned getCurrentBlockCount() {return B.getCurrentBlockCount();}
+
   ASTContext &getASTContext() {
     return Eng.getContext();
   }
@@ -107,57 +111,38 @@ public:
     return Eng.isObjCGCEnabled();
   }
 
+  /// \brief Generate a default checker node (containing checker tag but no
+  /// checker state changes).
   ExplodedNode *generateNode(bool autoTransition = true) {
-    assert(statement && "Only transitions with statements currently supported");
-    ExplodedNode *N = generateNodeImpl(statement, getState(), false,
-                                       checkerTag);
-    if (N && autoTransition)
-      Dst.Add(N);
-    return N;
+    return generateNode(getState(), autoTransition);
   }
   
-  ExplodedNode *generateNode(const Stmt *stmt,
-                             const ProgramState *state,
-                             bool autoTransition = true,
-                             const ProgramPointTag *tag = 0) {
-    assert(state);
-    ExplodedNode *N = generateNodeImpl(stmt, state, false,
-                                       tag ? tag : checkerTag);
-    if (N && autoTransition)
-      addTransition(N);
-    return N;
-  }
-
+  /// \brief Generate a new checker node with the given predecessor.
+  /// Allows checkers to generate a chain of nodes.
   ExplodedNode *generateNode(const ProgramState *state,
                              ExplodedNode *pred,
+                             const ProgramPointTag *tag = 0,
                              bool autoTransition = true) {
-   assert(statement && "Only transitions with statements currently supported");
-    ExplodedNode *N = generateNodeImpl(statement, state, pred, false);
+    ExplodedNode *N = generateNodeImpl(state, false, pred, tag);
     if (N && autoTransition)
       addTransition(N);
     return N;
   }
 
+  /// \brief Generate a new checker node.
   ExplodedNode *generateNode(const ProgramState *state,
                              bool autoTransition = true,
                              const ProgramPointTag *tag = 0) {
-    assert(statement && "Only transitions with statements currently supported");
-    ExplodedNode *N = generateNodeImpl(statement, state, false,
-                                       tag ? tag : checkerTag);
+    ExplodedNode *N = generateNodeImpl(state, false, 0, tag);
     if (N && autoTransition)
       addTransition(N);
     return N;
   }
 
-  ExplodedNode *generateSink(const Stmt *stmt, const ProgramState *state = 0) {
-    return generateNodeImpl(stmt, state ? state : getState(), true,
-                            checkerTag);
-  }
-  
+  /// \brief Generate a sink node. Generating sink stops exploration of the
+  /// given path.
   ExplodedNode *generateSink(const ProgramState *state = 0) {
-    assert(statement && "Only transitions with statements currently supported");
-    return generateNodeImpl(statement, state ? state : getState(), true,
-                            checkerTag);
+    return generateNodeImpl(state ? state : getState(), true);
   }
 
   void addTransition(ExplodedNode *node) {
@@ -185,21 +170,14 @@ public:
   }
 
 private:
-  ExplodedNode *generateNodeImpl(const Stmt *stmt,
-                                 const ProgramState *state,
+  ExplodedNode *generateNodeImpl(const ProgramState *state,
                                  bool markAsSink,
-                                 const ProgramPointTag *tag) {
-    ExplodedNode *node = B.generateNode(stmt, state, Pred, tag);
-    if (markAsSink && node)
-      node->markAsSink();
-    return node;
-  }
-
-  ExplodedNode *generateNodeImpl(const Stmt *stmt,
-                                 const ProgramState *state,
-                                 ExplodedNode *pred,
-                                 bool markAsSink) {
-   ExplodedNode *node = B.generateNode(stmt, state, pred, checkerTag);
+                                 ExplodedNode *pred = 0,
+                                 const ProgramPointTag *tag = 0) {
+    assert(statement && "Only transitions with statements currently supported");
+    ExplodedNode *node = B.generateNode(statement, state,
+                                        pred ? pred : Pred,
+                                        tag  ? tag  : checkerTag);
     if (markAsSink && node)
       node->markAsSink();
     return node;

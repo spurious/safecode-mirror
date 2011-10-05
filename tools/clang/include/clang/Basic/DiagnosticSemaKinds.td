@@ -23,7 +23,8 @@ def ext_expr_not_ice : Extension<
 
 // Semantic analysis of constant literals.
 def ext_predef_outside_function : Warning<
-  "predefined identifier is only valid inside function">;
+  "predefined identifier is only valid inside function">,
+  InGroup<DiagGroup<"predefined-identifier-outside-function">>;
 def warn_float_overflow : Warning<
   "magnitude of floating-point constant too large for type %0; maximum is %1">,
    InGroup<LiteralRange>;
@@ -498,10 +499,12 @@ def warn_objc_property_retain_of_block : Warning<
     "- use copy attribute instead">, InGroup<ObjCRetainBlockProperty>;
 def warn_atomic_property_rule : Warning<
   "writable atomic property %0 cannot pair a synthesized setter/getter "
-  "with a user defined setter/getter">;
+  "with a user defined setter/getter">,
+  InGroup<DiagGroup<"atomic-property-with-user-defined-accessor">>;
 def warn_ownin_getter_rule : Warning<
   "property's synthesized getter follows Cocoa naming"
-  " convention for returning 'owned' objects">;
+  " convention for returning 'owned' objects">,
+  InGroup<DiagGroup<"objc-property-matches-cocoa-ownership-rule">>;
 def warn_property_getter_owning_mismatch : Warning<
   "property declared as returning non-retained objects"
   "; getter returning retained objects">;
@@ -515,9 +518,9 @@ def warn_default_atomic_custom_getter_setter : Warning<
 def err_use_continuation_class : Error<
   "illegal redeclaration of property in continuation class %0"
   " (attribute must be 'readwrite', while its primary must be 'readonly')">;
-def error_type_mismatch_continuation_class : Error<
+def warn_type_mismatch_continuation_class : Warning<
   "type of property %0 in continuation class does not match "
-  "property type in primary class">;
+  "property type in primary class">, InGroup<ObjCContinuationPropertyType>;
 def err_use_continuation_class_redeclaration_readwrite : Error<
   "illegal redeclaration of 'readwrite' property in continuation class %0"
   " (perhaps you intended this to be a 'readwrite' redeclaration of a "
