@@ -183,6 +183,16 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, const struct CheckInfo & I
   if (!BasePtr) return false;
 
   //
+  // Do not use exactchecks on global variables that are defined in other
+  // compilation units.
+  //
+  if (GlobalValue * GV = dyn_cast<GlobalValue>(BasePtr)) {
+    if (GV->isDeclaration()) {
+      return false;
+    }
+  }
+
+  //
   // If the call is to a memory checking function, then we cannot blindly
   // convert a check that operates on a heap object; the heap object might be
   // deallocated between the time it was allocated and the time of the check.
