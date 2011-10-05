@@ -63,6 +63,7 @@ ADD_STATISTIC_FOR(__isoc99_sscanf);
 
 char FormatStringTransform::ID = 0;
 
+
 //
 // Constructs a FunctionType which is consistent with the type of a tranformed
 // format string function.
@@ -72,16 +73,12 @@ char FormatStringTransform::ID = 0;
 //   F    - the original function type
 //
 FunctionType *
-FormatStringTransform::xfrmFType(unsigned argc,
-                                 FunctionType *F,
-                                 LLVMContext &ctx) const
+FormatStringTransform::xfrmFType(FunctionType *F, LLVMContext &ctx) const
 {
   Type *int8ptr = Type::getInt8PtrTy(ctx);
   FunctionType::param_iterator i   = F->param_begin();
   FunctionType::param_iterator end = F->param_end();
   vector<Type *> NewParamTypes;
-  // This line might be a problem if the function wasn't declared in the module.
-  assert(F->getNumParams() == argc && "Incorrect number of argument!");
   //
   // The initial argument is a pointer to the call_info structure.
   //
@@ -124,30 +121,30 @@ FormatStringTransform::runOnModule(Module &M)
     { "fprintf",         2, &stat_fprintf,         "pool_fprintf"             },
     { "sprintf",         2, &stat_sprintf,         "pool_sprintf"             },
     { "snprintf",        3, &stat_snprintf,        "pool_snprintf"            },
-    { "err",             2, &stat_err,             "pool_err",                },
-    { "errx",            2, &stat_errx,            "pool_errx",               },
-    { "warn",            1, &stat_warn,            "pool_warn",               },
-    { "warnx",           1, &stat_warnx,           "pool_warnx",              },
-    { "syslog",          2, &stat_syslog,          "pool_syslog",             },
-    { "scanf",           1, &stat_scanf,           "pool_scanf",              },
-    { "fscanf",          2, &stat_fscanf,          "pool_fscanf",             },
-    { "sscanf",          2, &stat_sscanf,          "pool_sscanf",             },
+    { "err",             2, &stat_err,             "pool_err"                 },
+    { "errx",            2, &stat_errx,            "pool_errx"                },
+    { "warn",            1, &stat_warn,            "pool_warn"                },
+    { "warnx",           1, &stat_warnx,           "pool_warnx"               },
+    { "syslog",          2, &stat_syslog,          "pool_syslog"              },
+    { "scanf",           1, &stat_scanf,           "pool_scanf"               },
+    { "fscanf",          2, &stat_fscanf,          "pool_fscanf"              },
+    { "sscanf",          2, &stat_sscanf,          "pool_sscanf"              },
     //
     // The __printf_chk() family is like printf(), but it attempts to make sure
     // the stack isn't accessed improperly. The SAFECode runtime also does this
     // (and more) so we can transform calls to this function.
     //
-    { "__printf_chk",    2, &stat___printf_chk,    "pool___printf_chk",       },
-    { "__fprintf_chk",   3, &stat___fprintf_chk,   "pool___fprintf_chk",      },
-    { "__sprintf_chk",   4, &stat___sprintf_chk,   "pool___sprintf_chk",      },
-    { "__snprintf_chk",  5, &stat___snprintf_chk,  "pool___snprintf_chk",     },
+    { "__printf_chk",    2, &stat___printf_chk,    "pool___printf_chk"        },
+    { "__fprintf_chk",   3, &stat___fprintf_chk,   "pool___fprintf_chk"       },
+    { "__sprintf_chk",   4, &stat___sprintf_chk,   "pool___sprintf_chk"       },
+    { "__snprintf_chk",  5, &stat___snprintf_chk,  "pool___snprintf_chk"      },
     //
     // The __isoc99_scanf() family is found in glibc and is like scanf() without
     // GNU extensions, which is the same functionality as the SAFECode version.
     //
-    { "__isoc99_scanf",  1, &stat___isoc99_scanf,  "pool_scanf",              },
-    { "__isoc99_fscanf", 2, &stat___isoc99_fscanf, "pool_fscanf",             },
-    { "__isoc99_sscanf", 2, &stat___isoc99_sscanf, "pool_sscanf",             }
+    { "__isoc99_scanf",  1, &stat___isoc99_scanf,  "pool_scanf"               },
+    { "__isoc99_fscanf", 2, &stat___isoc99_fscanf, "pool_fscanf"              },
+    { "__isoc99_sscanf", 2, &stat___isoc99_sscanf, "pool_sscanf"              }
   };
 
   for (size_t i = 0; i < sizeof(Entries) / sizeof(FormatStringFuncEntry); i++)
@@ -245,6 +242,13 @@ FormatStringTransform::transform(Module &M,
   if (f == 0)
     return false;
 
+  //
+  // Ensure the function is of the expected type. If not, skip over it.
+  //
+  FunctionType *fType = f->getFunctionType();
+  if (!fType->isVarArg() || fType->getNumParams() != argc)
+    return false;
+
   vector<CallSite> Calls;
 
   //
@@ -261,9 +265,10 @@ FormatStringTransform::transform(Module &M,
   if (Calls.empty())
     return false;
 
-  FunctionType *rType = xfrmFType(argc, f->getFunctionType(), f->getContext());
+  FunctionType *rType = xfrmFType(fType, f->getContext());
   Function *found = M.getFunction(replacement);
-  assert((found == 0 || found->getFunctionType() == rType) && 
+  assert((found == 0 || found->getFunctionType() == rType
+    || found->hasLocalLinkage()) && 
     "Replacement function already declared in module with incorrect type");
 
   Value *replacementFunc = M.getOrInsertFunction(replacement, rType);

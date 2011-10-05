@@ -69,7 +69,7 @@ namespace llvm
     Type *makeCallInfoType(LLVMContext &ctx, unsigned argc) const;
     // Builds a type consistent with the transformed format string function
     // type.
-    FunctionType *xfrmFType(unsigned ac, FunctionType *F, LLVMContext &c) const;
+    FunctionType *xfrmFType(FunctionType *F, LLVMContext &c) const;
     // Scans the module and makes the array allocations that the pass added all
     // the proper size.
     void fillArraySizes(Module &M);

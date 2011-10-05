@@ -171,10 +171,12 @@ bottom = \
 '''
 
 import sys
+import cStringIO
 
 if __name__ == '__main__':
   count = 0
-  sys.stdout.write(top)
+  output = cStringIO.StringIO()
+  output.write(top)
   for basic_test in basictests:
     count += 1
     input  = basic_test[0]
@@ -182,6 +184,8 @@ if __name__ == '__main__':
     rval   = basic_test[2]
     wrvals = basic_test[3]
     result = build_test(count, input, fmt, rval, wrvals)
-    sys.stdout.write(result)
-    sys.stdout.write('\n\n')
-  sys.stdout.write(bottom)
+    output.write(result)
+    output.write('\n\n')
+  output.write(bottom)
+  sys.stdout.write(output.getvalue())
+  output.close()

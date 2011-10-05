@@ -224,6 +224,7 @@ suffix = \
 '''
 
 import sys
+import cStringIO
 
 quote = lambda s : '"' + s + '"'
 
@@ -247,14 +248,17 @@ def make_percent_n_test(count, param):
   return percent_n_test % (fmt, arg, out, n1, n2, count)
 
 if __name__ == '__main__':
-  sys.stdout.write(prefix)
+  output = cStringIO.StringIO()
+  output.write(prefix)
   count = 1
   for unit in basictesttab:
     built_test = make_regular_test(count, unit)
-    sys.stdout.write(built_test)
+    output.write(built_test)
     count += 1
   for unit in percentntesttab:
     built_test = make_percent_n_test(count, unit)
-    sys.stdout.write(built_test)
+    output.write(built_test)
     count += 1
-  sys.stdout.write(suffix)
+  output.write(suffix)
+  sys.stdout.write(output.getvalue())
+  output.close()
