@@ -1148,8 +1148,8 @@ llvm::DIType CGDebugInfo::CreateType(const ObjCInterfaceType *Ty,
   unsigned Line = getLineNumber(ID->getLocation());
   unsigned RuntimeLang = TheCU.getLanguage();
 
-  // If this is just a forward declaration, return a special forward-declaration
-  // debug type.
+  // If this is just a forward declaration return a special forward-declaration
+  // debug type since we won't be able to lay out the entire type.
   if (ID->isForwardDecl()) {
     llvm::DIType FwdDecl =
       DBuilder.createStructType(Unit, ID->getName(),
@@ -1158,12 +1158,12 @@ llvm::DIType CGDebugInfo::CreateType(const ObjCInterfaceType *Ty,
     return FwdDecl;
   }
 
-  // To handle recursive interface, we
-  // first generate a debug descriptor for the struct as a forward declaration.
-  // Then (if it is a definition) we go through and get debug info for all of
-  // its members.  Finally, we create a descriptor for the complete type (which
-  // may refer to the forward decl if the struct is recursive) and replace all
-  // uses of the forward declaration with the final definition.
+  // To handle a recursive interface, we first generate a debug descriptor
+  // for the struct as a forward declaration. Then (if it is a definition)
+  // we go through and get debug info for all of its members.  Finally, we
+  // create a descriptor for the complete type (which may refer to the
+  // forward decl if the struct is recursive) and replace all uses of the
+  // forward declaration with the final definition.
   llvm::DIType FwdDecl = DBuilder.createTemporaryType(DefUnit);
 
   llvm::MDNode *MN = FwdDecl;
@@ -1223,7 +1223,12 @@ llvm::DIType CGDebugInfo::CreateType(const ObjCInterfaceType *Ty,
       FieldAlign =  CGM.getContext().getTypeAlign(FType);
     }
 
-    uint64_t FieldOffset = RL.getFieldOffset(FieldNo);
+    // We can't know the offset of our ivar in the structure if we're using
+    // the non-fragile abi and the debugger should ignore the value anyways.
+    // Call it the FieldNo+1 due to how debuggers use the information,
+    // e.g. negating the value when it needs a lookup in the dynamic table.
+    uint64_t FieldOffset = CGM.getLangOptions().ObjCNonFragileABI ? FieldNo+1
+      : RL.getFieldOffset(FieldNo);
 
     unsigned Flags = 0;
     if (Field->getAccessControl() == ObjCIvarDecl::Protected)

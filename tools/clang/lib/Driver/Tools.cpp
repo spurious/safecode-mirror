@@ -2066,11 +2066,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    false))
     CmdArgs.push_back("-fpascal-strings");
 
+  // Honor -fpack-struct= and -fpack-struct, if given. Note that
+  // -fno-pack-struct doesn't apply to -fpack-struct=.
+  if (Arg *A = Args.getLastArg(options::OPT_fpack_struct_EQ)) {
+    CmdArgs.push_back("-fpack-struct");
+    CmdArgs.push_back(A->getValue(Args));
+  } else if (Args.hasFlag(options::OPT_fpack_struct,
+                          options::OPT_fno_pack_struct, false)) {
+    CmdArgs.push_back("-fpack-struct");
+    CmdArgs.push_back("1");
+  }
+
   if (Args.hasArg(options::OPT_mkernel) ||
       Args.hasArg(options::OPT_fapple_kext)) {
     if (!Args.hasArg(options::OPT_fcommon))
       CmdArgs.push_back("-fno-common");
   }
+
   // -fcommon is default, only pass non-default.
   else if (!Args.hasFlag(options::OPT_fcommon, options::OPT_fno_common))
     CmdArgs.push_back("-fno-common");
@@ -2629,6 +2641,7 @@ void darwin::CC1::RemoveCC1UnsupportedArgs(ArgStringList &CmdArgs) const {
         .Case("initializer-overrides", true)
         .Case("invalid-noreturn", true)
         .Case("invalid-token-paste", true)
+        .Case("language-extension-token", true)
         .Case("literal-conversion", true)
         .Case("literal-range", true)
         .Case("local-type-template-args", true)

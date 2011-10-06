@@ -320,11 +320,13 @@ public:
   typedef CheckerFn<void (const ObjCMessage &, CheckerContext &)>
       CheckObjCMessageFunc;
   
-  typedef CheckerFn<void (const SVal &location, bool isLoad, CheckerContext &)>
+  typedef CheckerFn<void (const SVal &location, bool isLoad, const Stmt *S,
+                          CheckerContext &)>
       CheckLocationFunc;
   
-  typedef CheckerFn<void (const SVal &location, const SVal &val,
-                          CheckerContext &)> CheckBindFunc;
+  typedef CheckerFn<void (const SVal &location, const SVal &val, 
+                          const Stmt *S, CheckerContext &)> 
+      CheckBindFunc;
   
   typedef CheckerFn<void (ExplodedGraph &, BugReporter &, ExprEngine &)>
       CheckEndAnalysisFunc;
@@ -354,6 +356,11 @@ public:
   
   typedef CheckerFn<bool (const CallExpr *, CheckerContext &)>
       EvalCallFunc;
+
+  typedef CheckerFn<bool (const CallExpr *, ExprEngine &Eng,
+                                            ExplodedNode *Pred,
+                                            ExplodedNodeSet &Dst)>
+      InlineCallFunc;
 
   typedef CheckerFn<void (const TranslationUnitDecl *,
                           AnalysisManager&, BugReporter &)>
@@ -388,6 +395,8 @@ public:
   void _registerForEvalAssume(EvalAssumeFunc checkfn);
 
   void _registerForEvalCall(EvalCallFunc checkfn);
+
+  void _registerForInlineCall(InlineCallFunc checkfn);
 
   void _registerForEndOfTranslationUnit(CheckEndOfTranslationUnit checkfn);
 
@@ -510,6 +519,8 @@ private:
   std::vector<EvalAssumeFunc> EvalAssumeCheckers;
 
   std::vector<EvalCallFunc> EvalCallCheckers;
+
+  std::vector<InlineCallFunc> InlineCallCheckers;
 
   std::vector<CheckEndOfTranslationUnit> EndOfTranslationUnitCheckers;
 
