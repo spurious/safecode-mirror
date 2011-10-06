@@ -463,11 +463,14 @@ CompleteChecks::fixupCFIChecks (Module & M, std::string name) {
     if (CallInst * CI = dyn_cast<CallInst>(*UI)) {
       if (CI->getCalledValue()->stripPointerCasts() == FuncCheck) {
         //
-        // Get the call instruction after this call instruction.
+        // Get the call instruction following this call instruction.
         //
         BasicBlock::iterator I = CI;
-        ++I;
-        CallInst * ICI = cast<CallInst>(I);
+        CallInst * ICI;
+        do {
+          ++I;
+          assert (!isa<TerminatorInst>(I));
+        } while ((ICI = dyn_cast<CallInst>(I)) == 0);
 
         //
         // Get the list of potential function targets.  Note that we have to
