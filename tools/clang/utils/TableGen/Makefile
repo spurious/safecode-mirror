@@ -9,7 +9,7 @@
 
 CLANG_LEVEL = ../..
 TOOLNAME = clang-tblgen
-USEDLIBS = LLVMTableGen.a LLVMSupport.a
+LINK_COMPONENTS = TableGen support
 REQUIRES_EH := 1
 REQUIRES_RTTI := 1
 
