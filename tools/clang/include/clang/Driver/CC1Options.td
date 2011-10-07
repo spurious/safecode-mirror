@@ -721,3 +721,9 @@ def cl_std_EQ : Joined<"-cl-std=">,
 def memsafety : Flag<"-fmemsafety">,
   HelpText<"Instrument program with memory-safety checks">;
 
+//===----------------------------------------------------------------------===//
+// CUDA Options
+//===----------------------------------------------------------------------===//
+
+def fcuda_is_device : Flag<"-fcuda-is-device">,
+  HelpText<"Generate code for CUDA device">;

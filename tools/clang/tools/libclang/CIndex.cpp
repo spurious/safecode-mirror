@@ -1561,6 +1561,10 @@ bool CursorVisitor::VisitInjectedClassNameTypeLoc(InjectedClassNameTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getDecl(), TL.getNameLoc(), TU));
 }
 
+bool CursorVisitor::VisitAtomicTypeLoc(AtomicTypeLoc TL) {
+  return Visit(TL.getValueLoc());
+}
+
 #define DEFAULT_TYPELOC_IMPL(CLASS, PARENT) \
 bool CursorVisitor::Visit##CLASS##TypeLoc(CLASS##TypeLoc TL) { \
   return Visit##PARENT##Loc(TL); \
@@ -1588,7 +1592,7 @@ bool CursorVisitor::VisitCXXRecordDecl(CXXRecordDecl *D) {
     if (VisitNestedNameSpecifierLoc(QualifierLoc))
       return true;
 
-  if (D->isDefinition()) {
+  if (D->isCompleteDefinition()) {
     for (CXXRecordDecl::base_class_iterator I = D->bases_begin(),
          E = D->bases_end(); I != E; ++I) {
       if (Visit(cxcursor::MakeCursorCXXBaseSpecifier(I, TU)))

@@ -520,11 +520,11 @@ private:
     explicit ObjCDeclContextSwitch(Parser &p) : P(p), 
                DC(p.getObjCDeclContext()) {
       if (DC)
-        P.Actions.ActOnObjCContainerFinishDefinition();
+        P.Actions.ActOnObjCTemporaryExitContainerContext();
     }
     ~ObjCDeclContextSwitch() {
       if (DC)
-        P.Actions.ActOnObjCContainerStartDefinition(DC);
+        P.Actions.ActOnObjCReenterContainerContext();
     }
   };
 
@@ -1768,7 +1768,8 @@ private:
   void ParseTypeofSpecifier(DeclSpec &DS);
   void ParseDecltypeSpecifier(DeclSpec &DS);
   void ParseUnderlyingTypeSpecifier(DeclSpec &DS);
-  
+  void ParseAtomicSpecifier(DeclSpec &DS);
+
   ExprResult ParseAlignArgument(SourceLocation Start);
   void ParseAlignmentSpecifier(ParsedAttributes &Attrs,
                                SourceLocation *endLoc = 0);

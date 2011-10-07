@@ -13,6 +13,7 @@
 
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
 #include "CGDebugInfo.h"
 #include "CGException.h"
@@ -86,6 +87,10 @@ bool CodeGenFunction::hasAggregateLLVMType(QualType type) {
   case Type::ObjCObject:
   case Type::ObjCInterface:
     return true;
+
+  // In IRGen, atomic types are just the underlying type
+  case Type::Atomic:
+    return hasAggregateLLVMType(type->getAs<AtomicType>()->getValueType());
   }
   llvm_unreachable("unknown type kind!");
 }
@@ -404,6 +409,10 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     EmitDestructorBody(Args);
   else if (isa<CXXConstructorDecl>(FD))
     EmitConstructorBody(Args);
+  else if (getContext().getLangOptions().CUDA &&
+           !CGM.getCodeGenOpts().CUDAIsDevice &&
+           FD->hasAttr<CUDAGlobalAttr>())
+    CGM.getCUDARuntime().EmitDeviceStubBody(*this, Args);
   else
     EmitFunctionBody(Args);
 
@@ -977,6 +986,10 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::FunctionProto: 
     case Type::FunctionNoProto:
       type = cast<FunctionType>(ty)->getResultType();
+      break;
+
+    case Type::Atomic:
+      type = cast<AtomicType>(ty)->getValueType();
       break;
     }
   } while (type->isVariablyModifiedType());

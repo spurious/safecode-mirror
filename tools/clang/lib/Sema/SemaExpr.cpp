@@ -72,7 +72,7 @@ static AvailabilityResult DiagnoseAvailabilityOfDecl(Sema &S,
       break;
             
     case AR_Unavailable:
-      if (cast<Decl>(S.CurContext)->getAvailability() != AR_Unavailable) {
+      if (S.getCurContextAvailability() != AR_Unavailable) {
         if (Message.empty()) {
           if (!UnknownObjCClass)
             S.Diag(Loc, diag::err_unavailable) << D->getDeclName();
@@ -341,6 +341,10 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
 
   QualType T = E->getType();
   assert(!T.isNull() && "r-value conversion on typeless expression?");
+
+  // We can't do lvalue-to-rvalue on atomics yet.
+  if (T->getAs<AtomicType>())
+    return Owned(E);
 
   // Create a load out of an ObjCProperty l-value, if necessary.
   if (E->getObjectKind() == OK_ObjCProperty) {
@@ -3892,13 +3896,13 @@ CastKind Sema::PrepareCastToObjCObjectPointer(ExprResult &E) {
 
 /// Prepares for a scalar cast, performing all the necessary stages
 /// except the final cast and returning the kind required.
-static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
+CastKind Sema::PrepareScalarCast(ExprResult &Src, QualType DestTy) {
   // Both Src and Dest are scalar types, i.e. arithmetic or pointer.
   // Also, callers should have filtered out the invalid cases with
   // pointers.  Everything else should be possible.
 
   QualType SrcTy = Src.get()->getType();
-  if (S.Context.hasSameUnqualifiedType(SrcTy, DestTy))
+  if (Context.hasSameUnqualifiedType(SrcTy, DestTy))
     return CK_NoOp;
 
   switch (Type::ScalarTypeKind SrcKind = SrcTy->getScalarTypeKind()) {
@@ -3920,7 +3924,7 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
       else if (SrcKind == Type::STK_CPointer)
         return CK_CPointerToObjCPointerCast;
       else {
-        maybeExtendBlockObject(S, Src);
+        maybeExtendBlockObject(*this, Src);
         return CK_BlockPointerToObjCPointerCast;
       }
     case Type::STK_Bool:
@@ -3941,7 +3945,7 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
     case Type::STK_CPointer:
     case Type::STK_ObjCObjectPointer:
     case Type::STK_BlockPointer:
-      if (Src.get()->isNullPointerConstant(S.Context,
+      if (Src.get()->isNullPointerConstant(Context,
                                            Expr::NPC_ValueDependentIsNull))
         return CK_NullToPointer;
       return CK_IntegralToPointer;
@@ -3952,14 +3956,14 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
     case Type::STK_Floating:
       return CK_IntegralToFloating;
     case Type::STK_IntegralComplex:
-      Src = S.ImpCastExprToType(Src.take(),
-                                DestTy->getAs<ComplexType>()->getElementType(),
-                                CK_IntegralCast);
+      Src = ImpCastExprToType(Src.take(),
+                              DestTy->castAs<ComplexType>()->getElementType(),
+                              CK_IntegralCast);
       return CK_IntegralRealToComplex;
     case Type::STK_FloatingComplex:
-      Src = S.ImpCastExprToType(Src.take(),
-                                DestTy->getAs<ComplexType>()->getElementType(),
-                                CK_IntegralToFloating);
+      Src = ImpCastExprToType(Src.take(),
+                              DestTy->castAs<ComplexType>()->getElementType(),
+                              CK_IntegralToFloating);
       return CK_FloatingRealToComplex;
     case Type::STK_MemberPointer:
       llvm_unreachable("member pointer type in C");
@@ -3975,14 +3979,14 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
     case Type::STK_Integral:
       return CK_FloatingToIntegral;
     case Type::STK_FloatingComplex:
-      Src = S.ImpCastExprToType(Src.take(),
-                                DestTy->getAs<ComplexType>()->getElementType(),
-                                CK_FloatingCast);
+      Src = ImpCastExprToType(Src.take(),
+                              DestTy->castAs<ComplexType>()->getElementType(),
+                              CK_FloatingCast);
       return CK_FloatingRealToComplex;
     case Type::STK_IntegralComplex:
-      Src = S.ImpCastExprToType(Src.take(),
-                                DestTy->getAs<ComplexType>()->getElementType(),
-                                CK_FloatingToIntegral);
+      Src = ImpCastExprToType(Src.take(),
+                              DestTy->castAs<ComplexType>()->getElementType(),
+                              CK_FloatingToIntegral);
       return CK_IntegralRealToComplex;
     case Type::STK_CPointer:
     case Type::STK_ObjCObjectPointer:
@@ -4000,18 +4004,18 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
     case Type::STK_IntegralComplex:
       return CK_FloatingComplexToIntegralComplex;
     case Type::STK_Floating: {
-      QualType ET = SrcTy->getAs<ComplexType>()->getElementType();
-      if (S.Context.hasSameType(ET, DestTy))
+      QualType ET = SrcTy->castAs<ComplexType>()->getElementType();
+      if (Context.hasSameType(ET, DestTy))
         return CK_FloatingComplexToReal;
-      Src = S.ImpCastExprToType(Src.take(), ET, CK_FloatingComplexToReal);
+      Src = ImpCastExprToType(Src.take(), ET, CK_FloatingComplexToReal);
       return CK_FloatingCast;
     }
     case Type::STK_Bool:
       return CK_FloatingComplexToBoolean;
     case Type::STK_Integral:
-      Src = S.ImpCastExprToType(Src.take(),
-                                SrcTy->getAs<ComplexType>()->getElementType(),
-                                CK_FloatingComplexToReal);
+      Src = ImpCastExprToType(Src.take(),
+                              SrcTy->castAs<ComplexType>()->getElementType(),
+                              CK_FloatingComplexToReal);
       return CK_FloatingToIntegral;
     case Type::STK_CPointer:
     case Type::STK_ObjCObjectPointer:
@@ -4029,18 +4033,18 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
     case Type::STK_IntegralComplex:
       return CK_IntegralComplexCast;
     case Type::STK_Integral: {
-      QualType ET = SrcTy->getAs<ComplexType>()->getElementType();
-      if (S.Context.hasSameType(ET, DestTy))
+      QualType ET = SrcTy->castAs<ComplexType>()->getElementType();
+      if (Context.hasSameType(ET, DestTy))
         return CK_IntegralComplexToReal;
-      Src = S.ImpCastExprToType(Src.take(), ET, CK_IntegralComplexToReal);
+      Src = ImpCastExprToType(Src.take(), ET, CK_IntegralComplexToReal);
       return CK_IntegralCast;
     }
     case Type::STK_Bool:
       return CK_IntegralComplexToBoolean;
     case Type::STK_Floating:
-      Src = S.ImpCastExprToType(Src.take(),
-                                SrcTy->getAs<ComplexType>()->getElementType(),
-                                CK_IntegralComplexToReal);
+      Src = ImpCastExprToType(Src.take(),
+                              SrcTy->castAs<ComplexType>()->getElementType(),
+                              CK_IntegralComplexToReal);
       return CK_IntegralToFloating;
     case Type::STK_CPointer:
     case Type::STK_ObjCObjectPointer:
@@ -4053,196 +4057,6 @@ static CastKind PrepareScalarCast(Sema &S, ExprResult &Src, QualType DestTy) {
   }
 
   llvm_unreachable("Unhandled scalar cast");
-}
-
-/// CheckCastTypes - Check type constraints for casting between types in C.
-ExprResult Sema::CheckCCastTypes(SourceLocation CastStartLoc,
-                                 SourceRange TypeRange, QualType CastType,
-                                 Expr *CastExpr, CastKind &Kind) {
-  assert(!getLangOptions().CPlusPlus);
-
-  if (CastExpr->getType() == Context.UnknownAnyTy) {
-    // We can safely ignore these here because C never has base paths
-    // or casts to l-values.
-    CXXCastPath BasePath;
-    ExprValueKind VK = VK_RValue;
-    return checkUnknownAnyCast(TypeRange, CastType, CastExpr, Kind, VK,
-                               BasePath);
-  }
-
-  ExprResult Result = CheckPlaceholderExpr(CastExpr);
-  if (Result.isInvalid())
-    return ExprError();
-  CastExpr = Result.take();
-
-  assert(!CastExpr->getType()->isPlaceholderType());
-
-  // C99 6.5.4p2: the cast type needs to be void or scalar and the expression
-  // type needs to be scalar.
-  if (CastType->isVoidType()) {
-    // We don't necessarily do lvalue-to-rvalue conversions on this.
-    ExprResult castExprRes = IgnoredValueConversions(CastExpr);
-    if (castExprRes.isInvalid())
-      return ExprError();
-    CastExpr = castExprRes.take();
-
-    // Cast to void allows any expr type.
-    Kind = CK_ToVoid;
-    return Owned(CastExpr);
-  }
-
-  ExprResult castExprRes = DefaultFunctionArrayLvalueConversion(CastExpr);
-  if (castExprRes.isInvalid())
-    return ExprError();
-  CastExpr = castExprRes.take();
-
-  if (RequireCompleteType(TypeRange.getBegin(), CastType,
-                          diag::err_typecheck_cast_to_incomplete))
-    return ExprError();
-
-  if (!CastType->isScalarType() && !CastType->isVectorType()) {
-    if (Context.hasSameUnqualifiedType(CastType, CastExpr->getType()) &&
-        (CastType->isStructureType() || CastType->isUnionType())) {
-      // GCC struct/union extension: allow cast to self.
-      // FIXME: Check that the cast destination type is complete.
-      Diag(TypeRange.getBegin(), diag::ext_typecheck_cast_nonscalar)
-        << CastType << CastExpr->getSourceRange();
-      Kind = CK_NoOp;
-      return Owned(CastExpr);
-    }
-
-    if (CastType->isUnionType()) {
-      // GCC cast to union extension
-      RecordDecl *RD = CastType->getAs<RecordType>()->getDecl();
-      RecordDecl::field_iterator Field, FieldEnd;
-      for (Field = RD->field_begin(), FieldEnd = RD->field_end();
-           Field != FieldEnd; ++Field) {
-        if (Context.hasSameUnqualifiedType(Field->getType(),
-                                           CastExpr->getType()) &&
-            !Field->isUnnamedBitfield()) {
-          Diag(TypeRange.getBegin(), diag::ext_typecheck_cast_to_union)
-            << CastExpr->getSourceRange();
-          break;
-        }
-      }
-      if (Field == FieldEnd) {
-        Diag(TypeRange.getBegin(), diag::err_typecheck_cast_to_union_no_type)
-          << CastExpr->getType() << CastExpr->getSourceRange();
-        return ExprError();
-      }
-      Kind = CK_ToUnion;
-      return Owned(CastExpr);
-    }
-
-    // Reject any other conversions to non-scalar types.
-    Diag(TypeRange.getBegin(), diag::err_typecheck_cond_expect_scalar)
-      << CastType << CastExpr->getSourceRange();
-    return ExprError();
-  }
-
-  // The type we're casting to is known to be a scalar or vector.
-
-  // Require the operand to be a scalar or vector.
-  if (!CastExpr->getType()->isScalarType() &&
-      !CastExpr->getType()->isVectorType()) {
-    Diag(CastExpr->getLocStart(),
-                diag::err_typecheck_expect_scalar_operand)
-      << CastExpr->getType() << CastExpr->getSourceRange();
-    return ExprError();
-  }
-
-  if (CastType->isExtVectorType())
-    return CheckExtVectorCast(TypeRange, CastType, CastExpr, Kind);
-
-  if (CastType->isVectorType()) {
-    if (CastType->getAs<VectorType>()->getVectorKind() ==
-        VectorType::AltiVecVector &&
-          (CastExpr->getType()->isIntegerType() ||
-           CastExpr->getType()->isFloatingType())) {
-      Kind = CK_VectorSplat;
-      return Owned(CastExpr);
-    } else if (CheckVectorCast(TypeRange, CastType, CastExpr->getType(),
-                               Kind)) {
-      return ExprError();
-    } else
-      return Owned(CastExpr);
-  }
-  if (CastExpr->getType()->isVectorType()) {
-    if (CheckVectorCast(TypeRange, CastExpr->getType(), CastType, Kind))
-      return ExprError();
-    else
-      return Owned(CastExpr);
-  }
-
-  // The source and target types are both scalars, i.e.
-  //   - arithmetic types (fundamental, enum, and complex)
-  //   - all kinds of pointers
-  // Note that member pointers were filtered out with C++, above.
-
-  if (isa<ObjCSelectorExpr>(CastExpr)) {
-    Diag(CastExpr->getLocStart(), diag::err_cast_selector_expr);
-    return ExprError();
-  }
-
-  // If either type is a pointer, the other type has to be either an
-  // integer or a pointer.
-  QualType CastExprType = CastExpr->getType();
-  if (!CastType->isArithmeticType()) {
-    if (!CastExprType->isIntegralType(Context) && 
-        CastExprType->isArithmeticType()) {
-      Diag(CastExpr->getLocStart(),
-           diag::err_cast_pointer_from_non_pointer_int)
-        << CastExprType << CastExpr->getSourceRange();
-      return ExprError();
-    }
-  } else if (!CastExpr->getType()->isArithmeticType()) {
-    if (!CastType->isIntegralType(Context) && CastType->isArithmeticType()) {
-      Diag(CastExpr->getLocStart(), diag::err_cast_pointer_to_non_pointer_int)
-        << CastType << CastExpr->getSourceRange();
-      return ExprError();
-    }
-  }
-
-  // ARC imposes extra restrictions on casts.
-  if (getLangOptions().ObjCAutoRefCount) {
-    CheckObjCARCConversion(SourceRange(CastStartLoc, CastExpr->getLocEnd()),
-                           CastType, CastExpr, CCK_CStyleCast);
-    
-    if (const PointerType *CastPtr = CastType->getAs<PointerType>()) {
-      if (const PointerType *ExprPtr = CastExprType->getAs<PointerType>()) {
-        Qualifiers CastQuals = CastPtr->getPointeeType().getQualifiers();
-        Qualifiers ExprQuals = ExprPtr->getPointeeType().getQualifiers();
-        if (CastPtr->getPointeeType()->isObjCLifetimeType() && 
-            ExprPtr->getPointeeType()->isObjCLifetimeType() &&
-            !CastQuals.compatiblyIncludesObjCLifetime(ExprQuals)) {
-          Diag(CastExpr->getLocStart(), 
-               diag::err_typecheck_incompatible_ownership)
-            << CastExprType << CastType << AA_Casting
-            << CastExpr->getSourceRange();
-          
-          return ExprError();
-        }
-      }
-    } 
-    else if (!CheckObjCARCUnavailableWeakConversion(CastType, CastExprType)) {
-           Diag(CastExpr->getLocStart(), 
-                diag::err_arc_convesion_of_weak_unavailable) << 1
-                << CastExprType << CastType 
-                << CastExpr->getSourceRange();
-          return ExprError();
-    }
-  }
-  
-  castExprRes = Owned(CastExpr);
-  Kind = PrepareScalarCast(*this, castExprRes, CastType);
-  if (castExprRes.isInvalid())
-    return ExprError();
-  CastExpr = castExprRes.take();
-
-  if (Kind == CK_BitCast)
-    CheckCastAlign(CastExpr, CastType, TypeRange);
-
-  return Owned(CastExpr);
 }
 
 bool Sema::CheckVectorCast(SourceRange R, QualType VectorTy, QualType Ty,
@@ -4297,7 +4111,7 @@ ExprResult Sema::CheckExtVectorCast(SourceRange R, QualType DestTy,
 
   QualType DestElemTy = DestTy->getAs<ExtVectorType>()->getElementType();
   ExprResult CastExprRes = Owned(CastExpr);
-  CastKind CK = PrepareScalarCast(*this, CastExprRes, DestElemTy);
+  CastKind CK = PrepareScalarCast(CastExprRes, DestElemTy);
   if (CastExprRes.isInvalid())
     return ExprError();
   CastExpr = ImpCastExprToType(CastExprRes.take(), DestElemTy, CK).take();
@@ -4365,25 +4179,6 @@ Sema::ActOnCastExpr(Scope *S, SourceLocation LParenLoc,
   return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr);
 }
 
-ExprResult
-Sema::BuildCStyleCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
-                          SourceLocation RParenLoc, Expr *CastExpr) {
-  if (getLangOptions().CPlusPlus)
-    return CXXBuildCStyleCastExpr(LParenLoc, Ty, RParenLoc, CastExpr);
-
-  CastKind Kind = CK_Invalid;
-  ExprResult CastResult =
-    CheckCCastTypes(LParenLoc, SourceRange(LParenLoc, RParenLoc),
-                    Ty->getType(), CastExpr, Kind);
-  if (CastResult.isInvalid())
-    return ExprError();
-  CastExpr = CastResult.take();
-
-  return Owned(CStyleCastExpr::Create(Context, Ty->getType(), VK_RValue, Kind,
-                                      CastExpr, /*base path*/ 0, Ty,
-                                      LParenLoc, RParenLoc));
-}
-
 ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
                                     SourceLocation RParenLoc, Expr *E,
                                     TypeSourceInfo *TInfo) {
@@ -4421,7 +4216,7 @@ ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
       QualType ElemTy = Ty->getAs<VectorType>()->getElementType();
       ExprResult Literal = Owned(exprs[0]);
       Literal = ImpCastExprToType(Literal.take(), ElemTy,
-                                  PrepareScalarCast(*this, Literal, ElemTy));
+                                  PrepareScalarCast(Literal, ElemTy));
       return BuildCStyleCastExpr(LParenLoc, TInfo, RParenLoc, Literal.take());
     }
     else if (numExprs < numElems) {
@@ -4442,7 +4237,7 @@ ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
         QualType ElemTy = Ty->getAs<VectorType>()->getElementType();
         ExprResult Literal = Owned(exprs[0]);
         Literal = ImpCastExprToType(Literal.take(), ElemTy,
-                                    PrepareScalarCast(*this, Literal, ElemTy));
+                                    PrepareScalarCast(Literal, ElemTy));
         return BuildCStyleCastExpr(LParenLoc, TInfo, RParenLoc, Literal.take());
     }
     
@@ -5393,6 +5188,10 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
   RHSType = Context.getCanonicalType(RHSType).getUnqualifiedType();
 
+  // We can't do assignment from/to atomics yet.
+  if (LHSType->isAtomicType())
+    return Incompatible;
+
   // Common case: no conversion required.
   if (LHSType == RHSType) {
     Kind = CK_NoOp;
@@ -5424,7 +5223,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
       // element type.
       QualType elType = cast<ExtVectorType>(LHSType)->getElementType();
       if (elType != RHSType) {
-        Kind = PrepareScalarCast(*this, RHS, elType);
+        Kind = PrepareScalarCast(RHS, elType);
         RHS = ImpCastExprToType(RHS.take(), elType, Kind);
       }
       Kind = CK_VectorSplat;
@@ -5457,7 +5256,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   // Arithmetic conversions.
   if (LHSType->isArithmeticType() && RHSType->isArithmeticType() &&
       !(getLangOptions().CPlusPlus && LHSType->isEnumeralType())) {
-    Kind = PrepareScalarCast(*this, RHS, LHSType);
+    Kind = PrepareScalarCast(RHS, LHSType);
     return Compatible;
   }
 
@@ -5712,7 +5511,7 @@ Sema::AssignConvertType
 Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &RHS,
                                        bool Diagnose) {
   if (getLangOptions().CPlusPlus) {
-    if (!LHSType->isRecordType()) {
+    if (!LHSType->isRecordType() && !LHSType->isAtomicType()) {
       // C++ 5.17p3: If the left operand is not of class type, the
       // expression is implicitly converted (C++ 4) to the
       // cv-unqualified type of the left operand.
@@ -5732,6 +5531,8 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &RHS,
 
     // FIXME: Currently, we fall through and treat C++ classes like C
     // structures.
+    // FIXME: We also fall through for atomics; not sure what should
+    // happen there, though.
   }
 
   // C99 6.5.16.1p1: the left operand is a pointer and the right is
