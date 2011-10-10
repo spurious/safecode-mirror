@@ -78,6 +78,12 @@ protected:
   const void *getData2() const { return Data.second; }
 
 public:
+  /// Create a new ProgramPoint object that is the same as the original
+  /// except for using the specified tag value.
+  ProgramPoint withTag(const ProgramPointTag *tag) const {
+    return ProgramPoint(Data.first, Data.second, K, L, tag);
+  }
+
   Kind getKind() const { return K; }
 
   const ProgramPointTag *getTag() const { return Tag; }
@@ -108,6 +114,11 @@ public:
     ID.AddPointer(L);
     ID.AddPointer(Tag);
   }
+
+  static ProgramPoint getProgramPoint(const Stmt *S, ProgramPoint::Kind K,
+                                      const LocationContext *LC,
+                                      const ProgramPointTag *tag);
+
 };
 
 class BlockEntrance : public ProgramPoint {
@@ -125,12 +136,6 @@ public:
   const CFGElement getFirstElement() const {
     const CFGBlock *B = getBlock();
     return B->empty() ? CFGElement() : B->front();
-  }
-  
-  /// Create a new BlockEntrance object that is the same as the original
-  /// except for using the specified tag value.
-  BlockEntrance withTag(const ProgramPointTag *tag) {
-    return BlockEntrance(getBlock(), getLocationContext(), tag);
   }
   
   static bool classof(const ProgramPoint* Location) {

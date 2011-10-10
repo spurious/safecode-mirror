@@ -805,15 +805,12 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
           ObjCPropertyDecl::OBJC_PR_atomic) {
         Expr *callExpr = Res.takeAs<Expr>();
         if (const CXXOperatorCallExpr *CXXCE = 
-              dyn_cast_or_null<CXXOperatorCallExpr>(callExpr)) {
-          const CallExpr *CE = cast<CallExpr>(CXXCE);
-          if (const FunctionDecl *FuncDecl = CE->getDirectCallee()) {
+              dyn_cast_or_null<CXXOperatorCallExpr>(callExpr))
+          if (const FunctionDecl *FuncDecl = CXXCE->getDirectCallee())
             if (!FuncDecl->isTrivial())
               Diag(PropertyLoc, 
                    diag::warn_atomic_property_nontrivial_assign_op) 
                     << property->getType();
-          }
-        }
       }
       PIDecl->setSetterCXXAssignment(Res.takeAs<Expr>());
     }
@@ -902,7 +899,7 @@ Sema::DiagnosePropertyMismatch(ObjCPropertyDecl *Property,
       != (SAttr & ObjCPropertyDecl::OBJC_PR_copy))
     Diag(Property->getLocation(), diag::warn_property_attribute)
       << Property->getDeclName() << "copy" << inheritedName;
-  else {
+  else if (!(SAttr & ObjCPropertyDecl::OBJC_PR_readonly)){
     unsigned CAttrRetain = 
       (CAttr & 
        (ObjCPropertyDecl::OBJC_PR_retain | ObjCPropertyDecl::OBJC_PR_strong));

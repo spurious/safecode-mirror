@@ -48,7 +48,8 @@ using namespace clang;
 
 Darwin::Darwin(const HostInfo &Host, const llvm::Triple& Triple)
   : ToolChain(Host, Triple), TargetInitialized(false),
-    ARCRuntimeForSimulator(ARCSimulator_None)
+    ARCRuntimeForSimulator(ARCSimulator_None),
+    LibCXXForSimulator(LibCXXSimulator_None)
 {
   // Compute the initial Darwin version based on the host.
   bool HadExtra;
@@ -421,8 +422,9 @@ void DarwinClang::AddLinkRuntimeLibArgs(const ArgList &Args,
   if (isTargetIPhoneOS()) {
     // If we are compiling as iOS / simulator, don't attempt to link libgcc_s.1,
     // it never went into the SDK.
-    if (!isTargetIOSSimulator())
-        CmdArgs.push_back("-lgcc_s.1");
+    // Linking against libgcc_s.1 isn't needed for iOS 5.0+
+    if (isIPhoneOSVersionLT(5, 0) && !isTargetIOSSimulator())
+      CmdArgs.push_back("-lgcc_s.1");
 
     // We currently always need a static runtime library for iOS.
     AddLinkRuntimeLib(Args, CmdArgs, "libclang_rt.ios.a");
@@ -503,6 +505,8 @@ void Darwin::AddDeploymentTarget(DerivedArgList &Args) const {
             Major < 10 && Minor < 100 && Micro < 100) {
           ARCRuntimeForSimulator = Major < 5 ? ARCSimulator_NoARCRuntime
                                              : ARCSimulator_HasARCRuntime;
+          LibCXXForSimulator = Major < 5 ? LibCXXSimulator_NotAvailable
+                                         : LibCXXSimulator_Available;
         }
         break;
       }
@@ -532,7 +536,7 @@ void Darwin::AddDeploymentTarget(DerivedArgList &Args) const {
     if (char *env = ::getenv("IOS_SIMULATOR_DEPLOYMENT_TARGET"))
       iOSSimTarget = env;
 
-    // If no '-miphoneos-version-min' specified on the command line and 
+    // If no '-miphoneos-version-min' specified on the command line and
     // IPHONEOS_DEPLOYMENT_TARGET is not defined, see if we can set the default
     // based on isysroot.
     if (iOSTarget.empty()) {
@@ -909,6 +913,33 @@ DerivedArgList *Darwin::TranslateArgs(const DerivedArgList &Args,
   // after argument translation because -Xarch_ arguments may add a version min
   // argument.
   AddDeploymentTarget(*DAL);
+
+  // Validate the C++ standard library choice.
+  CXXStdlibType Type = GetCXXStdlibType(*DAL);
+  if (Type == ToolChain::CST_Libcxx) {
+    switch (LibCXXForSimulator) {
+    case LibCXXSimulator_None:
+      // Handle non-simulator cases.
+      if (isTargetIPhoneOS()) {
+        if (isIPhoneOSVersionLT(5, 0)) {
+          getDriver().Diag(clang::diag::err_drv_invalid_libcxx_deployment)
+            << "iOS 5.0";
+        }
+      } else {
+        if (isMacosxVersionLT(10, 7)) {
+          getDriver().Diag(clang::diag::err_drv_invalid_libcxx_deployment)
+            << "Mac OS X 10.7";
+        }
+      }
+      break;
+    case LibCXXSimulator_NotAvailable:
+      getDriver().Diag(clang::diag::err_drv_invalid_libcxx_deployment)
+        << "iOS 5.0";
+      break;
+    case LibCXXSimulator_Available:
+      break;
+    }
+  }
 
   return DAL;
 }
@@ -1480,11 +1511,11 @@ class GCCInstallationDetector {
     unsigned Major, Minor, Patch;
 
     static GCCVersion Parse(StringRef VersionText) {
-      const GCCVersion BadVersion = {};
+      const GCCVersion BadVersion = {0, 0, 0};
       std::pair<StringRef, StringRef> First = VersionText.split('.');
       std::pair<StringRef, StringRef> Second = First.second.split('.');
 
-      GCCVersion GoodVersion = {};
+      GCCVersion GoodVersion = {0, 0, 0};
       if (First.first.getAsInteger(10, GoodVersion.Major))
         return BadVersion;
       if (Second.first.getAsInteger(10, GoodVersion.Minor))
@@ -1574,7 +1605,7 @@ public:
 
     // Loop over the various components which exist and select the best GCC
     // installation available. GCC installs are ranked by version number.
-    GCCVersion BestVersion = {};
+    GCCVersion BestVersion = {0, 0, 0};
     for (unsigned i = 0, ie = Prefixes.size(); i < ie; ++i) {
       if (!PathExists(Prefixes[i]))
         continue;

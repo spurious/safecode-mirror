@@ -103,7 +103,7 @@ def ext_flexible_array_init : Extension<
 def ext_anon_param_requires_type_specifier : Extension<
   "type specifier required for unnamed parameter, defaults to int">;
 def err_bad_variable_name : Error<
-  "'%0' cannot be the name of a variable or data member">;
+  "%0 cannot be the name of a variable or data member">;
 def err_bad_parameter_name : Error<
   "'%0' cannot be the name of a parameter">;
 def err_parameter_name_omitted : Error<"parameter name omitted">;
@@ -505,7 +505,7 @@ def note_atomic_property_fixup_suggest : Note<"setter and getter must both be "
   "synthesized, or both be user defined,or the property must be nonatomic">;
 def warn_atomic_property_nontrivial_assign_op : Warning<
   "atomic property of type %0 synthesizing setter using non-trivial assignment"
-  "operator">, InGroup<DiagGroup<"objc-property-atomic-setter-synthesis">>;
+  " operator">, InGroup<DiagGroup<"objc-property-atomic-setter-synthesis">>;
 def warn_ownin_getter_rule : Warning<
   "property's synthesized getter follows Cocoa naming"
   " convention for returning 'owned' objects">,
@@ -637,7 +637,11 @@ def err_no_matching_local_friend_suggest : Error<
   "no matching function %0 found in local scope; did you mean %2">;
 def err_partial_specialization_friend : Error<
   "partial specialization cannot be declared as a friend">;
-
+def err_qualified_friend_def : Error<
+  "friend function definition cannot be qualified with '%0'">;
+def err_friend_def_in_local_class : Error<
+  "friend function cannot be defined in a local class">;
+  
 def err_abstract_type_in_decl : Error<
   "%select{return|parameter|variable|field}0 type %1 is an abstract class">;
 def err_allocation_of_abstract_type : Error<
@@ -3472,7 +3476,9 @@ def error_nosetter_property_assignment : Error<
   "setter method is needed to assign to object using property" " assignment syntax">;
 def error_no_subobject_property_setting : Error<
   "expression is not assignable">;
-
+def err_qualified_objc_access : Error<
+  "%select{property|ivar}0 access cannot be qualified with '%1'">;
+  
 def ext_freestanding_complex : Extension<
   "complex numbers are an extension in a freestanding C99 implementation">;
 
