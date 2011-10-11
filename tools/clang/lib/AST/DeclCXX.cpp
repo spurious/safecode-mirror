@@ -653,6 +653,13 @@ NotASpecialMember:;
   
   // Handle non-static data members.
   if (FieldDecl *Field = dyn_cast<FieldDecl>(D)) {
+    // C++ [class.bit]p2:
+    //   A declaration for a bit-field that omits the identifier declares an 
+    //   unnamed bit-field. Unnamed bit-fields are not members and cannot be 
+    //   initialized.
+    if (Field->isUnnamedBitfield())
+      return;
+    
     // C++ [dcl.init.aggr]p1:
     //   An aggregate is an array or a class (clause 9) with [...] no
     //   private or protected non-static data members (clause 11).
@@ -823,15 +830,11 @@ NotASpecialMember:;
 
     // If this is not a zero-length bit-field, then the class is not empty.
     if (data().Empty) {
-      if (!Field->getBitWidth())
+      if (!Field->isBitField() ||
+          (!Field->getBitWidth()->isTypeDependent() &&
+           !Field->getBitWidth()->isValueDependent() &&
+           Field->getBitWidthValue(Context) != 0))
         data().Empty = false;
-      else if (!Field->getBitWidth()->isTypeDependent() &&
-               !Field->getBitWidth()->isValueDependent()) {
-        llvm::APSInt Bits;
-        if (Field->getBitWidth()->isIntegerConstantExpr(Bits, Context))
-          if (!!Bits)
-            data().Empty = false;
-      } 
     }
   }
   

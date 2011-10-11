@@ -1008,21 +1008,18 @@ void Sema::CheckImplementationIvars(ObjCImplementationDecl *ImpDecl,
     assert (ClsIvar && "missing class ivar");
 
     // First, make sure the types match.
-    if (Context.getCanonicalType(ImplIvar->getType()) !=
-        Context.getCanonicalType(ClsIvar->getType())) {
+    if (!Context.hasSameType(ImplIvar->getType(), ClsIvar->getType())) {
       Diag(ImplIvar->getLocation(), diag::err_conflicting_ivar_type)
         << ImplIvar->getIdentifier()
         << ImplIvar->getType() << ClsIvar->getType();
       Diag(ClsIvar->getLocation(), diag::note_previous_definition);
-    } else if (ImplIvar->isBitField() && ClsIvar->isBitField()) {
-      Expr *ImplBitWidth = ImplIvar->getBitWidth();
-      Expr *ClsBitWidth = ClsIvar->getBitWidth();
-      if (ImplBitWidth->EvaluateAsInt(Context).getZExtValue() !=
-          ClsBitWidth->EvaluateAsInt(Context).getZExtValue()) {
-        Diag(ImplBitWidth->getLocStart(), diag::err_conflicting_ivar_bitwidth)
-          << ImplIvar->getIdentifier();
-        Diag(ClsBitWidth->getLocStart(), diag::note_previous_definition);
-      }
+    } else if (ImplIvar->isBitField() && ClsIvar->isBitField() &&
+               ImplIvar->getBitWidthValue(Context) !=
+               ClsIvar->getBitWidthValue(Context)) {
+      Diag(ImplIvar->getBitWidth()->getLocStart(),
+           diag::err_conflicting_ivar_bitwidth) << ImplIvar->getIdentifier();
+      Diag(ClsIvar->getBitWidth()->getLocStart(),
+           diag::note_previous_definition);
     }
     // Make sure the names are identical.
     if (ImplIvar->getIdentifier() != ClsIvar->getIdentifier()) {
@@ -1331,31 +1328,48 @@ static bool checkMethodFamilyMismatch(Sema &S, ObjCMethodDecl *impl,
 
 void Sema::WarnConflictingTypedMethods(ObjCMethodDecl *ImpMethodDecl,
                                        ObjCMethodDecl *MethodDecl,
-                                       bool IsProtocolMethodDecl,
-                                       bool IsOverridingMode) {
+                                       bool IsProtocolMethodDecl) {
   if (getLangOptions().ObjCAutoRefCount &&
-      !IsOverridingMode &&
       checkMethodFamilyMismatch(*this, ImpMethodDecl, MethodDecl))
     return;
 
   CheckMethodOverrideReturn(*this, ImpMethodDecl, MethodDecl, 
-                            IsProtocolMethodDecl, IsOverridingMode, 
+                            IsProtocolMethodDecl, false, 
                             true);
 
   for (ObjCMethodDecl::param_iterator IM = ImpMethodDecl->param_begin(),
        IF = MethodDecl->param_begin(), EM = ImpMethodDecl->param_end();
        IM != EM; ++IM, ++IF) {
     CheckMethodOverrideParam(*this, ImpMethodDecl, MethodDecl, *IM, *IF,
-                             IsProtocolMethodDecl, IsOverridingMode, true);
+                             IsProtocolMethodDecl, false, true);
   }
 
   if (ImpMethodDecl->isVariadic() != MethodDecl->isVariadic()) {
-    if (IsOverridingMode)
-      Diag(ImpMethodDecl->getLocation(), 
-           diag::warn_conflicting_overriding_variadic);
-    else
-      Diag(ImpMethodDecl->getLocation(), diag::warn_conflicting_variadic);
+    Diag(ImpMethodDecl->getLocation(), 
+         diag::warn_conflicting_variadic);
     Diag(MethodDecl->getLocation(), diag::note_previous_declaration);
+  }
+}
+
+void Sema::CheckConflictingOverridingMethod(ObjCMethodDecl *Method,
+                                       ObjCMethodDecl *Overridden,
+                                       bool IsProtocolMethodDecl) {
+  
+  CheckMethodOverrideReturn(*this, Method, Overridden, 
+                            IsProtocolMethodDecl, true, 
+                            true);
+  
+  for (ObjCMethodDecl::param_iterator IM = Method->param_begin(),
+       IF = Overridden->param_begin(), EM = Method->param_end();
+       IM != EM; ++IM, ++IF) {
+    CheckMethodOverrideParam(*this, Method, Overridden, *IM, *IF,
+                             IsProtocolMethodDecl, true, true);
+  }
+  
+  if (Method->isVariadic() != Overridden->isVariadic()) {
+    Diag(Method->getLocation(), 
+         diag::warn_conflicting_overriding_variadic);
+    Diag(Overridden->getLocation(), diag::note_previous_declaration);
   }
 }
 
@@ -2677,10 +2691,9 @@ Decl *Sema::ActOnMethodDeclaration(
     
     // Check for overriding methods
     if (isa<ObjCInterfaceDecl>(ObjCMethod->getDeclContext()) || 
-        isa<ObjCImplementationDecl>(ObjCMethod->getDeclContext())) {
-      WarnConflictingTypedMethods(ObjCMethod, overridden,
-              isa<ObjCProtocolDecl>(overridden->getDeclContext()), true);
-    }
+        isa<ObjCImplementationDecl>(ObjCMethod->getDeclContext()))
+      CheckConflictingOverridingMethod(ObjCMethod, overridden,
+              isa<ObjCProtocolDecl>(overridden->getDeclContext()));
   }
   
   bool ARCError = false;

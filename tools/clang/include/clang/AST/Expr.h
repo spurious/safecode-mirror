@@ -453,8 +453,13 @@ public:
 
   /// EvaluateAsBooleanCondition - Return true if this is a constant
   /// which we we can fold and convert to a boolean condition using
-  /// any crazy technique that we want to.
+  /// any crazy technique that we want to, even if the expression has
+  /// side-effects.
   bool EvaluateAsBooleanCondition(bool &Result, const ASTContext &Ctx) const;
+
+  /// EvaluateAsInt - Return true if this is a constant which we can fold and
+  /// convert to an integer using any crazy technique that we want to.
+  bool EvaluateAsInt(llvm::APSInt &Result, const ASTContext &Ctx) const;
 
   /// isEvaluatable - Call Evaluate to see if this expression can be constant
   /// folded, but discard the result.
@@ -466,9 +471,9 @@ public:
   /// variable read.
   bool HasSideEffects(const ASTContext &Ctx) const;
   
-  /// EvaluateAsInt - Call Evaluate and return the folded integer. This
+  /// EvaluateKnownConstInt - Call Evaluate and return the folded integer. This
   /// must be called on an expression that constant folds to an integer.
-  llvm::APSInt EvaluateAsInt(const ASTContext &Ctx) const;
+  llvm::APSInt EvaluateKnownConstInt(const ASTContext &Ctx) const;
 
   /// EvaluateAsLValue - Evaluate an expression to see if it's a lvalue
   /// with link time known address.
@@ -3098,7 +3103,7 @@ public:
 
   unsigned getShuffleMaskIdx(ASTContext &Ctx, unsigned N) {
     assert((N < NumExprs - 2) && "Shuffle idx out of range!");
-    return getExpr(N+2)->EvaluateAsInt(Ctx).getZExtValue();
+    return getExpr(N+2)->EvaluateKnownConstInt(Ctx).getZExtValue();
   }
 
   // Iterators
@@ -4156,6 +4161,152 @@ public:
   
   // Iterators
   child_range children() { return child_range(&SrcExpr, &SrcExpr+1); }
+};
+
+/// AtomicExpr - Variadic atomic builtins: __atomic_exchange, __atomic_fetch_*,
+/// __atomic_load, __atomic_store, and __atomic_compare_exchange_*, for the
+/// similarly-named C++0x instructions.  All of these instructions take one
+/// primary pointer and at least one memory order.
+class AtomicExpr : public Expr {
+public:
+  enum AtomicOp { Load, Store, CmpXchgStrong, CmpXchgWeak, Xchg,
+                  Add, Sub, And, Or, Xor };
+private:
+  enum { PTR, ORDER, VAL1, ORDER_FAIL, VAL2, END_EXPR };
+  Stmt* SubExprs[END_EXPR];
+  unsigned NumSubExprs;
+  SourceLocation BuiltinLoc, RParenLoc;
+  AtomicOp Op;
+
+public:
+  // Constructor for Load
+  AtomicExpr(SourceLocation BLoc, Expr *ptr, Expr *order, QualType t,
+             AtomicOp op, SourceLocation RP,
+             bool TypeDependent, bool ValueDependent)
+    : Expr(AtomicExprClass, t, VK_RValue, OK_Ordinary,
+           TypeDependent, ValueDependent,
+           ptr->isInstantiationDependent(),
+           ptr->containsUnexpandedParameterPack()),
+      BuiltinLoc(BLoc), RParenLoc(RP), Op(op) {
+      assert(op == Load && "single-argument atomic must be load");
+      SubExprs[PTR] = ptr;
+      SubExprs[ORDER] = order;
+      NumSubExprs = 2;
+    }
+
+  // Constructor for Store, Xchg, Add, Sub, And, Or, Xor
+  AtomicExpr(SourceLocation BLoc, Expr *ptr, Expr *val, Expr *order,
+             QualType t, AtomicOp op, SourceLocation RP,
+             bool TypeDependent, bool ValueDependent)
+      : Expr(AtomicExprClass, t, VK_RValue, OK_Ordinary,
+             TypeDependent, ValueDependent,
+             (ptr->isInstantiationDependent() ||
+              val->isInstantiationDependent()),
+             (ptr->containsUnexpandedParameterPack() ||
+              val->containsUnexpandedParameterPack())),
+        BuiltinLoc(BLoc), RParenLoc(RP), Op(op) {
+        assert(!isCmpXChg() && op != Load &&
+               "two-argument atomic store or binop");
+        SubExprs[PTR] = ptr;
+        SubExprs[ORDER] = order;
+        SubExprs[VAL1] = val;
+        NumSubExprs = 3;
+      }
+
+  // Constructor for CmpXchgStrong, CmpXchgWeak
+  AtomicExpr(SourceLocation BLoc, Expr *ptr, Expr *val1, Expr *val2,
+             Expr *order, Expr *order_fail, QualType t, AtomicOp op,
+             SourceLocation RP, bool TypeDependent, bool ValueDependent)
+    : Expr(AtomicExprClass, t, VK_RValue, OK_Ordinary,
+           TypeDependent, ValueDependent,
+           (ptr->isInstantiationDependent() ||
+            val1->isInstantiationDependent() ||
+            val2->isInstantiationDependent()),
+           (ptr->containsUnexpandedParameterPack() ||
+            val1->containsUnexpandedParameterPack() ||
+            val2->containsUnexpandedParameterPack())),
+      BuiltinLoc(BLoc), RParenLoc(RP), Op(op) {
+      assert(isCmpXChg() && "three-argument atomic must be cmpxchg");
+      SubExprs[PTR] = ptr;
+      SubExprs[ORDER] = order;
+      SubExprs[VAL1] = val1;
+      SubExprs[VAL2] = val2;
+      SubExprs[ORDER_FAIL] = order_fail;
+      NumSubExprs = 5;
+    }
+
+  /// \brief Build an empty AtomicExpr.
+  explicit AtomicExpr(EmptyShell Empty) : Expr(AtomicExprClass, Empty) { }
+
+  Expr *getPtr() const {
+    return cast<Expr>(SubExprs[PTR]);
+  }
+  void setPtr(Expr *E) {
+    SubExprs[PTR] = E;
+  }
+  Expr *getOrder() const {
+    return cast<Expr>(SubExprs[ORDER]);
+  }
+  void setOrder(Expr *E) {
+    SubExprs[ORDER] = E;
+  }
+  Expr *getVal1() const {
+    assert(NumSubExprs >= 3);
+    return cast<Expr>(SubExprs[VAL1]);
+  }
+  void setVal1(Expr *E) {
+    assert(NumSubExprs >= 3);
+    SubExprs[VAL1] = E;
+  }
+  Expr *getOrderFail() const {
+    assert(NumSubExprs == 5);
+    return cast<Expr>(SubExprs[ORDER_FAIL]);
+  }
+  void setOrderFail(Expr *E) {
+    assert(NumSubExprs == 5);
+    SubExprs[ORDER_FAIL] = E;
+  }
+  Expr *getVal2() const {
+    assert(NumSubExprs == 5);
+    return cast<Expr>(SubExprs[VAL2]);
+  }
+  void setVal2(Expr *E) {
+    assert(NumSubExprs == 5);
+    SubExprs[VAL2] = E;
+  }
+
+  AtomicOp getOp() const { return Op; }
+  void setOp(AtomicOp op) { Op = op; }
+  unsigned getNumSubExprs() { return NumSubExprs; }
+  void setNumSubExprs(unsigned num) { NumSubExprs = num; }
+
+  bool isVolatile() const {
+    return getPtr()->getType()->getPointeeType().isVolatileQualified();
+  }
+
+  bool isCmpXChg() const {
+    return getOp() == AtomicExpr::CmpXchgStrong ||
+           getOp() == AtomicExpr::CmpXchgWeak;
+  }
+
+  SourceLocation getBuiltinLoc() const { return BuiltinLoc; }
+  void setBuiltinLoc(SourceLocation L) { BuiltinLoc = L; }
+
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+  void setRParenLoc(SourceLocation L) { RParenLoc = L; }
+
+  SourceRange getSourceRange() const {
+    return SourceRange(BuiltinLoc, RParenLoc);
+  }
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == AtomicExprClass;
+  }
+  static bool classof(const AtomicExpr *) { return true; }
+
+  // Iterators
+  child_range children() {
+    return child_range(SubExprs, SubExprs+NumSubExprs);
+  }
 };
 }  // end namespace clang
 

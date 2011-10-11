@@ -626,7 +626,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
         break;
       }
 
-      llvm::APSInt LoVal = Lo->EvaluateAsInt(Context);
+      llvm::APSInt LoVal = Lo->EvaluateKnownConstInt(Context);
 
       // Convert the value to the same width/sign as the condition.
       ConvertIntegerToTypeWarnOnOverflow(LoVal, CondWidth, CondIsSigned,
@@ -705,7 +705,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
         llvm::APSInt &LoVal = CaseRanges[i].first;
         CaseStmt *CR = CaseRanges[i].second;
         Expr *Hi = CR->getRHS();
-        llvm::APSInt HiVal = Hi->EvaluateAsInt(Context);
+        llvm::APSInt HiVal = Hi->EvaluateKnownConstInt(Context);
 
         // Convert the value to the same width/sign as the condition.
         ConvertIntegerToTypeWarnOnOverflow(HiVal, CondWidth, CondIsSigned,
@@ -845,7 +845,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
               << ED->getDeclName();
           }
 
-          llvm::APSInt Hi = RI->second->getRHS()->EvaluateAsInt(Context);
+          llvm::APSInt Hi = 
+            RI->second->getRHS()->EvaluateKnownConstInt(Context);
           AdjustAPSInt(Hi, CondWidth, CondIsSigned);
           while (EI != EIend && EI->first < Hi)
             EI++;
@@ -873,7 +874,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
         // Drop unneeded case ranges
         for (; RI != CaseRanges.end(); RI++) {
-          llvm::APSInt Hi = RI->second->getRHS()->EvaluateAsInt(Context);
+          llvm::APSInt Hi =
+            RI->second->getRHS()->EvaluateKnownConstInt(Context);
           AdjustAPSInt(Hi, CondWidth, CondIsSigned);
           if (EI->first <= Hi)
             break;
@@ -1337,10 +1339,16 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
   if (!BeginEndDecl.get() && !RangeVarType->isDependentType()) {
     SourceLocation RangeLoc = RangeVar->getLocation();
 
-    ExprResult RangeRef = BuildDeclRefExpr(RangeVar,
-                                           RangeVarType.getNonReferenceType(),
-                                           VK_LValue, ColonLoc);
-    if (RangeRef.isInvalid())
+    const QualType RangeVarNonRefType = RangeVarType.getNonReferenceType();
+
+    ExprResult BeginRangeRef = BuildDeclRefExpr(RangeVar, RangeVarNonRefType,
+                                                VK_LValue, ColonLoc);
+    if (BeginRangeRef.isInvalid())
+      return StmtError();
+
+    ExprResult EndRangeRef = BuildDeclRefExpr(RangeVar, RangeVarNonRefType,
+                                              VK_LValue, ColonLoc);
+    if (EndRangeRef.isInvalid())
       return StmtError();
 
     QualType AutoType = Context.getAutoDeductType();
@@ -1368,8 +1376,8 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
       //   the program is ill-formed;
 
       // begin-expr is __range.
-      BeginExpr = RangeRef;
-      if (FinishForRangeVarDecl(*this, BeginVar, RangeRef.get(), ColonLoc,
+      BeginExpr = BeginRangeRef;
+      if (FinishForRangeVarDecl(*this, BeginVar, BeginRangeRef.get(), ColonLoc,
                                 diag::err_for_range_iter_deduction_failure)) {
         NoteForRangeBeginEndFunction(*this, BeginExpr.get(), BEF_begin);
         return StmtError();
@@ -1391,7 +1399,7 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
       }
 
       // end-expr is __range + __bound.
-      EndExpr = ActOnBinOp(S, ColonLoc, tok::plus, RangeRef.get(),
+      EndExpr = ActOnBinOp(S, ColonLoc, tok::plus, EndRangeRef.get(),
                            BoundExpr.get());
       if (EndExpr.isInvalid())
         return StmtError();
@@ -1432,13 +1440,14 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
 
       BeginExpr = BuildForRangeBeginEndCall(*this, S, ColonLoc, BeginVar,
                                             BEF_begin, BeginNameInfo,
-                                            BeginMemberLookup, RangeRef.get());
+                                            BeginMemberLookup,
+                                            BeginRangeRef.get());
       if (BeginExpr.isInvalid())
         return StmtError();
 
       EndExpr = BuildForRangeBeginEndCall(*this, S, ColonLoc, EndVar,
                                           BEF_end, EndNameInfo,
-                                          EndMemberLookup, RangeRef.get());
+                                          EndMemberLookup, EndRangeRef.get());
       if (EndExpr.isInvalid())
         return StmtError();
     }
@@ -1458,11 +1467,16 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
       BuildDeclaratorGroup(BeginEndDecls, 2, /*TypeMayContainAuto=*/false);
     BeginEndDecl = ActOnDeclStmt(BeginEndGroup, ColonLoc, ColonLoc);
 
-    ExprResult BeginRef = BuildDeclRefExpr(BeginVar,
-                                           BeginType.getNonReferenceType(),
+    const QualType BeginRefNonRefType = BeginType.getNonReferenceType();
+    ExprResult BeginRef = BuildDeclRefExpr(BeginVar, BeginRefNonRefType,
                                            VK_LValue, ColonLoc);
+    if (BeginRef.isInvalid())
+      return StmtError();
+
     ExprResult EndRef = BuildDeclRefExpr(EndVar, EndType.getNonReferenceType(),
                                          VK_LValue, ColonLoc);
+    if (EndRef.isInvalid())
+      return StmtError();
 
     // Build and check __begin != __end expression.
     NotEqExpr = ActOnBinOp(S, ColonLoc, tok::exclaimequal,
@@ -1477,6 +1491,11 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
     }
 
     // Build and check ++__begin expression.
+    BeginRef = BuildDeclRefExpr(BeginVar, BeginRefNonRefType,
+                                VK_LValue, ColonLoc);
+    if (BeginRef.isInvalid())
+      return StmtError();
+
     IncrExpr = ActOnUnaryOp(S, ColonLoc, tok::plusplus, BeginRef.get());
     IncrExpr = ActOnFinishFullExpr(IncrExpr.get());
     if (IncrExpr.isInvalid()) {
@@ -1485,6 +1504,11 @@ Sema::BuildCXXForRangeStmt(SourceLocation ForLoc, SourceLocation ColonLoc,
     }
 
     // Build and check *__begin  expression.
+    BeginRef = BuildDeclRefExpr(BeginVar, BeginRefNonRefType,
+                                VK_LValue, ColonLoc);
+    if (BeginRef.isInvalid())
+      return StmtError();
+
     ExprResult DerefExpr = ActOnUnaryOp(S, ColonLoc, tok::star, BeginRef.get());
     if (DerefExpr.isInvalid()) {
       NoteForRangeBeginEndFunction(*this, BeginExpr.get(), BEF_begin);

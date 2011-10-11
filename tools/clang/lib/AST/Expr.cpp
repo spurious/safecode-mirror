@@ -1538,6 +1538,7 @@ bool Expr::isUnusedResultAWarning(SourceLocation &Loc, SourceRange &R1,
   }
   case CompoundAssignOperatorClass:
   case VAArgExprClass:
+  case AtomicExprClass:
     return false;
 
   case ConditionalOperatorClass: {
@@ -2955,7 +2956,7 @@ StringRef ObjCBridgedCastExpr::getBridgeKindName() const {
 }
 
 bool ChooseExpr::isConditionTrue(const ASTContext &C) const {
-  return getCond()->EvaluateAsInt(C) != 0;
+  return getCond()->EvaluateKnownConstInt(C) != 0;
 }
 
 ShuffleVectorExpr::ShuffleVectorExpr(ASTContext &C, Expr **args, unsigned nexpr,
