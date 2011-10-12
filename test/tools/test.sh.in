@@ -62,12 +62,6 @@ sclog=$testdir/${prefix}.sc.log
 # Executable output
 scout=$testdir/${prefix}.sc.output
 
-# Do any necessary cleanup before exit.
-cleanup()
-{
-  return 0
-}
-
 # Prepare the testing directory.
 setupdir()
 {
@@ -90,22 +84,24 @@ runtest()
   # Don't exit immediately on failure of below commands.
   set +e
   $scfile >& $scout
-  # Ensure the test ran successfully. If not, exit with error.
-  if [ $? -ne 0 ]
-  then
-    cleanup
-    exit 1
-  fi
+  retval=$?
   error_count=$(grep -c SAFECode $scout)
   set -e
-  cleanup
-  # Exit with a value depending on whether SAFECode output was encountered and
-  # if we expected an error.
   if [ $error_count -gt 0 ]
   then
-    exit $((!expect_error))
+    if [ $expect_error -eq 1 ]
+    then
+      exit 0 # An error was expected and caught.
+    else
+      exit 1 # An unexpected error occurred.
+    fi
   else
-    exit $((expect_error))
+    if [ $retval -eq 0 ]
+    then
+      exit 0 # No error was expected, none was caught, program ran as expected.
+    else
+      exit 1 # Some non-SAFECode related error occurred.
+    fi
   fi
 }
 

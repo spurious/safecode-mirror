@@ -32,19 +32,50 @@
 
 #include <vector>
 
+using std::vector;
+
 namespace llvm
 {
-
   /**
    * Pass that secures C standard library string calls via transforms
    */
   class StringTransform : public ModulePass
   {
   private:
-    // Private methods
-    bool transform(Module &M, const StringRef FunctionName, const unsigned argc, const unsigned pool_argc, const Type *ReturnTy, Statistic &statistic);
 
-    // Private variables
+    typedef struct
+    {
+      const char *name;
+      Type *return_type;
+      unsigned argc;
+    } SourceFunction;
+
+    typedef struct
+    {
+      const char *name;
+      unsigned source_argc;
+      unsigned pool_argc;
+    } DestFunction;
+
+    bool transform(Module &M,
+                   const StringRef FunctionName,
+                   const unsigned argc,
+                   const unsigned pool_argc,
+                   Type *ReturnTy,
+                   Statistic &statistic);
+
+    bool vtransform(Module &M,
+                    const SourceFunction &from,
+                    const DestFunction &to,
+                    Statistic &stat,
+                    ...);
+
+    bool gtransform(Module &M,
+                    const SourceFunction &from,
+                    const DestFunction &to,
+                    Statistic &stat,
+                    const vector<unsigned> &append_order);
+
     TargetData *tdata;
 
   public:

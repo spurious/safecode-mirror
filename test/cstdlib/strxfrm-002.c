@@ -8,11 +8,11 @@
 int main()
 {
   char dst[10];
-  char *source = "This is a string";
-  char *good   = "This is a";
+  char *src = "A string.";
   setlocale(LC_ALL, "C");
   size_t sz;
-  sz = strxfrm(dst, source, 9);
-  assert(memcmp(good, dst, 10) == 0);
+  sz = strxfrm(dst, src, 10);
+  assert(sz == 9);
+  assert(memcmp(src, dst, 10) == 0);
   return 0;
 }

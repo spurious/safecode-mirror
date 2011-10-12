@@ -192,10 +192,12 @@ FormatStringTransform::addFormatStringIntrinsics(Module &M)
   Function *FSParameterInModule = M.getFunction("__sc_fsparameter");
   Function *FSCallInfoInModule  = M.getFunction("__sc_fscallinfo");
   if (FSParameterInModule != 0)
-    assert(FSParameterInModule->getFunctionType() == FSParameterType &&
+    assert((FSParameterInModule->getFunctionType() == FSParameterType ||
+      FSParameterInModule->hasLocalLinkage()) &&
       "Intrinsic declared with wrong type!");
   if (FSCallInfoInModule != 0)
-    assert(FSCallInfoInModule->getFunctionType() == FSCallInfoType &&
+    assert((FSCallInfoInModule->getFunctionType() == FSCallInfoType ||
+      FSParameterInModule->hasLocalLinkage()) &&
       "Intrinsic declared with wrong type!");
   //
   // Add the function declarations to the module and globally for this pass.
