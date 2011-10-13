@@ -93,6 +93,7 @@ class Preprocessor : public llvm::RefCountedBase<Preprocessor> {
   IdentifierInfo *Ident__has_attribute;            // __has_attribute
   IdentifierInfo *Ident__has_include;              // __has_include
   IdentifierInfo *Ident__has_include_next;         // __has_include_next
+  IdentifierInfo *Ident__has_warning;              // __has_warning
 
   SourceLocation DATELoc, TIMELoc;
   unsigned CounterValue;  // Next __COUNTER__ value.
@@ -752,11 +753,11 @@ public:
   /// Diag - Forwarding function for diagnostics.  This emits a diagnostic at
   /// the specified Token's location, translating the token's start
   /// position in the current buffer into a SourcePosition object for rendering.
-  DiagnosticBuilder Diag(SourceLocation Loc, unsigned DiagID) {
+  DiagnosticBuilder Diag(SourceLocation Loc, unsigned DiagID) const {
     return Diags->Report(Loc, DiagID);
   }
 
-  DiagnosticBuilder Diag(const Token &Tok, unsigned DiagID) {
+  DiagnosticBuilder Diag(const Token &Tok, unsigned DiagID) const {
     return Diags->Report(Tok.getLocation(), DiagID);
   }
 

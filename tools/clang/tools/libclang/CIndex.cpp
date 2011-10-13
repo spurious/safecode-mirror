@@ -51,8 +51,9 @@
 using namespace clang;
 using namespace clang::cxcursor;
 using namespace clang::cxstring;
+using namespace clang::cxtu;
 
-static CXTranslationUnit MakeCXTranslationUnit(ASTUnit *TU) {
+CXTranslationUnit cxtu::MakeCXTranslationUnit(ASTUnit *TU) {
   if (!TU)
     return 0;
   CXTranslationUnit D = new CXTranslationUnitImpl();
@@ -3199,6 +3200,11 @@ CXString clang_getCursorSpelling(CXCursor C) {
   if (clang_isDeclaration(C.kind))
     return getDeclSpelling(getCursorDecl(C));
 
+  if (C.kind == CXCursor_AnnotateAttr) {
+    AnnotateAttr *AA = cast<AnnotateAttr>(cxcursor::getCursorAttr(C));
+    return createCXString(AA->getAnnotation());
+  }
+
   return createCXString("");
 }
 
@@ -3520,6 +3526,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
       return createCXString("attribute(final)");
   case CXCursor_CXXOverrideAttr:
       return createCXString("attribute(override)");
+  case CXCursor_AnnotateAttr:
+    return createCXString("attribute(annotate)");
   case CXCursor_PreprocessingDirective:
     return createCXString("preprocessing directive");
   case CXCursor_MacroDefinition:

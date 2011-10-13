@@ -73,6 +73,7 @@ def : DiagGroup<"int-to-pointer-cast">;
 def : DiagGroup<"invalid-pch">;
 def LiteralRange : DiagGroup<"literal-range">;
 def LocalTypeTemplateArgs : DiagGroup<"local-type-template-args">;
+def MalformedWarningCheck : DiagGroup<"malformed-warning-check">;
 def Main : DiagGroup<"main">;
 def MissingBraces : DiagGroup<"missing-braces">;
 def MissingDeclarations: DiagGroup<"missing-declarations">;
@@ -302,7 +303,7 @@ def : DiagGroup<"comments", [Comment]>;         // -Wcomments = -Wcomment
 def NonGCC : DiagGroup<"non-gcc",
     [SignCompare, Conversion, LiteralRange]>;
 
-// A warning group for warnings about using C++0x features as extensions in
+// A warning group for warnings about using C++11 features as extensions in
 // earlier C++ versions.
 def CXX0x : DiagGroup<"c++0x-extensions">;
 def DelegatingCtorCycles :

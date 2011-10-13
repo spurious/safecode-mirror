@@ -936,9 +936,11 @@ Sema::DiagnosePropertyMismatch(ObjCPropertyDecl *Property,
     QualType ConvertedType;
     if (!isObjCPointerConversion(RHSType, LHSType, 
                                  ConvertedType, IncompatibleObjC) ||
-        IncompatibleObjC)
+        IncompatibleObjC) {
         Diag(Property->getLocation(), diag::warn_property_types_are_incompatible)
         << Property->getType() << SuperProperty->getType() << inheritedName;
+      Diag(SuperProperty->getLocation(), diag::note_property_declare);
+    }
   }
 }
 
@@ -1460,7 +1462,7 @@ void Sema::DiagnoseOwningPropertyGetterSynthesis(const ObjCImplementationDecl *D
         if (getLangOptions().ObjCAutoRefCount)
           Diag(PID->getLocation(), diag::err_ownin_getter_rule);
         else
-          Diag(PID->getLocation(), diag::warn_ownin_getter_rule);
+          Diag(PID->getLocation(), diag::warn_owning_getter_rule);
         Diag(PD->getLocation(), diag::note_property_declare);
       }
     }

@@ -1481,9 +1481,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  Args.AddLastArg(CmdArgs, options::OPT_nostdinc);
-  Args.AddLastArg(CmdArgs, options::OPT_nostdincxx);
-  Args.AddLastArg(CmdArgs, options::OPT_nobuiltininc);
+  // Pass options for controlling the default header search paths.
+  if (Args.hasArg(options::OPT_nostdinc)) {
+    CmdArgs.push_back("-nostdsysteminc");
+    CmdArgs.push_back("-nobuiltininc");
+  } else {
+    if (Args.hasArg(options::OPT_nostdlibinc))
+        CmdArgs.push_back("-nostdsysteminc");
+    Args.AddLastArg(CmdArgs, options::OPT_nostdincxx);
+    Args.AddLastArg(CmdArgs, options::OPT_nobuiltininc);
+  }
 
   // Pass the path to compiler resource files.
   CmdArgs.push_back("-resource-dir");
@@ -1904,9 +1911,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       D.Diag(diag::err_drv_clang_unsupported) << A->getAsString(Args);
   } else {
     // Otherwise, determine if we are using the non-fragile ABI.
+    bool NonFragileABIIsDefault
+      = (!IsRewriter && getToolChain().IsObjCNonFragileABIDefault());
     if (Args.hasFlag(options::OPT_fobjc_nonfragile_abi,
                      options::OPT_fno_objc_nonfragile_abi,
-                     getToolChain().IsObjCNonFragileABIDefault())) {
+                     NonFragileABIIsDefault)) {
       // Determine the non-fragile ABI version to use.
 #ifdef DISABLE_DEFAULT_NONFRAGILEABI_TWO
       unsigned NonFragileABIVersion = 1;

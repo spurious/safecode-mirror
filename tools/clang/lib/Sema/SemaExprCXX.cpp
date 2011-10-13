@@ -295,6 +295,12 @@ ExprResult Sema::BuildCXXTypeId(QualType TypeInfoType,
                                 SourceLocation RParenLoc) {
   bool isUnevaluatedOperand = true;
   if (E && !E->isTypeDependent()) {
+    if (E->getType()->isPlaceholderType()) {
+      ExprResult result = CheckPlaceholderExpr(E);
+      if (result.isInvalid()) return ExprError();
+      E = result.take();
+    }
+
     QualType T = E->getType();
     if (const RecordType *RecordT = T->getAs<RecordType>()) {
       CXXRecordDecl *RecordD = cast<CXXRecordDecl>(RecordT->getDecl());
@@ -2857,8 +2863,12 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, UnaryTypeTrait UTT,
       LookupResult Res(Self, DeclarationNameInfo(Name, KeyLoc),
                        Sema::LookupOrdinaryName);
       if (Self.LookupQualifiedName(Res, RD)) {
+        Res.suppressDiagnostics();
         for (LookupResult::iterator Op = Res.begin(), OpEnd = Res.end();
              Op != OpEnd; ++Op) {
+          if (isa<FunctionTemplateDecl>(*Op))
+            continue;
+          
           CXXMethodDecl *Operator = cast<CXXMethodDecl>(*Op);
           if (Operator->isCopyAssignmentOperator()) {
             FoundAssign = true;
@@ -2871,7 +2881,7 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, UnaryTypeTrait UTT,
           }
         }
       }
-
+      
       return FoundAssign;
     }
     return false;
