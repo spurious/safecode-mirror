@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++0x -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify %s
 
 struct s0; // expected-note {{forward declaration}}
 char ar[sizeof(s0&)]; // expected-error {{invalid application of 'sizeof' to an incomplete type}}
@@ -11,7 +11,8 @@ void test() {
 void f();  // expected-note{{possible target for call}}
 void f(int);  // expected-note{{possible target for call}}
 void g() { 
-  sizeof(&f); // expected-error{{reference to overloaded function could not be resolved; did you mean to call it?}}
+  sizeof(&f); // expected-error{{reference to overloaded function could not be resolved; did you mean to call it with no arguments?}} \
+  // expected-warning{{expression result unused}}
 }
 
 template<typename T> void f_template(); // expected-note{{possible target for call}}

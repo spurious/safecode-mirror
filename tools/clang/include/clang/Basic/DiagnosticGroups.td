@@ -54,9 +54,12 @@ def ExtraTokens : DiagGroup<"extra-tokens">;
 def FormatExtraArgs : DiagGroup<"format-extra-args">;
 def FormatZeroLength : DiagGroup<"format-zero-length">;
 
-def CXX0xNarrowing : DiagGroup<"c++0x-narrowing">;
+def CXX11Narrowing : DiagGroup<"c++11-narrowing">;
+def : DiagGroup<"c++0x-narrowing", [CXX11Narrowing]>;
 
-def CXX0xCompat : DiagGroup<"c++0x-compat", [CXX0xNarrowing]>;
+def CXX11Compat : DiagGroup<"c++11-compat", [CXX11Narrowing]>;
+def : DiagGroup<"c++0x-compat", [CXX11Compat]>;
+
 def : DiagGroup<"effc++">;
 def ExitTimeDestructors : DiagGroup<"exit-time-destructors">;
 def FourByteMultiChar : DiagGroup<"four-char-constants">;
@@ -305,7 +308,8 @@ def NonGCC : DiagGroup<"non-gcc",
 
 // A warning group for warnings about using C++11 features as extensions in
 // earlier C++ versions.
-def CXX0x : DiagGroup<"c++0x-extensions">;
+def CXX11 : DiagGroup<"c++11-extensions">;
+def : DiagGroup<"c++0x-extensions", [CXX11]>;
 def DelegatingCtorCycles :
   DiagGroup<"delegating-ctor-cycles">;
 

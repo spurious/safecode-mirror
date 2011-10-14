@@ -894,10 +894,8 @@ bool Sema::isExprCallable(const Expr &E, QualType &ZeroArgCallReturnTy,
       }
     }
 
-    // Ignore overloads where the address is taken, because apparently
-    // overload resolution doesn't apply in these cases.  In theory,
-    // this can make us miss a few cases, but whatever.
-    if (FR.IsAddressOfOperand)
+    // Ignore overloads that are pointer-to-member constants.
+    if (FR.HasFormOfMemberPointer)
       return false;
 
     return true;
