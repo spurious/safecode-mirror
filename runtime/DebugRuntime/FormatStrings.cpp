@@ -608,7 +608,7 @@ void pool_err(void *_info, int eval, void *_fmt, ...)
   // Print the resulting string if there was no error making it.
   //
   if (result < 0)
-    err(eval, message_error);
+    err(eval, "%s", message_error);
   else
     // This call exits the program; we can't free the allocated string.
     err(eval, "%.*s", result, p.output.alloced_string.string);
@@ -648,7 +648,7 @@ void pool_errx(void *_info, int eval, void *_fmt, ...)
   // Print the resulting string if there was no error making it.
   //
   if (result < 0)
-    errx(eval, message_error);
+    errx(eval, "%s", message_error);
   else
     // This call exits the program; we can't free the allocated string.
     errx(eval, "%.*s", result, p.output.alloced_string.string);
@@ -691,7 +691,7 @@ void pool_warn(void *_info, void *_fmt, ...)
   // Print and free the resulting string if there was no error making it.
   //
   if (result < 0)
-    warn(message_error);
+    warn("%s", message_error);
   else
   {
     warn("%.*s", result, p.output.alloced_string.string);
@@ -737,7 +737,7 @@ void pool_warnx(void *_info, void *_fmt, ...)
   // Print and free the resulting string if there was no error making it.
   //
   if (result < 0)
-    warnx(message_error);
+    warnx("%s", message_error);
   else
   {
     warnx("%.*s", result, p.output.alloced_string.string);
@@ -775,7 +775,7 @@ void pool_syslog(void *_info, int priority, void *_fmt, ...)
   // Print and free the resulting string if there was no error making it.
   //
   if (result < 0)
-    syslog(priority, message_error);
+    syslog(priority, "%s", message_error);
   else
   {
     syslog(priority, "%.*s", result, p.output.alloced_string.string);
