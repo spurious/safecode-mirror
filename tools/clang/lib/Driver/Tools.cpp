@@ -1750,8 +1750,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Handle the memory safety options
-  if (Args.getLastArg(options::OPT_memsafety))
+  if (Args.getLastArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-fmemsafety");
+  }
+
+  if (Arg *MemSafetyLogOpt = Args.getLastArg(options::OPT_msLogFile)) {
+    CmdArgs.push_back("-fmemsafety-logfile");
+    CmdArgs.push_back(MemSafetyLogOpt->getValue (Args));
+  }
 
   // Translate -mstackrealign
   if (Args.hasArg(options::OPT_mstackrealign)) {

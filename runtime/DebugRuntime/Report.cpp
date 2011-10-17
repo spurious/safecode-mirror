@@ -17,6 +17,9 @@
 #include <iostream>
 #include <cstdlib>
 
+// Stream to which to send SAFECode error reports
+std::ostream * ErrorLog;
+
 namespace llvm {
 
 ViolationInfo::~ViolationInfo() {}
@@ -103,7 +106,8 @@ ViolationInfo::print(std::ostream & OS) const {
 
 void
 ReportMemoryViolation(const ViolationInfo *v) {
-	v->print(std::cerr);
+	v->print(*ErrorLog);
+  *ErrorLog << std::flush;
 #if 0
   static unsigned count = 20;
   --count;

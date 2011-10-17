@@ -880,4 +880,6 @@ def Z_reserved_lib_cckext : Flag<"-Z-reserved-lib-cckext">,
 // Memory safety options
 def memsafety : Flag<"-fmemsafety">,
  HelpText<"Instrument program with memory-safety checks">;
+def msLogFile : Separate<"-fmemsafety-logfile">,
+    MetaVarName<"<path>">, HelpText<"Specify memory safety checks log file">;
 

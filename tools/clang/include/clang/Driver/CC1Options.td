@@ -720,6 +720,8 @@ def cl_std_EQ : Joined<"-cl-std=">,
 //===----------------------------------------------------------------------===//
 def memsafety : Flag<"-fmemsafety">,
   HelpText<"Instrument program with memory-safety checks">;
+def msLogFile : Separate<"-fmemsafety-logfile">,
+    MetaVarName<"<path>">, HelpText<"Specify memory safety checks log file">;
 
 //===----------------------------------------------------------------------===//
 // CUDA Options

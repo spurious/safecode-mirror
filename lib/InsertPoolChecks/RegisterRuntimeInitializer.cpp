@@ -29,7 +29,70 @@ bool
 RegisterRuntimeInitializer::runOnModule(llvm::Module & M) {
   constructInitializer(M);
   insertInitializerIntoGlobalCtorList(M);
+  setLogFileName (M);
   return true;
+}
+
+//
+// Method: setLogFileName()
+//
+// Description:
+//  Insert a call into main() that tells the run-time the name of the log file
+//  into which to put SAFECode error messages.
+//
+//  Note that we do *not* put them into a constructor.  Some libc functions are
+//  initialized by constructors; functions like fprintf() won't work before
+//  before these constructors are called.  Therefore, we put the call into
+//  main(); any SAFECode errors before main() will just go to stderr.
+//
+void
+RegisterRuntimeInitializer::setLogFileName (llvm::Module & M) {
+  //
+  // Do nothing if the name is empty.
+  //
+  if (strcmp (logfilename, "") == 0)
+    return;
+
+  //
+  // See if there is a main function.  If not, just do nothing.
+  //
+  Function * Main = M.getFunction ("main");
+  if (!Main)
+    return;
+
+  //
+  // Find a place to insert the call within main().
+  //
+  BasicBlock::iterator InsertPt = Main->getEntryBlock().begin();
+  while (isa<AllocaInst>(InsertPt))
+    ++InsertPt;
+ 
+  //
+  // Create the function that sets the log filename.
+  //
+  Constant * SetLogC = M.getOrInsertFunction ("pool_init_logfile",
+                                              Type::getVoidTy (M.getContext()),
+                                              getVoidPtrType (M),
+                                              0);
+  Function * SetLog = cast<Function>(SetLogC);
+
+  //
+  // Create a global variable containing the log filename.
+  //
+  Constant * LogNameInit = ConstantArray::get (M.getContext(), logfilename);
+  Value * LogName = new GlobalVariable (M,
+                                        LogNameInit->getType(),
+                                        true,
+                                        GlobalValue::InternalLinkage,
+                                        LogNameInit,
+                                        "logname");
+
+  //
+  // Create a call to set the log filename.
+  //
+  Value * Param = castTo (LogName, getVoidPtrType (M), "logname", InsertPt);
+  CallInst::Create (SetLog, Param, "", InsertPt); 
+  return;
 }
 
 void

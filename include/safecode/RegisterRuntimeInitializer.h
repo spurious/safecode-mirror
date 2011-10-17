@@ -22,18 +22,28 @@ namespace llvm {
 
 /// Base class of all passes which register variables into pools.
 class RegisterRuntimeInitializer : public llvm::ModulePass {
+private:
+  const char * logfilename;
+
 public:
   static char ID;
-  RegisterRuntimeInitializer() : llvm::ModulePass(ID) {}
+  RegisterRuntimeInitializer(const char * name = "") : llvm::ModulePass(ID) {
+    logfilename = name;
+  }
   virtual bool runOnModule(llvm::Module & M);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.setPreservesAll();
   }
+
 private:
   /// Construct the initializer
   void constructInitializer(llvm::Module & M);
+
   /// Insert the initializer into llvm.global_ctors
   void insertInitializerIntoGlobalCtorList(llvm::Module & M);
+
+  /// Insert code to configure the log filename
+  void setLogFileName (llvm::Module & M);
 };
 
 }

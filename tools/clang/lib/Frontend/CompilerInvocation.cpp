@@ -1056,6 +1056,11 @@ static void ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
                       Args.hasArg(OPT_cl_fast_relaxed_math);
   Opts.UnwindTables = Args.hasArg(OPT_munwind_tables);
   Opts.MemSafety = Args.hasArg(OPT_memsafety);
+  if (Arg *A = Args.getLastArg(OPT_msLogFile)) {
+    Opts.MemSafetyLogFile = A->getValue(Args);
+  } else {
+    Opts.MemSafetyLogFile = "";
+  }
   Opts.RelocationModel = Args.getLastArgValue(OPT_mrelocation_model, "pic");
 
   Opts.FunctionSections = Args.hasArg(OPT_ffunction_sections);

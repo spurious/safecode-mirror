@@ -113,6 +113,7 @@ extern "C" {
   void pool_init_runtime(unsigned Dangling,
                          unsigned RewriteOOB,
                          unsigned Terminate);
+  void pool_init_logfile (const char * name);
   void * __sc_dbg_newpool(unsigned NodeSize);
   void __sc_dbg_pooldestroy(PPOOL);
 

@@ -217,7 +217,7 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new DominatorTree ());
     MPM->add (new DominanceFrontier ());
     MPM->add (new RegisterStackObjPass ());
-    MPM->add (new RegisterRuntimeInitializer());
+    MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
     MPM->add (new DebugInstrument());
     MPM->add (new InsertLSChecks());
     MPM->add (new CFIChecks());

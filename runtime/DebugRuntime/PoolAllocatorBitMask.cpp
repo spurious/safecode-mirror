@@ -43,6 +43,8 @@
 #include "../include/DebugRuntime.h"
 
 #include <cstring>
+#include <iostream>
+#include <fstream>
 
 // This must be defined for Snow Leopard to get the ucontext definitions
 #if defined(__APPLE__)
@@ -188,7 +190,9 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // The libc stdio functions may have not been initialized by this point, so
   // we cannot rely upon them working.
   //
+  extern std::ostream * ErrorLog;
   ReportLog = stderr;
+  ErrorLog = &(std::cerr);
 
   //
   // Install hooks for catching allocations outside the scope of SAFECode.
@@ -230,6 +234,28 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // Initialize the splay tree of external objects.
   //
   ExternalObjects = new RangeSplaySet<>;
+  return;
+}
+
+//
+// Function: pool_init_logfile()
+//
+// Description:
+//  This function opens a new log file with the specified name.
+//
+// Inputs:
+//  name - The name of the file to create/open to use for logging safety
+//         violations.
+//
+// Preconditions:
+//  This function assumes that the constructors for initializing libc have been
+//  executed.
+//
+void
+pool_init_logfile (const char * name) {
+  extern std::ostream * ErrorLog;
+
+  ErrorLog = new std::ofstream (name);
   return;
 }
 

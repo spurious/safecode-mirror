@@ -142,6 +142,9 @@ public:
   /// or 0 if unspecified.
   unsigned NumRegisterParameters;
 
+  /// The filename to use for logging memory safety violations
+  std::string MemSafetyLogFile;
+
 public:
   CodeGenOptions() {
     AsmVerbose = 0;
