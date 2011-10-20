@@ -412,8 +412,12 @@ _internal_poolregister (DebugPoolTy *Pool,
     if (allocationType == Global) {
       void * start;
       void * end;
-      SPTree->find(allocaptr, start, end);
-      assert (SPTree->find(allocaptr, start, end));
+#ifndef NDEBUG
+      bool fs = SPTree->find (allocaptr, start, end);
+      assert (fs);
+#else
+      SPTree->find (allocaptr, start, end);
+#endif
       if (((unsigned char *)allocaptr + NumBytes - 1) > end) {
         SPTree->remove (allocaptr);
         SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1);
