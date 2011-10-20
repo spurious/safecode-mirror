@@ -23,9 +23,11 @@ PoolSlab *
 PoolSlab::create(BitmapPoolTy *Pool) {
   unsigned NodesPerSlab = getSlabSize(Pool);
 
+#ifndef NDEBUG
   unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
     Pool->NodeSize*getSlabSize(Pool);
   assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
+#endif
   PoolSlab *PS = (PoolSlab*)AllocatePage();
   assert(PS && "Allocating a page failed!");
   PS->NumNodesInSlab = NodesPerSlab;

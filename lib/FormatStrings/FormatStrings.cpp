@@ -268,10 +268,12 @@ FormatStringTransform::transform(Module &M,
     return false;
 
   FunctionType *rType = xfrmFType(fType, f->getContext());
+#ifndef NDEBUG
   Function *found = M.getFunction(replacement);
   assert((found == 0 || found->getFunctionType() == rType
     || found->hasLocalLinkage()) && 
     "Replacement function already declared in module with incorrect type");
+#endif
 
   Value *replacementFunc = M.getOrInsertFunction(replacement, rType);
 
