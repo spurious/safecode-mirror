@@ -73,7 +73,7 @@ RegisterRuntimeInitializer::setLogFileName (llvm::Module & M) {
   Constant * SetLogC = M.getOrInsertFunction ("pool_init_logfile",
                                               Type::getVoidTy (M.getContext()),
                                               getVoidPtrType (M),
-                                              0);
+                                              NULL);
   Function * SetLog = cast<Function>(SetLogC);
 
   //
