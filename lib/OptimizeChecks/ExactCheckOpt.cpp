@@ -170,7 +170,8 @@ findObject (Value * obj) {
 //  false - Cannot perform the optimization.
 //
 bool
-ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI, const struct CheckInfo & Info) {
+ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
+                                       const struct CheckInfo & Info) {
   //
   // Get the pointer that is checked by this run-time check.
   //
