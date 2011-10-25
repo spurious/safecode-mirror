@@ -67,6 +67,7 @@ ExactCheckOpt::runOnModule(Module & M) {
                                                       VoidPtrTy,
                                                       VoidPtrTy,
                                                       Int32Type,
+                                                      Int32Type,
                                                       NULL));
 
   //
@@ -176,6 +177,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
   // Get the pointer that is checked by this run-time check.
   //
   Value * CheckPtr = Info.getCheckedPointer(CI)->stripPointerCasts();
+  Value * CheckLen = Info.getCheckedLength(CI);
 
   //
   // Try to find the source of the pointer.
@@ -212,7 +214,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
     //
     AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
     if (Value * Size = AIP.getObjectSize(BasePtr)) {
-      rewriteToExactCheck(Info.isMemcheck, CI, BasePtr, CheckPtr, Size);
+      rewriteToExactCheck(Info.isMemcheck, CI, BasePtr, CheckPtr, CheckLen, Size);
       return true;
     }
   }
@@ -224,7 +226,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
 }
 
 //
-// Function: rewriteToExactCheck()
+// Method: rewriteToExactCheck()
 //
 // Description:
 //  Rewrite a check into an exact check
@@ -232,13 +234,17 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
 // Inputs:
 //  isMemCheck    - Flags if we are replacing a load/store check.
 //  BasePointer   - An LLVM Value representing the base of the object to check.
-//  Result        - An LLVM Value representing the pointer to check.
+//  ResultPointer - An LLVM Value representing the pointer to check.
+//  ResultLength  - An LLVM Value representing the length of the memory access.
+//                  This can be NULL when not applicable to the check.
 //  Bounds        - An LLVM Value representing the bounds of the check.
 //
 void
 ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
                                    Value * BasePointer, 
-                                   Value * ResultPointer, Value * Bounds) {
+                                   Value * ResultPointer,
+                                   Value * ResultLength,
+                                   Value * Bounds) {
   // The LLVM type for a void *
   Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
   Type * Int32Type = IntegerType::getInt32Ty(CI->getContext());
@@ -277,6 +283,7 @@ ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
   std::vector<Value *> args(1, BasePointer);
   args.push_back(ResultPointer);
   args.push_back(CastBounds);
+  if (ResultLength) args.push_back(ResultLength);
   Function * Check = (isMemCheck) ? FastLSCheck : ExactCheck2;
   CallInst * ExactCheckCI = CallInst::Create (Check, args, "", CI);
 

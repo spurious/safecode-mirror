@@ -66,15 +66,20 @@ failLSCheck (const char *base,
  *  base   - The address of the first byte of a memory object.
  *  result - The pointer that is being checked.
  *  size   - The size of the object in bytes.
+ *  lslen  - The length of the data accessed in memory.
  */
 void
-fastlscheck (const char *base, const char *result, unsigned size) {
+fastlscheck (const char *base, const char *result, unsigned size,
+             unsigned lslen) {
   /*
    * If the pointer is within the object, the check passes.  Return the checked
    * pointer.
    */
+  const char * end = result + lslen - 1;
   if ((result >= base) && (result < (base + size))) {
-    return;
+    if ((end >= base) && (end < (base + size))) {
+      return;
+    }
   }
 
   failLSCheck (base, result, size, "unknown", 0);
@@ -95,6 +100,7 @@ fastlscheck (const char *base, const char *result, unsigned size) {
  */
 void
 fastlscheck_debug (const char *base, const char *result, unsigned size,
+                   unsigned lslen,
                    unsigned tag,
                    const char * SourceFile,
                    unsigned lineno) {
@@ -102,8 +108,11 @@ fastlscheck_debug (const char *base, const char *result, unsigned size,
    * If the pointer is within the object, the check passes.  Return the checked
    * pointer.
    */
+  const char * end = result + lslen - 1;
   if ((result >= base) && (result < (base + size))) {
-    return;
+    if ((end >= base) && (end < (base + size))) {
+      return;
+    }
   }
 
   failLSCheck (base, result, size, SourceFile, lineno);
