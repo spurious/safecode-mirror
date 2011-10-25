@@ -18,6 +18,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Target/TargetData.h"
 
 namespace llvm {
 
@@ -35,7 +36,10 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
     virtual bool  doInitialization (Module & M);
     virtual bool runOnFunction(Function & F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // Preserved passes
+      // Prerequisite passes
+      AU.addRequired<TargetData>();
+
+      // Preserve the CFG
       AU.setPreservesCFG();
     };
 

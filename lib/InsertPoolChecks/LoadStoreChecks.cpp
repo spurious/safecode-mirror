@@ -40,6 +40,15 @@ namespace {
 void
 InsertLSChecks::visitLoadInst (LoadInst & LI) {
   //
+  // Create a value representing the amount of memory, in bytes, that will be
+  // modified.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  uint64_t TypeSize=TD.getTypeStoreSize(LI.getType());
+  IntegerType * IntType = IntegerType::getInt32Ty(LI.getContext());
+  Value * AccessSize = ConstantInt::get (IntType, TypeSize);
+
+  //
   // Create an STL container with the arguments.
   // The first argument is the pool handle (which is a NULL pointer).
   // The second argument is the pointer to check.
@@ -48,6 +57,7 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
   LLVMContext & Context = LI.getContext();
   args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
   args.push_back(castTo (LI.getPointerOperand(), getVoidPtrType(Context), &LI));
+  args.push_back (AccessSize);
 
   //
   // Create the call to the run-time check.  Place it *before* the load
@@ -78,14 +88,25 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
 void
 InsertLSChecks::visitStoreInst (StoreInst & SI) {
   //
+  // Create a value representing the amount of memory, in bytes, that will be
+  // modified.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  uint64_t TypeSize=TD.getTypeStoreSize(SI.getValueOperand()->getType());
+  IntegerType * IntType = IntegerType::getInt32Ty(SI.getContext());
+  Value * AccessSize = ConstantInt::get (IntType, TypeSize);
+
+  //
   // Create an STL container with the arguments.
   // The first argument is the pool handle (which is a NULL pointer).
   // The second argument is the pointer to check.
+  // The third argument is the amount of data that will be stored.
   //
   std::vector<Value *> args;
   LLVMContext & Context = SI.getContext();
   args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
   args.push_back(castTo (SI.getPointerOperand(), getVoidPtrType(Context), &SI));
+  args.push_back (AccessSize);
 
   //
   // Create the call to the run-time check.  Place it *before* the store
@@ -129,7 +150,13 @@ InsertLSChecks::doInitialization (Module & M) {
   //
   Type * VoidTy  = Type::getVoidTy (M.getContext());
   Type * VoidPtrTy = getVoidPtrType (M.getContext());
-  M.getOrInsertFunction ("poolcheckui", VoidTy, VoidPtrTy, VoidPtrTy, NULL);
+  Type * IntTy = IntegerType::getInt32Ty(M.getContext());
+  M.getOrInsertFunction ("poolcheckui",
+                         VoidTy,
+                         VoidPtrTy,
+                         VoidPtrTy,
+                         IntTy,
+                         NULL);
   return true;
 }
 

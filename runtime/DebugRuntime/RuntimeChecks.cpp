@@ -73,33 +73,42 @@ updateCache (DebugPoolTy * Pool, void * Start, void * End) {
 //  Perform an accurate load/store check for the given pointer.  This function
 //  encapsulates the logic necessary to do the check.
 //
+// Outputs:
+//  ObjStart - The address of the first valid byte of the memory object.
+//  ObjEnd   - The address of the last valid byte of the memory object.
+//
 // Return value:
 //  true  - The pointer was found within a valid object within the pool.
 //  false - The pointer was not found within a valid object within the pool.
 //
 static inline bool
-_barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
-  void * S, * end;
-
+_barebone_poolcheck (DebugPoolTy * Pool, void * Node, unsigned length,
+                     void * & ObjStart, void * & ObjEnd) {
   //
-  // If the pool handle is NULL, return successful.
+  // If the pool handle is NULL, claim that we have not found the object.
   //
   if (!Pool) return false;
 
   //
   // First check the cache of objects to see if the pointer is in there.
+  // Otherwise, look through the splay trees for an object in which the
+  // pointer points.
   //
+  bool found = false;
   unsigned char index = isInCache (Pool, Node);
   if (index < 2) {
-    return true;
+    found = true;
+    ObjStart = Pool->objectCache[index].lower;
+    ObjEnd = Pool->objectCache[index].upper; 
+  } else {
+    found = Pool->Objects.find (Node, ObjStart, ObjEnd);
   }
 
   //
-  // Look through the splay trees for an object in which the pointer points.
+  // If the memory access is within bounds, update the cache and return.
   //
-  bool fs = Pool->Objects.find(Node, S, end);
-  if ((fs) && (S <= Node) && (Node <= end)) {
-    updateCache (Pool, S, end);
+  if ((found) && (ObjStart <= Node) && (Node <= ObjEnd)) {
+    updateCache (Pool, ObjStart, ObjEnd);
     return true;
   }
 
@@ -108,9 +117,9 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
   // itself.
   //
 #if 1
-  if (void * start = __pa_bitmap_poolcheck (Pool, Node)) {
-    end = (unsigned char *) start + Pool->NodeSize - 1;
-    updateCache (Pool, start, end);
+  if (ObjStart = __pa_bitmap_poolcheck (Pool, Node)) {
+    ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
+    updateCache (Pool, ObjStart, ObjEnd);
     return true;
   }
 #endif
@@ -131,24 +140,49 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node) {
 void
 poolcheck_debug (DebugPoolTy *Pool,
                  void *Node,
+                 unsigned length,
                  TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
-
   //
   // Check to see if the pointer points to an object within the pool.  If it
-  // does, the check succeeds, so just return to the caller.
+  // does, check to see if the last byte read/written will be within the same
+  // object.  If so, then the check succeeds, so just return to the caller.
   //
-  if (_barebone_poolcheck (Pool, Node))
+  void * ObjStart, *ObjEnd;
+  unsigned char * NodeEnd = (unsigned char *)(Node) + length - 1;
+  if (_barebone_poolcheck (Pool, Node, length, ObjStart, ObjEnd)) {
+    if (!((ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd))) {
+      DebugViolationInfo v;
+      v.type = ViolationInfo::FAULT_LOAD_STORE,
+        v.faultPC = __builtin_return_address(0),
+        v.faultPtr = NodeEnd,
+        v.SourceFile = SourceFilep,
+        v.lineNo = lineno,
+        v.PoolHandle = Pool;
+      ReportMemoryViolation(&v);
+    }
+
     return;
+  }
 
   //
   // Look for the object within the splay tree of external objects.
   //
-  int fs = 0;
-  void * start, *end;
-  fs = ExternalObjects->find (Node, start, end);
-  if ((fs) && (start <= Node) && (Node <= end)) {
+  if (ExternalObjects->find (Node, ObjStart, ObjEnd)) {
+    if ((ObjStart <= Node) && (Node <= ObjEnd)) {
+      if (!((ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd))) {
+        DebugViolationInfo v;
+        v.type = ViolationInfo::FAULT_LOAD_STORE,
+          v.faultPC = __builtin_return_address(0),
+          v.faultPtr = NodeEnd,
+          v.SourceFile = SourceFilep,
+          v.lineNo = lineno,
+          v.PoolHandle = Pool;
+        ReportMemoryViolation(&v);
+      }
+    }
+
     return;
   }
 
@@ -284,12 +318,31 @@ poolcheckalign_debug (DebugPoolTy *Pool, void *Node, unsigned Offset, TAG, const
 void
 poolcheckui_debug (DebugPoolTy *Pool,
                    void *Node,
+                   unsigned length,
                    TAG,
                    const char * SourceFilep,
                    unsigned lineno) {
+  //
+  // Check to see if the pointer points to an object within the pool.  If it
+  // does, check to see if the last byte read/written will be within the same
+  // object.  If so, then the check succeeds, so just return to the caller.
+  //
+  void * ObjStart, *ObjEnd;
+  unsigned char * NodeEnd = (unsigned char *)(Node) + length - 1;
+  if (_barebone_poolcheck (Pool, Node, length, ObjStart, ObjEnd)) {
+    if (!((ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd))) {
+      DebugViolationInfo v;
+      v.type = ViolationInfo::FAULT_LOAD_STORE,
+        v.faultPC = __builtin_return_address(0),
+        v.faultPtr = NodeEnd,
+        v.SourceFile = SourceFilep,
+        v.lineNo = lineno,
+        v.PoolHandle = Pool;
+      ReportMemoryViolation(&v);
+    }
 
-  if (_barebone_poolcheck (Pool, Node))
     return;
+  }
 
   //
   // Look for the object within the splay tree of external objects.
@@ -297,21 +350,29 @@ poolcheckui_debug (DebugPoolTy *Pool,
   // are stored in this splay tree.
   //
   int fs = 0;
-  void * S, *end = 0;
-	if (1) {
-		S = Node;
-		fs = ExternalObjects->find (Node, S, end);
-		if ((fs) && (S <= Node) && (Node <= end)) {
-			return;
-		}
-	}
+  if (fs = ExternalObjects->find (Node, ObjStart, ObjEnd)) {
+    if ((ObjStart <= Node) && (Node <= ObjEnd)) {
+      if (!((ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd))) {
+        DebugViolationInfo v;
+        v.type = ViolationInfo::FAULT_LOAD_STORE,
+          v.faultPC = __builtin_return_address(0),
+          v.faultPtr = NodeEnd,
+          v.SourceFile = SourceFilep,
+          v.lineNo = lineno,
+          v.PoolHandle = Pool;
+        ReportMemoryViolation(&v);
+      }
+    }
+
+    return;
+  }
 
   //
   // If it's a rewrite pointer, convert it back into its original value so
   // that we can print the real faulting address.
   //
-  void * ObjStart = 0;
-  void * ObjEnd = 0;
+  ObjStart = 0;
+  ObjEnd = 0;
   if (isRewritePtr (Node)) {
     ObjStart = RewrittenObjs[Node].first;
     ObjEnd   = RewrittenObjs[Node].second;
@@ -324,7 +385,7 @@ poolcheckui_debug (DebugPoolTy *Pool,
   //
 	if (logregs) {
     fprintf (stderr, "PoolcheckUI failed(%p:%x): %p %p from %p\n", 
-        (void*)Pool, fs, (void*)Node, end, __builtin_return_address(0));
+        (void*)Pool, fs, (void*)Node, ObjEnd, __builtin_return_address(0));
     fflush (stderr);
   }
 
@@ -912,8 +973,8 @@ funccheckui_debug (void *f,
 /// Stubs
 
 void
-poolcheck (DebugPoolTy *Pool, void *Node) {
-  poolcheck_debug(Pool, Node, 0, NULL, 0);
+poolcheck (DebugPoolTy *Pool, void *Node, unsigned length) {
+  poolcheck_debug(Pool, Node, length, 0, NULL, 0);
 }
 
 void

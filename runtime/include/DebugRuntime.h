@@ -151,10 +151,10 @@ extern "C" {
   void * __sc_dbg_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
   void * __sc_dbg_poolmemalign(PPOOL, unsigned Alignment, unsigned NumBytes);
 
-  void poolcheck(PPOOL, void *Node);
-  void poolcheckui(PPOOL, void *Node);
-  void poolcheck_debug (PPOOL, void * Node, TAG, SRC_INFO);
-  void poolcheckui_debug (PPOOL, void * Node, TAG, SRC_INFO);
+  void poolcheck(PPOOL, void *Node, unsigned length);
+  void poolcheckui(PPOOL, void *Node, unsigned length);
+  void poolcheck_debug (PPOOL, void * Node, unsigned length, TAG, SRC_INFO);
+  void poolcheckui_debug (PPOOL, void * Node, unsigned length, TAG, SRC_INFO);
 
   void poolcheckalign(PPOOL, void *Node, unsigned Offset);
   void poolcheckalign_debug (PPOOL, void *Node, unsigned Offset, TAG, SRC_INFO);
