@@ -446,6 +446,8 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("poolcheckui"), LInfo);
   transformFunction (M.getFunction ("poolcheckalign"), LInfo);
   transformFunction (M.getFunction ("poolcheckalignui"), LInfo);
+  transformFunction (M.getFunction ("poolcheck_free"), LInfo);
+  transformFunction (M.getFunction ("poolcheck_freeui"), LInfo);
   transformFunction (M.getFunction ("boundscheck"), LInfo);
   transformFunction (M.getFunction ("boundscheckui"), LInfo);
   transformFunction (M.getFunction ("exactcheck2"), LInfo);
