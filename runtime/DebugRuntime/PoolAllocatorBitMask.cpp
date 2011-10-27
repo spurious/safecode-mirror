@@ -758,6 +758,12 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
   bool found = false;
   PDebugMetaData debugmetadataptr = 0;
   found = dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+  if (Pool) {
+    if (Pool->Objects.find (ptr, ObjStart, ObjEnd) == false)
+      ExternalObjects->find (ptr, ObjStart, ObjEnd);
+  } else {
+    ExternalObjects->find (ptr, ObjStart, ObjEnd);
+  }
 
   //
   // Assert that we either didn't find the object or we found the object *and*
@@ -996,9 +1002,11 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
   // itself.
   //
 #if 1
-  if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
-    ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
-    found = true;
+  if (!found) {
+    if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
+      ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
+      found = true;
+    }
   }
 #endif
 
