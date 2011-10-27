@@ -978,7 +978,7 @@ poolcheck (DebugPoolTy *Pool, void *Node, unsigned length) {
 }
 
 void
-poolcheckui (DebugPoolTy *Pool, void *Node) {
+poolcheckui (DebugPoolTy *Pool, void *Node, unsigned length) {
   //
   // In production mode, do not report an error if an incomplete load/store
   // check fails.  The fact that it is incomplete means that we can't tell for
