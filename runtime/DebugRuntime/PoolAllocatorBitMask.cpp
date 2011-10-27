@@ -731,6 +731,308 @@ pool_register_global_debug (DebugPoolTy *Pool,
 }
 
 //
+// Function: poolcheck_freeui_debug()
+//
+// Description:
+//  Check that freeing the pointer is correct.  Permit incomplete and unknown
+//  pointers.
+//
+void
+poolcheck_freeui_debug (DebugPoolTy *Pool,
+                      void * ptr,
+                      unsigned tag,
+                      const char * SourceFilep,
+                      unsigned lineno) {
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (ptr == NULL)
+    return;
+
+  //
+  // Retrieve the bounds information for the object.  Use the pool that tracks
+  // debug information since we're in debug mode.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  bool found = false;
+  PDebugMetaData debugmetadataptr = 0;
+  found = dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+
+  //
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  //
+  assert ((!found || (found && debugmetadataptr)) &&
+          "checkForBadFrees: No debugmetadataptr\n");
+
+  //
+  // If we cannot find this memory object, then this free is either an invalid
+  // free or it is for a memory object that DSA doesn't know is in this pool.
+  // Therefore, let it pass.
+  //
+  if (!found) {
+    fprintf (stderr, "poolcheck_freeui: %p not found\n", ptr);
+    fflush (stderr);
+    return;
+  }
+
+  //
+  // Determine if we are doing something stupid like deallocating a global
+  // or stack-allocated object when we're supposed to be freeing a heap
+  // object.  If so, then report an error.
+  //
+  if (debugmetadataptr->allocationType != Heap) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
+    v.faultPC = __builtin_return_address(0);
+    v.PoolHandle = Pool;
+    v.dbgMetaData = debugmetadataptr;
+    v.SourceFile = SourceFilep;
+    v.lineNo = lineno;
+    v.faultPtr = ptr;
+    v.objStart = ObjStart;
+    v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+  }
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if (ptr != ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr,
+      v.dbgMetaData = debugmetadataptr,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.objStart = ObjStart;
+      v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+  }
+
+  return;
+}
+
+//
+// Function: poolcheck_free_debug()
+//
+// Description:
+//  Check that freeing the pointer is correct.
+//
+void
+poolcheck_free_debug (DebugPoolTy *Pool,
+                      void * ptr,
+                      unsigned tag,
+                      const char * SourceFilep,
+                      unsigned lineno) {
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (ptr == NULL)
+    return;
+
+  //
+  // Retrieve the bounds information for the object.  Use the pool that tracks
+  // debug information since we're in debug mode.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  bool found = false;
+  PDebugMetaData debugmetadataptr = 0;
+  found = dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+
+  //
+  // Assert that we either didn't find the object or we found the object *and*
+  // it has meta-data associated with it.
+  //
+  assert ((!found || (found && debugmetadataptr)) &&
+          "checkForBadFrees: No debugmetadataptr\n");
+
+  //
+  // If we cannot find this memory object, then this is a bad free.
+  //
+  if (!found) {
+    DebugViolationInfo v;
+    v.type = DebugViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr;
+      v.PoolHandle = Pool;
+      v.dbgMetaData = debugmetadataptr;
+      v.SourceFile = SourceFilep;
+      v.lineNo = lineno;
+    ReportMemoryViolation(&v);
+    return;
+  }
+
+  //
+  // Determine if we are doing something stupid like deallocating a global
+  // or stack-allocated object when we're supposed to be freeing a heap
+  // object.  If so, then report an error.
+  //
+  if (debugmetadataptr->allocationType != Heap) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
+    v.faultPC = __builtin_return_address(0);
+    v.PoolHandle = Pool;
+    v.dbgMetaData = debugmetadataptr;
+    v.SourceFile = SourceFilep;
+    v.lineNo = lineno;
+    v.faultPtr = ptr;
+    v.objStart = ObjStart;
+    v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+  }
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if (ptr != ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr,
+      v.dbgMetaData = debugmetadataptr,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.objStart = ObjStart;
+      v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+    return;
+  }
+
+  return;
+}
+
+//
+// Function: poolcheck_free()
+//
+// Description:
+//  Check that freeing the pointer is correct.
+//
+void
+poolcheck_free (DebugPoolTy *Pool, void * ptr) {
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (ptr == NULL)
+    return;
+
+  //
+  // Retrieve the bounds information for the object.  Use the pool regular pool
+  // since we may not be able to look up debug information.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  bool found = false;
+  if (Pool) found = Pool->Objects.find (ptr, ObjStart, ObjEnd);
+  if (!found)
+    found = ExternalObjects->find (ptr, ObjStart, ObjEnd);
+
+  //
+  // If we cannot find this memory object, then this is a bad free.
+  //
+  if (!found) {
+    DebugViolationInfo v;
+    v.type = DebugViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr;
+      v.PoolHandle = Pool;
+      v.SourceFile = "Unknown";
+      v.lineNo = 0;
+    ReportMemoryViolation(&v);
+    return;
+  }
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if (ptr != ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr,
+      v.SourceFile = "Unknown";
+      v.lineNo = 0;
+      v.objStart = ObjStart;
+      v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+  }
+
+  return;
+}
+
+//
+// Function: poolcheck_freeui()
+//
+// Description:
+//  The incomplete version of poolcheck_free().
+//
+void
+poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (ptr == NULL)
+    return;
+
+  //
+  // Retrieve the bounds information for the object.  Use the pool regular pool
+  // since we may not be able to look up debug information.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  bool found = false;
+  if (Pool) found = Pool->Objects.find (ptr, ObjStart, ObjEnd);
+  if (!found)
+    found = ExternalObjects->find (ptr, ObjStart, ObjEnd);
+
+  //
+  // This may be a singleton object, so search for it within the pool slabs
+  // itself.
+  //
+#if 1
+  if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
+    ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
+    found = true;
+  }
+#endif
+
+  //
+  // If we cannot find this memory object, then this is a bad free or, due to
+  // incompleteness, the object is not registered in the splay tree.  Just
+  // ignore it.
+  //
+  if (!found) {
+    fprintf (stderr, "poolcheck_freeui: %p not found\n", ptr);
+    fflush (stderr);
+    return;
+  }
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if (ptr != ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr,
+      v.SourceFile = "Unknown";
+      v.lineNo = 0;
+      v.objStart = ObjStart;
+      v.objLen =  (intptr_t)ObjEnd - (intptr_t)ObjStart + 1;
+    ReportMemoryViolation(&v);
+  }
+
+  return;
+}
+
+//
 // Function: checkForBadFrees()
 //
 // Description:

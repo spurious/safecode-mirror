@@ -187,6 +187,12 @@ extern "C" {
   // Change memory protections to detect dangling pointers
   void * pool_shadow (void * Node, unsigned NumBytes);
   void * pool_unshadow (void * Node);
+
+  // Check for invalid frees for non-resistent allocators
+  void poolcheck_free   (PPOOL, void * ptr);
+  void poolcheck_freeui (PPOOL, void * ptr);
+  void poolcheck_free_debug   (PPOOL, void * ptr, TAG, SRC_INFO);
+  void poolcheck_freeui_debug (PPOOL, void * ptr, TAG, SRC_INFO);
 }
 
 #undef PPOOL

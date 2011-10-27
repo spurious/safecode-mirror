@@ -42,6 +42,7 @@
 #include "safecode/DebugInstrumentation.h"
 #include "safecode/FormatStrings.h"
 #include "safecode/InitAllocas.h"
+#include "safecode/InvalidFreeChecks.h"
 #include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
 #include "safecode/OptimizeChecks.h"
@@ -211,6 +212,7 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new InitAllocas());
     MPM->add (new RegisterGlobalVariables());
     MPM->add (new RegisterMainArgs());
+    MPM->add (new InsertFreeChecks());
     MPM->add (new RegisterCustomizedAllocation());
     MPM->add (new RegisterFunctionByvalArguments ());
     MPM->add (new LoopInfo ());
