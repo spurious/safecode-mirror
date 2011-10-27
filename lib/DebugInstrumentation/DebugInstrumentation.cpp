@@ -458,6 +458,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_register_stack"), LInfo);
   transformFunction (M.getFunction ("pool_unregister"), LInfo);
   transformFunction (M.getFunction ("pool_unregister_stack"), LInfo);
+  transformFunction (M.getFunction ("pool_reregister"), LInfo);
 
   // Format string function intrinsic
   transformFunction (M.getFunction ("__sc_fscallinfo"), LInfo);
