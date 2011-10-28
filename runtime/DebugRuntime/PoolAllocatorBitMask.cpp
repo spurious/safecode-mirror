@@ -758,12 +758,14 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
   bool found = false;
   PDebugMetaData debugmetadataptr = 0;
   found = dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+#if 0
   if (Pool) {
     if (Pool->Objects.find (ptr, ObjStart, ObjEnd) == false)
       ExternalObjects->find (ptr, ObjStart, ObjEnd);
   } else {
     ExternalObjects->find (ptr, ObjStart, ObjEnd);
   }
+#endif
 
   //
   // Assert that we either didn't find the object or we found the object *and*
@@ -1041,18 +1043,18 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
 }
 
 //
-// Function: checkForBadFrees()
+// Function: updateMDOnFree()
 //
 // Description:
-//  This function can be called by pool_unregister() functions to determine if
-//  an invalid free is being performed.
+//  This function is called by pool_unregister() functions to update the
+//  debugging metadata.
 //
 static inline void
-checkForBadFrees (DebugPoolTy *Pool,
-                  void * allocaptr, allocType Type,
-                  unsigned tag,
-                  const char * SourceFilep,
-                  unsigned lineno) {
+updateMDOnFree (DebugPoolTy *Pool,
+                void * allocaptr, allocType Type,
+                unsigned tag,
+                const char * SourceFilep,
+                unsigned lineno) {
   //
   // Increment the ID number for this deallocation.
   //
@@ -1076,25 +1078,16 @@ checkForBadFrees (DebugPoolTy *Pool,
   // Assert that we either didn't find the object or we found the object *and*
   // it has meta-data associated with it.
   assert ((!found || (found && debugmetadataptr)) &&
-          "checkForBadFrees: No debugmetadataptr\n");
+          "updateMDOnFree: No debugmetadataptr\n");
 
   //
   // If we cannot find the meta-data for this pointer, then the free is
-  // invalid.  Report it as an error and then continue executing if possible.
+  // invalid.  However, we have other functions to check for invalid free, so
+  // just ignore unfound objects here.
   //
-  if (!found) {
-    DebugViolationInfo v;
-    v.type = DebugViolationInfo::FAULT_INVALID_FREE,
-      v.faultPC = __builtin_return_address(0),
-      v.faultPtr = allocaptr;
-      v.PoolHandle = Pool;
-      v.dbgMetaData = debugmetadataptr;
-      v.SourceFile = SourceFilep;
-      v.lineNo = lineno;
-    ReportMemoryViolation(&v);
+  if (!found)
     return;
-  }
-
+  
   //
   // Update the debugging metadata information for this object.
   //
@@ -1103,43 +1096,6 @@ checkForBadFrees (DebugPoolTy *Pool,
                      __builtin_return_address(0),
                      (void *)SourceFilep,
                      lineno);
-
-  //
-  // Determine if we are doing something stupid like deallocating a global
-  // or stack-allocated object when we're supposed to be freeing a heap
-  // object.  If so, then report an error.
-  //
-  if (Type == Heap) {
-    if (debugmetadataptr->allocationType != Heap) {
-        DebugViolationInfo v;
-        v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
-        v.faultPC = __builtin_return_address(0);
-        v.PoolHandle = Pool;
-        v.dbgMetaData = debugmetadataptr;
-        v.SourceFile = SourceFilep;
-        v.lineNo = lineno;
-        v.faultPtr = allocaptr;
-        ReportMemoryViolation(&v);
-    }
-  }
-
-  //
-  // Determine if we're freeing a pointer that doesn't point to the beginning
-  // of an object.  If so, report an error.
-  //
-  if (allocaptr != start) {
-    OutOfBoundsViolation v;
-    v.type = ViolationInfo::FAULT_INVALID_FREE,
-      v.faultPC = __builtin_return_address(0),
-      v.faultPtr = allocaptr,
-      v.dbgMetaData = debugmetadataptr,
-      v.SourceFile = SourceFilep,
-      v.lineNo = lineno,
-      v.objStart = start;
-      v.objLen =  (intptr_t)end - (intptr_t)start + 1;
-    ReportMemoryViolation(&v);
-    return;
-  }
 
   //
   // If dangling pointer detection is not enabled, remove the object from the
@@ -1240,9 +1196,7 @@ pool_unregister_debug (DebugPoolTy *Pool,
                        TAG,
                        const char * SourceFilep,
                        unsigned lineno) {
-#if 0
-  checkForBadFrees (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
-#endif
+  updateMDOnFree (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   _internal_poolunregister (Pool, allocaptr, Heap, tag, SourceFilep, lineno);
   return;
 }
@@ -1259,9 +1213,7 @@ pool_unregister_stack_debug (DebugPoolTy *Pool,
                                      TAG,
                                      const char * SourceFilep,
                                      unsigned lineno) {
-#if 0
-  checkForBadFrees (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
-#endif
+  updateMDOnFree (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   _internal_poolunregister (Pool, allocaptr, Stack, tag, SourceFilep, lineno);
   return;
 }
