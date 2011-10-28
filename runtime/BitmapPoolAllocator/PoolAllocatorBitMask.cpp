@@ -211,6 +211,7 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
 
   int Idx = New->allocateSingle();
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  if (Idx) abort();
   if (logregs) {
     fprintf(stderr, " poolalloc:967: canonical page at 0x%p from underlying allocator\n", (void*)New);
   }
@@ -315,6 +316,7 @@ poolallocarray(BitmapPoolTy* Pool, unsigned Size) {
   
   int Idx = New->allocateMultiple(Size);
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  if (Idx) abort();
   
   return New->getElementAddress(0, 0);
 }

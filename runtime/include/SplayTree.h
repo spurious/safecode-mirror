@@ -226,7 +226,7 @@ class RangeSplayTree {
   }
 
   tree_node* __find(void* key) {
-    if (!Tree) return false;
+    if (!Tree) return 0;
     Tree = splay(Tree, key);
     if (!key_lt(key, Tree) && !key_gt(key, Tree)) {
       return Tree;

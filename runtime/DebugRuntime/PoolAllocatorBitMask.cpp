@@ -936,7 +936,7 @@ poolcheck_free (DebugPoolTy *Pool, void * ptr) {
   //
 #if 1
   if (!found && Pool) {
-    if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
+    if ((ObjStart = __pa_bitmap_poolcheck (Pool, ptr))) {
       ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
       found = true;
     }
@@ -1008,7 +1008,7 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
   //
 #if 1
   if (!found && Pool) {
-    if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
+    if ((ObjStart = __pa_bitmap_poolcheck (Pool, ptr))) {
       ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
       found = true;
     }

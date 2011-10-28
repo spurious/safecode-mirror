@@ -117,7 +117,7 @@ _barebone_poolcheck (DebugPoolTy * Pool, void * Node, unsigned length,
   // itself.
   //
 #if 1
-  if (ObjStart = __pa_bitmap_poolcheck (Pool, Node)) {
+  if ((ObjStart = __pa_bitmap_poolcheck (Pool, Node))) {
     ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
     updateCache (Pool, ObjStart, ObjEnd);
     return true;
@@ -350,7 +350,7 @@ poolcheckui_debug (DebugPoolTy *Pool,
   // are stored in this splay tree.
   //
   int fs = 0;
-  if (fs = ExternalObjects->find (Node, ObjStart, ObjEnd)) {
+  if ((fs = ExternalObjects->find (Node, ObjStart, ObjEnd))) {
     if ((ObjStart <= Node) && (Node <= ObjEnd)) {
       if (!((ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd))) {
         DebugViolationInfo v;
