@@ -758,14 +758,6 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
   bool found = false;
   PDebugMetaData debugmetadataptr = 0;
   found = dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
-#if 0
-  if (Pool) {
-    if (Pool->Objects.find (ptr, ObjStart, ObjEnd) == false)
-      ExternalObjects->find (ptr, ObjStart, ObjEnd);
-  } else {
-    ExternalObjects->find (ptr, ObjStart, ObjEnd);
-  }
-#endif
 
   //
   // Assert that we either didn't find the object or we found the object *and*
@@ -780,8 +772,6 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
   // Therefore, let it pass.
   //
   if (!found) {
-    fprintf (stderr, "poolcheck_freeui: %p not found\n", ptr);
-    fflush (stderr);
     return;
   }
 
@@ -941,6 +931,19 @@ poolcheck_free (DebugPoolTy *Pool, void * ptr) {
     found = ExternalObjects->find (ptr, ObjStart, ObjEnd);
 
   //
+  // This may be a singleton object, so search for it within the pool slabs
+  // itself.
+  //
+#if 1
+  if (!found && Pool) {
+    if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
+      ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
+      found = true;
+    }
+  }
+#endif
+
+  //
   // If we cannot find this memory object, then this is a bad free.
   //
   if (!found) {
@@ -1004,7 +1007,7 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
   // itself.
   //
 #if 1
-  if (!found) {
+  if (!found && Pool) {
     if (ObjStart = __pa_bitmap_poolcheck (Pool, ptr)) {
       ObjEnd = (unsigned char *) ObjStart + Pool->NodeSize - 1;
       found = true;
@@ -1018,8 +1021,6 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
   // ignore it.
   //
   if (!found) {
-    fprintf (stderr, "poolcheck_freeui: %p not found\n", ptr);
-    fflush (stderr);
     return;
   }
 
