@@ -3515,6 +3515,16 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
 
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
+
   if (Args.hasArg(options::OPT_fopenmp))
     // This is more complicated in gcc...
     CmdArgs.push_back("-lgomp");
@@ -3718,6 +3728,16 @@ void auroraux::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
 
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
+
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
     // FIXME: For some reason GCC passes -lgcc before adding
@@ -3829,6 +3849,16 @@ void openbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_e);
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
+
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
 
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
@@ -3981,6 +4011,16 @@ void freebsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_r);
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
+
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
 
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
@@ -4157,6 +4197,16 @@ void netbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_r);
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
+
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
 
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
@@ -4360,6 +4410,16 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs);
 
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
+
   if (D.CCCIsCXX && !Args.hasArg(options::OPT_nostdlib)) {
     ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
     CmdArgs.push_back("-lm");
@@ -4484,6 +4544,16 @@ void minix::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
 
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
+
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
     if (D.CCCIsCXX) {
@@ -4605,6 +4675,16 @@ void dragonfly::Link::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_e);
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
+
+  //
+  // Add in any memory safety libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+    CmdArgs.push_back("-lstdc++");
+  }
 
   if (!Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
