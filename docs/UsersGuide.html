@@ -81,13 +81,13 @@ To activate the SAFECode transforms during compilation, add the
   <li><tt>clang -g -fmemsafety -c -o <i>file.o</i> <i>file.c</i></tt></li>
 </ul>
 
-... and add the SAFECode libraries to the link command line (note that you may
-need a <tt>-L$PREFIX/lib</tt> option to indicate where the libraries are
-located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed):
+You may also need to add a <tt>-L$PREFIX/lib</tt> option to the link
+command-line to indicate where the libraries are
+located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed:
 
 <ul>
   <li><tt>clang -fmemsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
-  -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++</tt></li>
+  -L$PREFIX/lib</tt></li>
 </ul>
 </p>
 
@@ -110,15 +110,13 @@ the following:
 <li> Set the environment variable CFLAGS to "-g -fmemsafety"</li>
 <li> Set the environment variable LDFLAGS to "-L$PREFIX/lib"
 where $PREFIX is the directory into which SAFECode was installed.</li>
-<li> Set the environment variable LIBS to
-"-lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++".</li>
 <li> Run the configure script</li>
 <li> Type "make" to compile the source code.</li>
 </ol>
 
-Note that some configure scripts may not use the LDFLAGS and LIBS variables
-properly.  If the above directions do not work, try setting LDFLAGS to
-"-L$PREFIX/lib -lsc_dbg_rt -lpoolalloc_bitmap -lgdtoa -lstdc++".
+Note that some configure scripts may not use the LDFLAGS variable
+properly.  If the above directions do not work, try setting CFLAGS to
+"-g -fmemsafety -L$PREFIX/lib".
 </div>
 
 <!-- *********************************************************************** -->
