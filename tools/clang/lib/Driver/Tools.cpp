@@ -3515,16 +3515,6 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
 
-  //
-  // Add in any memory safety libraries.
-  //
-  if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
-    CmdArgs.push_back("-lgdtoa"); 
-    CmdArgs.push_back("-lstdc++");
-  }
-
   if (Args.hasArg(options::OPT_fopenmp))
     // This is more complicated in gcc...
     CmdArgs.push_back("-lgomp");
@@ -3573,6 +3563,21 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
   Args.AddAllArgs(CmdArgs, options::OPT_F);
+
+  //
+  // Add in any memory safety libraries.  Even if we're not compiling C++ code,
+  // we need to link in the C++ standard libraries.
+  //
+  if (Args.hasArg(options::OPT_memsafety)) {
+    CmdArgs.push_back("-lsc_dbg_rt");
+    CmdArgs.push_back("-lpoolalloc_bitmap");
+    CmdArgs.push_back("-lgdtoa"); 
+
+    if (!Args.hasArg(options::OPT_nostdlib) &&
+        !Args.hasArg(options::OPT_nodefaultlibs)) {
+      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+    }
+  }
 
   const char *Exec =
     Args.MakeArgString(getToolChain().GetProgramPath("ld"));
