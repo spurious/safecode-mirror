@@ -493,6 +493,7 @@ public:
   CanQualType UnsignedCharTy, UnsignedShortTy, UnsignedIntTy, UnsignedLongTy;
   CanQualType UnsignedLongLongTy, UnsignedInt128Ty;
   CanQualType FloatTy, DoubleTy, LongDoubleTy;
+  CanQualType HalfTy; // [OpenCL 6.1.1.1], ARM NEON
   CanQualType FloatComplexTy, DoubleComplexTy, LongDoubleComplexTy;
   CanQualType VoidPtrTy, NullPtrTy;
   CanQualType DependentTy, OverloadTy, BoundMemberTy, UnknownAnyTy;
@@ -1592,7 +1593,8 @@ public:
 
   /// \brief Get the duplicate declaration of a ObjCMethod in the same
   /// interface, or null if non exists.
-  const ObjCMethodDecl *getObjCMethodRedeclaration(ObjCMethodDecl *MD) const {
+  const ObjCMethodDecl *getObjCMethodRedeclaration(
+                                               const ObjCMethodDecl *MD) const {
     llvm::DenseMap<const ObjCMethodDecl*, const ObjCMethodDecl*>::const_iterator
       I = ObjCMethodRedecls.find(MD);
     if (I == ObjCMethodRedecls.end())

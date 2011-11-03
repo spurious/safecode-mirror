@@ -69,16 +69,19 @@ protected:
   unsigned char PointerWidth, PointerAlign;
   unsigned char BoolWidth, BoolAlign;
   unsigned char IntWidth, IntAlign;
+  unsigned char HalfWidth, HalfAlign;
   unsigned char FloatWidth, FloatAlign;
   unsigned char DoubleWidth, DoubleAlign;
   unsigned char LongDoubleWidth, LongDoubleAlign;
   unsigned char LargeArrayMinWidth, LargeArrayAlign;
   unsigned char LongWidth, LongAlign;
   unsigned char LongLongWidth, LongLongAlign;
+  unsigned char MaxAtomicPromoteWidth, MaxAtomicInlineWidth;
   const char *DescriptionString;
   const char *UserLabelPrefix;
   const char *MCountName;
-  const llvm::fltSemantics *FloatFormat, *DoubleFormat, *LongDoubleFormat;
+  const llvm::fltSemantics *HalfFormat, *FloatFormat, *DoubleFormat,
+    *LongDoubleFormat;
   unsigned char RegParmMax, SSERegParmMax;
   TargetCXXABI CXXABI;
   const LangAS::Map *AddrSpaceMap;
@@ -223,6 +226,11 @@ public:
   unsigned getChar32Width() const { return getTypeWidth(Char32Type); }
   unsigned getChar32Align() const { return getTypeAlign(Char32Type); }
 
+  /// getHalfWidth/Align/Format - Return the size/align/format of 'half'.
+  unsigned getHalfWidth() const { return HalfWidth; }
+  unsigned getHalfAlign() const { return HalfAlign; }
+  const llvm::fltSemantics &getHalfFormat() const { return *HalfFormat; }
+
   /// getFloatWidth/Align/Format - Return the size/align/format of 'float'.
   unsigned getFloatWidth() const { return FloatWidth; }
   unsigned getFloatAlign() const { return FloatAlign; }
@@ -245,6 +253,14 @@ public:
   // 'large' and its alignment.
   unsigned getLargeArrayMinWidth() const { return LargeArrayMinWidth; }
   unsigned getLargeArrayAlign() const { return LargeArrayAlign; }
+
+  /// getMaxAtomicPromoteWidth - Return the maximum width lock-free atomic
+  /// operation which will ever be supported for the given target
+  unsigned getMaxAtomicPromoteWidth() const { return MaxAtomicPromoteWidth; }
+  /// getMaxAtomicInlineWidth - Return the maximum width lock-free atomic
+  /// operation which can be inlined given the supported features of the
+  /// given target.
+  unsigned getMaxAtomicInlineWidth() const { return MaxAtomicInlineWidth; }
 
   /// getIntMaxTWidth - Return the size of intmax_t and uintmax_t for this
   /// target, in bits.

@@ -50,7 +50,7 @@ unsigned ASTContext::NumImplicitDestructors;
 unsigned ASTContext::NumImplicitDestructorsDeclared;
 
 enum FloatingRank {
-  FloatRank, DoubleRank, LongDoubleRank
+  HalfRank, FloatRank, DoubleRank, LongDoubleRank
 };
 
 void 
@@ -483,6 +483,9 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target) {
 
   // nullptr type (C++0x 2.14.7)
   InitBuiltinType(NullPtrTy,           BuiltinType::NullPtr);
+
+  // half type (OpenCL 6.1.1.1) / ARM NEON __fp16
+  InitBuiltinType(HalfTy, BuiltinType::Half);
 }
 
 DiagnosticsEngine &ASTContext::getDiagnostics() const {
@@ -683,6 +686,7 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
   assert(BT && "Not a floating point type!");
   switch (BT->getKind()) {
   default: llvm_unreachable("Not a floating point type!");
+  case BuiltinType::Half:       return Target->getHalfFormat();
   case BuiltinType::Float:      return Target->getFloatFormat();
   case BuiltinType::Double:     return Target->getDoubleFormat();
   case BuiltinType::LongDouble: return Target->getLongDoubleFormat();
@@ -905,6 +909,10 @@ ASTContext::getTypeInfo(const Type *T) const {
       Width = 128;
       Align = 128; // int128_t is 128-bit aligned on all targets.
       break;
+    case BuiltinType::Half:
+      Width = Target->getHalfWidth();
+      Align = Target->getHalfAlign();
+      break;
     case BuiltinType::Float:
       Width = Target->getFloatWidth();
       Align = Target->getFloatAlign();
@@ -1064,13 +1072,25 @@ ASTContext::getTypeInfo(const Type *T) const {
   }
 
   case Type::Atomic: {
-    // FIXME: The alignment needs to be "fixed".
-    return getTypeInfo(cast<AtomicType>(T)->getValueType());
+    std::pair<uint64_t, unsigned> Info
+      = getTypeInfo(cast<AtomicType>(T)->getValueType());
+    Width = Info.first;
+    Align = Info.second;
+    if (Width != 0 && Width <= Target->getMaxAtomicPromoteWidth() &&
+        llvm::isPowerOf2_64(Width)) {
+      // We can potentially perform lock-free atomic operations for this
+      // type; promote the alignment appropriately.
+      // FIXME: We could potentially promote the width here as well...
+      // is that worthwhile?  (Non-struct atomic types generally have
+      // power-of-two size anyway, but structs might not.  Requires a bit
+      // of implementation work to make sure we zero out the extra bits.)
+      Align = static_cast<unsigned>(Width);
+    }
   }
 
   }
 
-  assert(Align && (Align & (Align-1)) == 0 && "Alignment must be power of 2");
+  assert(llvm::isPowerOf2_32(Align) && "Alignment must be power of 2");
   return std::make_pair(Width, Align);
 }
 
@@ -3471,6 +3491,7 @@ static FloatingRank getFloatingRank(QualType T) {
   assert(T->getAs<BuiltinType>() && "getFloatingRank(): not a floating type");
   switch (T->getAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("getFloatingRank(): not a floating type");
+  case BuiltinType::Half:       return HalfRank;
   case BuiltinType::Float:      return FloatRank;
   case BuiltinType::Double:     return DoubleRank;
   case BuiltinType::LongDouble: return LongDoubleRank;

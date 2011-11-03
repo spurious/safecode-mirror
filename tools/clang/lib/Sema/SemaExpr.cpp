@@ -396,12 +396,14 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   // C99 6.3.2.1p2:
   //   If the lvalue has qualified type, the value has the unqualified
   //   version of the type of the lvalue; otherwise, the value has the
-  //   type of the lvalue.    
+  //   type of the lvalue.
   if (T.hasQualifiers())
     T = T.getUnqualifiedType();
-  
-  return Owned(ImplicitCastExpr::Create(Context, T, CK_LValueToRValue,
-                                        E, 0, VK_RValue));
+
+  ExprResult Res = Owned(ImplicitCastExpr::Create(Context, T, CK_LValueToRValue,
+                                                  E, 0, VK_RValue));
+
+  return Res;
 }
 
 ExprResult Sema::DefaultFunctionArrayLvalueConversion(Expr *E) {
@@ -426,10 +428,15 @@ ExprResult Sema::UsualUnaryConversions(Expr *E) {
   if (Res.isInvalid())
     return Owned(E);
   E = Res.take();
-  
+
   QualType Ty = E->getType();
   assert(!Ty.isNull() && "UsualUnaryConversions - missing type");
-  
+
+  // Half FP is a bit different: it's a storage-only type, meaning that any
+  // "use" of it should be promoted to float.
+  if (Ty->isHalfType())
+    return ImpCastExprToType(Res.take(), Context.FloatTy, CK_FloatingCast);
+
   // Try to perform integral promotions if the object has a theoretically
   // promotable type.
   if (Ty->isIntegralOrUnscopedEnumerationType()) {
@@ -446,7 +453,7 @@ ExprResult Sema::UsualUnaryConversions(Expr *E) {
     //   value is converted to an int; otherwise, it is converted to an
     //   unsigned int. These are called the integer promotions. All
     //   other types are unchanged by the integer promotions.
-  
+
     QualType PTy = Context.isPromotableBitField(E);
     if (!PTy.isNull()) {
       E = ImpCastExprToType(E, PTy, CK_IntegralCast).take();
@@ -523,7 +530,10 @@ ExprResult Sema::DefaultVariadicArgumentPromotion(Expr *E, VariadicCallType CT,
                           << E->getType() << CT))
     return ExprError();
 
-  if (!E->getType().isPODType(Context)) {
+  // Complain about passing non-POD types through varargs. However, don't
+  // perform this check for incomplete types, which we can get here when we're
+  // in an unevaluated context.
+  if (!E->getType()->isIncompleteType() && !E->getType().isPODType(Context)) {
     // C++0x [expr.call]p7:
     //   Passing a potentially-evaluated argument of class type (Clause 9) 
     //   having a non-trivial copy constructor, a non-trivial move constructor,
@@ -7211,9 +7221,9 @@ ExprResult Sema::ConvertPropertyForRValue(Expr *E) {
   }
   else {
     // lvalue-ness of an explicit property is determined by
-    // property type.
-    ObjCPropertyDecl *PDecl = PRE->getExplicitProperty();
-    VK = Expr::getValueKindForType(PDecl->getType());
+    // getter type.
+    QualType ResT = PRE->getGetterResultType();
+    VK = Expr::getValueKindForType(ResT);
   }
     
   E = ImplicitCastExpr::Create(Context, T, CK_GetObjCProperty,
@@ -8100,6 +8110,13 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
     Input = DefaultFunctionArrayLvalueConversion(Input.take());
     if (Input.isInvalid()) return ExprError();
     resultType = Input.get()->getType();
+
+    // Though we still have to promote half FP to float...
+    if (resultType->isHalfType()) {
+      Input = ImpCastExprToType(Input.take(), Context.FloatTy, CK_FloatingCast).take();
+      resultType = Context.FloatTy;
+    }
+
     if (resultType->isDependentType())
       break;
     if (resultType->isScalarType()) {

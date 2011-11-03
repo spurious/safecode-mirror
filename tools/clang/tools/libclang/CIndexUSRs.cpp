@@ -433,7 +433,7 @@ void USRGenerator::VisitTagDecl(TagDecl *D) {
   if (EmitDeclName(D)) {
     if (const TypedefNameDecl *TD = D->getTypedefNameForAnonDecl()) {
       Buf[off] = 'A';
-      Out << '@' << TD;
+      Out << '@' << *TD;
     }
     else
       Buf[off] = 'a';
@@ -570,6 +570,8 @@ void USRGenerator::VisitType(QualType T) {
           c = 'K'; break;
         case BuiltinType::Int128:
           c = 'J'; break;
+        case BuiltinType::Half:
+          c = 'h'; break;
         case BuiltinType::Float:
           c = 'f'; break;
         case BuiltinType::Double:

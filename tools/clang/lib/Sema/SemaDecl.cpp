@@ -1752,6 +1752,18 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, Decl *OldD) {
     RequiresAdjustment = true;
   }
 
+  // Merge ns_returns_retained attribute.
+  if (OldTypeInfo.getProducesResult() != NewTypeInfo.getProducesResult()) {
+    if (NewTypeInfo.getProducesResult()) {
+      Diag(New->getLocation(), diag::err_returns_retained_mismatch);
+      Diag(Old->getLocation(), diag::note_previous_declaration);      
+      return true;
+    }
+    
+    NewTypeInfo = NewTypeInfo.withProducesResult(true);
+    RequiresAdjustment = true;
+  }
+  
   if (RequiresAdjustment) {
     NewType = Context.adjustFunctionType(NewType, NewTypeInfo);
     New->setType(QualType(NewType, 0));
@@ -4717,7 +4729,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
          diag::err_object_cannot_be_passed_returned_by_value) << 0
     << R->getAs<FunctionType>()->getResultType()
     << FixItHint::CreateInsertion(D.getIdentifierLoc(), "*");
-    
+
     QualType T = R->getAs<FunctionType>()->getResultType();
     T = Context.getObjCObjectPointerType(T);
     if (const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(R)) {
@@ -4728,7 +4740,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     else if (isa<FunctionNoProtoType>(R))
       R = Context.getFunctionNoProtoType(T);
   }
-  
+
   bool isFriend = false;
   FunctionTemplateDecl *FunctionTemplate = 0;
   bool isExplicitSpecialization = false;
@@ -4789,6 +4801,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
           Diag(NewFD->getLocation(), diag::err_destructor_template);
           return 0;
         }
+        
+        // If we're adding a template to a dependent context, we may need to 
+        // rebuilding some of the types used within the template parameter list, 
+        // now that we know what the current instantiation is.
+        if (DC->isDependentContext()) {
+          ContextRAII SavedContext(*this, DC);
+          if (RebuildTemplateParamsInCurrentInstantiation(TemplateParams))
+            Invalid = true;
+        }
+        
 
         FunctionTemplate = FunctionTemplateDecl::Create(Context, DC,
                                                         NewFD->getLocation(),
@@ -5043,6 +5065,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     assert(R->isFunctionNoProtoType() && NewFD->getNumParams() == 0 &&
            "Should not need args for typedef of non-prototype fn");
   }
+
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 

@@ -33,7 +33,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Dwarf.h"
-#include "llvm/Support/Path.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace clang;
@@ -156,12 +156,10 @@ StringRef CGDebugInfo::getObjCMethodName(const ObjCMethodDecl *OMD) {
 /// getSelectorName - Return selector name. This is used for debugging
 /// info.
 StringRef CGDebugInfo::getSelectorName(Selector S) {
-  llvm::SmallString<256> SName;
-  llvm::raw_svector_ostream OS(SName);
-  OS << S.getAsString();
-  char *StrPtr = DebugInfoNames.Allocate<char>(OS.tell());
-  memcpy(StrPtr, SName.begin(), OS.tell());
-  return StringRef(StrPtr, OS.tell());
+  const std::string &SName = S.getAsString();
+  char *StrPtr = DebugInfoNames.Allocate<char>(SName.size());
+  memcpy(StrPtr, SName.data(), SName.size());
+  return StringRef(StrPtr, SName.size());
 }
 
 /// getClassName - Get class name including template argument list.
@@ -236,7 +234,7 @@ llvm::DIFile CGDebugInfo::getOrCreateMainFile() {
 /// getLineNumber - Get line number for the location. If location is invalid
 /// then use current location.
 unsigned CGDebugInfo::getLineNumber(SourceLocation Loc) {
-  assert (Loc.isValid() || CurLoc.isValid() && "Invalid current location!");
+  assert((Loc.isValid() || CurLoc.isValid()) && "Invalid current location!");
   SourceManager &SM = CGM.getContext().getSourceManager();
   PresumedLoc PLoc = SM.getPresumedLoc(Loc.isValid() ? Loc : CurLoc);
   return PLoc.isValid()? PLoc.getLine() : 0;
@@ -245,7 +243,7 @@ unsigned CGDebugInfo::getLineNumber(SourceLocation Loc) {
 /// getColumnNumber - Get column number for the location. If location is 
 /// invalid then use current location.
 unsigned CGDebugInfo::getColumnNumber(SourceLocation Loc) {
-  assert (Loc.isValid() || CurLoc.isValid() && "Invalid current location!");
+  assert((Loc.isValid() || CurLoc.isValid()) && "Invalid current location!");
   SourceManager &SM = CGM.getContext().getSourceManager();
   PresumedLoc PLoc = SM.getPresumedLoc(Loc.isValid() ? Loc : CurLoc);
   return PLoc.isValid()? PLoc.getColumn() : 0;
@@ -254,10 +252,10 @@ unsigned CGDebugInfo::getColumnNumber(SourceLocation Loc) {
 StringRef CGDebugInfo::getCurrentDirname() {
   if (!CWDName.empty())
     return CWDName;
-  char *CompDirnamePtr = NULL;
-  llvm::sys::Path CWD = llvm::sys::Path::GetCurrentDirectory();
-  CompDirnamePtr = DebugInfoNames.Allocate<char>(CWD.size());
-  memcpy(CompDirnamePtr, CWD.c_str(), CWD.size());
+  llvm::SmallString<256> CWD;
+  llvm::sys::fs::current_path(CWD);
+  char *CompDirnamePtr = DebugInfoNames.Allocate<char>(CWD.size());
+  memcpy(CompDirnamePtr, CWD.data(), CWD.size());
   return CWDName = StringRef(CompDirnamePtr, CWD.size());
 }
 
@@ -393,6 +391,7 @@ llvm::DIType CGDebugInfo::CreateType(const BuiltinType *BT) {
   case BuiltinType::WChar_S:
   case BuiltinType::LongLong:  Encoding = llvm::dwarf::DW_ATE_signed; break;
   case BuiltinType::Bool:      Encoding = llvm::dwarf::DW_ATE_boolean; break;
+  case BuiltinType::Half:
   case BuiltinType::Float:
   case BuiltinType::LongDouble:
   case BuiltinType::Double:    Encoding = llvm::dwarf::DW_ATE_float; break;

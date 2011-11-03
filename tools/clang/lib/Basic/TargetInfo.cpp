@@ -34,6 +34,8 @@ TargetInfo::TargetInfo(const std::string &T) : Triple(T) {
   IntWidth = IntAlign = 32;
   LongWidth = LongAlign = 32;
   LongLongWidth = LongLongAlign = 64;
+  HalfWidth = 16;
+  HalfAlign = 16;
   FloatWidth = 32;
   FloatAlign = 32;
   DoubleWidth = 64;
@@ -42,6 +44,7 @@ TargetInfo::TargetInfo(const std::string &T) : Triple(T) {
   LongDoubleAlign = 64;
   LargeArrayMinWidth = 0;
   LargeArrayAlign = 0;
+  MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 0;
   SizeType = UnsignedLong;
   PtrDiffType = SignedLong;
   IntMaxType = SignedLongLong;
@@ -56,6 +59,7 @@ TargetInfo::TargetInfo(const std::string &T) : Triple(T) {
   UseBitFieldTypeAlignment = true;
   UseZeroLengthBitfieldAlignment = false;
   ZeroLengthBitfieldBoundary = 0;
+  HalfFormat = &llvm::APFloat::IEEEhalf;
   FloatFormat = &llvm::APFloat::IEEEsingle;
   DoubleFormat = &llvm::APFloat::IEEEdouble;
   LongDoubleFormat = &llvm::APFloat::IEEEdouble;

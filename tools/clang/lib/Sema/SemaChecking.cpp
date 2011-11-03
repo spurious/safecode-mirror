@@ -475,7 +475,6 @@ ExprResult
 Sema::SemaAtomicOpsOverloaded(ExprResult TheCallResult, AtomicExpr::AtomicOp Op) {
   CallExpr *TheCall = cast<CallExpr>(TheCallResult.get());
   DeclRefExpr *DRE =cast<DeclRefExpr>(TheCall->getCallee()->IgnoreParenCasts());
-  Expr *Ptr, *Order, *Val1, *Val2, *OrderFail;
 
   // All these operations take one of the following four forms:
   // T   __atomic_load(_Atomic(T)*, int)                              (loads)
@@ -508,7 +507,7 @@ Sema::SemaAtomicOpsOverloaded(ExprResult TheCallResult, AtomicExpr::AtomicOp Op)
 
   // Inspect the first argument of the atomic operation.  This should always be
   // a pointer to an _Atomic type.
-  Ptr = TheCall->getArg(0);
+  Expr *Ptr = TheCall->getArg(0);
   Ptr = DefaultFunctionArrayLvalueConversion(Ptr).get();
   const PointerType *pointerType = Ptr->getType()->getAs<PointerType>();
   if (!pointerType) {
@@ -591,30 +590,24 @@ Sema::SemaAtomicOpsOverloaded(ExprResult TheCallResult, AtomicExpr::AtomicOp Op)
     TheCall->setArg(i, Arg.get());
   }
 
+  SmallVector<Expr*, 5> SubExprs;
+  SubExprs.push_back(Ptr);
   if (Op == AtomicExpr::Load) {
-    Order = TheCall->getArg(1);
-    return Owned(new (Context) AtomicExpr(TheCall->getCallee()->getLocStart(),
-                                          Ptr, Order, ResultType, Op,
-                                          TheCall->getRParenLoc(), false,
-                                          false));
+    SubExprs.push_back(TheCall->getArg(1)); // Order
   } else if (Op != AtomicExpr::CmpXchgWeak && Op != AtomicExpr::CmpXchgStrong) {
-    Val1 = TheCall->getArg(1);
-    Order = TheCall->getArg(2);
-    return Owned(new (Context) AtomicExpr(TheCall->getCallee()->getLocStart(),
-                                          Ptr, Val1, Order, ResultType, Op,
-                                          TheCall->getRParenLoc(), false,
-                                          false));
+    SubExprs.push_back(TheCall->getArg(2)); // Order
+    SubExprs.push_back(TheCall->getArg(1)); // Val1
   } else {
-    Val1 = TheCall->getArg(1);
-    Val2 = TheCall->getArg(2);
-    Order = TheCall->getArg(3);
-    OrderFail = TheCall->getArg(4);
-    return Owned(new (Context) AtomicExpr(TheCall->getCallee()->getLocStart(),
-                                          Ptr, Val1, Val2, Order, OrderFail,
-                                          ResultType, Op, 
-                                          TheCall->getRParenLoc(), false,
-                                          false));
+    SubExprs.push_back(TheCall->getArg(3)); // Order
+    SubExprs.push_back(TheCall->getArg(1)); // Val1
+    SubExprs.push_back(TheCall->getArg(2)); // Val2
+    SubExprs.push_back(TheCall->getArg(4)); // OrderFail
   }
+
+  return Owned(new (Context) AtomicExpr(TheCall->getCallee()->getLocStart(),
+                                        SubExprs.data(), SubExprs.size(),
+                                        ResultType, Op,
+                                        TheCall->getRParenLoc()));
 }
 
 
@@ -3378,34 +3371,22 @@ void DiagnoseImpCast(Sema &S, Expr *E, QualType T, SourceLocation CContext,
   DiagnoseImpCast(S, E, E->getType(), T, CContext, diag);
 }
 
-/// Diagnose an implicit cast from a literal expression. Also attemps to supply
-/// fixit hints when the cast wouldn't lose information to simply write the
-/// expression with the expected type.
+/// Diagnose an implicit cast from a literal expression. Does not warn when the
+/// cast wouldn't lose information.
 void DiagnoseFloatingLiteralImpCast(Sema &S, FloatingLiteral *FL, QualType T,
                                     SourceLocation CContext) {
-  // Emit the primary warning first, then try to emit a fixit hint note if
-  // reasonable.
-  S.Diag(FL->getExprLoc(), diag::warn_impcast_literal_float_to_integer)
-    << FL->getType() << T << FL->getSourceRange() << SourceRange(CContext);
-
-  const llvm::APFloat &Value = FL->getValue();
-
-  // Don't attempt to fix PPC double double literals.
-  if (&Value.getSemantics() == &llvm::APFloat::PPCDoubleDouble)
-    return;
-
-  // Try to convert this exactly to an integer.
+  // Try to convert the literal exactly to an integer. If we can, don't warn.
   bool isExact = false;
+  const llvm::APFloat &Value = FL->getValue();
   llvm::APSInt IntegerValue(S.Context.getIntWidth(T),
                             T->hasUnsignedIntegerRepresentation());
   if (Value.convertToInteger(IntegerValue,
                              llvm::APFloat::rmTowardZero, &isExact)
-      != llvm::APFloat::opOK || !isExact)
+      == llvm::APFloat::opOK && isExact)
     return;
 
-  std::string LiteralValue = IntegerValue.toString(10);
-  S.Diag(FL->getExprLoc(), diag::note_fix_integral_float_as_integer)
-    << FixItHint::CreateReplacement(FL->getSourceRange(), LiteralValue);
+  S.Diag(FL->getExprLoc(), diag::warn_impcast_literal_float_to_integer)
+    << FL->getType() << T << FL->getSourceRange() << SourceRange(CContext);
 }
 
 std::string PrettyPrintInRange(const llvm::APSInt &Value, IntRange Range) {

@@ -53,6 +53,9 @@ def err_invalid_storage_class_in_func_decl : Error<
 def err_expected_namespace_name : Error<"expected namespace name">;
 def ext_variadic_templates : ExtWarn<
   "variadic templates are a C++11 extension">, InGroup<CXX11>;
+def warn_cxx98_compat_variadic_templates :
+  Warning<"variadic templates are incompatible with C++98">,
+  InGroup<CXX98Compat>, DefaultIgnore;
 def err_default_special_members : Error<
   "only special member functions may be defaulted">;
 def err_friends_define_only_namespace_scope : Error<
@@ -71,6 +74,9 @@ def note_pragma_entered_here : Note<"#pragma entered here">;
 def ext_longlong : Extension<
   "'long long' is an extension when C99 mode is not enabled">,
   InGroup<LongLong>;
+def warn_cxx98_compat_longlong : Warning<
+  "'long long' is incompatible with C++98">,
+  InGroup<CXX98CompatPedantic>, DefaultIgnore;
 def warn_integer_too_large : Warning<
   "integer constant is too large for its type">;
 def warn_integer_too_large_for_signed : Warning<

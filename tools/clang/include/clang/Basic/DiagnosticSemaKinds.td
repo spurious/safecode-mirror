@@ -312,6 +312,8 @@ def err_statically_allocated_object : Error<
 def err_object_cannot_be_passed_returned_by_value : Error<
   "interface type %1 cannot be %select{returned|passed}0 by value"
   "; did you forget * in %1">;
+def err_parameters_retval_cannot_have_fp16_type : Error<
+  "%select{parameters|function return value}0 cannot have __fp16 type; did you forget * ?">;
 def warn_enum_value_overflow : Warning<"overflow in enumeration value">;
 def warn_pragma_options_align_unsupported_option : Warning<
   "unsupported alignment option in '#pragma options align'">;
@@ -1439,6 +1441,9 @@ def err_cconv_varargs : Error<
 def err_regparm_mismatch : Error<"function declared with with regparm(%0) "
   "attribute was previously declared "
   "%plural{0:without the regparm|:with the regparm(%1)}1 attribute">;
+def err_returns_retained_mismatch : Error<
+  "function declared with the ns_returns_retained attribute "
+  "was previously declared without the ns_returns_retained attribute">;
 def err_objc_precise_lifetime_bad_type : Error<
   "objc_precise_lifetime only applies to retainable types; type here is %0">;
 def warn_objc_precise_lifetime_meaningless : Error<
@@ -1560,8 +1565,6 @@ def warn_impcast_literal_float_to_integer : Warning<
 def warn_impcast_string_literal_to_bool : Warning<
   "implicit conversion turns string literal into bool: %0 to %1">,
   InGroup<DiagGroup<"string-conversion">>, DefaultIgnore;
-def note_fix_integral_float_as_integer : Note<
-  "this can be rewritten as an integer literal with the exact same value">;
 def warn_impcast_different_enum_types : Warning<
   "implicit conversion from enumeration type %0 to different enumeration type "
   "%1">, InGroup<DiagGroup<"conversion">>;
@@ -2411,6 +2414,8 @@ def note_explicit_instantiation_candidate : Note<
   "explicit instantiation candidate function template here %0">;
 def err_explicit_instantiation_inline : Error<
   "explicit instantiation cannot be 'inline'">;
+def err_explicit_instantiation_constexpr : Error<
+  "explicit instantiation cannot be 'constexpr'">;
 def ext_explicit_instantiation_without_qualified_id : Extension<
   "qualifier in explicit instantiation of %q0 requires a template-id "
   "(a typedef is not permitted)">;
@@ -2997,8 +3002,7 @@ def err_arc_method_not_found : Error<
 def err_arc_receiver_forward_class : Error<
   "receiver %0 for class message is a forward declaration">;
 def err_arc_may_not_respond : Error<
-  "receiver type %0 for instance message does not declare a method with "
-  "selector %1">;
+  "no visible @interface for %0 declares the selector %1">;
 def err_arc_receiver_forward_instance : Error<
   "receiver type %0 for instance message is a forward declaration">;
 def err_arc_collection_forward : Error<
@@ -3125,8 +3129,10 @@ def warn_floatingpoint_eq : Warning<
 
 def warn_division_by_zero : Warning<"division by zero is undefined">;
 def warn_remainder_by_zero : Warning<"remainder by zero is undefined">;
-def warn_shift_negative : Warning<"shift count is negative">;
-def warn_shift_gt_typewidth : Warning<"shift count >= width of type">;
+def warn_shift_negative : Warning<"shift count is negative">,
+  InGroup<DiagGroup<"shift-count-negative">>;
+def warn_shift_gt_typewidth : Warning<"shift count >= width of type">,
+  InGroup<DiagGroup<"shift-count-overflow">>;
 def warn_shift_result_gt_typewidth : Warning<
   "signed shift result (%0) requires %1 bits to represent, but %2 only has "
   "%3 bits">, InGroup<DiagGroup<"shift-overflow">>;
