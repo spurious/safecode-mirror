@@ -128,6 +128,90 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
   return;
 }
 
+void
+InsertLSChecks::visitAtomicCmpXchgInst (AtomicCmpXchgInst & AI) {
+  //
+  // Create a value representing the amount of memory, in bytes, that will be
+  // modified.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  LLVMContext & Context = AI.getContext();
+  uint64_t TypeSize=TD.getTypeStoreSize(AI.getType());
+  IntegerType * IntType = IntegerType::getInt32Ty (Context);
+  Value * AccessSize = ConstantInt::get (IntType, TypeSize);
+
+  //
+  // Create an STL container with the arguments.
+  // The first argument is the pool handle (which is a NULL pointer).
+  // The second argument is the pointer to check.
+  //
+  std::vector<Value *> args;
+  args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
+  args.push_back(castTo (AI.getPointerOperand(), getVoidPtrType(Context), &AI));
+  args.push_back (AccessSize);
+
+  //
+  // Create the call to the run-time check.  Place it *before* the compare and
+  // exchange instruction.
+  //
+  CallInst * CI = CallInst::Create (PoolCheckUI, args, "", &AI);
+
+  //
+  // If there's debug information on the load instruction, add it to the
+  // run-time check.
+  //
+  if (MDNode * MD = AI.getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
+
+  //
+  // Update the statistics.
+  //
+  ++LSChecks;
+  return;
+}
+
+void
+InsertLSChecks::visitAtomicRMWInst (AtomicRMWInst & AI) {
+  //
+  // Create a value representing the amount of memory, in bytes, that will be
+  // modified.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  LLVMContext & Context = AI.getContext();
+  uint64_t TypeSize=TD.getTypeStoreSize(AI.getType());
+  IntegerType * IntType = IntegerType::getInt32Ty (Context);
+  Value * AccessSize = ConstantInt::get (IntType, TypeSize);
+
+  //
+  // Create an STL container with the arguments.
+  // The first argument is the pool handle (which is a NULL pointer).
+  // The second argument is the pointer to check.
+  //
+  std::vector<Value *> args;
+  args.push_back(ConstantPointerNull::get (getVoidPtrType(Context)));
+  args.push_back(castTo (AI.getPointerOperand(), getVoidPtrType(Context), &AI));
+  args.push_back (AccessSize);
+
+  //
+  // Create the call to the run-time check.  Place it *before* the compare and
+  // exchange instruction.
+  //
+  CallInst * CI = CallInst::Create (PoolCheckUI, args, "", &AI);
+
+  //
+  // If there's debug information on the load instruction, add it to the
+  // run-time check.
+  //
+  if (MDNode * MD = AI.getMetadata ("dbg"))
+    CI->setMetadata ("dbg", MD);
+
+  //
+  // Update the statistics.
+  //
+  ++LSChecks;
+  return;
+}
+
 //
 // Method: doInitialization()
 //

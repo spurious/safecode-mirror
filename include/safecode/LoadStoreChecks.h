@@ -46,6 +46,8 @@ struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
     // Visitor methods
     void visitLoadInst  (LoadInst  & LI);
     void visitStoreInst (StoreInst & SI);
+    void visitAtomicCmpXchgInst (AtomicCmpXchgInst &I);
+    void visitAtomicRMWInst (AtomicRMWInst &I);
 
   protected:
     // Pointer to load/store run-time check function
