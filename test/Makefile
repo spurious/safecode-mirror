@@ -453,7 +453,9 @@ cputrack::
 SC_LIB := $(PROJ_OBJ_ROOT)/$(BuildMode)/lib
 SC_BIN := $(PROJ_OBJ_ROOT)/$(BuildMode)/bin/clang
 
-SETPATH = PATH=$(PROJ_OBJ_ROOT)/test/tools:$(PATH) SC_OBJ_ROOT=$(PROJ_OBJ_ROOT)
+SETENV = TARGET_TRIPLE=$(TARGET_TRIPLE)           \
+         PATH=$(PROJ_OBJ_ROOT)/test/tools:$(PATH) \
+         SC_OBJ_ROOT=$(PROJ_OBJ_ROOT)
 
 # Path to test files
 CSTDLIB=$(PROJ_SRC_ROOT)/test/cstdlib
@@ -468,12 +470,12 @@ lit: lit-formatstrings lit-cstdlib
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
 	@mkdir -p $(CSTDLIBOBJ)
-	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB)
+	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB)
 
 # Run the lit tests for format string functions
 lit-formatstrings: $(TESTSCRIPT)
 	@mkdir -p $(FMTSTROBJ)
-	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR)
+	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR)
 
 # Build the script to run the lit tests
 $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in

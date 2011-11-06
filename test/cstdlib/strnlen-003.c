@@ -1,4 +1,5 @@
 // RUN: test.sh -p -t %t %s
+// XFAIL: darwin
 #include <string.h>
 #include <assert.h>
 

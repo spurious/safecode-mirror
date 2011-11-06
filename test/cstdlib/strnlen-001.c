@@ -1,4 +1,5 @@
 // RUN: test.sh -e -t %t %s
+// XFAIL: darwin
 #include <string.h>
 
 // strnlen() reads out of bounds.

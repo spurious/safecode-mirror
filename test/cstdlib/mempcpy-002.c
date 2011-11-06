@@ -1,4 +1,5 @@
 // RUN: test.sh -e -t %t %s
+// XFAIL: darwin
 #define _GNU_SOURCE
 #include <string.h>
 
