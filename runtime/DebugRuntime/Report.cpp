@@ -106,13 +106,28 @@ ViolationInfo::print(std::ostream & OS) const {
 
 void
 ReportMemoryViolation(const ViolationInfo *v) {
+  // Flag for whether to terminate when an error is detected.
+  extern unsigned StopOnError;
+
+  //
+  // Print the error to the error log.
+  //
 	v->print(*ErrorLog);
   *ErrorLog << std::flush;
-#if 0
+
+  //
+  // If we need to terminate now, do that.
+  //
+  if (StopOnError)
+    abort();
+
+  //
+  // Otherwise, report a certain number of errors before terminating the
+  // program.
+  //
   static unsigned count = 20;
   --count;
   if (!count) abort();
-#endif
   return;
 }
 

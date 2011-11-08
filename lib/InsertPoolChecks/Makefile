@@ -12,6 +12,7 @@ SOURCES = GEPChecks.cpp \
           RegisterRuntimeInitializer.cpp \
           RegisterStackObjPass.cpp \
           CompleteChecks.cpp \
+          Terminate.cpp \
           #AlignmentChecks.cpp \
           #MonotonicLoopOpt.cpp \
           #ClearCheckAttributes.cpp \

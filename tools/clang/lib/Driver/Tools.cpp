@@ -1754,6 +1754,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fmemsafety");
   }
 
+  if (Args.getLastArg(options::OPT_terminate)) {
+    CmdArgs.push_back("-fmemsafety-terminate");
+  }
+
   if (Arg *MemSafetyLogOpt = Args.getLastArg(options::OPT_msLogFile)) {
     CmdArgs.push_back("-fmemsafety-logfile");
     CmdArgs.push_back(MemSafetyLogOpt->getValue (Args));

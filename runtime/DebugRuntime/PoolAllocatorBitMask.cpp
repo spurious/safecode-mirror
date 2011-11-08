@@ -87,6 +87,8 @@ uintptr_t InvalidLower = 0x00000003;
 // Splay tree for mapping shadow pointers to canonical pointers
 static RangeSplayMap<void *> ShadowMap;
 
+// Configuration for C code; flags that we should stop on the first error
+unsigned StopOnError = 0;
 }
 
 using namespace llvm;
@@ -97,9 +99,6 @@ std::map<unsigned,unsigned> freeSeqMap;
 
 /// UNUSED in production version
 FILE * ReportLog = 0;
-
-// Configuration for C code; flags that we should stop on the first error
-unsigned StopOnError = 0;
 
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);

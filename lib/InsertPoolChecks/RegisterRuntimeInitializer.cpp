@@ -142,23 +142,14 @@ RegisterRuntimeInitializer::constructInitializer(llvm::Module & M) {
   std::vector<Value *> args;
 
   //
-  // FIXME: For now, assume explicit dangling pointer checks are disabled,
-  //        rewrite pointers are enabled, and that we should terminate on
-  //        errors.  Some more refactoring will be needed to make all of this
-  //        work properly.
+  // By default, explicit dangling pointer checks are disabled,
+  // rewrite pointers are enabled, and we should not terminate on
+  // errors.  Some more refactoring will be needed to make all of this
+  // work properly.
   //
-#if 0
-  if (SCConfig.dpChecks())
-    args.push_back (ConstantInt::get(Int32Type, 1));
-  else
-    args.push_back (ConstantInt::get(Int32Type, 0));
-  args.push_back (ConstantInt::get(Int32Type, SCConfig.rewriteOOB()));
-  args.push_back (ConstantInt::get(Int32Type, SCConfig.terminateOnErrors()));
-#else
   args.push_back (ConstantInt::get(Int32Type, 0));
   args.push_back (ConstantInt::get(Int32Type, 1));
-  args.push_back (ConstantInt::get(Int32Type, 1));
-#endif
+  args.push_back (ConstantInt::get(Int32Type, 0));
   CallInst::Create (RuntimeInit, args, "", BB); 
 
   args.clear();

@@ -49,6 +49,7 @@
 #include "safecode/RegisterBounds.h"
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/RewriteOOB.h"
+#include "safecode/SAFECodePasses.h"
 
 using namespace clang;
 using namespace llvm;
@@ -230,6 +231,9 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new OptimizeChecks());
     MPM->add (new DebugInstrument());
     MPM->add (new RewriteOOB());
+    if (CodeGenOpts.MemSafeTerminate) {
+      MPM->add (llvm::createSCTerminatePass ());
+    }
   }
   
   PMBuilder.populateModulePassManager(*MPM);

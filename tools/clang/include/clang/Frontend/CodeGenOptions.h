@@ -96,6 +96,7 @@ public:
   unsigned UnsafeFPMath      : 1; /// Allow unsafe floating point optzns.
   unsigned UnwindTables      : 1; /// Emit unwind tables.
   unsigned MemSafety         : 1; /// Instrument code with memory safety checks
+  unsigned MemSafeTerminate  : 1; /// Terminate program on failed memsafe checks
 
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
