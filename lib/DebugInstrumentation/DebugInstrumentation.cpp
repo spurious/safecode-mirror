@@ -497,6 +497,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_strcasestr"), LInfo);
   transformFunction (M.getFunction ("pool_strcasecmp"), LInfo);
   transformFunction (M.getFunction ("pool_strncasecmp"), LInfo);
+  transformFunction (M.getFunction ("pool_fgets"), LInfo);
 
   return true;
 }
