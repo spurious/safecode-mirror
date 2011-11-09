@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstdio>
+
 #include "safecode/Config/config.h"
 #include "CStdLib.h"
 
