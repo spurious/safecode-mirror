@@ -151,6 +151,10 @@ extern "C"
 
   int pool_strncasecmp(PPOOL s1p,PPOOL s2p, char *s1, char *s2, size_t num, COMPLETE);
   int pool_strncasecmp_debug(PPOOL s1p,PPOOL s2p, char *s1, char *s2, size_t num, COMPLETE, DEBUG_INFO);
+
+  char * pool_fgets (PPOOL, char * s, int n, FILE * stream, COMPLETE);
+  char * pool_fgets_debug (PPOOL, char * s, int n, FILE * stream, COMPLETE, DEBUG_INFO);
+
 }
 
 #undef PPOOL

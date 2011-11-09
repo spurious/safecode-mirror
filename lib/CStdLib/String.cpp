@@ -104,6 +104,8 @@ STATISTIC(st_xform_rindex,  "Total rindex() calls transformed");
 STATISTIC(st_xform_strcasecmp,  "Total strcasecmp() calls transformed");
 STATISTIC(st_xform_strncasecmp, "Total strncasecmp() calls transformed");
 
+STATISTIC(st_xform_fgets, "Total fgets() calls transformed");
+
 //
 // Functions that aren't handled (yet...):
 //  - stpncpy and __stpncpy_chk
@@ -206,6 +208,8 @@ StringTransform::runOnModule(Module &M)
   chgd |= vtransform(M, StpcpyChk, PoolStpcpy, st_xform_stpcpy, 1, 2);
 #endif
 
+  // Functions from <stdio.h> 
+  chgd |= transform(M, "fgets", 3, 1, VoidPtrTy, st_xform_fgets);
   return chgd;
 }
 
