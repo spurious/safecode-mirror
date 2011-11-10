@@ -125,9 +125,12 @@ CompleteChecks::getDSNodeHandle (const Value * V, const Function * F) {
 //  PoolArgs     - The number of initial pool arguments for which a
 //                 corresponding pointer value requires a completeness check
 //                 (required to be at most 8).
+//  IsDebug      - Flags that this is a debug version of the function.
 //
 void
-CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
+CompleteChecks::makeCStdLibCallsComplete (Function *F,
+                                          unsigned PoolArgs,
+                                          bool IsDebug) {
   assert(F != 0 && "Null function argument!");
 
   assert(PoolArgs <= 8 && \
@@ -160,7 +163,11 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
   //
   // This is the position of the vector operand in the call.
   //
-  unsigned vect_position = F_type->getNumParams();
+  unsigned vect_position;
+  if (IsDebug)
+    vect_position = F_type->getNumParams() - 4;
+  else
+    vect_position = F_type->getNumParams() - 1;
 
   assert(F_type->getParamType(vect_position - 1) == int8ty && \
     "Last parameter to the function should be a byte!");
@@ -171,8 +178,8 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
   //
   for (; U != E; ++U) {
     CallInst *CI;
-    if ((CI = dyn_cast<CallInst>(*U)) && \
-      CI->getCalledValue()->stripPointerCasts() == F) {
+    if ((CI = dyn_cast<CallInst>(*U)) &&
+         CI->getCalledValue()->stripPointerCasts() == F) {
 
       uint8_t vector = 0x0;
 
@@ -185,12 +192,13 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
       // Iterate over the pointer arguments that need completeness checking
       // and build the completeness vector.
       //
+      CallSite CS (CI);
       for (unsigned arg = 0; arg < PoolArgs; ++arg) {
         bool complete = true;
         //
         // Go past all the pool arguments to get the pointer to check.
         //
-        Value *V = CI->getOperand(1 + PoolArgs + arg);
+        Value *V = CS.getArgument(PoolArgs + arg)->stripPointerCasts();
 
         //
         // Check for completeness of the pointer using DSA and 
@@ -215,7 +223,6 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
     }
   }
 
-
   //
   // Iterate over all call instructions that need changing, modifying the
   // final operand of the call to hold the bit vector value.
@@ -225,7 +232,8 @@ CompleteChecks::makeCStdLibCallsComplete(Function *F, unsigned PoolArgs) {
 
   while (change != change_end) {
     Constant *vect_value = ConstantInt::get(int8ty, change->second);
-    change->first->setOperand(vect_position, vect_value);
+    CallSite CS (change->first);
+    CS.setArgument(vect_position, vect_value);
     ++change;
   }
 
@@ -537,8 +545,15 @@ CompleteChecks::runOnModule (Module & M) {
   //
   for (const CStdLibPoolArgCountEntry *entry = &CStdLibPoolArgCounts[0];
        entry->function != 0; ++entry) {
-    if (Function * f = M.getFunction(entry->function)) {
-      makeCStdLibCallsComplete(f, entry->pool_argc);
+    std::string funcname = entry->function;
+    // Process the regular version
+    if (Function * f = M.getFunction(funcname)) {
+      makeCStdLibCallsComplete(f, entry->pool_argc, false);
+    }
+
+    // Process the debug version
+    if (Function * f = M.getFunction(funcname + "_debug")) {
+      makeCStdLibCallsComplete(f, entry->pool_argc, true);
     }
   }
 

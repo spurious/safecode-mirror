@@ -49,7 +49,7 @@ struct CompleteChecks : public ModulePass {
     // Protected methods
     DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
     void makeComplete (Module & M, const struct CheckInfo & CheckInfo);
-    void makeCStdLibCallsComplete(Function *, unsigned);
+    void makeCStdLibCallsComplete(Function *, unsigned, bool);
     void makeFSParameterCallsComplete(Module &M);
     void fixupCFIChecks (Module & M, std::string name);
     void getFunctionTargets (CallSite CS, std::vector<const Function *> & T);
