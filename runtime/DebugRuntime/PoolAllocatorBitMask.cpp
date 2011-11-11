@@ -406,7 +406,7 @@ _internal_poolregister (DebugPoolTy *Pool,
   //
   if (!(SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1))) {
     //
-    // If it's an overlapping global object, register the larger size.
+    // If it's an overlapping global object, register the largest size.
     //
     if (allocationType == Global) {
       void * start;
@@ -417,10 +417,11 @@ _internal_poolregister (DebugPoolTy *Pool,
 #else
       SPTree->find (allocaptr, start, end);
 #endif
-      if (((unsigned char *)allocaptr + NumBytes - 1) > end) {
-        SPTree->remove (allocaptr);
-        SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1);
-      }
+      SPTree->remove (start);
+      void * NewEnd = ((unsigned char *)allocaptr + NumBytes - 1);
+      void * ObjStart = (allocaptr < start) ? allocaptr : start;
+      void * ObjEnd = (NewEnd > end) ? NewEnd : end;
+      SPTree->insert(ObjStart, ObjEnd);
     } else {
       assert (0 && "poolregister failed: Object already registered!\n");
       abort();
