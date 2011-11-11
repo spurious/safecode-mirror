@@ -682,7 +682,7 @@ boundscheck_check (bool found, void * ObjStart, void * ObjEnd,
 				  v.PoolHandle = Pool, 
           v.SourceFile = SourceFile,
           v.lineNo = lineno,
-          v.objStart = ObjStart,
+          v.objStart = S,
           v.objLen = (unsigned)((char*) end - (char*)(S)) + 1;
 
         ReportMemoryViolation(&v);
