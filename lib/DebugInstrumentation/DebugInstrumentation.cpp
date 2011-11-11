@@ -230,7 +230,8 @@ VariableSourceInfo::operator() (CallInst * CI) {
   //
   // Get the value for which we want debug information.
   //
-  Value * V = CI->getOperand(2)->stripPointerCasts();
+  CallSite CS(CI);
+  Value * V = CS.getArgument(1)->stripPointerCasts();
   
   //
   // Try to get information about where in the program the value was allocated.
