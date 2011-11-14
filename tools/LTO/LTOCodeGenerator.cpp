@@ -49,6 +49,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include "safecode/CompleteChecks.h"
+#include "safecode/OptimizeChecks.h"
 
 #include <cstdlib>
 #include <unistd.h>
@@ -362,6 +363,7 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   // Add the SAFECode optimization/finalization passes
   passes.add(new TargetData(*_target->getTargetData()));
+  passes.add(new ExactCheckOpt());
   passes.add(new CompleteChecks());
 
   // apply scope restrictions
