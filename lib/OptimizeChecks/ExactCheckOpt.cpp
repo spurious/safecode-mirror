@@ -76,6 +76,12 @@ ExactCheckOpt::runOnModule(Module & M) {
   //
   for (unsigned index = 0; index < numChecks; ++index) {
     //
+    // Skip function checks.
+    //
+    if (RuntimeChecks[index].checkType == funccheck)
+      continue;
+
+    //
     // Clear the list of calls to intrinsics that must be removed.
     //
     checkingIntrinsicsToBeRemoved.clear();
@@ -205,7 +211,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
   // So, if this is a memory check, make sure that the object cannot be freed
   // before the check.  Global variables and stack allocations cannot be freed.
   //
-  if ((!(Info.isMemcheck)) ||
+  if ((!(Info.isMemCheck())) ||
       ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr))) {
     //
     // Attempt to get the size of the pointer.  If a size is returned, we know
@@ -214,7 +220,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
     //
     AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
     if (Value * Size = AIP.getObjectSize(BasePtr)) {
-      rewriteToExactCheck(Info.isMemcheck, CI, BasePtr, CheckPtr, CheckLen, Size);
+      rewriteToExactCheck(Info.isMemCheck(), CI, BasePtr, CheckPtr, CheckLen, Size);
       return true;
     }
   }

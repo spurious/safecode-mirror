@@ -202,7 +202,7 @@ OptimizeChecks::runOnModule (Module & M) {
   //
   bool modified = false;
   for (unsigned index = 0; index < numChecks; ++index) {
-    if (!(RuntimeChecks[index].isMemcheck)) {
+    if (RuntimeChecks[index].checkType == gepcheck) {
       //
       // Analyze calls to this run-time check and remove them if possible.
       //

@@ -356,7 +356,7 @@ RewriteOOB::runOnModule (Module & M) {
     //
     // If this is not a pointer arithmetic check, skip it.
     //
-    if (!(RuntimeChecks[index].isMemcheck)) {
+    if (RuntimeChecks[index].checkType == gepcheck) {
       //
       // Transform the function so that the pointer it checks is replaced with
       // its return value.  The return value is the rewritten OOB pointer.

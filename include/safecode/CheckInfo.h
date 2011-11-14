@@ -23,6 +23,8 @@ using namespace llvm;
 
 namespace {
 
+enum CheckType {memcheck, gepcheck, funccheck};
+
 //
 // Structure: CheckInfo
 //
@@ -40,13 +42,17 @@ struct CheckInfo {
   unsigned char argno;
 
   // A boolean indicating whether it is a memory check or a bounds check
-  bool isMemcheck;
+  CheckType checkType;
 
   // The argument of the length (if appropriate)
   unsigned char lenArg;
 
   // A boolean indicating whether the check is complete
   bool isComplete;
+
+  bool isMemCheck (void) const {
+    return checkType == memcheck;
+  }
 
   Value * getCheckedPointer (CallInst * CI) const {
     CallSite CS(CI);
@@ -69,28 +75,28 @@ struct CheckInfo {
 static const unsigned numChecks = 20;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
-  {"poolcheck",        "lscheck",      1, true,  2, true},
-  {"poolcheckui",      "lscheck",      1, true,  2, false},
-  {"poolcheckalign",   "lscheckalign", 1, true,  0, true},
-  {"poolcheckalignui", "lscheckalign", 1, true,  0, false},
-  {"boundscheck",      "boundscheck",  2, false, 0, true},
-  {"boundscheckui",    "boundscheck",  2, false, 0, false},
-  {"exactcheck2",      "exactcheck2",  1, false, 0, true},
-  {"fastlscheck",      "fastlscheck",  1, true,  3, true},
-  {"funccheck",        "funccheck",    0, true,  0, true},
-  {"funccheckui",      "funccheck",    0, true,  0, false},
+  {"poolcheck",        "lscheck",      1, memcheck,  2, true},
+  {"poolcheckui",      "lscheck",      1, memcheck,  2, false},
+  {"poolcheckalign",   "lscheckalign", 1, memcheck,  0, true},
+  {"poolcheckalignui", "lscheckalign", 1, memcheck,  0, false},
+  {"boundscheck",      "boundscheck",  2, gepcheck, 0, true},
+  {"boundscheckui",    "boundscheck",  2, gepcheck, 0, false},
+  {"exactcheck2",      "exactcheck2",  1, gepcheck, 0, true},
+  {"fastlscheck",      "fastlscheck",  1, memcheck,  3, true},
+  {"funccheck",        "funccheck",    0, funccheck,  0, true},
+  {"funccheckui",      "funccheck",    0, funccheck,  0, false},
 
   // Debug versions of the above
-  {"poolcheck_debug",        "poolcheck_debug",      1, true,  2, true},
-  {"poolcheckui_debug",      "poolcheck_debug",      1, true,  2, false},
-  {"poolcheckalign_debug",   "poolcheckalign_debug", 1, true,  0, true},
-  {"poolcheckalignui_debug", "poolcheckalign_debug", 1, true,  0, false},
-  {"boundscheck_debug",      "boundscheck_debug",  2, false, 0, true},
-  {"boundscheckui_debug",    "boundscheck_debug",  2, false, 0, false},
-  {"exactcheck2_debug",      "exactcheck2_debug",  1, false, 0, true},
-  {"fastlscheck_debug",      "fastlscheck_debug",  1, true, 3, true},
-  {"funccheck_debug",        "funccheck_debug",    1, true,  0, true},
-  {"funccheckui_debug",      "funccheck_debug",    1, true,  0, false}
+  {"poolcheck_debug",        "poolcheck_debug",      1, memcheck,  2, true},
+  {"poolcheckui_debug",      "poolcheck_debug",      1, memcheck,  2, false},
+  {"poolcheckalign_debug",   "poolcheckalign_debug", 1, memcheck,  0, true},
+  {"poolcheckalignui_debug", "poolcheckalign_debug", 1, memcheck,  0, false},
+  {"boundscheck_debug",      "boundscheck_debug",  2, gepcheck, 0, true},
+  {"boundscheckui_debug",    "boundscheck_debug",  2, gepcheck, 0, false},
+  {"exactcheck2_debug",      "exactcheck2_debug",  1, gepcheck, 0, true},
+  {"fastlscheck_debug",      "fastlscheck_debug",  1, memcheck, 3, true},
+  {"funccheck_debug",        "funccheck_debug",    1, funccheck,  0, true},
+  {"funccheckui_debug",      "funccheck_debug",    1, funccheck,  0, false}
 };
 
 //
