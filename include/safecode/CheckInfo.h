@@ -62,7 +62,6 @@ struct CheckInfo {
     return 0;
   }
 };
-}
 
 //
 // Create a table describing all of the SAFECode run-time checks.
@@ -115,5 +114,6 @@ isRuntimeCheck (const Function * F) {
   }
 
   return false;
+}
 }
 #endif
