@@ -9,14 +9,14 @@ include $(PROJ_OBJ_ROOT)/Makefile.common
 EXTRA_LOPT_OPTIONS :=
 
 ifdef DEBUG_SAFECODE
-CFLAGS := -g -O0 -fno-strict-aliasing -fno-merge-constants
+#CFLAGS := -g -O0 -fno-strict-aliasing -fno-merge-constants
 LLCFLAGS := -disable-fp-elim
 LLVMLDFLAGS := -disable-opt
 OPTZN_PASSES := -mem2reg -simplifycfg -adce
 
 WHOLE_PROGRAM_BC_SUFFIX := linked.rbc
 else
-CFLAGS := -g -O2 -fno-strict-aliasing -fno-merge-constants
+#CFLAGS := -g -O2 -fno-strict-aliasing -fno-merge-constants
 OPTZN_PASSES := -std-compile-opts
 
 WHOLE_PROGRAM_BC_SUFFIX := llvm.bc
@@ -32,9 +32,13 @@ SCOPTS2 := -pa=apa
 #SCOPTS2 := -dpchecks
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
+CLANG    = $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
+CLANGXX  = $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang++
 
 # Pool allocator pass shared object
 PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
+
+LDFLAGS += -L$(PROJECT_DIR)/$(CONFIGURATION)/lib
 
 # Bits of runtime to improve analysis
 PA_PRE_RT_BC := $(POOLALLOC_OBJDIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
@@ -83,75 +87,31 @@ endif
 #      this, in turn, causes test cases to fail unnecessairly.
 #CBECFLAGS += -g
 
-#
-# This rule links in part of the SAFECode run-time with the original program.
-#
-$(PROGRAMS_TO_TEST:%=Output/%.presc.bc): \
-Output/%.presc.bc: Output/%.$(WHOLE_PROGRAM_BC_SUFFIX) $(LOPT) $(PA_PRE_RT_BC)
-	-@rm -f $(CURDIR)/$@.info
-	-$(LLVMLD) $(LLVMLDFLAGS) -link-as-library -o $@.paprert.bc $< $(PA_PRE_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(PRE_SC_OPT_FLAGS) $@.paprert.bc -f -o $@ 2>&1 > $@.out
+SCObjs    := $(sort $(addsuffix .sc.o, $(notdir $(basename $(Source)))))
+SCObjects := $(addprefix Output/,$(SCObjs))
+
+.PRECIOUS: $(SCObjects)
 
 #
-# Create a SAFECode executable without pointer rewriting.
+# This rule compiles a single object file with SAFECode Clang
 #
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.bc): \
-Output/%.noOOB.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
-	-@rm -f $(CURDIR)/$@.info
-	-$(SC_STATS) $(SCOPTS) $< -f -o $@.noOOB 2>&1 > $@.out
-	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.noOOB.ld $@.noOOB $(PA_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.noOOB.ld.bc -o $@ -f 2>&1    >> $@.out
+$(PROGRAMS_TO_TEST:%=Output/%.sc.o): \
+Output/%.sc.o: %.c $(CLANG)
+	-$(CLANG) -g -fmemsafety -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
-#
-# Create a SAFECode executable with pointer rewriting.
-#
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.bc): \
-Output/%.safecode.bc: Output/%.presc.bc $(LOPT) $(PA_RT_BC)
-	-@rm -f $(CURDIR)/$@.info
-	-$(SC_STATS) $(SCOPTS) $(SCOPTS2) $< -f -o $@.sc 2>&1 > $@.out
-	-$(LLVMLD) $(LLVMLDFLAGS) -o $@.sc.ld $@.sc $(PA_RT_BC) 2>&1 > $@.out
-	-$(LOPT) $(OPTZN_PASSES) $@.sc.ld.bc -o $@ -f 2>&1    >> $@.out
+$(PROGRAMS_TO_TEST:%=Output/%.sc.o): \
+Output/%.sc.o: %.cpp $(CLANG)
+	-$(CLANGXX) -g -fmemsafety -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
-#
-# These rules compile the new .bc file into a .c file using llc
-#
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.s): \
-Output/%.safecode.s: Output/%.safecode.bc $(LLC)
-	-$(LLC) $(LLCFLAGS) -f $< -o $@
-
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.s): \
-Output/%.noOOB.s: Output/%.noOOB.bc $(LLC)
-	-$(LLC) $(LLCFLAGS) -f $< -o $@
-
-$(PROGRAMS_TO_TEST:%=Output/%.safecode.cbe.c): \
-Output/%.safecode.cbe.c: Output/%.safecode.bc $(LLC)
-	-$(LLC) -march=c $(LLCFLAGS) -f $< -o $@
-
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.cbe.c): \
-Output/%.noOOB.cbe.c: Output/%.noOOB.bc $(LLC)
-	-$(LLC) -march=c $(LLCFLAGS) -f $< -o $@
-
-#
-# These rules compile the CBE .c file into a final executable
-#
-ifdef SC_USECBE
+ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.cbe.c $(PA_RT_O)
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
-
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
-Output/%.noOOB: Output/%.noOOB.cbe.c
-	-$(LLVMGCC) $(CBECFLAGS) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
+Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
+	-$(CLANG) -O4 -emit-llvm -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
-Output/%.safecode: Output/%.safecode.s $(PA_RT_O)
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
-
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB): \
-Output/%.noOOB: Output/%.noOOB.s
-	-$(LLVMGCC) $(CFLAGS) $< $(LLCLIBS) $(PA_RT_O) $(LDFLAGS) -o $@ $(STATICFLAGS) -lstdc++
+Output/%.safecode: $(Source)
+	-$(CLANG) -O4 -emit-llvm -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
 endif
-
 ##############################################################################
 # Rules for running executables and generating reports
 ##############################################################################
@@ -164,10 +124,6 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 #
 $(PROGRAMS_TO_TEST:%=Output/%.safecode.out-llc): \
 Output/%.safecode.out-llc: Output/%.safecode
-	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
-
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.out-llc): \
-Output/%.noOOB.out-llc: Output/%.noOOB
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $(WATCHDOG) $< $(RUN_OPTIONS)
 
 else
@@ -184,14 +140,6 @@ Output/%.safecode.out-llc: Output/%.safecode
 	-(cd Output/safecodecbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/safecodecbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.out-llc): \
-Output/%.noOOB.out-llc: Output/%.noOOB
-	-$(SPEC_SANDBOX) noOOBcbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
-             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(WATCHDOG) ../../$< $(RUN_OPTIONS)
-	-(cd Output/noOOBcbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
-	-cp Output/noOOBcbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-
 endif
 
 
@@ -202,17 +150,10 @@ Output/%.safecode.diff-llc: Output/%.out-nat Output/%.safecode.out-llc
 	@cp Output/$*.out-nat Output/$*.safecode.out-nat
 	-$(DIFFPROG) llc $*.safecode $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.noOOB.diff-llc): \
-Output/%.noOOB.diff-llc: Output/%.out-nat Output/%.noOOB.out-llc
-	@cp Output/$*.out-nat Output/$*.noOOB.out-nat
-	-$(DIFFPROG) llc $*.noOOB $(HIDEDIFF)
-
-
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.out-nat                \
-                             Output/%.noOOB.diff-llc         \
                              Output/%.safecode.diff-llc     \
                              Output/%.LOC.txt
 	@echo > $@
@@ -220,10 +161,6 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^user" Output/$*.out-nat.time >> $@;\
-        fi
-	@-if test -f Output/$*.noOOB.diff-llc; then \
-	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
-	  grep "^user" Output/$*.noOOB.out-llc.time >> $@;\
         fi
 	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "CBE-RUN-TIME-SAFECODE: " >> $@;\
@@ -240,4 +177,4 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@cat $<
 
-REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc) $(LLC) $(LOPT)
+REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc)
