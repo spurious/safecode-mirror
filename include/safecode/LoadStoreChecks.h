@@ -29,6 +29,9 @@ namespace llvm {
 //  This pass inserts checks on load and store instructions.
 //
 struct InsertLSChecks : public FunctionPass, InstVisitor<InsertLSChecks> {
+  private:
+    bool isTriviallySafe (Value * Ptr, Type * Type);
+
   public:
     static char ID;
     InsertLSChecks () : FunctionPass (ID) { }

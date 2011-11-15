@@ -32,6 +32,65 @@ namespace {
 }
 
 //
+// Method: isTriviallySafe()
+//
+// Description:
+//  This method determines if a memory access of the specified type is safe
+//  (and therefore does not need a run-time check).
+//
+// Inputs:
+//  Ptr     - The pointer value that is being checked.
+//  MemType - The type of the memory access.
+//
+// Return value:
+//  true  - The memory access is safe and needs no run-time check.
+//  false - The memory access may be unsafe and needs a run-time check.
+//
+// FIXME:
+//  Performing this check here really breaks the separation of concerns design
+//  that we try to follow; this should really be implemented as a separate
+//  optimization pass.  That said, it is quicker to implement it here.
+//
+bool
+InsertLSChecks::isTriviallySafe (Value * Ptr, Type * MemType) {
+  //
+  // Attempt to see if this is a stack or global allocation.  If so, get the
+  // allocated type.
+  //
+  Type * AllocatedType = 0;
+  if (AllocaInst * AI = dyn_cast<AllocaInst>(Ptr->stripPointerCasts())) {
+    if (!(AI->isArrayAllocation())) {
+      AllocatedType = AI->getAllocatedType();
+    }
+  }
+
+  if (GlobalVariable * GV=dyn_cast<GlobalVariable>(Ptr->stripPointerCasts())) {
+    AllocatedType = GV->getType()->getElementType();
+  }
+
+  //
+  // If this is not a stack or global object, it is unsafe (it might be
+  // deallocated, for example).
+  //
+  if (!AllocatedType)
+    return false;
+
+  //
+  // If the types are the same, then the access is safe.
+  //
+  if (AllocatedType == MemType)
+    return true;
+
+  //
+  // Otherwise, see if the allocated type is larger than the accessed type.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  uint64_t AllocTypeSize = TD.getTypeAllocSize(AllocatedType);
+  uint64_t MemTypeSize   = TD.getTypeStoreSize(MemType);
+  return (AllocTypeSize >= MemTypeSize);
+}
+
+//
 // Method: visitLoadInst()
 //
 // Description:
@@ -39,6 +98,12 @@ namespace {
 //
 void
 InsertLSChecks::visitLoadInst (LoadInst & LI) {
+  //
+  // If the check will always succeed, skip it.
+  //
+  if (isTriviallySafe (LI.getPointerOperand(), LI.getType()))
+    return;
+
   //
   // Create a value representing the amount of memory, in bytes, that will be
   // modified.
@@ -88,6 +153,12 @@ InsertLSChecks::visitLoadInst (LoadInst & LI) {
 void
 InsertLSChecks::visitStoreInst (StoreInst & SI) {
   //
+  // If the check will always succeed, skip it.
+  //
+  if (isTriviallySafe (SI.getPointerOperand(), SI.getValueOperand()->getType()))
+    return;
+
+  //
   // Create a value representing the amount of memory, in bytes, that will be
   // modified.
   //
@@ -131,6 +202,12 @@ InsertLSChecks::visitStoreInst (StoreInst & SI) {
 void
 InsertLSChecks::visitAtomicCmpXchgInst (AtomicCmpXchgInst & AI) {
   //
+  // If the check will always succeed, skip it.
+  //
+  if (isTriviallySafe (AI.getPointerOperand(), AI.getType()))
+    return;
+
+  //
   // Create a value representing the amount of memory, in bytes, that will be
   // modified.
   //
@@ -172,6 +249,12 @@ InsertLSChecks::visitAtomicCmpXchgInst (AtomicCmpXchgInst & AI) {
 
 void
 InsertLSChecks::visitAtomicRMWInst (AtomicRMWInst & AI) {
+  //
+  // If the check will always succeed, skip it.
+  //
+  if (isTriviallySafe (AI.getPointerOperand(), AI.getType()))
+    return;
+
   //
   // Create a value representing the amount of memory, in bytes, that will be
   // modified.
