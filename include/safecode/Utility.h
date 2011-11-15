@@ -362,9 +362,11 @@ escapesToMemory (Value * V) {
       //
       // The pointer escapes if it's stored to memory somewhere.
       //
-      StoreInst * SI;
-      if ((SI = dyn_cast<StoreInst>(*UI)) && (SI->getOperand(0) == V)) {
-        return true;
+      if (StoreInst * SI = dyn_cast<StoreInst>(*UI)) {
+        if (SI->getValueOperand() == V)
+          return true;
+        else
+          continue;
       }
 
       //
@@ -394,15 +396,11 @@ escapesToMemory (Value * V) {
       }
 
       //
-      // Cast constant expressions are okay, too.
+      // Constant expressions are okay, too.
       //
-      if (ConstantExpr *cExpr = dyn_cast<ConstantExpr>(*UI)) {
-        if (Instruction::isCast (cExpr->getOpcode())) {
-          Worklist.push_back (*UI);
-          continue;
-        } else {
-          return true;
-        }
+      if (isa<ConstantExpr>(*UI)) {
+        Worklist.push_back (*UI);
+        continue;
       }
 
       //
@@ -423,9 +421,12 @@ escapesToMemory (Value * V) {
         }
 
         std::string FuncName = CI->getCalledFunction()->getName();
-        if ((FuncName == "sc.exactcheck2") ||
-            (FuncName == "sc.boundscheck") ||
-            (FuncName == "sc.boundscheckui")) {
+        if ((FuncName == "exactcheck2") ||
+            (FuncName == "boundscheck") ||
+            (FuncName == "boundscheckui") ||
+            (FuncName == "exactcheck2_debug") ||
+            (FuncName == "boundscheck_debug") ||
+            (FuncName == "boundscheckui_debug")) {
           Worklist.push_back (*UI);
           continue;
         } else if ((FuncName == "llvm.memcpy.i32")    || 
@@ -440,9 +441,14 @@ escapesToMemory (Value * V) {
                    (FuncName == "llva_invokememcpy")  ||
                    (FuncName == "llva_invokestrncpy") ||
                    (FuncName == "llva_invokememset")  ||
-                   (FuncName == "sc.pool_register")  ||
-                   (FuncName == "sc.pool_register_stack")  ||
-                   (FuncName == "sc.pool_register_global")  ||
+                   (FuncName == "fastlscheck")  ||
+                   (FuncName == "fastlscheck_debug")  ||
+                   (FuncName == "pool_register")  ||
+                   (FuncName == "pool_register_stack")  ||
+                   (FuncName == "pool_register_global")  ||
+                   (FuncName == "pool_register_debug")  ||
+                   (FuncName == "pool_register_stack_debug")  ||
+                   (FuncName == "pool_register_global_debug")  ||
                    (FuncName == "memcmp")) {
           continue;
         } else {

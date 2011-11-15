@@ -153,6 +153,9 @@ findObject (Value * obj) {
       for(unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
         queue.push(p->getIncomingValue(i));
       }
+    } else if (SelectInst * SI = dyn_cast<SelectInst>(o)) {
+      queue.push(SI->getTrueValue());
+      queue.push(SI->getFalseValue());
     } else {
       objects.insert(o);
     }
