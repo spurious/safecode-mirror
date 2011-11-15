@@ -93,6 +93,25 @@ OptimizeChecks::onlyUsedInCompares (Value * Val) {
         continue;
       }
 
+      if (ConstantExpr * CE = dyn_cast<ConstantExpr>(*U)) {
+        // Casts and compares are okay
+        if (CE->isCast() || CE->isCompare()) {
+          Worklist.push_back(*U);
+          continue;
+        }
+
+        // Selects and GEPs are also okay
+        switch (CE->getOpcode()) {
+          case Instruction::GetElementPtr:
+          case Instruction::Select:
+            Worklist.push_back(*U);
+            continue;
+            break;
+          default:
+            return false;
+        }
+      }
+
       // Calls to run-time functions are okay; others are not.
       if (CallInst * CI = dyn_cast<CallInst>(*U)) {
         Value * CV = CI->getCalledValue()->stripPointerCasts();
