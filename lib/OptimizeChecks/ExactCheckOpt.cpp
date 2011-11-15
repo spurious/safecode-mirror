@@ -132,34 +132,64 @@ ExactCheckOpt::runOnModule(Module & M) {
 //
 static Value *
 findObject (Value * obj) {
+  // Values that we have already examined
   std::set<Value *> exploredObjects;
+
+  // Values that could potentiall by the memory object
   std::set<Value *> objects;
+
+  // Queue of values to examine next
   std::queue<Value *> queue;
 
+  //
+  // Start with the initial value.
+  //
   queue.push(obj);
   while (!queue.empty()) {
-    Value * o = queue.front();
+    //
+    // Take an element off the queue.  Strip all pointer casts as we just
+    // skip through them.
+    //
+    Value * o = queue.front()->stripPointerCasts();
     queue.pop();
-    if (exploredObjects.count(o)) continue;
 
+    //
+    // If we have already explore this object, skip it.
+    //
+    if (exploredObjects.count(o)) continue;
     exploredObjects.insert(o);
 
-    if (isa<CastInst>(o)) {
-      queue.push(cast<CastInst>(o)->getOperand(0));
+    if (ConstantExpr * CE = dyn_cast<ConstantExpr >(o)) {
+      switch (CE->getOpcode()) {
+        case Instruction::GetElementPtr: {
+          Value * Operand = CE->getOperand(0);
+          if (!isa<ConstantPointerNull>(Operand))
+            queue.push(Operand);
+          break;
+        }
+
+        case Instruction::Select:
+        default:
+          objects.insert(o);
+          break;
+      }
     } else if (isa<GetElementPtrInst>(o)) {
       queue.push(cast<GetElementPtrInst>(o)->getPointerOperand());
     } else if (isa<PHINode>(o)) {
       PHINode * p = cast<PHINode>(o);
-      for(unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
+      for (unsigned int i = 0; i < p->getNumIncomingValues(); ++i) {
         queue.push(p->getIncomingValue(i));
       }
     } else if (SelectInst * SI = dyn_cast<SelectInst>(o)) {
-      queue.push(SI->getTrueValue());
-      queue.push(SI->getFalseValue());
+      if (!isa<ConstantPointerNull>(SI->getTrueValue()))
+        queue.push(SI->getTrueValue());
+      if (!isa<ConstantPointerNull>(SI->getFalseValue()))
+        queue.push(SI->getFalseValue());
     } else {
       objects.insert(o);
     }
   }
+
   return objects.size() == 1 ? *(objects.begin()) : NULL;
 }
 
