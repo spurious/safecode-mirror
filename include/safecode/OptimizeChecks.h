@@ -88,6 +88,30 @@ struct OptimizeChecks : public ModulePass {
     }
 };
 
+//
+// Pass: GlobalRegisterOpt
+//
+// Description:
+//  This pass looks for global variables that are never used in run-time checks
+//  that perform lookups.  Such global variables do not need to be registered
+//  with pool_register_global(), so we remove such registrations.
+//
+struct GlobalRegisterOpt : public ModulePass {
+  private:
+  public:
+    static char ID;
+    GlobalRegisterOpt() : ModulePass(ID) {}
+    virtual bool runOnModule (Module & M);
+
+    const char *getPassName() const {
+      return "Optimize SAFECode Global Object Registration";
+    }
+
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.setPreservesCFG();
+    }
+};
+
 }
 
 #endif
