@@ -121,5 +121,33 @@ isRuntimeCheck (const Function * F) {
 
   return false;
 }
+
+//
+// Function: findRuntimeCheck()
+//
+// Description:
+//  Determine if this function is one of the run-time checking functions.  If
+//  so, return the information about the run-time check.
+//
+// Inputs:
+//  F - The function to check.
+//
+// Return value:
+//  NULL - This is not a call to a run-time check.
+//  Otherwise, a pointer to the proper run-time check entry is returned.
+//
+static inline const struct CheckInfo *
+findRuntimeCheck (const Function * F) {
+  if (F->hasName()) {
+    for (unsigned index = 0; index < numChecks; ++index) {
+      if (F->getName() == RuntimeChecks[index].name) {
+        return &(RuntimeChecks[index]);
+      }
+    }
+  }
+
+  return 0;
+}
+
 }
 #endif
