@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "safecode/Config/config.h"
 #include "CStdLib.h"
 
@@ -1185,8 +1184,8 @@ pool_strpbrk_debug(DebugPoolTy *sPool,
                    SRC_INFO) {
   const bool sComplete = ARG1_COMPLETE(complete);
   const bool aComplete = ARG2_COMPLETE(complete);
-  validStringCheck(s, sPool, sComplete, "strpbrk", DEFAULT_SRC_INFO);
-  validStringCheck(a, aPool, aComplete, "strpbrk", DEFAULT_SRC_INFO);
+  validStringCheck(s, sPool, sComplete, "strpbrk", SRC_INFO_ARGS);
+  validStringCheck(a, aPool, aComplete, "strpbrk", SRC_INFO_ARGS);
   return strpbrk(s, a);
 }
 
@@ -1615,7 +1614,6 @@ pool_stpcpy(DebugPoolTy *dstPool,
             const uint8_t complete) {
   return pool_stpcpy_debug(dstPool, srcPool, dst, src, complete, DEFAULTS);
 }
-
 
 //
 // Secure runtime wrapper function to replace stpcpy()

@@ -498,6 +498,14 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_strcasestr"), LInfo);
   transformFunction (M.getFunction ("pool_strcasecmp"), LInfo);
   transformFunction (M.getFunction ("pool_strncasecmp"), LInfo);
+  transformFunction (M.getFunction ("pool_vprintf"), LInfo);
+  transformFunction (M.getFunction ("pool_vfprintf"), LInfo);
+  transformFunction (M.getFunction ("pool_vsprintf"), LInfo);
+  transformFunction (M.getFunction ("pool_vsnprintf"), LInfo);
+  transformFunction (M.getFunction ("pool_vscanf"), LInfo);
+  transformFunction (M.getFunction ("pool_vfscanf"), LInfo);
+  transformFunction (M.getFunction ("pool_vsscanf"), LInfo);
+  transformFunction (M.getFunction ("pool_vsyslog"), LInfo);
   transformFunction (M.getFunction ("pool_fgets"), LInfo);
 
   return true;

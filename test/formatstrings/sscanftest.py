@@ -1,9 +1,15 @@
+#
 # RUN: mkdir -p %t
-# RUN: python %s > %t/sscanftest.c
+#
+# RUN: python %s --function=sscanf > %t/sscanftest.c
 # RUN: test.sh -p -t %t %t/sscanftest.c
+#
+# RUN: python %s --function=vsscanf > %t/vsscanftest.c
+# RUN: test.sh -p -t %t %t/vsscanftest.c
+#
 
 #
-# Generate a C program to test sscanf().
+# Generate a C program to test sscanf() or vsscanf().
 #
 
 Str = 0 # string
@@ -56,7 +62,7 @@ basictests = \
 
 quote = lambda s : '"' + s + '"'
 
-def build_test(n, input, fmt, rval, wrvals):
+def build_test(n, input, fmt, rval, wrvals, function):
   strcount = 0
   intcount = 0
   fltcount = 0
@@ -64,7 +70,7 @@ def build_test(n, input, fmt, rval, wrvals):
   ldbcount = 0
   wstcount = 0
   nspcount = 0
-  front = 'result = sscanf(%s, %s' % (quote(input), quote(fmt))
+  front = 'result = %s(%s, %s' % (function, quote(input), quote(fmt))
   args = []
   comparisons = []
   for wrval in wrvals:
@@ -124,10 +130,21 @@ def build_test(n, input, fmt, rval, wrvals):
   return '  ' + '\n  '.join(tests)
 
 top = \
-'''#include <stdio.h>
+'''#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+
+int mysscanf(char *buf, const char *fmt, ...)
+{
+  int result;
+  va_list ap;
+  va_start(ap, fmt);
+  result = vsscanf(buf, fmt, ap);
+  va_end(ap);
+  return result;
+}
 
 /* Very crude floating point equality tests. */
 int ldbeq(long double a, long double b)
@@ -170,10 +187,23 @@ bottom = \
 }
 '''
 
-import sys
 import cStringIO
+import optparse
+import sys
 
 if __name__ == '__main__':
+  parser = optparse.OptionParser()
+  parser.set_defaults(function='sscanf')
+  parser.add_option('--function', dest='function',
+                    help='function to test: sscanf or vsscanf')
+  (options, args) = parser.parse_args()
+  if options.function == 'sscanf':
+    function = 'sscanf'
+  elif options.function == 'vsscanf':
+    function = 'mysscanf'
+  else:
+    sys.stderr.write('specify either sscanf or vsscanf!\n')
+    sys.exit(1)
   count = 0
   output = cStringIO.StringIO()
   output.write(top)
@@ -183,7 +213,7 @@ if __name__ == '__main__':
     fmt    = basic_test[1]
     rval   = basic_test[2]
     wrvals = basic_test[3]
-    result = build_test(count, input, fmt, rval, wrvals)
+    result = build_test(count, input, fmt, rval, wrvals, function)
     output.write(result)
     output.write('\n\n')
   output.write(bottom)

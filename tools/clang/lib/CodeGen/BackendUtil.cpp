@@ -45,6 +45,7 @@
 #include "safecode/InvalidFreeChecks.h"
 #include "safecode/GEPChecks.h"
 #include "safecode/LoadStoreChecks.h"
+#include "safecode/LoggingFunctions.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RegisterBounds.h"
 #include "safecode/RegisterRuntimeInitializer.h"
@@ -209,6 +210,8 @@ void EmitAssemblyHelper::CreatePasses() {
     // C standard library / format string function transforms
     MPM->add (new StringTransform());
     MPM->add (new FormatStringTransform());
+    MPM->add (new RegisterVarargCallSites());
+    MPM->add (new LoggingFunctions());
 
     MPM->add (new InitAllocas());
     MPM->add (new RegisterGlobalVariables());

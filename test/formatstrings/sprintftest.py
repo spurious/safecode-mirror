@@ -1,9 +1,15 @@
+#
 # RUN: mkdir -p %t
-# RUN: python %s > %t/sprintftest.c
+#
+# RUN: python %s --function=sprintf > %t/sprintftest.c
 # RUN: test.sh -p -t %t %t/sprintftest.c
+#
+# RUN: python %s --function=vsprintf > %t/vsprintftest.c
+# RUN: test.sh -p -t %t %t/vsprintftest.c
+#
 
 #
-# Generate a C program to test sprintf().
+# Generate a C program to test sprintf() or vsprintf().
 #
 
 basictesttab = \
@@ -139,10 +145,21 @@ percentntesttab = \
 
 prefix = \
 '''#include <locale.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+
+int mysprintf(char *dst, const char *fmt, ...)
+{
+  int result;
+  va_list ap;
+  va_start(ap, fmt);
+  result = vsprintf(dst, fmt, ap);
+  va_end(ap);
+  return result;
+}
 
 /* These functions return floating point NaN and infinity. */
 double infinity()
@@ -154,8 +171,8 @@ double nan()
 {
   return strtod("nan", NULL);
 }
-
-/* Check for support of the %ls directive. */
+ 
+/* Check for support of the %%ls directive. */
 int russian_test()
 {
   const char *cat = "\\xd0\\x9a\\xd0\\x9e\\xd0\\xa8\\xd0\\x9a\\xd0\\x90";
@@ -171,7 +188,7 @@ int russian_test()
     puts("error in multibyte conversion!");
     return 1;
   }
-  sz = sprintf(&buf[0], "%ls", &wcat[0]);
+  sz = %s(&buf[0], "%%ls", &wcat[0]);
   fail = strcmp(&buf[0], &cat[0]) != 0 || sz != strlen(&buf[0]);
   setlocale(LC_ALL, "");
   if (fail)
@@ -196,7 +213,7 @@ int main()
 
 test = \
 '''
-  result = sprintf(&buf[0], %s, %s);
+  result = %s(&buf[0], %s, %s);
   if (strcmp(buf, %s) != 0 || result != strlen(buf))
   {
     puts("failed test %i!");
@@ -207,7 +224,7 @@ test = \
 
 percent_n_test = \
 '''
-  result = sprintf(&buf[0], %s, %s);
+  result = %s(&buf[0], %s, %s);
   if (strcmp(buf, %s) != 0 || result != strlen(buf) || n1 != %s || n2 != %s)
   {
     puts("failed test %i!");
@@ -223,18 +240,19 @@ suffix = \
 }
 '''
 
-import sys
 import cStringIO
+import optparse
+import sys
 
 quote = lambda s : '"' + s + '"'
 
-def make_regular_test(count, param):
+def make_regular_test(count, param, f):
   fmt = quote(param[0])
   arg = param[1]
   out = quote(param[2])
-  return test % (fmt, arg, out, count)
+  return test % (f, fmt, arg, out, count)
 
-def make_percent_n_test(count, param):
+def make_percent_n_test(count, param, f):
   fmt = quote(param[0])
   arg = param[1]
   out = quote(param[2])
@@ -245,18 +263,30 @@ def make_percent_n_test(count, param):
     n1, n2 = (param[3][0], 'n2')
   elif ns == 2:
     n1, n2 = (param[3][0], param[3][1])
-  return percent_n_test % (fmt, arg, out, n1, n2, count)
+  return percent_n_test % (f, fmt, arg, out, n1, n2, count)
 
 if __name__ == '__main__':
+  parser = optparse.OptionParser()
+  parser.set_defaults(function='sprintf')
+  parser.add_option('--function', dest='function',
+                    help='function to test: sprintf or vsprintf')
+  (options, args) = parser.parse_args()
   output = cStringIO.StringIO()
-  output.write(prefix)
+  if options.function == 'sprintf':
+    function = 'sprintf'
+  elif options.function == 'vsprintf':
+    function = 'mysprintf'
+  else:
+    sys.stderr.write('specify either sprintf or vsprintf!\n')
+    sys.exit(1)
+  output.write(prefix % function)
   count = 1
   for unit in basictesttab:
-    built_test = make_regular_test(count, unit)
+    built_test = make_regular_test(count, unit, function)
     output.write(built_test)
     count += 1
   for unit in percentntesttab:
-    built_test = make_percent_n_test(count, unit)
+    built_test = make_percent_n_test(count, unit, function)
     output.write(built_test)
     count += 1
   output.write(suffix)

@@ -62,6 +62,8 @@
 #include <stdarg.h>
 #include <wchar.h>
 
+using std::map;
+
 #ifdef __x86_64__
 #define set_pointer(flags)  (flags |= FL_LONG)
 #else
@@ -425,10 +427,10 @@ typedef struct
 const scanset_t all_chars =
 {
   scanset_t::TABLE,
-  { { 0xfffffffffffffffful,
-      0xfffffffffffffffful,
-      0xfffffffffffffffful,
-      0xfffffffffffffffful } }
+  { { 0xffffffffffffffffull,
+      0xffffffffffffffffull,
+      0xffffffffffffffffull,
+      0xffffffffffffffffull } }
 };
 
 // Clear the scanset.
@@ -555,6 +557,7 @@ int isnspace(int c)
 // Inputs:
 //
 //  ci      - a pointer to the call_info structure for this function call
+//  options - options passed to internal_scanf()
 //  p       - a pointer to the pointer_info structure that contains the buffer
 //            to write into
 //  flags   - the set of flags associated with the current conversion
@@ -578,6 +581,7 @@ int isnspace(int c)
 //
 static inline size_t
 match_string(call_info    *ci,
+             const options_t options,
              pointer_info *p,
              int          flags,
              int          c,
@@ -620,7 +624,7 @@ match_string(call_info    *ci,
         cerr << "Writing into a NULL object!" << endl;
         c_library_error(ci, "scanf");
       }
-      else if (is_in_whitelist(ci, p) == false)
+      else if (is_in_whitelist(ci, options, p) == false)
       {
         cerr << "Writing into a non-pointer!" << endl;
         c_library_error(ci, "scanf");
@@ -747,30 +751,6 @@ match_string(call_info    *ci,
 }
 
 //
-// SAFEWRITE()
-//
-// A macro that attempts to securely write a value into the next parameter.
-//
-// Inputs:
-//  ci       - pointer to the call_info structure
-//  ap       - pointer to the va_list
-//  arg      - the variable argument number to be accessed
-//  item     - the item to write
-//  type     - the type to write the item as
-//
-#define SAFEWRITE(ci, ap, arg, item, type)                                     \
-  do                                                                           \
-  {                                                                            \
-    pointer_info *p;                                                           \
-    void *dest;                                                                \
-    varg_check(ci, arg++);                                                     \
-    p = va_arg(ap, pointer_info *);                                            \
-    write_check(ci, p, sizeof(type));                                          \
-    dest = unwrap_pointer(ci, p);                                              \
-   /* if (dest != 0) */ *(type *) dest = (type) item;                          \
-  } while (0)
-
-//
 // internal_scanf()
 //
 // This is the main logic for the secured scanf() family of functions.
@@ -794,19 +774,22 @@ match_string(call_info    *ci,
 //  - The maximum supported width of a numerical constant in the input is 512
 //    bytes.
 //
-
 int
-internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
+internal_scanf(const options_t options,
+               input_parameter &i,
+               call_info &c,
+               const char *fmt,
+               va_list ap)
 {
   int   done = 0;             // number of items converted
   int   nrchars = 0;          // number of characters read
   int   base;                 // conversion base
   uintmax_t val;              // an integer value
-  char  *str;                 // temporary pointer
+  char  *str = 0;             // temporary pointer
   char  *tmp_string;          // ditto
   unsigned  width = 0;        // width of field
   int   flags;                // some flags
-  int   kind;
+  int   kind;                 // holds specifier value
   int  ic = EOF;              // the input character
   char inp_buf[NUMLEN + 1];   // buffer to hold numerical inputs
 
@@ -817,7 +800,6 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   const char *format = fmt;
   input_parameter *stream = &i;
 
-  str = 0; // Suppress g++ complaints about unitialized variables.
   pointer_info *p = 0;
 
   // Return immediately for an empty format string.
@@ -840,15 +822,61 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
   scanset_t scanset;
   scanset.kind = scanset_t::TABLE;
 
+  //
+  // Map to hold the wrappers for pointers, if the va_list doesn't have wrapped
+  // pointers.
+  //
+  map<void *, pointer_info *> wrappers;
+  const options_t &opt = options;
+
+  //
+  // Scanning macros
+  //
+
+//
+// Get the next pointer argument, properly wrapped
+//
+#define GETPTRARG()                                                            \
+  (pointer_info *) wrap_pointer(                                               \
+    options,                                                                   \
+    (varg_check(ci, options, arg++), va_arg(ap, void *)),                      \
+    wrappers                                                                   \
+  )
+
+//
+// SAFEWRITE()
+//
+// A macro that attempts to securely write a value into the location pointed to
+// by the next argument.
+//
+// Inputs:
+//  ci       - pointer to the call_info structure
+//  options  - options passed to the function call
+//  j        - a pointer to the pointer_info structure that contains the
+//             destination pointer
+//  item     - the item to write
+//  type     - the type to write the item as
+//
+#define SAFEWRITE(ci, options, j, item, type)                                  \
+  do                                                                           \
+  {                                                                            \
+    const options_t opt = (options);                                           \
+    pointer_info *ptr   = (j);                                                 \
+    call_info *cinfo    = (ci);                                                \
+    write_check(cinfo, opt, ptr, sizeof(type));                                \
+    void *dest = unwrap_pointer(cinfo, opt, ptr);                              \
+    *(type *) dest = (type) item;                                              \
+  } while (0)
+
 //
 // Version of SAFEWRITE() relevant to this function.
 //
-#define _SAFEWRITE(item, type) SAFEWRITE(ci, ap, arg, item, type)
+#define _SAFEWRITE(item, type) SAFEWRITE(ci, options, GETPTRARG(), item, type)
 
   //
   // The main loop that processes the format string.
   // At the end of the loop, the count of assignments is updated and the format
-  // string is incremented one position.
+  // string pointer is incremented one position.
   //
   while (1)
   {
@@ -1109,12 +1137,11 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         wr = !(flags & FL_NOASSIGN);
         if (wr)
         {
-          varg_check(ci, arg++);
-          p = va_arg(ap, pointer_info *);
+          p = GETPTRARG();
         }
         sz = \
           match_string(
-            ci, p, flags, ic, stream, width, wr, false, nrchars, &all_chars
+            ci, opt, p, flags, ic, stream, width, wr, false, nrchars, &all_chars
           );
         if (sz == 0)
           goto failure;
@@ -1130,12 +1157,11 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         wr = !(flags & FL_NOASSIGN);
         if (wr)
         {
-          varg_check(ci, arg++);
-          p = va_arg(ap, pointer_info *);
+          p = GETPTRARG();
         }
         sz = \
           match_string(
-            ci, p, flags, ic, stream, width, wr, true, nrchars, &nonws
+            ci, opt, p, flags, ic, stream, width, wr, true, nrchars, &nonws
           );
         if (sz == 0)
           goto failure;
@@ -1158,12 +1184,11 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
         wr = !(flags & FL_NOASSIGN);
         if (wr)
         {
-          varg_check(ci, arg++);
-          p = va_arg(ap, pointer_info *);
+          p = GETPTRARG();
         }
         sz = \
           match_string(
-            ci, p, flags, ic, stream, width, wr, true, nrchars, &scanset
+            ci, opt, p, flags, ic, stream, width, wr, true, nrchars, &scanset
           );
         if (sz == 0)
           goto failure;
@@ -1221,10 +1246,10 @@ internal_scanf(input_parameter &i, call_info &c, const char *fmt, va_list ap)
 failure:
   //
   // In the event of a possible input failure (=eof or read error), the
-  // directive should jump to here.
+  // execution should jump to here.
   //
   if (done == 0 && input_failure(stream))
-    return EOF;
+    done = EOF; // fall through
 
   //
   // The fscanf function returns the value of the macro EOF if an input failure
@@ -1236,6 +1261,15 @@ failure:
   //
 match_failure:
 finish:
+  //
+  // Deallocate any wrappers that were allocated.
+  //
+  for (map<void *, pointer_info *>::iterator pos = wrappers.begin(),
+       end = wrappers.end();
+       pos != end;
+       ++pos)
+  {
+    delete pos->second;
+  }
   return done;
-
 }

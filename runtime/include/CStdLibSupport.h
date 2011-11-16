@@ -19,6 +19,7 @@
 
 #include "DebugRuntime.h"
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -32,6 +33,36 @@
 
 extern "C"
 {
+  // Functions from <stdio.h>
+
+  int pool_vprintf(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE);
+  int pool_vprintf_debug(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  int pool_vfprintf(PPOOL filPool, PPOOL fmtPool, void *fil, char *fmt, va_list ap, COMPLETE);
+  int pool_vfprintf_debug(PPOOL filPool, PPOOL fmtPool, void *fil, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  int pool_vsprintf(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, va_list ap, COMPLETE);
+  int pool_vsprintf_debug(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  // Note argument order differs from library prototype.
+  int pool_vsnprintf(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, size_t sz, va_list ap, COMPLETE);
+  int pool_vsnprintf_debug(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, size_t sz, va_list ap, COMPLETE, DEBUG_INFO);
+
+  int pool_vscanf(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE);
+  int pool_vscanf_debug(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  int pool_vsscanf(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, va_list ap, COMPLETE);
+  int pool_vsscanf_debug(PPOOL strPool, PPOOL fmtPool, char *str, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  int pool_vfscanf(PPOOL filPool, PPOOL fmtPool, void *fil, char *fmt, va_list ap, COMPLETE);
+  int pool_vfscanf_debug(PPOOL filPool, PPOOL fmtPool, void *fil, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
+
+  // Functions from <syslog.h>
+
+  // Note argument order differs from library prototype.
+  void pool_vsyslog(PPOOL fmtPool, char *fmt, int p, va_list ap, COMPLETE);
+  void pool_vsyslog_debug(PPOOL fmtPool, char *fmt, int p, va_list ap, COMPLETE, DEBUG_INFO);
+
   // Functions from <string.h>
 
   void *pool_memccpy(PPOOL dstPool, PPOOL srcPool, void *dst, void *src, int c, size_t n, COMPLETE);

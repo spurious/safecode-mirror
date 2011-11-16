@@ -11,7 +11,6 @@
 // string functions.
 //
 //===----------------------------------------------------------------------===//
-//
 
 #include "../include/FormatStringSupport.h"
 
@@ -44,19 +43,14 @@ using std::endl;
 // Error reporting functions
 //
 
-//
-// Use this macro to first check if a pointer_info structure is whitelisted.
-// The error reporting functions will only attempt to access whitelisted
-// pointer_info structures because other ones may be invalid.
-//
-#define pointer_info_value(c, p) is_in_whitelist(c, p) ? p->ptr : (void *) p
-
-void out_of_bounds_error(call_info *c, pointer_info *p, size_t obj_len)
+void out_of_bounds_error(call_info *c,
+                         pointer_info *p,
+                         size_t obj_len)
 {
   OutOfBoundsViolation v;
   v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = pointer_info_value(c, p);
+  v.faultPtr    = p->ptr;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -73,7 +67,7 @@ void write_out_of_bounds_error(call_info *c,
   WriteOOBViolation v;
   v.type        = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = pointer_info_value(c, p);
+  v.faultPtr    = p->ptr;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -101,11 +95,11 @@ void load_store_error(call_info *c, pointer_info *p)
   DebugViolationInfo v;
   v.type        = ViolationInfo::FAULT_LOAD_STORE;
   v.faultPC     = __builtin_return_address(0);
-  v.faultPtr    = pointer_info_value(c, p);
+  v.faultPtr    = p->ptr;
   v.dbgMetaData = NULL;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
-  v.PoolHandle  = NULL;
+  v.PoolHandle  = p->pool;
   ReportMemoryViolation(&v);
 }
 
@@ -805,7 +799,7 @@ int pool_scanf(void *_info, void *_fmt, ...)
   //
   flockfile(stdin);
   va_start(ap, _fmt);
-  result = gscanf(p, *info, *fmt, ap);
+  result = gscanf(0, p, *info, *fmt, ap);
   va_end(ap);
   funlockfile(stdin);
 
@@ -835,7 +829,7 @@ int pool_fscanf(void *_info, void *_src, void *_fmt, ...)
   //
   flockfile(stream);
   va_start(ap, _fmt);
-  result = gscanf(p, *info, *fmt, ap);
+  result = gscanf(0, p, *info, *fmt, ap);
   va_end(ap);
   funlockfile(stream);
 
@@ -878,14 +872,24 @@ int pool_sscanf(void *_info, void *_str, void *_fmt, ...)
   }
 
   va_start(ap, _fmt);
-  result = gscanf(p, *info, *fmt, ap);
+  result = gscanf(0, p, *info, *fmt, ap);
   va_end(ap);
 
   return result;
 }
 
+extern int
+internal_printf(
+  const options_t, output_parameter &, call_info &, const char *, va_list
+);
+
+extern int
+internal_scanf(
+  const options_t, input_parameter &, call_info &, const char *, va_list
+);
+
 //
-// gprintf
+// gprintf()
 //
 // Secure general printf() family replacement
 //
@@ -915,7 +919,7 @@ int pool_sscanf(void *_info, void *_str, void *_fmt, ...)
 //  value.
 //
 int
-gprintf(const options_t &Options,
+gprintf(const options_t Options,
         output_parameter &Output,
         call_info &CInfo,
         pointer_info &FormatString,
@@ -979,7 +983,8 @@ gprintf(const options_t &Options,
 //   before any directives could be matched.
 //
 int
-gscanf(input_parameter &Input,
+gscanf(const options_t Options,
+       input_parameter &Input,
        call_info &CInfo,
        pointer_info &FormatString,
        va_list Args)
@@ -1015,6 +1020,7 @@ gscanf(input_parameter &Input,
     }
   }
 
-  result = internal_scanf(Input, CInfo, Fmt, Args);
+  result = internal_scanf(Options, Input, CInfo, Fmt, Args);
+
   return result;
 }

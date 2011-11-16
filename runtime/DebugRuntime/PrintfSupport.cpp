@@ -75,6 +75,7 @@ using std::cerr;
 using std::endl;
 using std::min;
 using std::max;
+using std::map;
 
 //
 // This structure holds a single buffer to be printed.
@@ -107,10 +108,11 @@ struct suio
 // it can be reused.
 //
 // Inputs:
-//  c - a pointer to the relevant call_info structure
-//  p - a pointer to the output_parameter structure describing the output
-//      location
-//  uio - a pointer to an suio structure that contains the buffers to be written
+//  c       - a pointer to the relevant call_info structure
+//  p       - a pointer to the output_parameter structure describing the output
+//            location
+//  uio     - a pointer to an suio structure that contains the buffers to be
+//            written
 //
 // Returns nonzero on error, zero on success.
 //
@@ -167,8 +169,9 @@ do_output(call_info *c, output_parameter *p, struct suio *uio)
       //
       if (pos < msz && amt > msz - pos)
       {
+        pointer_info *info = p->output.string.info;
         cerr << "Destination string not long enough!" << endl;
-        write_out_of_bounds_error(c, p->output.string.info, msz, pos + amt);
+        write_out_of_bounds_error(c, info, msz, pos + amt);
       }
       //
       // Check to see if the we'll reach the user imposed size.
@@ -229,6 +232,10 @@ do_output(call_info *c, output_parameter *p, struct suio *uio)
   }
 }
 
+//
+// An element to hold the value of a positional argument in the positional
+// argument table.
+//
 union arg
 {
   int     intarg;
@@ -313,6 +320,7 @@ static int exponent(char *, int, int);
 //
 // Inputs:
 //  ci         - a pointer to the relevant call_info structure
+//  options    - options passed to the format string function
 //  p          - a pointer to the pointer_info structure that contains the
 //               string to print
 //  flags      - the relevant flags from the parsed format string
@@ -333,6 +341,7 @@ static int exponent(char *, int, int);
 //
 static inline void
 handle_s_directive(call_info *ci,
+                   options_t options,
                    pointer_info *p,
                    int flags,
                    const char **cp,
@@ -492,7 +501,8 @@ handle_s_directive(call_info *ci,
 // The main logic for printf() style functions
 //
 // Inputs:
-//   P         - a reference to the output_parameter structure describing
+//   options   - options controlling some aspects of execution
+//   output    - a reference to the output_parameter structure describing
 //               where to do the write
 //   cinfo     - a reference to the call_info structure which contains
 //               information about the va_list
@@ -510,7 +520,7 @@ handle_s_directive(call_info *ci,
 //     (the "'" flag)
 //
 int
-internal_printf(const options_t &options,
+internal_printf(const options_t options,
                 output_parameter &output,
                 call_info &cinfo,
                 const char *fmt0,
@@ -576,7 +586,7 @@ internal_printf(const options_t &options,
   char buf[BUF];         // buffer with space for digits of uintmax_t
   char ox[2];            // space for 0x; ox[1] is either x, X, or \0
   union arg *argtable;   // args, built due to positional arg
-  union arg statargtable[STATIC_ARG_TBL_SIZE];
+  union arg statargtable[STATIC_ARG_TBL_SIZE]; // initial argument table
   size_t argtablesiz;    // number of elements in the positional arg table
   int nextarg;           // 1-based argument index
   va_list orgap;         // original argument pointer
@@ -585,6 +595,8 @@ internal_printf(const options_t &options,
   char *mbstr;           // a string that is a result of multibyte conversion
   mbstate_t ps;          // conversion state
 
+  //
+  // The next four strings are used by the printing macros.
   //
   // Choose PADSIZE to trade efficiency vs. size.  If larger printf
   // fields occur frequently, increase PADSIZE and make the initialisers
@@ -598,7 +610,14 @@ internal_printf(const options_t &options,
 
   xdigs = 0;
 
-  const unsigned vargc = cinfo.vargc;
+  const unsigned vargc = cinfo.vargc; // number of arguments in the va_list
+
+  //
+  // This map is used if POINTERS_UNWRAPPED is set in the options, to wrap
+  // pointers in the va_list that do not have a pointer_info structure around
+  // them.
+  //
+  map<void *, pointer_info *> ptr_infos;
 
   //
   // Printing macros
@@ -746,8 +765,14 @@ internal_printf(const options_t &options,
 // argument (and arguments must be gotten sequentially).
 //
 #define GETARG(type) (                                                         \
-  varg_check(&cinfo, nextarg++),                                               \
+  varg_check(&cinfo, options, nextarg++),                                      \
   (argtable != 0) ? *((type *) &argtable[nextarg-1]) : va_arg(ap, type) )
+
+//
+// Get the pointer_info structure associated with the next argument.
+//
+#define GETPTRARG() (                                                          \
+  (pointer_info *) wrap_pointer(options, GETARG(void *), ptr_infos) )
 
 //
 // Write the current number of bytes that have been written into the next
@@ -755,8 +780,8 @@ internal_printf(const options_t &options,
 //
 #define WRITECOUNTAS(type)                                                     \
   do {                                                                         \
-    p = GETARG(pointer_info *);                                                \
-    write_check(&cinfo, p, sizeof(type));                                      \
+    p = GETPTRARG();                                                           \
+    write_check(&cinfo, options, p, sizeof(type));                             \
     *(type *)(p->ptr) = ret;                                                   \
   } while (0)
 
@@ -816,6 +841,8 @@ reswitch:
     //
     // This section parses flags, precision, and field width values.
     //
+    // ' ' flag
+    //
     case ' ':
       //
       // ``If the space and + flags both appear, the space
@@ -825,6 +852,9 @@ reswitch:
       if (!sign)
         sign = ' ';
       goto rflag;
+    //
+    // '#' flag
+    //
     case '#':
       flags |= ALT;
       goto rflag;
@@ -888,6 +918,9 @@ reswitch:
       }
       prec = n;
       goto reswitch;
+    //
+    // '0' flag
+    //
     case '0':
       //
       // ``Note that 0 is taken as a flag, not as the
@@ -968,6 +1001,10 @@ reswitch:
     // This section parses conversion specifiers and gives instructions on how
     // to print the output.
     //
+
+    //
+    // 'c' specifier
+    //
     case 'c':
       sign = '\0';
       if (!(flags & LONGINT))
@@ -1017,6 +1054,9 @@ reswitch:
         size = (int) sz;
       }
       break;
+    //
+    // %D, %d, %i specifiers
+    //
     case 'D':
       flags |= LONGINT;
       // FALLTHROUGH
@@ -1032,6 +1072,9 @@ reswitch:
       goto number;
 
 #ifdef FLOATING_POINT
+    //
+    // %a, %A specifiers
+    //
     case 'a':
     case 'A':
       if (ch == 'a')
@@ -1078,6 +1121,8 @@ reswitch:
         ox[1] = '\0';
       goto fp_common;
     //
+    // %e, %E specifiers
+    //
     // This is the form [-]d.ddde[+/-]dd.
     // The number of digits after the decimal point is the precision.
     //
@@ -1090,6 +1135,8 @@ reswitch:
         prec++;
       goto fp_begin;
     //
+    // %f, %F specifiers
+    //
     // This is the form ddd.dddd. The number of digits after the decimal point
     // is the precision.
     //
@@ -1097,6 +1144,8 @@ reswitch:
     case 'F':
       expchar = '\0';
       goto fp_begin;
+    //
+    // %g, %G specifiers
     //
     // 'e' or 'f' style, depending on the precision and exponent.
     //
@@ -1229,6 +1278,9 @@ fp_common:
       break;
 #endif // FLOATING_POINT
 
+    //
+    // %n specifier
+    //
     case 'n':
       if (flags & LLONGINT)
         WRITECOUNTAS(long long);
@@ -1247,6 +1299,9 @@ fp_common:
       else
         WRITECOUNTAS(int);
       continue; // no output
+    //
+    // %O, %o specifiers
+    //
     case 'O':
       flags |= LONGINT;
       // FALLTHROUGH
@@ -1254,6 +1309,9 @@ fp_common:
       _umax = UARG();
       base = OCT;
       goto nosign;
+    //
+    // %p specifier
+    //
     case 'p':
       //
       // ``The argument shall be a pointer to void.  The
@@ -1262,23 +1320,26 @@ fp_common:
       // defined manner.''
       //  -- ANSI X3J11
       //
-      p = GETARG(pointer_info *);
-      _umax = (uintmax_t) unwrap_pointer(&cinfo, (void *) p);
+      p = GETPTRARG();
+      _umax = (uintmax_t) unwrap_pointer(&cinfo, options, (void *) p);
       base = HEX;
       xdigs = xdigs_lower;
       ox[1] = 'x';
       goto nosign;
+    //
+    // %s specifier
+    //
     case 's':
       sign = '\0';
       //
-      // Get the pointer_info structure associated with the current argument.
+      // Get the pointer_info structure associated with the next argument.
       //
-      p = GETARG(pointer_info *);
+      p = GETPTRARG();
       //
       // If the structure is NULL or not found in the whitelist, then the
       // current argument is not a string.
       //
-      if (p == 0 || !is_in_whitelist(&cinfo, p))
+      if (p == 0 || !is_in_whitelist(&cinfo, options, p))
       {
         cp = "(not a string)";
         size = 14;
@@ -1299,13 +1360,16 @@ fp_common:
       else
       {
         size_t sz;
-        handle_s_directive(&cinfo, p, flags, &cp, &sz, &mbstr, prec);
+        handle_s_directive(&cinfo, options, p, flags, &cp, &sz, &mbstr, prec);
         if (sz > INT_MAX)
           goto overflow;
         else
           size = (int) sz;
       }
       break;
+    //
+    // %U, %u specifiers
+    //
     case 'U':
       flags |= LONGINT;
       // FALLTHROUGH
@@ -1313,6 +1377,9 @@ fp_common:
       _umax = UARG();
       base = DEC;
       goto nosign;
+    //
+    // %X, %x specifiers
+    //
     case 'X':
       xdigs = xdigs_upper;
       goto hex;
@@ -1393,7 +1460,8 @@ number:
       break;
     default:  // "%?" prints ?, unless ? is NUL
       //
-      // syslog() includes a %m flag which prints sterror(errno).
+      // %m specifier
+      // (syslog() includes a %m flag which prints sterror(errno).)
       //
       if (ch == 'm' && options & USE_M_DIRECTIVE)
       {
@@ -1549,6 +1617,16 @@ finish:
   //
   if (argtable != statargtable)
     free(argtable);
+  //
+  // Free all contents of ptr_infos, if necessary.
+  //
+  for (map<void *, pointer_info *>::iterator pos = ptr_infos.begin(),
+       end = ptr_infos.end();
+       pos != end;
+       ++pos)
+  {
+    delete pos->second;
+  }
 
   return ret;
 }
@@ -1942,9 +2020,7 @@ overflow:
   ret   = -1;
 
 finish:
-  //
-  // Free the type table, if necessary, and return.
-  //
+  // Free the type table, if necessary.
   if (typetable != stattypetable)
     free(typetable);
   return ret;

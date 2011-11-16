@@ -15,6 +15,7 @@
 #define _CSTDLIB_H
 
 #include "../include/CStdLibSupport.h"
+#include "../include/strnlen.h"
 
 #include "DebugReport.h"
 #include "PoolAllocator.h"
@@ -103,21 +104,6 @@ namespace {
     v.function   = function;
     v.dbgMetaData = NULL;
     ReportMemoryViolation(&v);
-  }
-
-
-  extern "C" {
-    inline size_t _strnlen(const char *s, size_t maxlen) {
-      size_t i;
-      for (i = 0; i < maxlen && s[i]; ++i)
-        ;
-      return i;
-    }
-
-    inline size_t strnlen_opt(const char *s, size_t maxlen) {
-      const char *end = (const char *)memchr(s, '\0', maxlen);
-      return (end ? ((size_t) (end - s)) : maxlen);
-    }
   }
 
 #if 0

@@ -15,13 +15,14 @@
 #ifndef _FORMAT_STRINGS_H
 #define _FORMAT_STRINGS_H
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stddef.h>
-
+#include <cstdio>
+#include <cstdarg>
+#include <cstddef>
 #include <iostream>
+#include <map>
+#include <stdint.h>
 
+#include "../include/strnlen.h"
 #include "PoolAllocator.h"
 
 //
@@ -71,10 +72,16 @@ typedef struct
 //
 typedef struct
 {
+  // Options for whether the output string goes.
   enum
   {
+    // A dynamically allocated string with a maximum length
+    OUTPUT_TO_BOUNDED_ALLOCATED_STRING,
+    // A dynamically allocated string
     OUTPUT_TO_ALLOCATED_STRING,
+    // A string
     OUTPUT_TO_STRING,
+    // A file
     OUTPUT_TO_FILE
   } output_kind;
   union
@@ -98,8 +105,13 @@ typedef struct
   } output;
 } output_parameter;
 
-#define USE_M_DIRECTIVE 0x0001 // Enable parsing of the %m directive for
-                               // syslog()
+//
+// Options for the printf() / scanf() runtime function.
+//
+#define USE_M_DIRECTIVE    0x01 // Enable parsing of the %m directive
+#define POINTERS_UNWRAPPED 0x02 // Pointer arguments aren't wrapped
+#define NO_STACK_CHECKS    0x04 // Don't check for va_list going out of bounds
+#define NO_WLIST_CHECKS    0x08 // Don't check the whitelist
 typedef unsigned options_t;
 
 //
@@ -131,48 +143,36 @@ typedef struct
 //
 // Error reporting functions
 //
-extern void out_of_bounds_error(call_info *c,
-                                pointer_info *p,
-                                size_t obj_len);
+extern void
+out_of_bounds_error(call_info *, pointer_info *, size_t);
 
-extern void write_out_of_bounds_error(call_info *c,
-                                      pointer_info *p,
-                                      size_t dst_sz,
-                                      size_t src_sz);
+extern void
+write_out_of_bounds_error(call_info *, pointer_info *, size_t, size_t);
 
-extern void c_library_error(call_info *c, const char *function);
+extern void
+c_library_error(call_info *, const char *);
 
-extern void load_store_error(call_info *c, pointer_info *p);
+extern void
+load_store_error(call_info *c, pointer_info *p);
 
 //
 // Printing/scanning functions
 //
-extern int gprintf(const options_t &Options,
-                   output_parameter &P,
-                   call_info &C,
-                   pointer_info &FormatString,
-                   va_list Args);
+extern int
+gprintf(
+  const options_t, output_parameter &, call_info &, pointer_info &, va_list
+);
 
-extern int gscanf(input_parameter &P,
-                  call_info &C,
-                  pointer_info &FormatString,
-                  va_list Args);
-
-extern int internal_printf(const options_t &options,
-                           output_parameter &P,
-                           call_info &C,
-                           const char *fmt,
-                           va_list args);
-
-extern int internal_scanf(input_parameter &p,
-                          call_info &c,
-                          const char *fmt,
-                          va_list args);
+extern int
+gscanf(
+  const options_t, input_parameter &, call_info &, pointer_info &, va_list
+);
 
 namespace
 {
   using std::cerr;
   using std::endl;
+  using std::map;
 
   using namespace llvm;
 
@@ -195,6 +195,7 @@ namespace
       return;
 
     DebugPoolTy *pool = (DebugPoolTy *) p->pool;
+
     if (p->ptr == 0)
       p->flags |= NULL_PTR;
     else if ((pool && pool->Objects.find(p->ptr, p->bounds[0], p->bounds[1])) ||
@@ -217,12 +218,15 @@ namespace
   // given call_info structure.
   //
   static inline bool
-  is_in_whitelist(call_info *c, pointer_info *p)
+  is_in_whitelist(call_info *c, const options_t options, pointer_info *p)
   {
+    if (options & NO_WLIST_CHECKS)
+      return true;
+    void *val = (options & POINTERS_UNWRAPPED) ? p->ptr : (void *) p;
     void **whitelist = c->whitelist;
     do
     {
-      if ((void *) p == *whitelist)
+      if (val == *whitelist)
         break;
       whitelist++;
     } while (*whitelist);
@@ -259,13 +263,13 @@ namespace
   // the write is to be considered safe, and false otherwise.
   //
   static inline bool
-  write_check(call_info *c, pointer_info *p, size_t n)
+  write_check(call_info *c, const options_t options, pointer_info *p, size_t n)
   {
     size_t max;
     //
     // First check if the object is a valid pointer_info structure.
     //
-    if (p == 0 || !is_in_whitelist(c, p))
+    if (p == 0 || !is_in_whitelist(c, options, p))
     {
       cerr << "The destination of the write isn't a valid pointer!" << endl;
       c_library_error(c, "va_arg");
@@ -316,9 +320,11 @@ namespace
   // the arguments that exist to the function call, and false otherwise.
   //
   static inline bool
-  varg_check(call_info *c, unsigned pos)
+  varg_check(call_info *c, const options_t options, unsigned pos)
   {
-    if (pos > c->vargc)
+    if (options & NO_STACK_CHECKS)
+      return true;
+    else if (pos > c->vargc)
     {
       if (c->vargc == 1)
       {
@@ -333,7 +339,8 @@ namespace
       c_library_error(c, "va_arg");
       return true;
     }
-    return false;
+    else
+      return false;
   }
 
   //
@@ -353,27 +360,48 @@ namespace
   //  in the whitelist, and p otherwise.
   //
   static inline void *
-  unwrap_pointer(call_info *c, void *p)
+  unwrap_pointer(call_info *c, const options_t options, void *p)
   {
-    if (is_in_whitelist(c, (pointer_info *) p))
+    if (is_in_whitelist(c, options, (pointer_info *) p))
       return ((pointer_info *) p)->ptr;
     else
       return p;
   }
 
   //
-  // This function is identical to strnlen(), which is not found on Mac OS X.
+  // wrap_pointer()
   //
-  static inline size_t
-  _strnlen(const char *s, size_t n)
+  // Wraps a pointer in a pointer_info structure, if pointers are unwrapped.
+  //
+  // Inputs:
+  //   options - the options passed to the format string function
+  //   ptr     - the pointer to wrap
+  //   mp      - a map from pointers to their corresponding wrappers
+  //
+  // Returns:
+  //   If (options & POINTERS_UNWRAPPED) is false, returns ptr.
+  //   If (options & POINTERS_UNWRAPPED) is true, this function looks up or
+  //   adds an entry to the map mp which is the wrapped version of ptr.
+  //
+  static inline void *
+  wrap_pointer(const options_t options,
+               void *ptr,
+               map<void *, pointer_info *> &mp)
   {
-    size_t i;
-    for (i = 0; i < n; i++)
-      if (s[i] == '\0')
-        break;
-    return i;
+    if (!(options & POINTERS_UNWRAPPED))
+      return ptr;
+    // Try to find the pointer wrapper in the map.
+    map<void *, pointer_info *>::iterator it = mp.find(ptr);
+    if (it != mp.end()) {
+      return it->second;
+    }
+    // If not found, create a new entry for the pointer...
+    pointer_info *&p = mp[ptr] = new pointer_info();
+    p->ptr = ptr;
+    p->pool = 0;
+    p->flags = 0; // Don't add any flags.
+    return p;
   }
-
 }
 
 #endif

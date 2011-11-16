@@ -59,6 +59,14 @@ char StringTransform::ID = 0;
 
 // Statistics counters
 
+STATISTIC(st_xform_vprintf,   "Total vprintf() calls transformed");
+STATISTIC(st_xform_vfprintf,  "Total vfprintf() calls transformed");
+STATISTIC(st_xform_vsprintf,  "Total vsprintf() calls transformed");
+STATISTIC(st_xform_vsnprintf, "Total vsnprintf() calls transformed");
+STATISTIC(st_xform_vscanf,    "Total vscanf() calls transformed");
+STATISTIC(st_xform_vsscanf,   "Total vsscanf() calls transformed");
+STATISTIC(st_xform_vfscanf,   "Total vfscanf() calls transformed");
+STATISTIC(st_xform_vsyslog,   "Total vsyslog() calls transformed");
 STATISTIC(st_xform_memccpy, "Total memccpy() calls transformed");
 STATISTIC(st_xform_memchr,  "Total memchr() calls transformed");
 STATISTIC(st_xform_memcmp,  "Total memcmp() calls transformed");
@@ -114,12 +122,9 @@ STATISTIC(st_xform_fgets, "Total fgets() calls transformed");
 static RegisterPass<StringTransform>
 ST("string_transform", "Secure C standard string library calls");
 
-/**
- * Entry point for the LLVM pass that transforms C standard string library calls
- *
- * @param M Module to scan
- * @return  Whether we modified the module
- */
+//
+// Entry point for the LLVM pass that transforms C standard string library calls
+//
 bool
 StringTransform::runOnModule(Module &M)
 {
@@ -136,6 +141,40 @@ StringTransform::runOnModule(Module &M)
   Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
   Type *VoidTy  = Type::getVoidTy(M.getContext());
 
+  // Functions from <stdio.h>, <syslog.h>
+  chgd |= transform(M, "vprintf",  2, 1, Int32Ty, st_xform_vprintf);
+  chgd |= transform(M, "vfprintf", 3, 2, Int32Ty, st_xform_vfprintf);
+  chgd |= transform(M, "vsprintf", 3, 2, Int32Ty, st_xform_vsprintf);
+  chgd |= transform(M, "vscanf",   2, 1, Int32Ty, st_xform_vscanf);
+  chgd |= transform(M, "vsscanf",  3, 2, Int32Ty, st_xform_vsscanf);
+  chgd |= transform(M, "vfscanf",  3, 2, Int32Ty, st_xform_vfscanf);
+  SourceFunction VSNPf   = { "vsnprintf", Int32Ty, 4 };
+  SourceFunction VSyslog = { "vsyslog", VoidTy, 3 };
+  DestFunction PVSNPf   = { "pool_vsnprintf", 4, 2 };
+  DestFunction PVSyslog = { "pool_vsyslog", 3, 1 };
+  // Note that we need to switch the order of arguments to the instrumented
+  // calls of vsnprintf() and vsyslog(), because the CStdLib pass convention is
+  // to place all the interesting pointer arguments at the start of the
+  // parameter list, but these functions have initial arguments that are
+  // non-pointers.
+  chgd |= vtransform(M, VSNPf, PVSNPf, st_xform_vsnprintf, 1u, 3u, 2u, 4u);
+  chgd |= vtransform(M, VSyslog, PVSyslog, st_xform_vsyslog, 2u, 1u, 3u);
+  // __isoc99_vscanf family: these are found in glibc
+  SourceFunction IsoC99Vscanf  = { "__isoc99_vscanf", Int32Ty, 2 };
+  SourceFunction IsoC99Vsscanf = { "__isoc99_vsscanf", Int32Ty, 3 };
+  SourceFunction IsoC99Vfscanf = { "__isoc99_vfscanf", Int32Ty, 3 };
+  DestFunction PVscanf  = { "pool_vscanf", 2, 1 };
+  DestFunction PVsscanf = { "pool_vsscanf", 3, 2 };
+  DestFunction PVfscanf = { "pool_vfscanf", 3, 2 };
+  chgd |= vtransform(M, IsoC99Vscanf, PVscanf, st_xform_vscanf, 1u, 2u);
+  chgd |= vtransform(M, IsoC99Vsscanf, PVsscanf, st_xform_vsscanf, 1u, 2u);
+  chgd |= vtransform(M, IsoC99Vfscanf, PVfscanf, st_xform_vfscanf, 1u, 2u);
+  // __vsprintf_chk, __vsnprintf_chk
+  SourceFunction VSPfC  = { "__vsprintf_chk", Int32Ty, 5 };
+  SourceFunction VSNPfC = { "__vsnprintf_chk", Int32Ty, 6 };
+  DestFunction PVSPf = { "pool_vsprintf", 3, 2 };
+  chgd |= vtransform(M, VSPfC, PVSPf, st_xform_vsprintf, 1u, 4u, 5u);
+  chgd |= vtransform(M, VSNPfC, PVSNPf, st_xform_vsnprintf, 1u, 5u, 2u, 6u);
   // Functions from <string.h>
   chgd |= transform(M, "memccpy", 4, 2, VoidPtrTy, st_xform_memccpy);
   chgd |= transform(M, "memchr",  3, 1, VoidPtrTy, st_xform_memchr);
@@ -180,7 +219,7 @@ StringTransform::runOnModule(Module &M)
   chgd |= transform(M, "rindex",  2, 1, VoidPtrTy, st_xform_rindex);
   chgd |= transform(M, "strcasecmp", 2, 2, Int32Ty, st_xform_strcasecmp);
   chgd |= transform(M, "strncasecmp", 3, 2, Int32Ty, st_xform_strncasecmp);
-  // Darwin-specific secure extensions
+  // Darwin-specific secure extensions to <string.h>
   SourceFunction MemcpyChk  = { "__memcpy_chk", VoidPtrTy, 4 };
   SourceFunction MemmoveChk = { "__memmove_chk", VoidPtrTy, 4 };
   SourceFunction MemsetChk  = { "__memset_chk", VoidPtrTy, 4 };
@@ -195,17 +234,17 @@ StringTransform::runOnModule(Module &M)
   DestFunction PoolStrcat  = { "pool_strcat", 2, 2 };
   DestFunction PoolStrncat = { "pool_strncat", 3, 2 };
   DestFunction PoolStrncpy = { "pool_strncpy", 3, 2 };
-  chgd |= vtransform(M, MemcpyChk, PoolMemcpy, st_xform_memcpy, 1, 2, 3);
-  chgd |= vtransform(M, MemmoveChk, PoolMemmove, st_xform_memmove, 1, 2, 3);
-  chgd |= vtransform(M, MemsetChk, PoolMemset, st_xform_memset, 1, 2, 3);
-  chgd |= vtransform(M, StrcpyChk, PoolStrcpy, st_xform_strcpy, 1, 2);
-  chgd |= vtransform(M, StrcatChk, PoolStrcat, st_xform_strcat, 1, 2);
-  chgd |= vtransform(M, StrncatChk, PoolStrncat, st_xform_strncat, 1, 2, 3);
-  chgd |= vtransform(M, StrncpyChk, PoolStrncpy, st_xform_strncpy, 1, 2, 3);
+  chgd |= vtransform(M, MemcpyChk, PoolMemcpy, st_xform_memcpy, 1u, 2u, 3u);
+  chgd |= vtransform(M, MemmoveChk, PoolMemmove, st_xform_memmove, 1u, 2u, 3u);
+  chgd |= vtransform(M, MemsetChk, PoolMemset, st_xform_memset, 1u, 2u, 3u);
+  chgd |= vtransform(M, StrcpyChk, PoolStrcpy, st_xform_strcpy, 1u, 2u);
+  chgd |= vtransform(M, StrcatChk, PoolStrcat, st_xform_strcat, 1u, 2u);
+  chgd |= vtransform(M, StrncatChk, PoolStrncat, st_xform_strncat, 1u, 2u, 3u);
+  chgd |= vtransform(M, StrncpyChk, PoolStrncpy, st_xform_strncpy, 1, 2u, 3u);
 #ifdef HAVE_STPCPY
   SourceFunction StpcpyChk = { "__stpcpy_chk", VoidPtrTy, 3 };
   DestFunction PoolStpcpy = { "pool_stpcpy", 2, 2 };
-  chgd |= vtransform(M, StpcpyChk, PoolStpcpy, st_xform_stpcpy, 1, 2);
+  chgd |= vtransform(M, StpcpyChk, PoolStpcpy, st_xform_stpcpy, 1u, 2u);
 #endif
 
   // Functions from <stdio.h> 
@@ -368,10 +407,10 @@ StringTransform::gtransform(Module &M,
   FunctionType *FT = FunctionType::get(F_type->getReturnType(), ParamTy, false);
   Function *PoolFInModule = M.getFunction(to.name);
   // Make sure that the function declarations don't conflict.
-  if (PoolFInModule)
-    assert((PoolFInModule->getFunctionType() == FT ||
-           PoolFInModule->hasLocalLinkage()) &&
-           "Replacement function declared with wrong type!");
+  assert((PoolFInModule == 0 ||
+    PoolFInModule->getFunctionType() == FT ||
+    PoolFInModule->hasLocalLinkage()) &&
+    "Replacement function already declared with wrong type!");
   // Build the actual transformed function.
   Constant *PoolF = M.getOrInsertFunction(to.name, FT);
   // This is a placeholder value for the pool handles (to be "filled in" later
