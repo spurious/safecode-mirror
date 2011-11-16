@@ -405,12 +405,14 @@ StringTransform::gtransform(Module &M,
   ParamTy.push_back(Int8Ty);
   // Build the type of the transformed function.
   FunctionType *FT = FunctionType::get(F_type->getReturnType(), ParamTy, false);
+#ifndef NDEBUG
   Function *PoolFInModule = M.getFunction(to.name);
   // Make sure that the function declarations don't conflict.
   assert((PoolFInModule == 0 ||
     PoolFInModule->getFunctionType() == FT ||
     PoolFInModule->hasLocalLinkage()) &&
     "Replacement function already declared with wrong type!");
+#endif
   // Build the actual transformed function.
   Constant *PoolF = M.getOrInsertFunction(to.name, FT);
   // This is a placeholder value for the pool handles (to be "filled in" later
