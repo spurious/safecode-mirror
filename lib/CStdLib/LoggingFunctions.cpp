@@ -57,6 +57,7 @@ bool LoggingFunctions::runOnModule(Module &M) {
       vector<Type *> vrArgTypes = args<Type *>::list(VoidPtrTy, Int32Ty);
       FunctionType *tcType = FunctionType::get(Int32Ty, tcArgTypes, false);
       FunctionType *vrType = FunctionType::get(VoidTy, vrArgTypes, false);
+#ifndef NDEBUG
       Function *tcInModule = M.getFunction("__sc_targetcheck");
       Function *vrInModule = M.getFunction("__sc_varegister");
       assert((tcInModule == 0 ||
@@ -67,6 +68,7 @@ bool LoggingFunctions::runOnModule(Module &M) {
         vrInModule->getFunctionType() == vrType ||
         vrInModule->hasLocalLinkage()) &&
         "Intrinsic already declared with wrong type!");
+#endif
       targetCheckFunc = M.getOrInsertFunction("__sc_targetcheck", tcType);
       vaRegisterFunc = M.getOrInsertFunction("__sc_varegister", vrType);
       // Now register all found calls....

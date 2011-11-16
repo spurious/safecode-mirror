@@ -85,6 +85,7 @@ void RegisterVarargCallSites::makeRegistrationFunctions(Module &M) {
   // arguments as well as b) passing completeness information for the
   // arguments.
   //
+#ifndef NDEBUG
   Function *registration = M.getFunction("__sc_vacallregister");
   Function *unregistration = M.getFunction("__sc_vacallunregister");
   assert((registration == 0 ||
@@ -95,6 +96,7 @@ void RegisterVarargCallSites::makeRegistrationFunctions(Module &M) {
     unregistration->getFunctionType() == vaCallUnregisterType ||
     unregistration->hasLocalLinkage()) &&
     "Intrinsic declared with wrong type!");
+#endif
   registrationFunc = M.getOrInsertFunction(
     "__sc_vacallregister", vaCallRegisterType
   );
