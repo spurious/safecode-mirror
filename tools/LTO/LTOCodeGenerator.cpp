@@ -361,11 +361,6 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   passes.add(createInternalizePass(mustPreserveList));
 
-  // Add the SAFECode optimization/finalization passes
-  passes.add(new TargetData(*_target->getTargetData()));
-  passes.add(new ExactCheckOpt());
-  passes.add(new CompleteChecks());
-
   // apply scope restrictions
   passes.run(*mergedModule);
   
@@ -414,6 +409,13 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
                                      CodeGenOpt::Aggressive)) {
       errMsg = "target file type not supported";
       return true;
+    }
+
+    // Add the SAFECode optimization/finalization passes
+    passes.add(new TargetData(*_target->getTargetData()));
+    passes.add(new ExactCheckOpt());
+    if (mergedModule->getFunction("main")) {
+      passes.add(new CompleteChecks());
     }
 
     // Run our queue of passes all at once now, efficiently.
