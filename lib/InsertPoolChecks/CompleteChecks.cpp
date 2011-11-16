@@ -413,31 +413,38 @@ CompleteChecks::getFunctionTargets (CallSite CS,
   DSGraph* G = dsaPass.getGlobalsGraph();
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
 
+  //
+  // Scan through all targets of this call site within DSA's callgraph.
+  //
   DSCallGraph::callee_iterator csi = callgraph.callee_begin(CS);
   DSCallGraph::callee_iterator cse = callgraph.callee_end(CS);
   for (; csi != cse; ++csi) {
-    const Function *F = *csi;
-    DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
-      sccee = callgraph.scc_end(F);
-    for (;sccii != sccee; ++sccii) {
-      DSGraph::ScalarMapTy::const_iterator I = 
-        SM.find(SM.getLeaderForGlobal(*sccii));
-      if (I != SM.end() && !((*sccii)->isDeclaration())) {
-        Targets.push_back (*sccii);
-      }
+    //
+    // The DSCallGraph maps call sites to targets.  However, each target can
+    // represent an entire strongly connected component (SCC) in the call
+    // graph.  Therefore, we need to find all of the functions represented by
+    // the SCC.
+    //
+    const Function * SCCLeader = *csi;
+    Targets.push_back (SCCLeader);
+    DSCallGraph::scc_iterator sccii = callgraph.scc_begin(SCCLeader);
+    DSCallGraph::scc_iterator sccee = callgraph.scc_end(SCCLeader);
+    for (; sccii != sccee; ++sccii) {
+      Targets.push_back (*sccii);
     }
   }
 
   const Function *F1 = CS.getInstruction()->getParent()->getParent();
+
+  //
+  // It's possible that the call instruction is within an SCC.  Find the leader
+  // of the SCC and find which functions it can call.
+  //
   F1 = callgraph.sccLeader(&*F1);
-  DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
-                 sccee = callgraph.scc_end(F1);
-  for(;sccii != sccee; ++sccii) {
-    DSGraph::ScalarMapTy::const_iterator I = 
-      SM.find(SM.getLeaderForGlobal(*sccii));
-    if (I != SM.end() && !((*sccii)->isDeclaration())) {
-      Targets.push_back (*sccii);
-    }
+  DSCallGraph::flat_iterator sccii = callgraph.flat_callee_begin(F1),
+                 sccee = callgraph.flat_callee_end(F1);
+  for (; sccii != sccee; ++sccii) {
+    Targets.push_back (*sccii);
   }
 
   return;
@@ -459,11 +466,14 @@ CompleteChecks::getFunctionTargets (CallSite CS,
 void
 CompleteChecks::fixupCFIChecks (Module & M, std::string name) {
   //
-  // Scan through all uses of the funccheck() function.
+  // See if this run-time check is used in this program.  If not, do nothing.
   //
   Function * FuncCheck = M.getFunction (name);
   if (!FuncCheck) return;
 
+  //
+  // Scan through all uses of the funccheck() function.
+  //
   PointerType * VoidPtrType = getVoidPtrType(M.getContext());
   Value::use_iterator UI = FuncCheck->use_begin();
   Value::use_iterator  E = FuncCheck->use_end();
@@ -493,6 +503,7 @@ CompleteChecks::fixupCFIChecks (Module & M, std::string name) {
           Constant * C = M.getFunction (Targets[index]->getName());
           GoodTargets.push_back(ConstantExpr::getZExtOrBitCast(C, VoidPtrType));
         }
+        GoodTargets.push_back (ConstantPointerNull::get (VoidPtrType));
 
         //
         // Create a new global variable containing the list of targets.
