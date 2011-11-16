@@ -1,4 +1,5 @@
 ; RUN: test.sh -e -t %t %s
+; XFAIL: darwin
 
 ; Another example of bzero() writing out of bounds.
 ; This is in assembly because clang replaces calls to bzero() with

@@ -13,13 +13,16 @@ usage()
   echo '   -t dir    directory to use for testing'
   echo '   -p        expect no SAFEcode errors from the test case'
   echo '   -e        expect a SAFEcode error from the test case'
+  echo '   -l file   link in file when linking the executable'
 }
 
 # Process the arguments.
-while getopts hept:cf option
+link_files=''
+while getopts hepl:t:cf option
   do
     case $option in
       e) expect_error=1;;
+      l) link_files=$link_files' '$OPTARG;;
       p) expect_error=0;;
       t) testdir=$OPTARG;;
       h) usage
@@ -73,9 +76,9 @@ setupdir()
 compile()
 {
   # Create bitcode file with SAFECode passes.
-  $sc -g -S -emit-llvm -fmemsafety -o $llfile $filename 2>&1 | tee $sclog
+  $sc -g -S -emit-llvm -fmemsafety -fmemsafety-terminate -o $llfile $filename 2>&1 | tee $sclog
   # Compile and link bitcode.
-  $sc -o $scfile $llfile $sc_lib/libsc_dbg_rt.a $sc_lib/libpoolalloc_bitmap.a $sc_lib/libgdtoa.a -lstdc++
+  $sc -o $scfile $llfile $link_files $sc_lib/libsc_dbg_rt.a $sc_lib/libpoolalloc_bitmap.a $sc_lib/libgdtoa.a -lstdc++
 }
 
 # Run test and check results.
