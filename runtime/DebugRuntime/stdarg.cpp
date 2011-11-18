@@ -33,7 +33,7 @@ using std::set;
 // Declare SAFECode intrinsics as C functions.
 extern "C" uint32_t __sc_targetcheck(void *func);
 extern "C" void __sc_varegister(va_list ap, uint32_t id);
-extern "C" void __sc_vacopyregister(void *dest, void *src);
+extern "C" void __sc_vacopyregister(va_list dest, va_list src);
 extern "C" void __sc_vacallregister(void *func, uint32_t argc, ...);
 extern "C" void __sc_vacallunregister();
 
