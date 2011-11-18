@@ -11,7 +11,6 @@
 
 namespace llvm
 {
-struct Type;
 template <class T>
 struct args {
 	typedef T t_arg;
