@@ -254,6 +254,17 @@ void
 pool_init_logfile (const char * name) {
   extern std::ostream * ErrorLog;
 
+  //
+  // Determine if there is an environment variable that overrides the log file
+  // name.  If so, use it.  Otherwise, use what was specified on the command
+  // line.
+  //
+  char * envname = getenv ("SCLOGFILE");
+  if (envname) {
+    ErrorLog = new std::ofstream (envname);
+    return;
+  }
+
   ErrorLog = new std::ofstream (name);
   return;
 }
