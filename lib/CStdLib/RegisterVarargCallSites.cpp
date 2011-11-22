@@ -161,6 +161,12 @@ void RegisterVarargCallSites::registerCallSite(Module &M, CallSite &CS) {
 
 // Determine if the given call instruction should be registered.
 void RegisterVarargCallSites::visitCallInst(CallInst &I) {
+  //
+  // Do not register inline assembly instructions.
+  //
+  if (I.isInlineAsm())
+    return;
+
   CallSite CS(&I);
   Function *f = CS.getCalledFunction();
   // If this is an indirect call, conservatively register it.
