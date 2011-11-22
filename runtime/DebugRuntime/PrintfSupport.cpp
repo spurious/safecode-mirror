@@ -163,7 +163,28 @@ do_output(call_info *c, output_parameter *p, struct suio *uio)
     }
     for (int i = 0; i < uio->uio_iovcnt; ++i)
     {
+      //
+      // Get the amount of data that we would *like* to write into the buffer.
+      //
       amt = uio->uio_iov[i].iov_len;
+
+      //
+      // If the user-imposed limit is within the memory bounds limit, then
+      // check to see if we reach the user-imposed limit.  If so, fill the
+      // string to the allowed capacity and return.
+      //
+      if ((n - pos) <= (msz - pos))
+      {
+        if (amt > n - pos)
+        {
+          memcpy(&dest[pos], &uio->uio_iov[i].iov_base[0], n - pos);
+          pos = n;
+          uio->uio_resid  = 0;
+          uio->uio_iovcnt = 0;
+          return 0;
+        }
+      }
+
       //
       // Check for out of bounds write. Report an out of bounds write only once.
       //
@@ -173,6 +194,7 @@ do_output(call_info *c, output_parameter *p, struct suio *uio)
         cerr << "Destination string not long enough!" << endl;
         write_out_of_bounds_error(c, info, msz, pos + amt);
       }
+
       //
       // Check to see if the we'll reach the user imposed size.
       // If so, fill the string to the allowed capacity and return.
