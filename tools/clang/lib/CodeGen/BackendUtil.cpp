@@ -204,6 +204,13 @@ void EmitAssemblyHelper::CreatePasses() {
       MPM->add(createStripSymbolsPass(true));
   }
 
+  // Add the memory safety passes for control-flow integrity
+  if (CodeGenOpts.MemSafety) {
+    MPM->add (new CFIChecks());
+  }
+
+  PMBuilder.populateModulePassManager(*MPM);
+
   // Add the memory safety passes
   if (CodeGenOpts.MemSafety) {
 
@@ -226,7 +233,6 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
     MPM->add (new DebugInstrument());
     MPM->add (new InsertLSChecks());
-    MPM->add (new CFIChecks());
     MPM->add (new ScalarEvolution());
     MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());
@@ -238,7 +244,10 @@ void EmitAssemblyHelper::CreatePasses() {
       MPM->add (llvm::createSCTerminatePass ());
     }
   }
-  
+
+  //
+  // Rerun the LLVM optimizations again.
+  //
   PMBuilder.populateModulePassManager(*MPM);
 }
 
