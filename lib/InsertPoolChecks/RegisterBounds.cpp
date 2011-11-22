@@ -270,19 +270,26 @@ RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * i
   Function * allocFunc = M->getFunction(info->getAllocCallName());
   if (allocFunc) {
     for (Value::use_iterator it = allocFunc->use_begin(), 
-           end = allocFunc->use_end(); it != end; ++it)
+           end = allocFunc->use_end(); it != end; ++it) {
       if (CallInst * CI = dyn_cast<CallInst>(*it)) {
-        registerReallocationSite(CI, info);
-        ++RegisteredHeapObjs;
+        if (CI->getCalledValue()->stripPointerCasts() == allocFunc) {
+          registerReallocationSite(CI, info);
+          ++RegisteredHeapObjs;
+        }
       }
+    }
   }
   
   Function * freeFunc = M->getFunction(info->getFreeCallName());
   if (freeFunc) {
     for (Value::use_iterator it = freeFunc->use_begin(),
-           end = freeFunc->use_end(); it != end; ++it)
-      if (CallInst * CI = dyn_cast<CallInst>(*it))
-        registerFreeSite(CI, info);
+           end = freeFunc->use_end(); it != end; ++it) {
+      if (CallInst * CI = dyn_cast<CallInst>(*it)) {
+        if (CI->getCalledValue()->stripPointerCasts() == freeFunc) {
+          registerFreeSite(CI, info);
+        }
+      }
+    }
   }
 }
 
