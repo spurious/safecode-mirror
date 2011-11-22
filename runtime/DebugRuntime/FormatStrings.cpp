@@ -53,7 +53,7 @@ void out_of_bounds_error(call_info *c,
   //
   void * ObjStart = 0;
   void * ObjEnd = 0;
-  void * ptr = pointer_info_value(c, p);
+  void * ptr = 0;
   PDebugMetaData debugmetadataptr = 0;
   dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
 
@@ -80,7 +80,7 @@ void write_out_of_bounds_error(call_info *c,
   //
   void * ObjStart = 0;
   void * ObjEnd = 0;
-  void * ptr = pointer_info_value(c, p);
+  void * ptr = 0;
   PDebugMetaData debugmetadataptr = 0;
   dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
 
