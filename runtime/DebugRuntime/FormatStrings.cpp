@@ -47,6 +47,16 @@ void out_of_bounds_error(call_info *c,
                          pointer_info *p,
                          size_t obj_len)
 {
+  //
+  // Attempt to look up information about the memory object for which the
+  // operation fails.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  void * ptr = pointer_info_value(c, p);
+  PDebugMetaData debugmetadataptr = 0;
+  dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+
   OutOfBoundsViolation v;
   v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
@@ -55,7 +65,7 @@ void out_of_bounds_error(call_info *c,
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
   v.objLen      = obj_len;
-  v.dbgMetaData = NULL;
+  v.dbgMetaData = debugmetadataptr;
   ReportMemoryViolation(&v);
 }
 
@@ -64,6 +74,16 @@ void write_out_of_bounds_error(call_info *c,
                                size_t dst_sz,
                                size_t src_sz)
 {
+  //
+  // Attempt to look up information about the memory object for which the
+  // operation fails.
+  //
+  void * ObjStart = 0;
+  void * ObjEnd = 0;
+  void * ptr = pointer_info_value(c, p);
+  PDebugMetaData debugmetadataptr = 0;
+  dummyPool.DPTree.find (ptr, ObjStart, ObjEnd, debugmetadataptr);
+
   WriteOOBViolation v;
   v.type        = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
@@ -73,7 +93,7 @@ void write_out_of_bounds_error(call_info *c,
   v.PoolHandle  = p->pool;
   v.dstSize     = dst_sz;
   v.srcSize     = src_sz;
-  v.dbgMetaData = NULL;
+  v.dbgMetaData = debugmetadataptr;
   ReportMemoryViolation(&v);
 }
 
