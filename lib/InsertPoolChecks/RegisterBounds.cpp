@@ -277,6 +277,26 @@ RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * i
           ++RegisteredHeapObjs;
         }
       }
+
+      //
+      // If the user is a constant expression, the constant expression may be
+      // a cast that is used by a call instruction.  Get the enclosing call
+      // instruction if so.
+      //
+      if (ConstantExpr * CE = dyn_cast<ConstantExpr>(*it)) {
+        if (CE->isCast()) {
+          for (Value::use_iterator iit = CE->use_begin(),
+                 end = CE->use_end(); iit != end; ++iit) {
+            if (CallInst * CI = dyn_cast<CallInst>(*iit)) {
+              if (CI->getCalledValue() == CE) {
+                registerReallocationSite(CI, info);
+                ++RegisteredHeapObjs;
+              }
+            }
+          }
+        }
+      }
+
     }
   }
   
@@ -287,6 +307,24 @@ RegisterCustomizedAllocation::proceedReallocator(Module * M, ReAllocatorInfo * i
       if (CallInst * CI = dyn_cast<CallInst>(*it)) {
         if (CI->getCalledValue()->stripPointerCasts() == freeFunc) {
           registerFreeSite(CI, info);
+        }
+      }
+
+      //
+      // If the user is a constant expression, the constant expression may be
+      // a cast that is used by a call instruction.  Get the enclosing call
+      // instruction if so.
+      //
+      if (ConstantExpr * CE = dyn_cast<ConstantExpr>(*it)) {
+        if (CE->isCast()) {
+          for (Value::use_iterator iit = CE->use_begin(),
+                 end = CE->use_end(); iit != end; ++iit) {
+            if (CallInst * CI = dyn_cast<CallInst>(*iit)) {
+              if (CI->getCalledValue() == CE) {
+                registerFreeSite(CI, info);
+              }
+            }
+          }
         }
       }
     }
