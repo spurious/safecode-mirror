@@ -411,31 +411,63 @@ _internal_poolregister (DebugPoolTy *Pool,
   RangeSplaySet<> * SPTree = (Pool ? &(Pool->Objects) : ExternalObjects);
 
   //
-  // Add the object to the pool's splay of valid objects.  Note that the linker
-  // may merge together global objects that are identical (or for which one is
-  // a prefix of another); allow such global objects to be reregistered.
+  // Add the object to the pool's splay of valid objects.
+  //
   //
   if (!(SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1))) {
+  // Note that the linker
+  // may merge together global objects that are identical (or for which one is
+  // a prefix of another); allow such global objects to be reregistered.
+
     //
     // If it's an overlapping global object, register the largest size.
     //
-    if (allocationType == Global) {
-      void * start;
-      void * end;
+    switch (allocationType) {
+      //
+      // The linker may force globals with identical values to overlap (such as
+      // strings in which one string is a substring of the other).  Determine
+      // the largest object that contains the object we are registering and the
+      // already registered object.
+      //
+      case Global: {
+        void * start;
+        void * end;
 #ifndef NDEBUG
-      bool fs = SPTree->find (allocaptr, start, end);
-      assert (fs);
+        bool fs = SPTree->find (allocaptr, start, end);
+        assert (fs);
 #else
-      SPTree->find (allocaptr, start, end);
+        SPTree->find (allocaptr, start, end);
 #endif
-      SPTree->remove (start);
-      void * NewEnd = ((unsigned char *)allocaptr + NumBytes - 1);
-      void * ObjStart = (allocaptr < start) ? allocaptr : start;
-      void * ObjEnd = (NewEnd > end) ? NewEnd : end;
-      SPTree->insert(ObjStart, ObjEnd);
-    } else {
-      assert (0 && "poolregister failed: Object already registered!\n");
-      abort();
+        SPTree->remove (start);
+        void * NewEnd = ((unsigned char *)allocaptr + NumBytes - 1);
+        void * ObjStart = (allocaptr < start) ? allocaptr : start;
+        void * ObjEnd = (NewEnd > end) ? NewEnd : end;
+        SPTree->insert(ObjStart, ObjEnd);
+        break;
+      }
+
+      //
+      // It is possible that external code or some deallocation function we
+      // failed to recognize freed the object; this will permit the memory
+      // to be reused without the run-time being aware.  In that case, remove
+      // the old memory object and add the new one.
+      //
+      case Heap: {
+        void * start;
+        void * end;
+        SPTree->find (allocaptr, start, end);
+        SPTree->remove (start);
+        SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1);
+        break;
+      }
+
+      //
+      // There's just no way that this should ever happen with stack-allocated
+      // memory objects.  Flag an error since this must be a SAFECode bug.
+      //
+      case Stack:
+        assert (0 && "poolregister failed: Object already registered!\n");
+        abort();
     }
   }
 
