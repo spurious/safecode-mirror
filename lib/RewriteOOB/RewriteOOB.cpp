@@ -194,32 +194,64 @@ RewriteOOB::addGetActualValues (Module & M) {
   // Assume that we don't modify anything
   bool modified = false;
 
+  // Worklist of instructions to modify
+  std::vector<Instruction *> Worklist;
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    //
+    // Clear the worklist.
+    //
+    Worklist.clear();
+
+    //
+    // Scan through all the instructions in the given function for those that
+    // need to be modified.  Add them to the worklist.
+    //
     for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+      //
+      // Integer comparisons need to be processed.
+      //
       if (ICmpInst *CmpI = dyn_cast<ICmpInst>(&*I)) {
-        assert ((CmpI->getNumOperands() == 2) &&
-                 "Compare instruction does not have two operands\n");
-        //
-        // Determine whether this is an integer comparison.
-        //
         CmpInst::Predicate Pred = CmpI->getUnsignedPredicate();
         if ((Pred >= CmpInst::FIRST_ICMP_PREDICATE) &&
             (Pred <= CmpInst::LAST_ICMP_PREDICATE)) {
-          //
-          // Replace all pointer operands with a call to getActualValue().
-          // This will convert an OOB pointer back into the real pointer value.
-          //
-          if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
-            // Rewrite both operands and flag that we modified the code
-            addGetActualValue(CmpI, 0);
-            modified = true;
-          }
+          Worklist.push_back (CmpI);
+        }
+      }
 
-          if (isa<PointerType>(CmpI->getOperand(1)->getType())) {
-            // Rewrite both operands and flag that we modified the code
-            addGetActualValue(CmpI, 1);
-            modified = true;
-          }
+      //
+      // Casts from pointers to integers must also be processed.
+      //
+      if (PtrToIntInst * CastInst = dyn_cast<PtrToIntInst>(&*I)) {
+        Worklist.push_back (CastInst);
+      }
+    }
+
+    //
+    // Now scan through the worklist and process each instruction.  Note that,
+    // since we're using a worklist, we won't pick up casts introduced by
+    // addGetActualValue().
+    //
+    for (unsigned index = 0; index < Worklist.size(); ++index) {
+      //
+      // Get the proper element from the worklist.
+      //
+      Instruction * I = Worklist[index];
+
+      if (ICmpInst *CmpI = dyn_cast<ICmpInst>(I)) {
+        //
+        // Replace all pointer operands with a call to getActualValue().
+        // This will convert an OOB pointer back into the real pointer value.
+        //
+        if (isa<PointerType>(CmpI->getOperand(0)->getType())) {
+          // Rewrite both operands and flag that we modified the code
+          addGetActualValue(CmpI, 0);
+          modified = true;
+        }
+
+        if (isa<PointerType>(CmpI->getOperand(1)->getType())) {
+          // Rewrite both operands and flag that we modified the code
+          addGetActualValue(CmpI, 1);
+          modified = true;
         }
       }
 
@@ -265,33 +297,32 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
                                                 VoidPtrTy,
                                                 VoidPtrTy,
                                                 NULL);
-  Function * GetActualValue = dyn_cast<Function>(GAVConst);
-
-  // We know that the operand is a pointer type 
-  Value *op   = SCI->getOperand(operand);
+  Function * GetActualValue = cast<Function>(GAVConst);
 
   //
-  // Peel casts off of the operand.
+  // Get the operand that needs to be replaced.
   //
-  Value * peeledOp = op->stripPointerCasts();
+  Value * Operand = SCI->getOperand(operand);
+
+  //
+  //
+  // Rewrite pointers are generated from calls to the SAFECode run-time
+  // checks.  Therefore, constants and return values from allocation
+  // functions are known to be the original value and do not need to be
+  // rewritten back into their orignal values.
+  //
+  // FIXME:
+  //  Add a case for calls to heap allocation functions.
+  //
+  Value * PeeledOperand = Operand->stripPointerCasts();
+  if (isa<Constant>(PeeledOperand) || isa<AllocaInst>(PeeledOperand)) {
+    return;
+  }
 
   //
   // Get the pool handle associated with the pointer.
   //
-  Value *PH = 0;
-  if ((isa<Argument>(peeledOp)) || (isa<Instruction>(peeledOp))) {
-    PH = ConstantPointerNull::get (getVoidPtrType(peeledOp->getContext()));
-  } else if (isa<Constant>(peeledOp) || isa<AllocaInst>(peeledOp)) {
-    //
-    // FIXME:
-    //  Add a case for calls to heap allocation functions.
-    //
-    // Rewrite pointers are generated from calls to the SAFECode run-time
-    // checks.  Therefore, constants and return values from allocation
-    // functions are known to be the original value.
-    //
-    return;
-  }
+  Value *PH = ConstantPointerNull::get (getVoidPtrType(Operand->getContext()));
 
   //
   // Create a call to getActualValue() to convert the pointer back to its
@@ -306,25 +337,25 @@ RewriteOOB::addGetActualValue (Instruction *SCI, unsigned operand) {
   //
   // Insert the call to getActualValue()
   //
-  Type * VoidPtrType = getVoidPtrType(peeledOp->getContext());
-  Value * PHVptr = castTo (PH, VoidPtrType, "castPH", SCI);
-  Value * OpVptr = castTo (op,
+  Type * VoidPtrType = getVoidPtrType(Operand->getContext());
+  Value * OpVptr = castTo (Operand,
                            VoidPtrType,
-                           op->getName() + ".casted",
+                           Operand->getName() + ".casted",
                            SCI);
 
   std::vector<Value *> args;
-  args.push_back (PHVptr);
+  args.push_back (PH);
   args.push_back (OpVptr);
   CallInst *CI = CallInst::Create (GetActualValue,
                                    args,
                                    "getval",
                                    SCI);
   Instruction *CastBack = castTo (CI,
-                                  op->getType(),
-                                  op->getName()+".castback",
+                                  Operand->getType(),
+                                  Operand->getName()+".castback",
                                   SCI);
   SCI->setOperand (operand, CastBack);
+  return;
 }
 
 //
