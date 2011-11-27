@@ -296,7 +296,19 @@ FormatStringTransform::transform(Module &M,
     CallInst *NewCall = buildSecuredCall(replacementFunc, *i);
     NewCall->insertBefore(OldCall);
     OldCall->replaceAllUsesWith(NewCall);
-    OldCall->eraseFromParent();
+    //
+    // When transforming an invoke instruction, create a branch to the normal
+    // label, since the transformed call doesn't throw exceptions.
+    //
+    if (isa<InvokeInst>(OldCall))
+    {
+      InvokeInst *Invoke = cast<InvokeInst>(OldCall);
+      BranchInst *Br = BranchInst::Create(Invoke->getNormalDest());
+      Invoke->eraseFromParent();
+      Br->insertAfter(NewCall);
+    }
+    else
+      OldCall->eraseFromParent();
     ++stat;
     ++i;
   }
