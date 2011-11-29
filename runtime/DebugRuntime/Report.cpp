@@ -100,7 +100,10 @@ ViolationInfo::print(std::ostream & OS) const {
   OS << "\n";
   OS << "=======+++++++    SAFECODE RUNTIME ALERT +++++++=======\n";
   OS << "= Error type                            :\t" << typestring << "\n";
-  OS << "= CWE ID                                :\t" << this->CWE << "\n";
+  OS << "= CWE ID                                :\t" << std::dec
+                                                      << this->CWE
+                                                      << std::showbase
+                                                      << std::hex << "\n";
   OS << "= Faulting pointer                      :\t" << this->faultPtr << "\n";
   OS << "= Program counter                       :\t" << this->faultPC << "\n";
 }
