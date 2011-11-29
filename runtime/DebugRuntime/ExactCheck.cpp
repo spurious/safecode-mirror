@@ -16,6 +16,7 @@
 #include "ConfigData.h"
 
 #include "../include/BitmapAllocator.h"
+#include "../include/CWE.h"
 
 #include <stdint.h>
 
@@ -47,6 +48,7 @@ failLSCheck (const char *base,
   v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = result,
+    v.CWE = CWEBufferOverflow,
     v.PoolHandle = 0,
     v.dbgMetaData = NULL,
     v.SourceFile = SourceFile,
@@ -235,6 +237,7 @@ exactcheck_check (void * ObjStart,
     v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = Dest,
+      v.CWE = CWEBufferOverflow,
       v.PoolHandle = 0,
       v.dbgMetaData = NULL,
       v.SourceFile = SourceFile,
