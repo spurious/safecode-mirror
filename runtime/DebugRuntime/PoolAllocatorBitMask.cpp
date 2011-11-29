@@ -40,6 +40,7 @@
 #include "DebugReport.h"
 #include "RewritePtr.h"
 
+#include "../include/CWE.h"
 #include "../include/DebugRuntime.h"
 
 #include <cstring>
@@ -827,6 +828,7 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
     v.faultPC = __builtin_return_address(0);
+    v.CWE = CWEFreeNotHeap;
     v.PoolHandle = Pool;
     v.dbgMetaData = debugmetadataptr;
     v.SourceFile = SourceFilep;
@@ -846,6 +848,7 @@ poolcheck_freeui_debug (DebugPoolTy *Pool,
     v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr,
+      v.CWE = CWEFreeNotStart,
       v.dbgMetaData = debugmetadataptr,
       v.SourceFile = SourceFilep,
       v.lineNo = lineno,
@@ -900,6 +903,7 @@ poolcheck_free_debug (DebugPoolTy *Pool,
     v.type = DebugViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr;
+      v.CWE = CWEFreeNotHeap;
       v.PoolHandle = Pool;
       v.dbgMetaData = debugmetadataptr;
       v.SourceFile = SourceFilep;
@@ -917,6 +921,7 @@ poolcheck_free_debug (DebugPoolTy *Pool,
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_NOTHEAP_FREE,
     v.faultPC = __builtin_return_address(0);
+    v.CWE = CWEFreeNotHeap;
     v.PoolHandle = Pool;
     v.dbgMetaData = debugmetadataptr;
     v.SourceFile = SourceFilep;
@@ -936,6 +941,7 @@ poolcheck_free_debug (DebugPoolTy *Pool,
     v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr,
+      v.CWE = CWEFreeNotStart,
       v.dbgMetaData = debugmetadataptr,
       v.SourceFile = SourceFilep,
       v.lineNo = lineno,
@@ -994,6 +1000,7 @@ poolcheck_free (DebugPoolTy *Pool, void * ptr) {
     v.type = DebugViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr;
+      v.CWE = CWEFreeNotHeap;
       v.PoolHandle = Pool;
       v.SourceFile = "Unknown";
       v.lineNo = 0;
@@ -1010,6 +1017,7 @@ poolcheck_free (DebugPoolTy *Pool, void * ptr) {
     v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr,
+      v.CWE = CWEFreeNotStart,
       v.SourceFile = "Unknown";
       v.lineNo = 0;
       v.objStart = ObjStart;
@@ -1076,6 +1084,7 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
     v.type = ViolationInfo::FAULT_INVALID_FREE,
       v.faultPC = __builtin_return_address(0),
       v.faultPtr = ptr,
+      v.CWE = CWEFreeNotStart,
       v.SourceFile = "Unknown";
       v.lineNo = 0;
       v.objStart = ObjStart;
@@ -1451,6 +1460,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_UNINIT,
       v.faultPC = (const void*) program_counter,
+      v.CWE = CWEBufferOverflow,
       v.faultPtr = faultAddr,
       v.dbgMetaData = 0;
 
@@ -1483,6 +1493,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
       v.type = ViolationInfo::FAULT_LOAD_STORE,
         v.faultPC = (const void*)program_counter,
         v.faultPtr = tag,
+        v.CWE = CWEBufferOverflow,
         v.dbgMetaData = NULL,
         v.SourceFile = Filename,
         v.lineNo = lineno,
@@ -1504,6 +1515,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
       v.type = ViolationInfo::FAULT_LOAD_STORE,
         v.faultPC = (const void*)program_counter,
         v.faultPtr = faultAddr,
+        v.CWE = CWEBufferOverflow,
         v.SourceFile = 0,
         v.lineNo = 0;
 
@@ -1544,6 +1556,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     v.type = ViolationInfo::FAULT_DANGLING_PTR,
       v.faultPC = (const void*) program_counter,
     v.faultPtr = address,
+    v.CWE = CWEBufferOverflow,
     v.dbgMetaData = debugmetadataptr;
 
   ReportMemoryViolation(&v);

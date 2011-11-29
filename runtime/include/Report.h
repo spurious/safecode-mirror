@@ -45,6 +45,9 @@ struct ViolationInfo {
   /// The pointer generating the violations
   const void * faultPtr;
 
+  /// The CWE ID of the violation
+  unsigned CWE;
+
   virtual void print(std::ostream & OS) const;
   virtual ~ViolationInfo();
 };
