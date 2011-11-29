@@ -15,6 +15,7 @@
 #define _CSTDLIB_H
 
 #include "../include/CStdLibSupport.h"
+#include "../include/CWE.h"
 #include "../include/strnlen.h"
 
 #include "DebugReport.h"
@@ -47,6 +48,7 @@ namespace {
     v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
     v.faultPC     = __builtin_return_address(0);
     v.faultPtr    = fault_ptr;
+    v.CWE         = CWEBufferOverflow;
     v.SourceFile  = SourceFile;
     v.lineNo      = lineNo;
     v.PoolHandle  = handle;
@@ -66,6 +68,7 @@ namespace {
     v.type = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
     v.faultPC = __builtin_return_address(0); 
     v.faultPtr = fault_ptr;
+    v.CWE      = CWEBufferOverflow;
     v.SourceFile = SourceFile;
     v.lineNo =     lineNo;
     v.PoolHandle = handle;
@@ -82,6 +85,7 @@ namespace {
     DebugViolationInfo v;
     v.faultPC = __builtin_return_address(0);
     v.faultPtr = fault_ptr;
+    v.CWE      = CWEBufferOverflow;
     v.dbgMetaData = NULL;
     v.PoolHandle = handle;
     v.SourceFile = SourceFile;
@@ -98,6 +102,7 @@ namespace {
     v.type = ViolationInfo::FAULT_CSTDLIB;
     v.faultPC = __builtin_return_address(0);
     v.faultPtr = fault_ptr;
+    v.CWE      = CWEBufferOverflow;
     v.SourceFile = SourceFile;
     v.lineNo     = lineNo;
     v.PoolHandle = handle;

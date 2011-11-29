@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../include/CWE.h"
 #include "../include/FormatStringSupport.h"
 
 #include "FormatStrings.h"
@@ -61,6 +62,7 @@ void out_of_bounds_error(call_info *c,
   v.type        = ViolationInfo::FAULT_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
+  v.CWE         = CWEBufferOverflow;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -88,6 +90,7 @@ void write_out_of_bounds_error(call_info *c,
   v.type        = ViolationInfo::FAULT_WRITE_OUT_OF_BOUNDS;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
+  v.CWE         = CWEBufferOverflow;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.PoolHandle  = p->pool;
@@ -103,6 +106,7 @@ void c_library_error(call_info *c, const char *function)
   v.type        = ViolationInfo::FAULT_CSTDLIB;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = 0;
+  v.CWE         = CWEBufferOverflow;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
   v.function    = function;
@@ -116,6 +120,7 @@ void load_store_error(call_info *c, pointer_info *p)
   v.type        = ViolationInfo::FAULT_LOAD_STORE;
   v.faultPC     = __builtin_return_address(0);
   v.faultPtr    = p->ptr;
+  v.CWE         = CWEBufferOverflow;
   v.dbgMetaData = NULL;
   v.SourceFile  = c->source_info;
   v.lineNo      = c->line_no;
