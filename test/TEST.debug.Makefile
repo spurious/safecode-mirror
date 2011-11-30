@@ -97,7 +97,7 @@ SCObjects := $(addprefix Output/,$(SCObjs))
 #
 $(PROGRAMS_TO_TEST:%=Output/%.sc.o): \
 Output/%.sc.o: %.c $(CLANG)
-	-$(CLANG) -g -fmemsafety -o $@ $< $(LDFLAGS) 2>&1 > $@.out
+	-$(CLANG) -g -fmemsafety -Xclang -print-stats -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.sc.o): \
 Output/%.sc.o: %.cpp $(CLANG)
@@ -106,11 +106,11 @@ Output/%.sc.o: %.cpp $(CLANG)
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
-	-$(CLANG) -O4 -emit-llvm -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+	-$(CLANG) -O4 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(Source)
-	-$(CLANG) -O4 -emit-llvm -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
+	-$(CLANG) -O4 -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
 endif
 ##############################################################################
 # Rules for running executables and generating reports
