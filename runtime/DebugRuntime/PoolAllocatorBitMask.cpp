@@ -468,7 +468,7 @@ _internal_poolregister (DebugPoolTy *Pool,
       //
       case Stack:
         assert (0 && "poolregister failed: Object already registered!\n");
-        abort();
+        break;
     }
   }
 
