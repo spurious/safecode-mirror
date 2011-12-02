@@ -35,6 +35,7 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "safecode/ArrayBoundsCheck.h"
 #include "safecode/CFIChecks.h"
@@ -206,6 +207,9 @@ void EmitAssemblyHelper::CreatePasses() {
 
   // Add the memory safety passes for control-flow integrity
   if (CodeGenOpts.MemSafety) {
+    // Make sure everything that can be in an LLVM register is.
+    MPM->add (createPromoteMemoryToRegisterPass());
+    MPM->add (createUnifyFunctionExitNodesPass());
     MPM->add (new CFIChecks());
   }
 
