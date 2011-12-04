@@ -470,12 +470,12 @@ lit: lit-formatstrings lit-cstdlib
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
 	@mkdir -p $(CSTDLIBOBJ)
-	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB)
+	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CSTDLIB) LIT_ARGS=-j1
 
 # Run the lit tests for format string functions
 lit-formatstrings: $(TESTSCRIPT)
 	@mkdir -p $(FMTSTROBJ)
-	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR)
+	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR) LIT_ARGS=-j1
 
 # Build the script to run the lit tests
 $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in
