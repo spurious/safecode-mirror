@@ -113,10 +113,17 @@ STATISTIC(st_xform_strcasecmp,  "Total strcasecmp() calls transformed");
 STATISTIC(st_xform_strncasecmp, "Total strncasecmp() calls transformed");
 
 STATISTIC(st_xform_fgets, "Total fgets() calls transformed");
+STATISTIC(st_xform_fputs, "Total fputs() calls transformed");
+STATISTIC(st_xform_fwrite, "Total fwrite() calls transformed");
+STATISTIC(st_xform_fread, "Total fread() calls transformed");
+STATISTIC(st_xform_gets, "Total gets() calls transformed");
+STATISTIC(st_xform_puts, "Total puts() calls transformed");
 
 //
 // Functions that aren't handled (yet...):
 //  - stpncpy and __stpncpy_chk
+//  - setbuf
+//  - setvbuf
 //
 
 static RegisterPass<StringTransform>
@@ -249,6 +256,11 @@ StringTransform::runOnModule(Module &M)
 
   // Functions from <stdio.h> 
   chgd |= transform(M, "fgets", 3, 1, VoidPtrTy, st_xform_fgets);
+  chgd |= transform(M, "fputs", 2, 1, Int32Ty, st_xform_fputs);
+  chgd |= transform(M, "fwrite", 4, 1, SizeTTy, st_xform_fwrite);
+  chgd |= transform(M, "fread", 4, 1, SizeTTy, st_xform_fread);
+  chgd |= transform(M, "gets", 1, 1, VoidPtrTy, st_xform_gets);
+  chgd |= transform(M, "puts", 1, 1, Int32Ty, st_xform_puts);
   return chgd;
 }
 

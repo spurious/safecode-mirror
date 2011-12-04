@@ -507,6 +507,11 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_vsscanf"), LInfo);
   transformFunction (M.getFunction ("pool_vsyslog"), LInfo);
   transformFunction (M.getFunction ("pool_fgets"), LInfo);
+  transformFunction (M.getFunction ("pool_fputs"), LInfo);
+  transformFunction (M.getFunction ("pool_puts"), LInfo);
+  transformFunction (M.getFunction ("pool_gets"), LInfo);
+  transformFunction (M.getFunction ("pool_fread"), LInfo);
+  transformFunction (M.getFunction ("pool_fwrite"), LInfo);
 
   return true;
 }

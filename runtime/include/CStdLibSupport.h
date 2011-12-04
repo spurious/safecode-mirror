@@ -33,7 +33,7 @@
 
 extern "C"
 {
-  // Functions from <stdio.h>
+  // Functions from <stdio.h>, <stdarg.h>
 
   int pool_vprintf(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE);
   int pool_vprintf_debug(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE, DEBUG_INFO);
@@ -183,9 +183,25 @@ extern "C"
   int pool_strncasecmp(PPOOL s1p,PPOOL s2p, char *s1, char *s2, size_t num, COMPLETE);
   int pool_strncasecmp_debug(PPOOL s1p,PPOOL s2p, char *s1, char *s2, size_t num, COMPLETE, DEBUG_INFO);
 
+  // Functions from <stdio.h>
+
   char * pool_fgets (PPOOL, char * s, int n, FILE * stream, COMPLETE);
   char * pool_fgets_debug (PPOOL, char * s, int n, FILE * stream, COMPLETE, DEBUG_INFO);
 
+  int pool_fputs (PPOOL, char * , FILE * , COMPLETE);
+  int pool_fputs_debug (PPOOL, char *, FILE *, COMPLETE, DEBUG_INFO);
+
+  char * pool_gets (PPOOL, char *, COMPLETE);
+  char * pool_gets_debug (PPOOL, char *, COMPLETE, DEBUG_INFO);
+
+  int pool_puts (PPOOL, char *, COMPLETE);
+  int pool_puts_debug (PPOOL, char *, COMPLETE, DEBUG_INFO);
+
+  size_t pool_fread (PPOOL, void *, size_t, size_t, FILE *, COMPLETE);
+  size_t pool_fread_debug (PPOOL, void *, size_t, size_t, FILE *, COMPLETE, DEBUG_INFO);
+
+  size_t pool_fwrite (PPOOL, void *, size_t, size_t, FILE *, COMPLETE);
+  size_t pool_fwrite_debug (PPOOL, void *, size_t, size_t, FILE *, COMPLETE, DEBUG_INFO);
 }
 
 #undef PPOOL
