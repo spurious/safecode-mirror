@@ -99,10 +99,10 @@ pool_fgets_debug (DebugPoolTy * Pool,
   }
   
   register int ch = 0;
-	register char *ptr;
+  register char *ptr;
   
-	ptr = s;
-	while (--n > 0 && (ch = getc (stream)) != EOF) {
+  ptr = s;
+  while (--n > 0 && (ch = getc (stream)) != EOF) {
     //
     // Check if the object is going to be written out of bounds.
     //
@@ -110,15 +110,15 @@ pool_fgets_debug (DebugPoolTy * Pool,
       size_t ObjSz = byte_range ((void *) s, ObjEnd);
       WRITE_VIOLATION (ptr, Pool, ObjSz, ObjSz + 1, SRC_INFO_ARGS);
     }
-		*ptr++ = ch;
-		if (ch == '\n')
-			break;
-	}
-	if (ch == EOF) {
-		if (feof (stream)) {
-			if (ptr == s) return NULL;
-		} else return NULL;
-	}
+    *ptr++ = ch;
+    if (ch == '\n')
+      break;
+  }
+  if (ch == EOF) {
+    if (feof (stream)) {
+      if (ptr == s) return NULL;
+    } else return NULL;
+  }
   //
   // Check if the nul terminator is written out of bounds.
   //
@@ -126,8 +126,8 @@ pool_fgets_debug (DebugPoolTy * Pool,
     size_t ObjSz = byte_range ((void *) s, ObjEnd);
     WRITE_VIOLATION (ptr, Pool, ObjSz, ObjSz + 1, SRC_INFO_ARGS);
   }
-	*ptr = '\0';
-	return s;
+  *ptr = '\0';
+  return s;
 }
 
 char *
@@ -216,15 +216,15 @@ pool_gets_debug (DebugPoolTy * Pool,
   }
   
   register int ch;
-	register char *ptr;
+  register char *ptr;
   
-	ptr = s;
-	while ((ch = getc(stdin)) != EOF) {
+  ptr = s;
+  while ((ch = getc(stdin)) != EOF) {
     //
     // Exit the loop immediately upon reading a newline.
     //
     if ( ch == '\n')
-			break;
+      break;
     //
     // Check if the object is going to be written out of bounds.
     //
@@ -232,13 +232,13 @@ pool_gets_debug (DebugPoolTy * Pool,
       size_t ObjSz = byte_range ((void *) s, ObjEnd);
       WRITE_VIOLATION (ptr, Pool, ObjSz, ObjSz + 1, SRC_INFO_ARGS);
     }
-		*ptr++ = ch;
-	}
-	if (ch == EOF) {
-		if (feof (stdin)) {
-			if (ptr == s) return NULL;
-		} else return NULL;
-	}
+    *ptr++ = ch;
+  }
+  if (ch == EOF) {
+    if (feof (stdin)) {
+      if (ptr == s) return NULL;
+    } else return NULL;
+  }
   //
   // Check if the nul terminator is written out of bounds.
   //
@@ -246,8 +246,8 @@ pool_gets_debug (DebugPoolTy * Pool,
     size_t ObjSz = byte_range ((void *) s, ObjEnd);
     WRITE_VIOLATION (ptr, Pool, ObjSz, ObjSz + 1, SRC_INFO_ARGS);
   }
-	*ptr = '\0';
-	return s;
+  *ptr = '\0';
+  return s;
 }
 
 char *
@@ -329,16 +329,16 @@ pool_fread_debug (DebugPoolTy *Pool,
     LOAD_STORE_VIOLATION (ptr, Pool, SRC_INFO_ARGS);
   }
   
-	register char *cp = (char *) ptr;
-	register int c;
-	size_t ndone = 0;
-	register size_t s;
+  register char *cp = (char *) ptr;
+  register int c;
+  size_t ndone = 0;
+  register size_t s;
   
-	if (size)
-		while ( ndone < nmemb ) {
-			s = size;
-			do {
-				if ((c = getc (stream)) != EOF) {
+  if (size)
+    while ( ndone < nmemb ) {
+      s = size;
+      do {
+        if ((c = getc (stream)) != EOF) {
           //
           // Check if the object is going to be written out of bounds.
           //
@@ -346,14 +346,14 @@ pool_fread_debug (DebugPoolTy *Pool,
             size_t ObjSz = byte_range (ptr, ObjEnd);
             WRITE_VIOLATION (ptr, Pool, ObjSz, ObjSz + 1, SRC_INFO_ARGS);
           }
-					*cp++ = c;
+          *cp++ = c;
         }
-				else
-					return ndone;
-			} while (--s);
-			ndone++;
-		}
-	return ndone;
+        else
+          return ndone;
+      } while (--s);
+      ndone++;
+    }
+  return ndone;
 }
 
 size_t
