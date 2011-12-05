@@ -65,7 +65,7 @@ CFIChecks::createTargetTable (CallInst & CI, bool & isComplete) {
   // Iterate through all of the target call nodes and add them to the list of
   // targets to use in the global variable.
   //
-  isComplete = true;
+  isComplete = false;
   PointerType * VoidPtrType = getVoidPtrType(CI.getContext());
   SmallVector<Constant *, 20> Targets;
   for (CallGraphNode::iterator ti = CGN->begin(); ti != CGN->end(); ++ti) {
@@ -77,23 +77,59 @@ CFIChecks::createTargetTable (CallInst & CI, bool & isComplete) {
       continue;
 
     //
-    // Get the target function.
+    // Get the node in the graph corresponding to the callee.
     //
-    Function * Target = ti->second->getFunction();
+    CallGraphNode * CalleeNode = ti->second;
 
     //
-    // If there is no target function, then this call can call code external
-    // to the module.  In that case, mark the call as incomplete.
+    // Get the target function(s).  If we have a normal callee node as the
+    // target, then just fetch the function it represents out of the callee
+    // node.  Otherwise, this callee node represents external code that could
+    // call any address-taken function.  In that case, we'll have to do extra
+    // work to get the potential targets.
     //
-    if (!Target) {
+    if (CalleeNode == CG.getCallsExternalNode()) {
+      //
+      // Assume that the check will be incomplete.
+      //
       isComplete = false;
-      continue;
-    }
 
-    //
-    // Add the target to the set of targets.  Cast it to a void pointer first.
-    //
-    Targets.push_back (ConstantExpr::getZExtOrBitCast (Target, VoidPtrType));
+      //
+      // Get the call graph node that represents external code that calls
+      // *into* the program.  Get the list of callees of this node and make
+      // them targets.
+      //
+      CallGraphNode * ExternalNode = CG.getExternalCallingNode();
+      for (CallGraphNode::iterator ei = ExternalNode->begin();
+                                   ei != ExternalNode->end(); ++ei) {
+        if (Function * Target = ei->second->getFunction()) {
+          if (Target->isIntrinsic())
+            continue;
+          Targets.push_back (ConstantExpr::getZExtOrBitCast (Target,
+                                                             VoidPtrType));
+        }
+      }
+    } else {
+      //
+      // Get the function target out of the node.
+      //
+      Function * Target = CalleeNode->getFunction();
+
+      //
+      // If there is no target function, then this call can call code external
+      // to the module.  In that case, mark the call as incomplete.
+      //
+      if (!Target) {
+        isComplete = false;
+        continue;
+      }
+
+      //
+      // Add the target to the set of targets.  Cast it to a void pointer
+      // first.
+      //
+      Targets.push_back (ConstantExpr::getZExtOrBitCast (Target, VoidPtrType));
+    }
   }
 
   //

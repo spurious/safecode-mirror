@@ -19,6 +19,7 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
@@ -39,6 +40,7 @@ struct CompleteChecks : public ModulePass {
     virtual bool runOnModule (Module & M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
+      AU.addRequired<CallGraph>();
       AU.addRequired<EQTDDataStructures>();
 
       // Preserved passes

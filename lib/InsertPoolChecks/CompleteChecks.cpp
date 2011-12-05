@@ -398,6 +398,7 @@ CompleteChecks::makeFSParameterCallsComplete(Module &M)
   return;
 }
 
+#if 0
 //
 // Method: getFunctionTargets()
 //
@@ -449,6 +450,80 @@ CompleteChecks::getFunctionTargets (CallSite CS,
 
   return;
 }
+#else
+//
+// Method: getFunctionTargets()
+//
+// Description:
+//  This method finds all of the potential targets of the specified indirect
+//  function call.
+//
+void
+CompleteChecks::getFunctionTargets (CallSite CS,
+                                    std::vector<const Function *> & Targets) {
+  //
+  // Get the call graph.
+  //
+  CallGraph & CG = getAnalysis<CallGraph>();
+
+  //
+  // Get the call graph node for the function containing the call.
+  //
+  CallGraphNode * CGN = CG[CS.getInstruction()->getParent()->getParent()];
+
+  //
+  // Iterate through all of the target call nodes and add them to the list of
+  // targets to use in the global variable.
+  //
+  for (CallGraphNode::iterator ti = CGN->begin(); ti != CGN->end(); ++ti) {
+    //
+    // See if this call record corresponds to the call site in question.
+    //
+    const Value * V = ti->first;
+    if (V != CS.getInstruction())
+      continue;
+
+    //
+    // Get the node in the graph corresponding to the callee.
+    //
+    CallGraphNode * CalleeNode = ti->second;
+
+    //
+    // Get the target function(s).  If we have a normal callee node as the
+    // target, then just fetch the function it represents out of the callee
+    // node.  Otherwise, this callee node represents external code that could
+    // call any address-taken function.  In that case, we'll have to do extra
+    // work to get the potential targets.
+    //
+    if (1) {
+      //
+      // Get the call graph node that represents external code that calls
+      // *into* the program.  Get the list of callees of this node and make
+      // them targets.
+      //
+      CallGraphNode * ExternalNode = CG.getExternalCallingNode();
+      for (CallGraphNode::iterator ei = ExternalNode->begin();
+                                   ei != ExternalNode->end(); ++ei) {
+        if (Function * Target = ei->second->getFunction()) {
+          if (!(Target->isIntrinsic()))
+            Targets.push_back (Target);
+        }
+      }
+    } else {
+      //
+      // Get the function target out of the node.
+      //
+      if (Function * Target = CalleeNode->getFunction()) {
+        if (!(Target->isIntrinsic()))
+          Targets.push_back (Target);
+      }
+    }
+  }
+
+  return;
+}
+
+#endif
 
 //
 // Method: fixupCFIChecks()
