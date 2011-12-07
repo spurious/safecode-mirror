@@ -481,8 +481,19 @@ int pool___sprintf_chk(void *_i, void *_d, int f, size_t n, void *_fmt, ...)
   //
   // Abort if n is 0.
   //
-  if (n == 0)
+  if (n == 0) {
+    DebugViolationInfo v;
+    v.type = DebugViolationInfo::FAULT_LOAD_STORE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = _d;
+      v.CWE = CWEBufferOverflow;
+      v.PoolHandle = 0;
+      v.dbgMetaData = 0;
+      v.SourceFile = "Unknown";
+      v.lineNo = 0;
+    ReportMemoryViolation(&v);
     abort();
+  }
 
   call_info   *call = (call_info *)    _i;
   pointer_info *str = (pointer_info *) _d;
@@ -538,8 +549,19 @@ pool___snprintf_chk(void *_info,
   //
   // Abort if strlen < n.
   //
-  if (strlen < n)
+  if (strlen < n) {
+    DebugViolationInfo v;
+    v.type = DebugViolationInfo::FAULT_LOAD_STORE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = _dest;
+      v.CWE = CWEBufferOverflow;
+      v.PoolHandle = 0;
+      v.dbgMetaData = 0;
+      v.SourceFile = "Unknown";
+      v.lineNo = 0;
+    ReportMemoryViolation(&v);
     abort();
+  }
 
   call_info   *call = (call_info *)    _info;
   pointer_info *str = (pointer_info *) _dest;
