@@ -425,6 +425,21 @@ poolcheckui_debug (DebugPoolTy *Pool,
     ReportMemoryViolation(&v);
   }
 
+  //
+  // If the pointer is a NULL pointer, report an error for that.
+  //
+  if (Node == 0) {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = Node,
+      v.CWE = CWENull,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.PoolHandle = Pool;
+    ReportMemoryViolation(&v);
+  }
+
   return;
 }
 

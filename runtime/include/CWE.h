@@ -20,6 +20,7 @@ static const unsigned CWEHeapOverflow   = 122;
 static const unsigned CWEFormatString   = 134;
 static const unsigned CWEDoubleFree     = 415;
 static const unsigned CWEDP             = 416;
+static const unsigned CWENull           = 476;
 static const unsigned CWEFreeNotHeap    = 590;
 static const unsigned CWEFreeNotStart   = 761;
 static const unsigned CWEAllocMismatch  = 762;
