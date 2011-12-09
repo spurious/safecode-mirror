@@ -39,7 +39,7 @@ static RegisterPass<FormatStringTransform>
 R("formatstrings", "Secure calls to format string functions");
 
 #define ADD_STATISTIC_FOR(func) \
-  STATISTIC(stat_ ## func, "Number of calls to " #func "() that were secured()")
+  STATISTIC(stat_ ## func, "Number of calls to " #func "() that were secured")
 
 ADD_STATISTIC_FOR(printf);
 ADD_STATISTIC_FOR(fprintf);
