@@ -52,6 +52,8 @@
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/RewriteOOB.h"
 #include "safecode/SAFECodePasses.h"
+#include "SoftBound/InitializeSoftBound.h"
+#include "SoftBound/SoftBoundCETSPass.h"
 
 using namespace clang;
 using namespace llvm;
@@ -212,8 +214,17 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (createUnifyFunctionExitNodesPass());
     MPM->add (new CFIChecks());
   }
-
+  
   PMBuilder.populateModulePassManager(*MPM);
+
+  if (CodeGenOpts.SoftBound) {
+    // Make sure SoftBound+CETS is run after optimization with atleast mem2reg run 
+    MPM->add(new DominatorTree());
+    MPM->add(new DominanceFrontier());
+    MPM->add(new LoopInfo());
+    MPM->add(new InitializeSoftBound());
+    MPM->add(new SoftBoundCETSPass());
+  }
 
   // Add the memory safety passes
   if (CodeGenOpts.MemSafety) {

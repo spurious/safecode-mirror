@@ -97,6 +97,7 @@ public:
   unsigned UnwindTables      : 1; /// Emit unwind tables.
   unsigned MemSafety         : 1; /// Instrument code with memory safety checks
   unsigned MemSafeTerminate  : 1; /// Terminate program on failed memsafe checks
+  unsigned SoftBound         : 1; /// SoftBound+CETS pointer based checking
 
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
@@ -194,6 +195,7 @@ public:
     UnsafeFPMath = 0;
     UnwindTables = 0;
     MemSafety = 0;
+    SoftBound = 0;
     UseRegisterSizedBitfieldAccess = 0;
     VerifyModule = 1;
 

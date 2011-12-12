@@ -724,6 +724,9 @@ def msLogFile : Separate<"-fmemsafety-logfile">,
     MetaVarName<"<path>">, HelpText<"Specify memory safety checks log file">;
 def terminate : Flag<"-fmemsafety-terminate">,
  HelpText<"Terminate program on failed memory-safety checks">;
+def softbound: Flag<"-fsoftbound">,
+ HelpText<"Instrument program with SoftBound+CETS style pointer based memory safety checks">;
+
 
 //===----------------------------------------------------------------------===//
 // CUDA Options

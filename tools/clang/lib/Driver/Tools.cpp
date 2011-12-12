@@ -1750,6 +1750,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Handle the memory safety options
+  
+  if (Args.getLastArg(options::OPT_softbound)){
+    CmdArgs.push_back("-fsoftbound");
+  }
+
   if (Args.getLastArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-fmemsafety");
   }
@@ -3572,6 +3577,11 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
   // Add in any memory safety libraries.  Even if we're not compiling C++ code,
   // we need to link in the C++ standard libraries.
   //
+
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -3740,6 +3750,11 @@ void auroraux::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -3862,6 +3877,10 @@ void openbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+  
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -4024,6 +4043,10 @@ void freebsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+  
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -4210,6 +4233,10 @@ void netbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -4422,6 +4449,10 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
+
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -4556,6 +4587,9 @@ void minix::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");
@@ -4688,6 +4722,9 @@ void dragonfly::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // Add in any memory safety libraries.
   //
+  if (Args.hasArg(options::OPT_softbound)){
+    CmdArgs.push_back("-lsoftbound_rt");
+  }
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
     CmdArgs.push_back("-lpoolalloc_bitmap");

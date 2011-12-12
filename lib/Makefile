@@ -10,6 +10,7 @@ PARALLEL_DIRS = \
                DebugInstrumentation \
                FormatStrings \
                CStdLib \
+	       SoftBound \
 #               BaggyBoundsChecks \
 #               StackSafety \
 #               SpeculativeChecking \
