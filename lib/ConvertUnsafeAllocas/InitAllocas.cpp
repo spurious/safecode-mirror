@@ -146,7 +146,7 @@ InitAllocas::visitAllocaInst (AllocaInst & AI) {
     Module * M = AI.getParent()->getParent()->getParent();
     Function * Memset = cast<Function>(M->getFunction ("llvm.memset.p0i8.i32"));
     std::vector<Value *> args;
-    args.push_back (castTo (&AI, VoidPtrType, AI.getNameStr(), InsertPt));
+    args.push_back (castTo (&AI, VoidPtrType, AI.getName().str(), InsertPt));
     args.push_back (ConstantInt::get(Int8Type, 0));
     args.push_back (ConstantInt::get(Int32Type,TD.getTypeAllocSize(AllocType)));
     args.push_back (ConstantInt::get(Int32Type, 0));

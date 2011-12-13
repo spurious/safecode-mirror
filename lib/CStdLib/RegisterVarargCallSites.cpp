@@ -185,7 +185,7 @@ void RegisterVarargCallSites::visitCallInst(CallInst &I) {
   // The function has not been encountered yet.
   // Determine if calls to this function should be registered.
   else {
-    if (f->isVarArg() && !isExternalVarargFunction(f->getNameStr())) {
+    if (f->isVarArg() && !isExternalVarargFunction(f->getName().str())) {
       shouldRegister[f] = true;
       toRegister.push_back(CS);
     }

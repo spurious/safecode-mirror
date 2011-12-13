@@ -583,7 +583,7 @@ RegisterVariables::init (Module & M, std::string registerName) {
 void
 RegisterVariables::RegisterVariableIntoPool(Value * PH, Value * val, Value * AllocSize, Instruction * InsertBefore) {
   if (!PH) {
-    llvm::errs() << "pool descriptor not present for " << val->getNameStr()
+    llvm::errs() << "pool descriptor not present for " << val->getName().str()
                  << "\n";
     return;
   }
