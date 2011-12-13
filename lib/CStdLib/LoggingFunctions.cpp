@@ -98,11 +98,13 @@ bool LoggingFunctions::runOnModule(Module &M) {
       Type *VoidPtrTy = Type::getInt8PtrTy(M.getContext());
       vector<Type *> vcArgTypes = args<Type *>::list(VoidPtrTy, VoidPtrTy);
       FunctionType *vcType = FunctionType::get(VoidTy, vcArgTypes, false);
+#ifndef NDEBUG
       Function *vcInModule = M.getFunction("__sc_vacopyregister");
       assert((vcInModule == 0 ||
         vcInModule->getFunctionType() == vcType ||
         vcInModule->hasLocalLinkage()) &&
         "Intrinsic already declared with wrong type!");
+#endif
       vaCopyRegisterFunc = M.getOrInsertFunction("__sc_vacopyregister", vcType);
       for (unsigned i = 0, end = vaCopyCalls.size(); i < end; ++i)
         registerVaCopyCallSite(vaCopyCalls[i]);
