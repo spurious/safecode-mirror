@@ -410,7 +410,9 @@ StringTransform::gtransform(Module &M,
     assert(0 < position && position <= from.argc && "Parameter out of bounds!");
     Type *ParamType = F_type->getParamType(position - 1);
     if (i < to.pool_argc)
-      assert(isa<PointerType>(ParamType) && "Pointer type expected for parameter!");
+      assert(
+        isa<PointerType>(ParamType) && "Pointer type expected for parameter!"
+      );
     ParamTy.push_back(ParamType);
   }
   // The completeness bitvector goes at the end.

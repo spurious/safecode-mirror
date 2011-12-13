@@ -187,7 +187,8 @@ pool_fputs (DebugPoolTy * Pool,
 //
 //
 // NOTE:
-//   This code is very close to that of pool_fgets(), with the following changes:
+//   This code is very close to that of pool_fgets(), with the following
+//   changes:
 //     - No limit on input size is set.
 //     - Reading is done from stdin.
 //     - No final newline is ever appended.
