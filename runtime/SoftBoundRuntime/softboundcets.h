@@ -113,6 +113,12 @@ typedef struct {
 } __softboundcets_trie_entry_t;
 
 
+#if defined(__APPLE__)
+#define SOFTBOUNDCETS_MMAP_FLAGS (MAP_ANON|MAP_NORESERVE|MAP_PRIVATE)
+#else
+#define SOFTBOUNDCETS_MMAP_FLAGS (MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE)
+#endif
+
 
 // Check to make sure at least one and only one metadata representation is defined
 #ifndef __SOFTBOUNDCETS_TRIE
@@ -184,13 +190,12 @@ static const int __SOFTBOUNDCETS_FREE_MAP = 0;
 
 
 
+// check if __WORDSIZE works with clang on both Linux and MacOSX
 /* Allocating one million entries for the temporal key */
 #if __WORDSIZE == 32
 static const size_t __SOFTBOUNDCETS_N_TEMPORAL_ENTRIES = ((size_t) 4 * (size_t) 1024 * (size_t) 1024); 
 static const size_t __SOFTBOUNDCETS_LOWER_ZERO_POINTER_BITS = 2;
-#endif
-
-#if __WORDSIZE == 64
+#else
 
 static const size_t __SOFTBOUNDCETS_N_TEMPORAL_ENTRIES = ((size_t) 64*(size_t) 1024 * (size_t) 1024); 
 
@@ -410,7 +415,7 @@ __WEAK_INLINE __softboundcets_trie_entry_t* __softboundcets_trie_allocate(){
   
   __softboundcets_trie_entry_t* secondary_entry;
   size_t length = (__SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES) * sizeof(__softboundcets_trie_entry_t);
-  secondary_entry = safe_mmap(0, length, PROT_READ| PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+  secondary_entry = safe_mmap(0, length, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   //assert(secondary_entry != (void*)-1); 
   //printf("snd trie table %p %lx\n", secondary_entry, length);
   return secondary_entry;
@@ -436,11 +441,22 @@ __WEAK_INLINE void __softboundcets_copy_metadata(void* dest, void* from, size_t 
 
   size_t dest_primary_index_begin = (dest_ptr >> 25);
   size_t dest_primary_index_end = (dest_ptr_end >> 25);
+
+  if(dest_primary_index_begin != dest_primary_index_end){
+    __softboundcets_printf("memcopy straddling trie boundaries not supported currently\n");
+    exit(1);
+  }
   
   assert(dest_primary_index_begin == dest_primary_index_end);
 
   size_t from_primary_index_begin = (from_ptr >> 25);
   size_t from_primary_index_end =  (from_ptr_end >> 25);
+  
+  if(from_primary_index_begin != from_primary_index_end){
+    __softboundcets_printf("memcopy straddling trie boundaries not supported currently\n");
+    exit(1);
+  }
+  
   assert(from_primary_index_begin == from_primary_index_end);
   
   trie_secondary_table_dest_begin = __softboundcets_trie_primary_table[dest_primary_index_begin];
@@ -550,12 +566,12 @@ __WEAK_INLINE void __softboundcets_spatial_store_dereference_check(void *base, v
 
 __WEAK_INLINE void __softboundcets_memcopy_check_i64(char* ptr, char* ptr_base, char* ptr_bound, size_t size) {
   
-#if __WORDSIZE == 64
-  if( size > 281474976710656 ){
+#if __WORDSIZE == 32
+  if( size > 2147483648){
     __softboundcets_abort();
   }
 #else
-  if( size > 2147483648){
+  if( size > 281474976710656 ){
     __softboundcets_abort();
   }
 #endif
@@ -570,14 +586,15 @@ __WEAK_INLINE void __softboundcets_memcopy_check_i64(char* ptr, char* ptr_base, 
 
 __WEAK_INLINE void __softboundcets_memcopy_check(char* dest, char* dest_base, char* dest_bound, char* src, char* src_base, char* src_bound, size_t size) {
 
-#if __WORDSIZE == 64
-  if( size > 281474976710656 ){
-    __softboundcets_abort();
-  }
-#else
+#if __WORDSIZE == 32
   if( size > 2147483648){
     __softboundcets_abort();
   }
+#else
+  if( size > 281474976710656 ){
+    __softboundcets_abort();
+  }
+
 #endif
 
   if( (dest < dest_base) || (dest + size < dest_base) || (dest + size > dest_bound)){

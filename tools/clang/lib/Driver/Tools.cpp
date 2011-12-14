@@ -4451,6 +4451,7 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lm");
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {

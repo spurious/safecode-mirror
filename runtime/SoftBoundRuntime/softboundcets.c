@@ -40,7 +40,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#if defined(__linux__)
 #include <malloc.h>
+#endif
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -75,6 +77,7 @@ size_t* __softboundcets_temporal_space_begin = 0;
 size_t* __softboundcets_stack_temporal_space_begin = NULL;
 
 void* malloc_address = NULL;
+
 
 __SOFTBOUNDCETS_NORETURN void __softboundcets_abort()
 {
@@ -127,20 +130,20 @@ void __softboundcets_init( int is_trie)
 
   size_t temporal_table_length = (__SOFTBOUNDCETS_N_TEMPORAL_ENTRIES)* sizeof(void*);
 
-  __softboundcets_lock_new_location = mmap(0, temporal_table_length, PROT_READ| PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+  __softboundcets_lock_new_location = mmap(0, temporal_table_length, PROT_READ| PROT_WRITE,SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_lock_new_location != (void*) -1);
   __softboundcets_temporal_space_begin = (size_t *)__softboundcets_lock_new_location;
   //  printf("temp table %lx %lx\n", __softboundcets_lock_new_location, temporal_table_length);
 
 
   size_t stack_temporal_table_length = (__SOFTBOUNDCETS_N_STACK_TEMPORAL_ENTRIES) * sizeof(void*);
-  __softboundcets_stack_temporal_space_begin = mmap(0, stack_temporal_table_length, PROT_READ| PROT_WRITE, MAP_PRIVATE| MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+  __softboundcets_stack_temporal_space_begin = mmap(0, stack_temporal_table_length, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_stack_temporal_space_begin != (void*) -1);
   //  printf("temp stack table %p %zx\n", __softboundcets_stack_temporal_space_begin, stack_temporal_table_length);
 
 
   size_t global_lock_size = (__SOFTBOUNDCETS_N_GLOBAL_LOCK_SIZE) * sizeof(void*);
-  __softboundcets_global_lock = mmap(0, global_lock_size, PROT_READ|PROT_WRITE, MAP_PRIVATE| MAP_ANONYMOUS| MAP_NORESERVE, -1, 0);
+  __softboundcets_global_lock = mmap(0, global_lock_size, PROT_READ|PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_global_lock != (void*) -1);
   //  __softboundcets_global_lock =  __softboundcets_lock_new_location++;
   *((size_t*)__softboundcets_global_lock) = 1;
@@ -148,7 +151,7 @@ void __softboundcets_init( int is_trie)
 
 
   size_t shadow_stack_size = __SOFTBOUNDCETS_SHADOW_STACK_ENTRIES * sizeof(size_t);
-  __softboundcets_shadow_stack_ptr = mmap(0, shadow_stack_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+  __softboundcets_shadow_stack_ptr = mmap(0, shadow_stack_size, PROT_READ|PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_shadow_stack_ptr != (void*)-1);
 
   *((size_t*)__softboundcets_shadow_stack_ptr) = 0; /* prev stack size */
@@ -161,28 +164,19 @@ void __softboundcets_init( int is_trie)
 
   if(__SOFTBOUNDCETS_FREE_MAP) {
     size_t length_free_map = (__SOFTBOUNDCETS_N_FREE_MAP_ENTRIES) * sizeof(size_t);
-    __softboundcets_free_map_table = mmap(0, length_free_map, PROT_READ| PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+    __softboundcets_free_map_table = mmap(0, length_free_map, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
     assert(__softboundcets_free_map_table != (void*) -1);
   }
 
   if(__SOFTBOUNDCETS_TRIE) {
     size_t length_trie = (__SOFTBOUNDCETS_TRIE_PRIMARY_TABLE_ENTRIES) * sizeof(__softboundcets_trie_entry_t*);
 
-    __softboundcets_trie_primary_table = mmap(0, length_trie, PROT_READ| PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+    __softboundcets_trie_primary_table = mmap(0, length_trie, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
     assert(__softboundcets_trie_primary_table != (void *)-1);  // FIXME - don't use assert, always want this to fail
     
     int* temp = malloc(1);
     __softboundcets_allocation_secondary_trie_allocate_range(0, (size_t)temp);
     
-#ifdef __SOFTBOUNDCETS_TRIE_ROOT_PTR_REGISTER
-    //    printf("The value of trie_root is %p\n", __softboundcets_trie_primary_table);
-    __asm__("icrtst %0, %0\n\t"
-            :
-            :"r"(__softboundcets_trie_primary_table)
-            );
-#endif
-   
-
     return;
   }
 
@@ -190,6 +184,8 @@ void __softboundcets_init( int is_trie)
 }
 
 static void softboundcets_init_ctype(){  
+#if defined(__linux__)
+
   char* ptr;
   char* base_ptr;
 
@@ -210,6 +206,8 @@ static void softboundcets_init_ctype(){
   __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), ((char*) base_ptr + 256), 1, __softboundcets_global_lock);
   
 #endif
+
+#endif // __linux ends 
 }
 
 
@@ -243,7 +241,9 @@ int main(int argc, char **argv){
 
   __softboundcets_stack_memory_allocation(argv, &argv_loc, &argv_key);
 
+#if defined(__linux__)
   mallopt(M_MMAP_MAX, 0);
+#endif
   for(i = 0; i < argc; i++) { 
 
 #ifdef __SOFTBOUNDCETS_SPATIAL

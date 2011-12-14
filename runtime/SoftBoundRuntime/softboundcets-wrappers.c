@@ -38,7 +38,13 @@
 
 
 #include <arpa/inet.h>
+
+#if defined(__linux__)
 #include<bits/errno.h>
+#include<sys/wait.h>
+#include <wait.h>
+#include <obstack.h>
+#endif
 
 #include<sys/mman.h>
 #include<sys/times.h>
@@ -47,7 +53,7 @@
 #include<sys/time.h>
 #include<sys/resource.h>
 #include<sys/socket.h>
-#include<sys/wait.h>
+
 
 #include<netinet/in.h>
 
@@ -74,9 +80,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <utime.h>
-#include <wait.h>
 #include <math.h>
-#include <obstack.h>
 
 #include <fcntl.h>
 
@@ -1207,6 +1211,7 @@ __WEAK_INLINE int softboundcets_select(int nfds, fd_set* readfds, fd_set* writef
   return select(nfds, readfds, writefds, exceptfds, timeout);
 }
 
+#if defined(__linux__)
 __WEAK_INLINE int* softboundcets___errno_location() {
   void* ret_ptr = (int *)__errno_location();
   //  printf("ERRNO: ptr is %lx", ptrs->ptr);
@@ -1240,6 +1245,7 @@ __WEAK_INLINE int const**  softboundcets___ctype_tolower_loc(void) {
   return ret_ptr;
 
 }
+#endif
 
 /* This is a custom implementation of qsort */
 

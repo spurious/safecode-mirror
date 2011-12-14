@@ -100,13 +100,13 @@ void InitializeSoftBound:: constructCheckHandlers(Module & module){
   Type* void_ptr_ty = PointerType::getUnqual(Type::getInt8Ty(module.getContext()));
   Type* size_ty = Type::getInt64Ty(module.getContext());
 
-  Function* spatial_load_check = (Function *) module.getOrInsertFunction("__softboundcets_spatial_load_dereference_check", void_ty, void_ptr_ty, void_ptr_ty, void_ptr_ty, size_ty, NULL);
+  module.getOrInsertFunction("__softboundcets_spatial_load_dereference_check", void_ty, void_ptr_ty, void_ptr_ty, void_ptr_ty, size_ty, NULL);
 
-  Function* spatial_store_check = (Function *) module.getOrInsertFunction("__softboundcets_spatial_store_dereference_check", void_ty, void_ptr_ty, void_ptr_ty, void_ptr_ty, size_ty, NULL);
+  module.getOrInsertFunction("__softboundcets_spatial_store_dereference_check", void_ty, void_ptr_ty, void_ptr_ty, void_ptr_ty, size_ty, NULL);
 
-  Function* temporal_load_check = (Function *) module.getOrInsertFunction("__softboundcets_temporal_load_dereference_check", void_ty, void_ptr_ty, size_ty, void_ptr_ty, void_ptr_ty, NULL);
+  module.getOrInsertFunction("__softboundcets_temporal_load_dereference_check", void_ty, void_ptr_ty, size_ty, void_ptr_ty, void_ptr_ty, NULL);
 
-  Function* temporal_store_check = (Function *)module.getOrInsertFunction("__softboundcets_temporal_store_dereference_check", void_ty, void_ptr_ty, size_ty, void_ptr_ty, void_ptr_ty, NULL);
+  module.getOrInsertFunction("__softboundcets_temporal_store_dereference_check", void_ty, void_ptr_ty, size_ty, void_ptr_ty, void_ptr_ty, NULL);
 
 
   Function* global_init = (Function *) module.getOrInsertFunction("__softboundcets_global_init", void_ty, NULL);
@@ -126,4 +126,5 @@ bool InitializeSoftBound:: runOnModule (Module& module){
   constructShadowStackHandlers(module);
   constructMetadataHandlers(module); 
   //  constructAuxillaryFunctionHandlers(module);
+  return true;
 }
