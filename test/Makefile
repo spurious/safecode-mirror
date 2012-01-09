@@ -460,12 +460,14 @@ SETENV = TARGET_TRIPLE=$(TARGET_TRIPLE)           \
 # Path to test files
 CSTDLIB=$(PROJ_SRC_ROOT)/test/cstdlib
 FMTSTR=$(PROJ_SRC_ROOT)/test/formatstrings
+REGRSN=$(PROJ_SRC_ROOT)/test/regression
 CSTDLIBOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
 FMTSTROBJ=$(PROJ_OBJ_ROOT)/test/formatstrings
+REGRSNOBJ=$(PROJ_OBJ_ROOT)/test/regression
 TESTSCRIPT=$(PROJ_OBJ_ROOT)/test/tools/test.sh
 
 # Run all lit tests
-lit: lit-formatstrings lit-cstdlib
+lit: lit-formatstrings lit-cstdlib lit-regression
 
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
@@ -476,6 +478,13 @@ lit-cstdlib: $(TESTSCRIPT)
 lit-formatstrings: $(TESTSCRIPT)
 	@mkdir -p $(FMTSTROBJ)
 	$(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(FMTSTR) LIT_ARGS=-j1
+
+# Run regression tests
+lit-regression: $(TESTSCRIPT)
+	@mkdir -p $(REGRSNOBJ)
+	$(SETENV) \
+		PATH=$(PROJ_OBJ_ROOT)/$(BuildMode)/bin:$(LLVMToolDir):$(PATH) \
+		$(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(REGRSN)
 
 # Build the script to run the lit tests
 $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in
@@ -492,3 +501,4 @@ litclean:
 	-rm -f $(PROJ_OBJ_ROOT)/test/tools/test.sh
 	-rm -rf $(PROJ_OBJ_ROOT)/test/cstdlib/Output
 	-rm -rf $(PROJ_OBJ_ROOT)/test/formatstrings/Output
+	-rm -rf $(PROJ_OBJ_ROOT)/test/regression/Output
