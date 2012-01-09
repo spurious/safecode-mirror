@@ -450,6 +450,11 @@ StringTransform::gtransform(Module &M,
     // Create the call instruction for the transformed function and insert it
     // before the current instruction.
     CallInst *C = CallInst::Create(PoolF, Params, "", I);
+    if (InvokeInst* Invoke = dyn_cast<InvokeInst>(I)) {
+      // Our versions don't throw under any circumstances.
+      // Just branch to normal:
+      BranchInst::Create(Invoke->getNormalDest(), I);
+    }
     // Transfer debugging metadata if it exists from the old call into the new
     // one.
     if (MDNode *DebugNode = I->getMetadata("dbg"))
