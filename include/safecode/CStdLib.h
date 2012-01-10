@@ -86,9 +86,6 @@ namespace llvm
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Require TargetData
       AU.addRequired<TargetData>();
-
-      // No modification of control flow graph
-      AU.setPreservesCFG();
     }
   };
 
