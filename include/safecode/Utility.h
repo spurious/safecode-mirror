@@ -469,6 +469,32 @@ escapesToMemory (Value * V) {
   return false;
 }
 
+//
+// Function: removeInvokeUnwindPHIs
+//
+// Description:
+//  Remove PHI values along the unwind edge of the given Invoke inst.
+//  Used when we replace an Invoke with a Call.
+//  (keeping the normal non-exception edge, but dropping the unwind edge)
+//
+static inline void
+removeInvokeUnwindPHIs(InvokeInst* Invoke) {
+  BasicBlock *InvokeDest = Invoke->getUnwindDest();
+  std::vector<PHINode*> InvokeDestPHIs;
+
+  // Scan destination BB for all PHIs
+  for (BasicBlock::iterator I = InvokeDest->begin(); isa<PHINode>(I); ++I)
+    InvokeDestPHIs.push_back(cast<PHINode>(I));
+
+  // Process this worklist, remove incoming value if it exists.
+  // Removes PHI entirely if empty.
+  std::vector<PHINode*>::iterator I = InvokeDestPHIs.begin(),
+                                  E = InvokeDestPHIs.end();
+  BasicBlock *InvokeBlock = Invoke->getParent();
+  for( ; I != E; ++I)
+    (*I)->removeIncomingValue(InvokeBlock);
+}
+
 }
 
 #endif

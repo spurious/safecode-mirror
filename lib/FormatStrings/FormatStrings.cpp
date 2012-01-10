@@ -20,6 +20,7 @@
 #include "llvm/Support/IRBuilder.h"
 
 #include "safecode/FormatStrings.h"
+#include "safecode/Utility.h"
 #include "safecode/VectorListHelper.h"
 
 #include <set>
@@ -303,6 +304,7 @@ FormatStringTransform::transform(Module &M,
     if (isa<InvokeInst>(OldCall))
     {
       InvokeInst *Invoke = cast<InvokeInst>(OldCall);
+      removeInvokeUnwindPHIs(Invoke);
       BranchInst *Br = BranchInst::Create(Invoke->getNormalDest());
       Invoke->eraseFromParent();
       Br->insertAfter(NewCall);

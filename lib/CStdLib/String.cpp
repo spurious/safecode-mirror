@@ -43,6 +43,7 @@
 
 #include "safecode/CStdLib.h"
 #include "safecode/Config/config.h"
+#include "safecode/Utility.h"
 
 #include <cstdarg>
 #include <string>
@@ -454,6 +455,8 @@ StringTransform::gtransform(Module &M,
       // Our versions don't throw under any circumstances.
       // Just branch to normal:
       BranchInst::Create(Invoke->getNormalDest(), I);
+      // Remove any PHIs relying on the removed edge to the unwind BB
+      removeInvokeUnwindPHIs(Invoke);
     }
     // Transfer debugging metadata if it exists from the old call into the new
     // one.
