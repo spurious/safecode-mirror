@@ -1,4 +1,4 @@
-//=== SoftBoundRuntime/softboundcets-wrappers.c- SoftBound+CETS wrappers for external libraries --*- C -*===// 
+//=== softboundcets-wrappers.c- SoftBound wrappers for libraries --*- C -*===// 
 // Copyright (c) 2011 Santosh Nagarakatte, Milo M. K. Martin. All rights reserved.
 
 // Developed by: Santosh Nagarakatte, Milo M.K. Martin,
@@ -97,7 +97,8 @@ extern size_t* __softboundcets_global_lock;
 extern void __softboundcets_process_memory_total();
 
 
-__WEAK_INLINE void __softboundcets_read_shadow_stack_metadata_store(char** endptr, int arg_num){
+__WEAK_INLINE void 
+__softboundcets_read_shadow_stack_metadata_store(char** endptr, int arg_num){
   
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
@@ -118,7 +119,8 @@ __WEAK_INLINE void __softboundcets_read_shadow_stack_metadata_store(char** endpt
     void* nptr_bound = __softboundcets_load_bound_shadow_stack(arg_num);
     size_t nptr_key = __softboundcets_load_key_shadow_stack(arg_num);
     void* nptr_lock = __softboundcets_load_lock_shadow_stack(arg_num);
-    __softboundcets_metadata_store(endptr, nptr_base, nptr_bound, nptr_key, nptr_lock);
+    __softboundcets_metadata_store(endptr, nptr_base, nptr_bound, nptr_key, 
+                                   nptr_lock);
 
 #else
 
@@ -126,13 +128,16 @@ __WEAK_INLINE void __softboundcets_read_shadow_stack_metadata_store(char** endpt
     void* nptr_bound = __softboundcets_load_bound_shadow_stack(arg_num);
     size_t nptr_key = __softboundcets_load_key_shadow_stack(arg_num);
     void* nptr_lock = __softboundcets_load_lock_shadow_stack(arg_num);
-    __softboundcets_metadata_store(endptr, nptr_base, nptr_bound, nptr_key, nptr_lock);
+    __softboundcets_metadata_store(endptr, nptr_base, nptr_bound, nptr_key, 
+                                   nptr_lock);
 
 #endif
 
 }
 
-__WEAK_INLINE void __softboundcets_propagate_metadata_shadow_stack_from(int from_argnum, int to_argnum){
+__WEAK_INLINE void 
+__softboundcets_propagate_metadata_shadow_stack_from(int from_argnum, 
+                                                     int to_argnum){
   
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
@@ -208,7 +213,9 @@ __WEAK_INLINE void __softboundcets_store_null_return_metadata(){
 
 }
 
-__WEAK_INLINE void __softboundcets_store_return_metadata(void* base, void* bound, size_t key, void* lock){
+__WEAK_INLINE void 
+__softboundcets_store_return_metadata(void* base, void* bound, size_t key, 
+                                      void* lock){
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
@@ -267,20 +274,23 @@ __WEAK_INLINE uid_t softboundcets_getuid(void) {
   return getuid();
 }
 
-__WEAK_INLINE int softboundcets_getrlimit(int resource, struct rlimit* rlim){
+__WEAK_INLINE int 
+softboundcets_getrlimit(int resource, struct rlimit* rlim){
 
   /* tested */
   return getrlimit(resource, rlim);
 }
 
-__WEAK_INLINE int softboundcets_setrlimit(int resource, const struct rlimit* rlim){
+__WEAK_INLINE int 
+softboundcets_setrlimit(int resource, const struct rlimit* rlim){
 
   /* tested */
   return setrlimit(resource, rlim);
 }
 
 
-__WEAK_INLINE size_t softboundcets_fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
+__WEAK_INLINE size_t 
+softboundcets_fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
   /* tested */
   return fread(ptr, size, nmemb, stream);
 }
@@ -334,7 +344,8 @@ __WEAK_INLINE int softboundcets_ungetc(int c,  FILE* stream){
   return ungetc(c, stream);
 }
 
-__WEAK_INLINE int softboundcets_strncmp(const char* s1, const char* s2, size_t n){
+__WEAK_INLINE int 
+softboundcets_strncmp(const char* s1, const char* s2, size_t n){
   return strncmp(s1, s2, n);
 }
 
@@ -342,7 +353,10 @@ __WEAK_INLINE double softboundcets_log(double x) {
 
   return log(x);
 }
-long long softboundcets_fwrite(char* ptr, size_t size, size_t nmemb, FILE* stream){
+
+
+__WEAK_INLINE  long long 
+softboundcets_fwrite(char* ptr, size_t size, size_t nmemb, FILE* stream){
   return fwrite(ptr, size, nmemb, stream);
 }
 
@@ -508,7 +522,8 @@ __WEAK_INLINE FILE* softboundcets_tmpfile(void) {
 
   void* ret_ptr = tmpfile();
   void* ret_ptr_bound = (char*) ret_ptr + sizeof(FILE);
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1, __softboundcets_global_lock);
   return ret_ptr;
 }
 
@@ -542,7 +557,8 @@ __WEAK_INLINE FILE* softboundcets_fopen(const char* path, const char* mode){
   void* ret_ptr = (void*) fopen(path, mode);
   void* ret_ptr_bound = (char*) ret_ptr + sizeof(FILE);
 
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1, (void*) __softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1, (void*) __softboundcets_global_lock);
   return (FILE*)ret_ptr;
 }
 
@@ -551,7 +567,8 @@ __WEAK_INLINE FILE* softboundcets_fdopen(int fildes, const char* mode){
   void* ret_ptr = (void*) fdopen(fildes, mode);
   void* ret_ptr_bound = (char*) ret_ptr + sizeof(FILE);
 
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1, (void*)__softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1, (void*)__softboundcets_global_lock);
   return (FILE*)ret_ptr;
 }
 
@@ -572,7 +589,8 @@ __WEAK_INLINE FILE* softboundcets_popen(const char* command, const char* type){
   void* ret_ptr = (void*) popen(command, type);
   void* ret_ptr_bound = (char*)ret_ptr + sizeof(FILE);
 
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1, (void*) __softboundcets_global_lock);  
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1, (void*) __softboundcets_global_lock);  
   return (FILE*)ret_ptr;
 
 }
@@ -597,7 +615,8 @@ __WEAK_INLINE struct dirent*  softboundcets_readdir(DIR* dir){
   void* ret_ptr = (void*) readdir(dir);
   void* ret_ptr_bound = (char*)ret_ptr + sizeof(struct dirent);
 
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1, (void*) __softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1, (void*) __softboundcets_global_lock);
 
   return (struct dirent*)ret_ptr;
 
@@ -610,7 +629,8 @@ __WEAK_INLINE DIR* softboundcets_opendir(const char* name){
   /* FIX Required, don't know the sizeof(DIR) */
   void* ret_ptr_bound = (char*) ret_ptr + 1024* 1024;
 
-  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 1,  (void*)__softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, ret_ptr_bound, 
+                                        1,  (void*)__softboundcets_global_lock);
 
   return (DIR*)ret_ptr;
 }
@@ -620,7 +640,8 @@ __WEAK_INLINE int softboundcets_closedir(DIR* dir){
   return closedir(dir);
 }
 
-__WEAK_INLINE int softboundcets_rename(const char* old_path, const char* new_path){
+__WEAK_INLINE int 
+softboundcets_rename(const char* old_path, const char* new_path){
 
   return rename(old_path, new_path);
 }
@@ -647,7 +668,8 @@ __WEAK_INLINE char* softboundcets_getcwd(char* buf, size_t size){
   return ret_ptr;
 }
 
-__WEAK_INLINE int softboundcets_chown(const char* path, uid_t owner, gid_t group){  
+__WEAK_INLINE int 
+softboundcets_chown(const char* path, uid_t owner, gid_t group){  
   return chown(path, owner, group);
   
 }
@@ -675,9 +697,8 @@ __WEAK_INLINE int softboundcets_strcasecmp(const char* s1, const char* s2){
   return strcasecmp(s1,s2);
 }
 
-__WEAK_INLINE int softboundcets_strncasecmp(const char* s1, const char* s2, size_t n){
-
-  //printf("[Softboundcets Warning] using untested wrapper [softboundcets_strncasecmp] \n");
+__WEAK_INLINE int 
+softboundcets_strncasecmp(const char* s1, const char* s2, size_t n){
   return strncasecmp(s1, s2, n);
 }
 
@@ -732,13 +753,13 @@ __WEAK_INLINE size_t softboundcets_strcspn(const char* s, const char* reject){
   return strcspn(s, reject);
 }
 
-__WEAK_INLINE int softboundcets_memcmp(const void* s1, const void* s2, size_t n){
+__WEAK_INLINE int 
+softboundcets_memcmp(const void* s1, const void* s2, size_t n){
   return memcmp(s1, s2, n);
 }
 
 
 __WEAK_INLINE void* softboundcets_memchr(const void * s, int c, size_t n){  
-  //  printf("[Memchr] s= %p, s_base = %p s_bound=%p s_cap = %zx, s_cap_addr=%p\n", s, s_base, s_bound, s_cap, s_cap_addr);
   void* ret_ptr = memchr(s, c, n);
   if(ret_ptr != NULL) {
     __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
@@ -756,7 +777,8 @@ __WEAK_INLINE char* softboundcets_rindex(char* s, int c){
   return ret_ptr;
 }
 
-__WEAK_INLINE unsigned long int softboundcets_strtoul(const char* nptr, char ** endptr, int base){
+__WEAK_INLINE unsigned long int 
+softboundcets_strtoul(const char* nptr, char ** endptr, int base){
 
   unsigned long temp = strtoul(nptr, endptr, base);
   if(endptr != NULL){
@@ -777,10 +799,10 @@ __WEAK_INLINE double softboundcets_strtod(const char* nptr, char** endptr){
   return temp;
  }
  
-__WEAK_INLINE long softboundcets_strtol(const char* nptr, char **endptr, int base){
+__WEAK_INLINE long 
+softboundcets_strtol(const char* nptr, char **endptr, int base){
  
    long temp = strtol(nptr, endptr, base);
-   
    if(endptr != NULL) {
      //    __softboundcets_printf("*endptr=%p\n", *endptr);
      __softboundcets_read_shadow_stack_metadata_store(endptr, 1);
@@ -788,17 +810,12 @@ __WEAK_INLINE long softboundcets_strtol(const char* nptr, char **endptr, int bas
   return temp;
 }
 
+__WEAK_INLINE char* softboundcets_strchr(const char* s, int c){
 
-
-
- __WEAK_INLINE char* softboundcets_strchr(const char* s, int c){
-
-   char* ret_ptr = strchr(s, c);
+  char* ret_ptr = strchr(s, c);
    __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
    return ret_ptr;
 }
-
-
 
 __WEAK_INLINE char* softboundcets_strrchr(const char* s, int c){
 
@@ -809,12 +826,14 @@ __WEAK_INLINE char* softboundcets_strrchr(const char* s, int c){
 
 
 
- __WEAK_INLINE char* softboundcets_strcpy(char* dest, char* src){
+__WEAK_INLINE char* softboundcets_strcpy(char* dest, char* src){
 
 #if 0
   size_t size = strlen(src);
   if( (dest + size < dest_base) || (dest + size > dest_bound)) {
-    printf("[softboundcets_strcpy] src_base = %zx, src_bound = %zx, dest_base = %zx, dest_bound = %zx, size = %zx\n", src_base, src_bound, dest_base, dest_bound, size);
+    printf("[softboundcets_strcpy] src_base = %zx, src_bound = %zx, 
+           dest_base = %zx, dest_bound = %zx, size = %zx\n", 
+           src_base, src_bound, dest_base, dest_bound, size);
     __softboundcets_abort();
   }
 #endif
@@ -848,39 +867,41 @@ __WEAK_INLINE void softboundcets_abort() {
  }
 
 
- __WEAK_INLINE void softboundcets_exit(int status) {
-   
-   exit(status);
- }
+__WEAK_INLINE void softboundcets_exit(int status) {
+  
+  exit(status);
+}
 
- __WEAK_INLINE char*  softboundcets_strtok(char* str, const char* delim){
-
-   
-   char* ret_ptr = strtok(str, delim);
-   
-   __softboundcets_store_return_metadata((void*)0, (void*)(281474976710656), 1, __softboundcets_global_lock);
-   return ret_ptr;
- }
-
+__WEAK_INLINE char*  softboundcets_strtok(char* str, const char* delim){
+  
+  char* ret_ptr = strtok(str, delim);   
+  __softboundcets_store_return_metadata((void*)0, (void*)(281474976710656), 
+                                        1, __softboundcets_global_lock);
+  return ret_ptr;
+}
 
 
 //strdup, allocates memory from the system using malloc, thus can be freed
- __WEAK_INLINE char* softboundcets_strdup(const char* s){
-   
-   /* IMP: strdup just copies the string s */  
-   void* ret_ptr = strdup(s);
-
-   key_type ptr_key;
-   lock_type ptr_lock;
-   
-   if(ret_ptr == NULL) {
-     __softboundcets_store_null_return_metadata();
-   }
-   else {
-     __softboundcets_memory_allocation(ret_ptr, &ptr_lock, &ptr_key);
-     __softboundcets_store_return_metadata(ret_ptr, (void*)((char*)ret_ptr + strlen(ret_ptr) + 1), ptr_key, ptr_lock); 
-   }  
-   return ret_ptr;
+__WEAK_INLINE char* softboundcets_strdup(const char* s){
+  
+  /* IMP: strdup just copies the string s */  
+  void* ret_ptr = strdup(s);
+  
+  key_type ptr_key;
+  lock_type ptr_lock;
+  
+  if(ret_ptr == NULL) {
+    __softboundcets_store_null_return_metadata();
+  }
+  else {
+    printf("strdup malloced pointer %p\n", ret_ptr);    
+    __softboundcets_memory_allocation(ret_ptr, &ptr_lock, &ptr_key);
+    __softboundcets_store_return_metadata(ret_ptr, 
+                                          (void*)
+                                          ((char*)ret_ptr + strlen(ret_ptr) + 1), 
+                                          ptr_key, ptr_lock); 
+  }  
+  return ret_ptr;
  }
 
 
@@ -888,7 +909,9 @@ __WEAK_INLINE void softboundcets_abort() {
 
 #if 0
   if(dest + strlen(dest) + strlen(src) > dest_bound){
-    printf("overflow with strcat, dest = %p, strlen(dest)=%d, strlen(src)=%d, dest_bound=%p \n", dest, strlen(dest), strlen(src), dest_bound);
+    printf("overflow with strcat, dest = %p, strlen(dest)=%d, 
+            strlen(src)=%d, dest_bound=%p \n", 
+           dest, strlen(dest), strlen(src), dest_bound);
     __softboundcets_abort();
   } 
 #endif
@@ -898,14 +921,16 @@ __WEAK_INLINE void softboundcets_abort() {
   return ret_ptr;
 }
 
- __WEAK_INLINE char* softboundcets_strncat (char* dest,const char* src, size_t n){
+__WEAK_INLINE char* 
+softboundcets_strncat (char* dest,const char* src, size_t n){
 
-   char* ret_ptr = strncat(dest, src, n);
-   __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
-   return ret_ptr;
+  char* ret_ptr = strncat(dest, src, n);
+  __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
+  return ret_ptr;
 }
 
- __WEAK_INLINE char* softboundcets_strncpy(char* dest, char* src, size_t n){
+__WEAK_INLINE char* 
+softboundcets_strncpy(char* dest, char* src, size_t n){
    
 #if 0
   if(dest + n  >= dest_bound) {
@@ -919,39 +944,43 @@ __WEAK_INLINE void softboundcets_abort() {
   return ret_ptr;
 }
 
- __WEAK_INLINE char* softboundcets_strstr(const char* haystack, const char* needle){
+__WEAK_INLINE char* 
+softboundcets_strstr(const char* haystack, const char* needle){
   
-   char* ret_ptr = strstr(haystack, needle);
-   if(ret_ptr != NULL) {
-     
-     __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
-   }
-   else {
-     __softboundcets_store_null_return_metadata();
-   }
-   return ret_ptr;
+  char* ret_ptr = strstr(haystack, needle);
+  if(ret_ptr != NULL) {    
+    __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
+  }
+  else {
+    __softboundcets_store_null_return_metadata();
+  }
+  return ret_ptr;
 }
 
- __WEAK_INLINE sighandler_t softboundcets_signal(int signum, sighandler_t handler){
+__WEAK_INLINE sighandler_t 
+softboundcets_signal(int signum, sighandler_t handler){
 
-   sighandler_t ptr = signal(signum, handler);
-   __softboundcets_store_return_metadata((void*)ptr, (void*) ptr, 1, __softboundcets_global_lock);
-   return ptr;
- }
+  sighandler_t ptr = signal(signum, handler);
+  __softboundcets_store_return_metadata((void*)ptr, (void*) ptr, 
+                                        1, __softboundcets_global_lock);
+  return ptr;
+}
 
- __WEAK_INLINE clock_t softboundcets_clock(void){
-   return clock();
- }
+__WEAK_INLINE clock_t softboundcets_clock(void){
+  return clock();
+}
 
 
- __WEAK_INLINE long softboundcets_atol(const char* nptr){
-   
-   return atol(nptr);
- }
+__WEAK_INLINE long softboundcets_atol(const char* nptr){ 
+  return atol(nptr);
+}
 
- __WEAK_INLINE void* softboundcets_realloc(void* ptr, size_t size){
+__WEAK_INLINE void* softboundcets_realloc(void* ptr, size_t size){
   
+#if 0
   /* TODO: may be necessary to copy metadata */
+   printf("performing relloc, which can cause ptr=%p\n", ptr);
+#endif
    void* ret_ptr = realloc(ptr, size);
    __softboundcets_allocation_secondary_trie_allocate(ret_ptr);
    size_t ptr_key = 1;
@@ -968,8 +997,14 @@ __WEAK_INLINE void softboundcets_abort() {
    ptr_lock = __softboundcets_load_lock_shadow_stack(1);
 #endif
 
-   __softboundcets_store_return_metadata(ret_ptr, (char*)(ret_ptr) + size, ptr_key, ptr_lock);
+   
+
+   __softboundcets_store_return_metadata(ret_ptr, 
+                                         (char*)(ret_ptr) + size, 
+                                         ptr_key, ptr_lock);
    if(ret_ptr != ptr){
+     __softboundcets_check_remove_from_free_map(ptr_key, ptr);
+     __softboundcets_add_to_free_map(ptr_key, ret_ptr);
      __softboundcets_copy_metadata(ret_ptr, ptr, size);
    }
    
@@ -990,9 +1025,15 @@ __WEAK_INLINE void softboundcets_abort() {
      __softboundcets_memory_allocation(ret_ptr, &ptr_lock, &ptr_key);     
 #endif
 
-     __softboundcets_store_return_metadata(ret_ptr, ((char*)(ret_ptr) + (nmemb * size)), ptr_key, ptr_lock); 
+     __softboundcets_store_return_metadata(ret_ptr, 
+                                           ((char*)(ret_ptr) + (nmemb * size)), 
+                                           ptr_key, ptr_lock); 
 
      if(__SOFTBOUNDCETS_FREE_MAP) {
+#if 0
+       __softboundcets_printf("calloc ptr=%p, ptr_key=%zx\n", 
+                              ret_ptr, ptr_key);
+#endif
        __softboundcets_add_to_free_map(ptr_key, ret_ptr);
      }
    }
@@ -1020,9 +1061,13 @@ __WEAK_INLINE void* softboundcets_malloc(size_t size) {
 #endif
 
     char* ret_bound = ret_ptr + size;
-    __softboundcets_store_return_metadata(ret_ptr, ret_bound, ptr_key, ptr_lock);
-
+    __softboundcets_store_return_metadata(ret_ptr, ret_bound, 
+                                          ptr_key, ptr_lock);
     if(__SOFTBOUNDCETS_FREE_MAP) {
+#if 0
+       __softboundcets_printf("malloc ptr=%p, ptr_key=%zx\n", 
+                              ret_ptr, ptr_key);
+#endif
       __softboundcets_add_to_free_map(ptr_key, ret_ptr);
     }
   }
@@ -1040,18 +1085,21 @@ __WEAK_INLINE int softboundcets_putchar(int c) {
   return times(buf);
 }
 
-__WEAK_INLINE size_t softboundcets_strftime(char* s, size_t max, const char* format, 
-                              const struct tm *tm){
+__WEAK_INLINE size_t 
+softboundcets_strftime(char* s, size_t max, 
+                       const char* format, const struct tm *tm){
   
   return strftime(s, max, format, tm);
 }
 
- __WEAK_INLINE struct tm* softboundcets_localtime(const time_t* timep){
+__WEAK_INLINE struct tm* softboundcets_localtime(const time_t* timep){
 
-   struct tm * ret_ptr = localtime(timep);
-   __softboundcets_store_return_metadata(ret_ptr, (char*)ret_ptr + sizeof(struct tm), 1, __softboundcets_global_lock); 
-   return ret_ptr;
- }
+  struct tm * ret_ptr = localtime(timep);
+  __softboundcets_store_return_metadata(ret_ptr, 
+                                        (char*)ret_ptr + sizeof(struct tm), 
+                                        1, __softboundcets_global_lock); 
+  return ret_ptr;
+}
 
  __WEAK_INLINE time_t softboundcets_time(time_t* t){
 
@@ -1063,60 +1111,62 @@ __WEAK_INLINE double softboundcets_drand48(){
   return drand48();
 }
 
-
- __WEAK_INLINE void softboundcets_free(void* ptr){
-   /* more checks required to check if it is a malloced address */
+__WEAK_INLINE void softboundcets_free(void* ptr){
+  /* more checks required to check if it is a malloced address */
 #ifdef __SOFTBOUNDCETS_TEMPORAL 
-   void* ptr_lock = __softboundcets_load_lock_shadow_stack(1);
-   size_t ptr_key = __softboundcets_load_key_shadow_stack(1);
-
-#ifdef __SOFTBOUNDCETS_WATCHDOG_FREE_DEBUG          
-     __softboundcets_printf("[softboundcets_free], ptr_lock=%p, ptr_key=%zx, ptr=%p\n", ptr_lock, ptr_key, ptr);
-#endif
-
+  if(ptr != NULL){
+    void* ptr_lock = __softboundcets_load_lock_shadow_stack(1);
+    size_t ptr_key = __softboundcets_load_key_shadow_stack(1);
+    
     __softboundcets_memory_deallocation(ptr_lock, ptr_key);
-     
-   if(__SOFTBOUNDCETS_FREE_MAP){
-     __softboundcets_check_remove_from_free_map(ptr_key, ptr);
-   }
-
+    
+    if(__SOFTBOUNDCETS_FREE_MAP){
+#if 0
+      __softboundcets_printf("free =%p, ptr_key=%zx\n", ptr, ptr_key);
+#endif
+      __softboundcets_check_remove_from_free_map(ptr_key, ptr);
+    }
+  }  
 #endif  
 
 #ifdef __SOFTBOUNDCETS_SPATIAL_TEMPORAL
-   void* ptr_lock = __softboundcets_load_lock_shadow_stack(1);
-   size_t ptr_key = __softboundcets_load_key_shadow_stack(1);
+  if(ptr != NULL){
+    void* ptr_lock = __softboundcets_load_lock_shadow_stack(1);
+    size_t ptr_key = __softboundcets_load_key_shadow_stack(1);
     __softboundcets_memory_deallocation(ptr_lock, ptr_key);
      
-   if(__SOFTBOUNDCETS_FREE_MAP){
-     __softboundcets_check_remove_from_free_map(ptr_key, ptr);
-   }
-
+    if(__SOFTBOUNDCETS_FREE_MAP){
+#if 0
+      __softboundcets_printf("free =%p, ptr_key=%zx\n", ptr, ptr_key);
 #endif
-
+      __softboundcets_check_remove_from_free_map(ptr_key, ptr);
+    }
+  }
+#endif
    free(ptr);
- }
+}
 
 
 __WEAK_INLINE long int softboundcets_lrand48(){
-
   return lrand48();
 }
 
 
-/* ////////////////////Time Related Library Wrappers////////////////////////// */
+/* ////////////////////Time Related Library Wrappers///////////////////////// */
 
 
- __WEAK_INLINE char* softboundcets_ctime( const time_t* timep){
+__WEAK_INLINE char* softboundcets_ctime( const time_t* timep){
   
-   char* ret_ptr = ctime(timep);
+  char* ret_ptr = ctime(timep);
 
-   if(ret_ptr == NULL){
-     __softboundcets_store_null_return_metadata();
-   }
-   else {
-     __softboundcets_store_return_metadata(ret_ptr, ret_ptr + strlen(ret_ptr) + 1, 1, __softboundcets_global_lock);
-   }
-   return ret_ptr;
+  if(ret_ptr == NULL){
+    __softboundcets_store_null_return_metadata();
+  }
+  else {
+    __softboundcets_store_return_metadata(ret_ptr, ret_ptr + strlen(ret_ptr) + 1, 
+                                          1, __softboundcets_global_lock);
+  }
+  return ret_ptr;
 
 }
 
@@ -1136,22 +1186,24 @@ __WEAK_INLINE int softboundcets_tolower(int c){
   return tolower(c);
 }
 
- __WEAK_INLINE void softboundcets_setbuf(FILE* stream, char* buf){  
-   setbuf(stream, buf);
- }
+__WEAK_INLINE void softboundcets_setbuf(FILE* stream, char* buf){  
+  setbuf(stream, buf);
+}
 
- __WEAK_INLINE char* softboundcets_getenv(const char* name){
+__WEAK_INLINE char* softboundcets_getenv(const char* name){
    
-   char* ret_ptr = getenv(name);
+  char* ret_ptr = getenv(name);
    
-   if(ret_ptr != NULL){
-     __softboundcets_store_return_metadata(ret_ptr, ret_ptr + strlen(ret_ptr) + 1, 1, __softboundcets_global_lock);
-   }
+  if(ret_ptr != NULL){
+    __softboundcets_store_return_metadata(ret_ptr, 
+                                          ret_ptr + strlen(ret_ptr) + 1, 
+                                          1, __softboundcets_global_lock);
+  }
   else {
     __softboundcets_store_null_return_metadata();
   }
 
-   return ret_ptr;
+  return ret_ptr;
 }
 
 __WEAK_INLINE int softboundcets_atexit(void_func_ptr function){
@@ -1163,9 +1215,11 @@ __WEAK_INLINE int softboundcets_atexit(void_func_ptr function){
 __WEAK_INLINE char* softboundcets_strerror(int errnum) {
 
   void* ret_ptr = strerror(errnum);
-  __softboundcets_store_return_metadata(ret_ptr, (void*)((char*)ret_ptr + strlen(ret_ptr) +1), 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, 
+                                        (void*)
+                                        ((char*)ret_ptr + strlen(ret_ptr) +1),
+                                        1, __softboundcets_global_lock);
   return ret_ptr;
-
 }
 
 
@@ -1201,13 +1255,15 @@ __WEAK_INLINE off_t softboundcets_lseek(int fildes, off_t offset, int whence) {
 }
 
 
-__WEAK_INLINE int softboundcets_gettimeofday(struct timeval* tv, struct timezone* tz){
+__WEAK_INLINE int 
+softboundcets_gettimeofday(struct timeval* tv, struct timezone* tz){
   return gettimeofday(tv, tz);
 }
 
 
-__WEAK_INLINE int softboundcets_select(int nfds, fd_set* readfds, fd_set* writefds,
-                                             fd_set* exceptfds, struct timeval* timeout){
+__WEAK_INLINE int 
+softboundcets_select(int nfds, fd_set* readfds, fd_set* writefds,
+                     fd_set* exceptfds, struct timeval* timeout){
   return select(nfds, readfds, writefds, exceptfds, timeout);
 }
 
@@ -1215,24 +1271,31 @@ __WEAK_INLINE int softboundcets_select(int nfds, fd_set* readfds, fd_set* writef
 __WEAK_INLINE int* softboundcets___errno_location() {
   void* ret_ptr = (int *)__errno_location();
   //  printf("ERRNO: ptr is %lx", ptrs->ptr);
-  __softboundcets_store_return_metadata(ret_ptr, (void*)((char*)ret_ptr + sizeof(int*)), 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata(ret_ptr, 
+                                        (void*)((char*)ret_ptr + sizeof(int*)),
+                                        1, __softboundcets_global_lock);
   
   return ret_ptr;
 }
 
-
-
-__WEAK_INLINE unsigned short const** softboundcets___ctype_b_loc(void) {
+__WEAK_INLINE unsigned short const** 
+softboundcets___ctype_b_loc(void) {
 
   unsigned short const** ret_ptr =__ctype_b_loc();
-  __softboundcets_store_return_metadata((void*) ret_ptr, (void*)((char*) ret_ptr + sizeof(int*)), 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata((void*) ret_ptr, 
+                                        (void*)
+                                        ((char*) ret_ptr + sizeof(int*)), 
+                                        1, __softboundcets_global_lock);
   return ret_ptr;
 }
 
 __WEAK_INLINE int const**  softboundcets___ctype_toupper_loc(void) {
   
   int const ** ret_ptr  =  __ctype_toupper_loc();  
-  __softboundcets_store_return_metadata((void*) ret_ptr, (void*)((char*)ret_ptr + sizeof(int*)), 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata((void*) ret_ptr, 
+                                        (void*)
+                                        ((char*)ret_ptr + sizeof(int*)), 
+                                        1, __softboundcets_global_lock);
   return ret_ptr;
 
 }
@@ -1241,7 +1304,9 @@ __WEAK_INLINE int const**  softboundcets___ctype_toupper_loc(void) {
 __WEAK_INLINE int const**  softboundcets___ctype_tolower_loc(void) {
   
   int const ** ret_ptr  =  __ctype_tolower_loc();  
-  __softboundcets_store_return_metadata((void*) ret_ptr, (void*) ((char*)ret_ptr + sizeof(int*)), 1, __softboundcets_global_lock);
+  __softboundcets_store_return_metadata((void*) ret_ptr, 
+                                        (void*) ((char*)ret_ptr + sizeof(int*)),
+                                        1, __softboundcets_global_lock);
   return ret_ptr;
 
 }
@@ -1249,18 +1314,23 @@ __WEAK_INLINE int const**  softboundcets___ctype_tolower_loc(void) {
 
 /* This is a custom implementation of qsort */
 
-static int compare_elements_helper(void* base, size_t element_size, int idx1, int idx2, int (*comparer)(const void*, const void*)){
+static int 
+compare_elements_helper(void* base, size_t element_size, 
+                        int idx1, int idx2, 
+                        int (*comparer)(const void*, const void*)){
   
   char* base_bytes = base;
-  return comparer(&base_bytes[idx1 * element_size], &base_bytes[idx2*element_size]);
+  return comparer(&base_bytes[idx1 * element_size], 
+                  &base_bytes[idx2*element_size]);
 }
 
 #define element_less_than(i,j) (compare_elements_helper(base, element_size, (i), (j), comparer) < 0)
 
-static void exchange_elements_helper(void* base, size_t element_size, int idx1, int idx2){
+static void 
+exchange_elements_helper(void* base, size_t element_size, 
+                         int idx1, int idx2){
 
   char* base_bytes = base;
-  printf("base is %p\n", base);
   size_t i;
 
   for (i=0; i < element_size; i++){
@@ -1304,11 +1374,15 @@ static void exchange_elements_helper(void* base, size_t element_size, int idx1, 
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
     
-    __softboundcets_metadata_load(addr_idx1, &base_idx1, &bound_idx1, &key_idx1, &lock_idx1);
-    __softboundcets_metadata_load(addr_idx2, &base_idx2, &bound_idx2, &key_idx2, &lock_idx2);
+    __softboundcets_metadata_load(addr_idx1, &base_idx1, &bound_idx1, 
+                                  &key_idx1, &lock_idx1);
+    __softboundcets_metadata_load(addr_idx2, &base_idx2, &bound_idx2, 
+                                  &key_idx2, &lock_idx2);
 
-    __softboundcets_metadata_store(addr_idx1, base_idx2, bound_idx2, key_idx2, lock_idx2);
-    __softboundcets_metadata_store(addr_idx2, base_idx1, bound_idx1, key_idx1, lock_idx1);
+    __softboundcets_metadata_store(addr_idx1, base_idx2, bound_idx2, 
+                                   key_idx2, lock_idx2);
+    __softboundcets_metadata_store(addr_idx2, base_idx1, bound_idx1, 
+                                   key_idx1, lock_idx1);
 
 #else
     __softboundcets_printf("not implemented\n");
@@ -1323,8 +1397,9 @@ static void exchange_elements_helper(void* base, size_t element_size, int idx1, 
 
 #define MIN_QSORT_LIST_SIZE 32
 
-
-void my_qsort(void* base, size_t num_elements, size_t element_size, int (*comparer)(const void*, const void*)){
+void my_qsort(void* base, size_t num_elements, 
+              size_t element_size, 
+              int (*comparer)(const void*, const void*)){
 
   size_t i;
 
@@ -1340,14 +1415,16 @@ void my_qsort(void* base, size_t num_elements, size_t element_size, int (*compar
 }
 
 
-__WEAK_INLINE void softboundcets_qsort(void* base, size_t nmemb, size_t size, int (*compar)(const void*, const void*)){
+__WEAK_INLINE void 
+softboundcets_qsort(void* base, size_t nmemb, size_t size, 
+                    int (*compar)(const void*, const void*)){
 
   my_qsort(base, nmemb, size, compar);
 }
 
 
 
-/////////////////////Backup wrappers--- should be removed ///////////////////////////////////
+/////////////////////Backup wrappers--- should be removed ///////////////
 
 #if 0
 void softboundcets__obstack_newchunk(struct obstack *obj, int b){
@@ -1355,7 +1432,8 @@ void softboundcets__obstack_newchunk(struct obstack *obj, int b){
   _obstack_newchunk(obj, b);
 }
 
-int softboundcets__obstack_begin(struct obstack * obj, int a, int b, void *(foo) (long), void (bar) (void *)){
+int softboundcets__obstack_begin(struct obstack * obj, int a, int b, 
+                                 void *(foo) (long), void (bar) (void *)){
   return _obstack_begin(obj, a, b, foo, bar);
 }
 
@@ -1363,8 +1441,10 @@ void softboundcets_obstack_free(struct obstack *obj, void *object){
   obstack_free(obj, object);
 }
 
-void * softboundcets_bsearch(const void *key, const void *base, size_t nmemb, size_t size,
-              int (*compar)(const void *, const void *)){
+void * 
+softboundcets_bsearch(const void *key, const void *base, 
+                      size_t nmemb, size_t size,
+                      int (*compar)(const void *, const void *)){
   
   return bsearch(key, base, nmemb, size, compar);
 }

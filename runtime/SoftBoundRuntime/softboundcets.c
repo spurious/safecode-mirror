@@ -315,20 +315,20 @@ int main(int argc, char **argv){
   return return_value;
 }
 
-void * safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset){
+void * __softboundcets_safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset){
   return mmap(addr, length, prot, flags, fd, offset);
 }
 
-void* safe_calloc(size_t nmemb, size_t size){
+void* __softboundcets_safe_calloc(size_t nmemb, size_t size){
 
   return calloc(nmemb, size);
 }
 
-void* safe_malloc(size_t size){
+void* __softboundcets_safe_malloc(size_t size){
 
   return malloc(size);
 }
-void safe_free(void* ptr){
+void __softboundcets_safe_free(void* ptr){
 
   free(ptr);
 }

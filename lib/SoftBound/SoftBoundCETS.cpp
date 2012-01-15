@@ -1,5 +1,6 @@
-//=== SoftBound/SoftBoundCETS.cpp - Pointer based Spatial and Temporal Memory Safety Pass --*- C++ -*===// 
-// Copyright (c) 2011 Santosh Nagarakatte, Milo M. K. Martin. All rights reserved.
+///=== SoftBound/SoftBoundCETS.cpp --*- C++ -*=====///
+// Pointer based Spatial and Temporal Memory Safety Pass
+//Copyright (c) 2011 Santosh Nagarakatte, Milo M. K. Martin. All rights reserved.
 
 // Developed by: Santosh Nagarakatte, Milo M.K. Martin,
 //               Jianzhou Zhao, Steve Zdancewic
@@ -36,105 +37,121 @@
 // WITH THE SOFTWARE.
 //===---------------------------------------------------------------------===//
 
-
 #include "SoftBound/SoftBoundCETSPass.h"
 
 static cl::opt<bool>
-spatial_safety("softboundcets_spatial_safety",
-               cl::desc("perform transformation for spatial safety"),
-               cl::init(true));
+spatial_safety
+("softboundcets_spatial_safety",
+ cl::desc("perform transformation for spatial safety"),
+ cl::init(true));
 
 static cl::opt<bool>
-temporal_safety("softboundcets_temporal_safety",
-                cl::desc("perform transformation for temporal safety"),
-                cl::init(true));
+temporal_safety
+("softboundcets_temporal_safety",
+ cl::desc("perform transformation for temporal safety"),
+ cl::init(true));
 
 static cl::opt<bool>
-LOADCHECKS("softboundcets_spatial_safety_load_checks",
-           cl::desc("introduce load dereference checks for spatial safety"),
-           cl::init(true));
+LOADCHECKS
+("softboundcets_spatial_safety_load_checks",
+ cl::desc("introduce load dereference checks for spatial safety"),
+ cl::init(true));
 
 static cl::opt<bool>
-STORECHECKS("softboundcets_spatial_safety_store_checks",
-            cl::desc("introduce store dereference checks for spatial safety"),
-            cl::init(true));
+STORECHECKS
+("softboundcets_spatial_safety_store_checks",
+ cl::desc("introduce store dereference checks for spatial safety"),
+ cl::init(true));
 
 static cl::opt<bool>
-TEMPORALLOADCHECKS("softboundcets_temporal_load_checks",
-                   cl::desc("introduce temporal load dereference checks"),
-                   cl::init(true));
+TEMPORALLOADCHECKS
+("softboundcets_temporal_load_checks",
+ cl::desc("introduce temporal load dereference checks"),
+ cl::init(true));
 
 static cl::opt<bool>
-TEMPORALSTORECHECKS("softboundcets_temporal_store_checks",
-                    cl::desc("introduce temporal store dereference checks"),
-                    cl::init(true));
+TEMPORALSTORECHECKS
+("softboundcets_temporal_store_checks",
+ cl::desc("introduce temporal store dereference checks"),
+ cl::init(true));
 
 static cl::opt<bool>
-FUNCDOMTEMPORALCHECKOPT("softboundcets_func_dom_temporal_check_opt",
-                        cl::desc("eliminate redundant checks in the function using dominator based analysis"),
-                        cl::init(true));
-
-
-static cl::opt<bool>
-STRUCTOPT("softboundcets_struct_opt", 
-          cl::desc("enable or disable structure optimization"),
-          cl::init(true));
+FUNCDOMTEMPORALCHECKOPT
+("softboundcets_func_dom_temporal_check_opt",
+ cl::desc("eliminate function based redundant checks with dominator analysis"),
+ cl::init(true));
 
 static cl::opt<bool>
-BOUNDSCHECKOPT ("softboundcets_bounds_check_opt",
-                cl::desc("enable or disable dominator based load dereference check elimination"),
-                cl::init(true));
+STRUCTOPT
+("softboundcets_struct_opt", 
+ cl::desc("enable or disable structure optimization"),
+ cl::init(true));
 
 static cl::opt<bool>
-SHRINKBOUNDS ("softboundcets_shrink_bounds",
-              cl::desc("enable shrinking bounds for the softboundboundcetswithss pass"),
-              cl::init(false)); 
+BOUNDSCHECKOPT 
+("softboundcets_bounds_check_opt",
+ cl::desc("enable dominator based load dereference check elimination"),
+ cl::init(true));
 
 static cl::opt<bool>
-MEMCOPYCHECK("softboundcets_memcopy_check",
-             cl::desc("check memcopy calls"),
-             cl::init(true));
+SHRINKBOUNDS 
+("softboundcets_shrink_bounds",
+ cl::desc("enable shrinking bounds for the softboundboundcetswithss pass"),
+ cl::init(false)); 
 
 static cl::opt<bool>
-GLOBALCONSTANTOPT("softboundcets_global_const_opt",
-                  cl::desc("global constant expressions are not checked"),
-                  cl::init(true));
+MEMCOPYCHECK
+("softboundcets_memcopy_check",
+ cl::desc("check memcopy calls"),
+ cl::init(true));
 
 static cl::opt<bool>
-CALLCHECKS("softboundcets_call_checks",
-          cl::desc("introduce call checks"),
-          cl::init(true));
+GLOBALCONSTANTOPT
+("softboundcets_global_const_opt",
+ cl::desc("global constant expressions are not checked"),
+ cl::init(true));
 
 static cl::opt<bool>
-INDIRECTCALLCHECKS("softboundcets_indirect_call_checks",
-                   cl::desc("introduce indirect call checks"),
-                   cl::init(false));
+CALLCHECKS
+("softboundcets_call_checks",
+ cl::desc("introduce call checks"),
+ cl::init(true));
 
 static cl::opt<bool>
-OPAQUECALLS("softboundcets_opaque_calls",
-            cl::desc("consider all calls as opaque for func_dom_check_elimination"),
-            cl::init(true));
+INDIRECTCALLCHECKS
+("softboundcets_indirect_call_checks",
+ cl::desc("introduce indirect call checks"),
+ cl::init(false));
 
 static cl::opt<bool>
-TEMPORALBOUNDSCHECKOPT("softboundcets_temporal_bounds_check_opt",
-                       cl::desc("enable or disable temporal dominator based dereference check elimination"),
-                       cl::init(true));
+OPAQUECALLS
+("softboundcets_opaque_calls",
+ cl::desc("consider all calls as opaque for func_dom_check_elimination"),
+ cl::init(true));
 
 static cl::opt<bool>
-STACKTEMPORALCHECKOPT("softboundcets_stack_temporal_check_opt",
-                      cl::desc("eliminate temporal checks for stack variables"),
-                      cl::init(true));
+TEMPORALBOUNDSCHECKOPT
+("softboundcets_temporal_bounds_check_opt",
+ cl::desc("enable or disable temporal dominator based check elimination"),
+ cl::init(true));
 
 static cl::opt<bool>
-GLOBALTEMPORALCHECKOPT("softboundcets_global_temporal_check_opt",
-                       cl::desc("eliminate temporal checks for global variables"),
-                       cl::init(true));
+STACKTEMPORALCHECKOPT
+("softboundcets_stack_temporal_check_opt",
+ cl::desc("eliminate temporal checks for stack variables"),
+ cl::init(true));
 
 static cl::opt<bool>
-BBDOMTEMPORALCHECKOPT("softboundcets_bb_dom_temporal_check_opt",
-                      cl::desc("eliminate redundant checks in the basic block"),
-                      cl::init(true));
+GLOBALTEMPORALCHECKOPT
+("softboundcets_global_temporal_check_opt",
+ cl::desc("eliminate temporal checks for global variables"),
+ cl::init(true));
 
+static cl::opt<bool>
+BBDOMTEMPORALCHECKOPT
+("softboundcets_bb_dom_temporal_check_opt",
+ cl::desc("eliminate redundant checks in the basic block"),
+ cl::init(true));
 
 char SoftBoundCETSPass:: ID = 0;
 
@@ -142,86 +159,154 @@ static RegisterPass<SoftBoundCETSPass> P ("SoftBoundCETSPass",
                                           "SoftBound Pass for Spatial Safety");
 
 
-Value* SoftBoundCETSPass:: getAssociatedFuncLock(Value* pointer_inst){
+//
+// Method: getAssociateFuncLock()
+//
+// Description: 
+//
+// This method looks up the "lock" for global variables associated
+// with the function. Every will have a getGlobalLockAddr function
+// inserted at the beginning which will serve as the lock for all the
+// global variables used in the function.
+//
+//
+// Inputs:
+//
+// Pointer_inst: An instruction that is manipulating a global pointer
+// value.
+//
+// Return value:
+// 
+// Returns the "lock associated with the function. Should never return
+// NULL.
+//
 
-  Instruction* inst = dyn_cast<Instruction>(pointer_inst);
+Value* 
+SoftBoundCETSPass:: getAssociatedFuncLock(Value* PointerInst){
+
+  Instruction* inst = dyn_cast<Instruction>(PointerInst);
 
   Value* tmp_lock = NULL;
-  if(!inst){
+  if (!inst) {
+    assert(0 && "Function does not have global lock?");
     return NULL;
   }
-  if(m_func_global_lock.count(inst->getParent()->getParent()->getName())){
+  
+  if (m_func_global_lock.count(inst->getParent()->getParent()->getName())) {
     tmp_lock = m_func_global_lock[inst->getParent()->getParent()->getName()];
   }
   
   return tmp_lock;
 }
 
+//
+// Method: initializeSoftBoundVariables()
+//
+// Description: 
+// This function initializes the Function*'s that will be
+// inserted by the SoftBound/CETS Pass
+//
+// Input:
+//
+// module: Input module that has either the function definitions or
+// the function prototypes for the SoftBound/CETS functions
+//
+
 void SoftBoundCETSPass::initializeSoftBoundVariables(Module& module) {
 
-  /* Obtain the functions corresponding to dereference checks,
-   * metadata retrieval and metadata store and various auxillary
-   * functions 
-   */
+  m_spatial_load_dereference_check = 
+    module.getFunction("__softboundcets_spatial_load_dereference_check");
+  assert(m_spatial_load_dereference_check && 
+         "__softboundcets_spatial_load_dereference_check function type null?");
 
-  m_spatial_load_dereference_check = module.getFunction("__softboundcets_spatial_load_dereference_check");
-  assert(m_spatial_load_dereference_check && "__softboundcets_spatial_load_dereference_check function type null?");
+  m_spatial_store_dereference_check = 
+    module.getFunction("__softboundcets_spatial_store_dereference_check");
+  assert(m_spatial_store_dereference_check && 
+         "__softboundcets_spatial_store_dereference_check function type null?");
 
-  m_spatial_store_dereference_check = module.getFunction("__softboundcets_spatial_store_dereference_check");
-  assert(m_spatial_store_dereference_check && "__softboundcets_spatial_store_dereference_check function type null?");
+  m_temporal_load_dereference_check = 
+    module.getFunction("__softboundcets_temporal_load_dereference_check");
+  assert(m_temporal_load_dereference_check && 
+         "__softboundcets_temporal_load_dereference_check function type null?");
 
-  m_temporal_load_dereference_check = module.getFunction("__softboundcets_temporal_load_dereference_check");
-  assert(m_temporal_load_dereference_check && "__softboundcets_temporal_load_dereference_check function type null?");
+  m_temporal_global_lock_function = 
+    module.getFunction("__softboundcets_get_global_lock");
+  assert(m_temporal_global_lock_function && 
+         "__softboundcets_get_global_lock function type null?");
 
-  m_temporal_global_lock_function = module.getFunction("__softboundcets_get_global_lock");
-  assert(m_temporal_global_lock_function && "__softboundcets_get_global_lock function type null?");
+  m_temporal_store_dereference_check = 
+    module.getFunction("__softboundcets_temporal_store_dereference_check");
+  assert(m_temporal_store_dereference_check && 
+         " __softboundcets_temporal_store_dereference_check function type null?");
 
-  m_temporal_store_dereference_check = module.getFunction("__softboundcets_temporal_store_dereference_check");
-  assert(m_temporal_store_dereference_check && " __softboundcets_temporal_store_dereference_check function type null?");
-
-
-  m_introspect_metadata = module.getFunction("__softboundcets_introspect_metadata");
-  assert(m_introspect_metadata && "__softboundcets_introspect_metadata null?");
+  m_introspect_metadata = 
+    module.getFunction("__softboundcets_introspect_metadata");
+  assert(m_introspect_metadata && 
+         "__softboundcets_introspect_metadata null?");
     
   m_copy_metadata = module.getFunction("__softboundcets_copy_metadata");
   assert(m_copy_metadata && "__softboundcets_copy_metadata NULL?");
     
-  m_shadow_stack_allocate = module.getFunction("__softboundcets_allocate_shadow_stack_space");
-  assert(m_shadow_stack_allocate && "__softboundcets_allocate_shadow_stack_space NULL?");
+  m_shadow_stack_allocate = 
+    module.getFunction("__softboundcets_allocate_shadow_stack_space");
+  assert(m_shadow_stack_allocate && 
+         "__softboundcets_allocate_shadow_stack_space NULL?");
 
-  m_shadow_stack_deallocate = module.getFunction("__softboundcets_deallocate_shadow_stack_space");
-  assert(m_shadow_stack_deallocate && "__softboundcets_deallocate_shadow_stack_space NULL?");
+  m_shadow_stack_deallocate = 
+    module.getFunction("__softboundcets_deallocate_shadow_stack_space");
+  assert(m_shadow_stack_deallocate && 
+         "__softboundcets_deallocate_shadow_stack_space NULL?");
 
-  m_shadow_stack_base_load = module.getFunction("__softboundcets_load_base_shadow_stack");
-  assert(m_shadow_stack_base_load && "__softboundcets_load_base_shadow_stack NULL?");
+  m_shadow_stack_base_load = 
+    module.getFunction("__softboundcets_load_base_shadow_stack");
+  assert(m_shadow_stack_base_load && 
+         "__softboundcets_load_base_shadow_stack NULL?");
 
-  m_shadow_stack_bound_load = module.getFunction("__softboundcets_load_bound_shadow_stack");
-  assert(m_shadow_stack_bound_load && "__softboundcets_load_bound_shadow_stack NULL?");
+  m_shadow_stack_bound_load = 
+    module.getFunction("__softboundcets_load_bound_shadow_stack");
+  assert(m_shadow_stack_bound_load && 
+         "__softboundcets_load_bound_shadow_stack NULL?");
     
-  m_shadow_stack_key_load = module.getFunction("__softboundcets_load_key_shadow_stack");
-  assert(m_shadow_stack_key_load && "__softboundcets_load_key_shadow_stack NULL?");
+  m_shadow_stack_key_load = 
+    module.getFunction("__softboundcets_load_key_shadow_stack");
+  assert(m_shadow_stack_key_load && 
+         "__softboundcets_load_key_shadow_stack NULL?");
     
-  m_shadow_stack_lock_load = module.getFunction("__softboundcets_load_lock_shadow_stack");
-  assert(m_shadow_stack_lock_load && "__softboundcets_load_lock_shadow_stack NULL?");
+  m_shadow_stack_lock_load = 
+    module.getFunction("__softboundcets_load_lock_shadow_stack");
+  assert(m_shadow_stack_lock_load && 
+         "__softboundcets_load_lock_shadow_stack NULL?");
 
-  m_shadow_stack_base_store = module.getFunction("__softboundcets_store_base_shadow_stack");
-  assert(m_shadow_stack_base_store && "__softboundcets_store_base_shadow_stack NULL?");
+  m_shadow_stack_base_store = 
+    module.getFunction("__softboundcets_store_base_shadow_stack");
+  assert(m_shadow_stack_base_store && 
+         "__softboundcets_store_base_shadow_stack NULL?");
 
-  m_shadow_stack_bound_store = module.getFunction("__softboundcets_store_bound_shadow_stack");
-  assert(m_shadow_stack_bound_store && "__softboundcets_store_bound_shadow_stack NULL?");
+  m_shadow_stack_bound_store = 
+    module.getFunction("__softboundcets_store_bound_shadow_stack");
+  assert(m_shadow_stack_bound_store && 
+         "__softboundcets_store_bound_shadow_stack NULL?");
 
-  m_shadow_stack_key_store = module.getFunction("__softboundcets_store_key_shadow_stack");
-  assert(m_shadow_stack_key_store && "__softboundcets_store_key_shadow_stack NULL?");
+  m_shadow_stack_key_store = 
+    module.getFunction("__softboundcets_store_key_shadow_stack");
+  assert(m_shadow_stack_key_store && 
+         "__softboundcets_store_key_shadow_stack NULL?");
 
-  m_shadow_stack_lock_store = module.getFunction("__softboundcets_store_lock_shadow_stack");
-  assert(m_shadow_stack_lock_store && "__softboundcets_store_lock_shadow_stack NULL?");
+  m_shadow_stack_lock_store = 
+    module.getFunction("__softboundcets_store_lock_shadow_stack");
+  assert(m_shadow_stack_lock_store && 
+         "__softboundcets_store_lock_shadow_stack NULL?");
 
 
-  m_temporal_stack_memory_allocation = module.getFunction("__softboundcets_stack_memory_allocation");
-  assert(m_temporal_stack_memory_allocation && "__softboundcets_stack_memory_allocation");
+  m_temporal_stack_memory_allocation = 
+    module.getFunction("__softboundcets_stack_memory_allocation");
+  assert(m_temporal_stack_memory_allocation && 
+         "__softboundcets_stack_memory_allocation");
 
-  m_temporal_stack_memory_deallocation = module.getFunction("__softboundcets_stack_memory_deallocation");
-  assert(m_temporal_stack_memory_deallocation && "__softboundcets_stack_memory_deallocation not defined?");
+  m_temporal_stack_memory_deallocation = 
+    module.getFunction("__softboundcets_stack_memory_deallocation");
+  assert(m_temporal_stack_memory_deallocation && 
+         "__softboundcets_stack_memory_deallocation not defined?");
 
   m_load_base_bound_func = module.getFunction("__softboundcets_metadata_load");
   assert(m_load_base_bound_func && "__softboundcets_metadata_load null?");
@@ -229,35 +314,35 @@ void SoftBoundCETSPass::initializeSoftBoundVariables(Module& module) {
   m_store_base_bound_func = module.getFunction("__softboundcets_metadata_store");
   assert(m_store_base_bound_func && "__softboundcets_metadata_store null?");
 
-  m_call_dereference_func = module.getFunction("__softboundcets_spatial_call_dereference_check");
-  assert(m_call_dereference_func && "__softboundcets_spatial_call_dereference_check function null??");
-
+  m_call_dereference_func = 
+    module.getFunction("__softboundcets_spatial_call_dereference_check");
+  assert(m_call_dereference_func && 
+         "__softboundcets_spatial_call_dereference_check function null??");
 
   m_void_ptr_type = PointerType::getUnqual(Type::getInt8Ty(module.getContext()));
     
   size_t inf_bound;
 
-  if(m_is_64_bit){
+  if (m_is_64_bit) {
     m_key_type = Type::getInt64Ty(module.getContext());
-  }
-  else{
+  } else {
     m_key_type = Type::getInt32Ty(module.getContext());
   }
 
-  if(m_is_64_bit) {
+  if (m_is_64_bit) {
     inf_bound = (size_t) pow(2, 48);
-  }
-  else {
+  } else {
     inf_bound = (size_t) (2147483647);
   }
     
   ConstantInt* infinite_bound;
 
-  if(m_is_64_bit) {
-    infinite_bound = ConstantInt::get(Type::getInt64Ty(module.getContext()), inf_bound, false);
-  }
-  else {
-    infinite_bound = ConstantInt::get(Type::getInt32Ty(module.getContext()), inf_bound, false);
+  if (m_is_64_bit) {
+    infinite_bound = 
+      ConstantInt::get(Type::getInt64Ty(module.getContext()), inf_bound, false);
+  } else {
+    infinite_bound = 
+      ConstantInt::get(Type::getInt32Ty(module.getContext()), inf_bound, false);
   }
     
   m_infinite_bound_ptr = ConstantExpr::getIntToPtr(infinite_bound, 
@@ -267,238 +352,288 @@ void SoftBoundCETSPass::initializeSoftBoundVariables(Module& module) {
   m_void_null_ptr = ConstantPointerNull::get(vptrty);
   
   PointerType* sizet_ptr_ty = NULL; 
-  if(m_is_64_bit){
-    sizet_ptr_ty = PointerType::getUnqual(Type::getInt64Ty(module.getContext()));
-  }
-  else{
-    sizet_ptr_ty = PointerType::getUnqual(Type::getInt32Ty(module.getContext()));
+  if (m_is_64_bit) {
+    sizet_ptr_ty = 
+      PointerType::getUnqual(Type::getInt64Ty(module.getContext()));
+  } else{
+    sizet_ptr_ty = 
+      PointerType::getUnqual(Type::getInt32Ty(module.getContext()));
   }
 
   m_sizet_null_ptr = ConstantPointerNull::get(sizet_ptr_ty);
 
 
-  m_constantint32ty_one = ConstantInt::get(Type::getInt32Ty(module.getContext()), 1);
-  m_constantint32ty_zero = ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
+  m_constantint32ty_one = 
+    ConstantInt::get(Type::getInt32Ty(module.getContext()), 1);
 
-  m_constantint64ty_one = ConstantInt::get(Type::getInt64Ty(module.getContext()), 1);
+  m_constantint32ty_zero = 
+    ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
 
-  m_constantint64ty_zero = ConstantInt::get(Type::getInt64Ty(module.getContext()), 0);
+  m_constantint64ty_one = 
+    ConstantInt::get(Type::getInt64Ty(module.getContext()), 1);
 
-  if(m_is_64_bit){
+  m_constantint64ty_zero = 
+    ConstantInt::get(Type::getInt64Ty(module.getContext()), 0);
+
+  if (m_is_64_bit) {
     m_constantint_one = m_constantint64ty_one;
     m_constantint_zero = m_constantint64ty_zero;
-  }
-  else{
+  } else {
     m_constantint_one = m_constantint32ty_one;
     m_constantint_zero = m_constantint32ty_zero;
   }
 }
 
-void SoftBoundCETSPass::getFunctionKeyLock(Function* func, Value* & func_key, Value* & func_lock, Value* & func_xmm_key_lock) {
+//
+// Method: getFunctionKeyLock()
+//
+// Description: 
+//
+// This function introduces a memory allocation call for allocating a
+// new "key" and "lock" for the stack frames on function entry.  The
+// stack_memory_allocation call should be inserted after all allocas
+// in the function. This function also stores the key and lock in the
+// reference Value* arguments provided to the function. Further, key
+// and lock is allocated only when temporal checking is also
+// performed.
+//
+// Inputs:
+//
+// func: Function* of the function performing the allocation
+// func_key: Value* & is the reference argument to return the key
+// func_lock: Value* & is the reference_argument to return the lock
+// func_xmm_lock: Value* & is the reference argument that will be
+// eventually used to return the key and lock as wide parameters.
+//
+
+void 
+SoftBoundCETSPass::getFunctionKeyLock(Function* func, 
+                                      Value* & func_key, 
+                                      Value* & func_lock, 
+                                      Value* & func_xmm_key_lock) {
 
   Function::iterator bb_begin = func->begin();
-  BasicBlock* bb = dyn_cast<BasicBlock>(bb_begin);
-  assert(bb && "Entry block does not exist?");
-  Instruction* next_inst = NULL;
-  Value* func_alloca_inst = NULL;
+  BasicBlock* bb = cast<BasicBlock>(bb_begin);
 
-  if(!temporal_safety){
+  Instruction* next_inst = NULL;
+  Instruction* func_alloca_inst = NULL;
+
+  if (!temporal_safety) {
     func_key = NULL;
     func_lock = NULL;
     func_xmm_key_lock = NULL;    
     return;
   }
 
-  /* iterate over the alloca instructions and then identify the introduceMemoryAllocationCall point */
+  //
+  // Iterate over the alloca instructions and check if we need to
+  // introduce memoryAllocationCall that allocates a key and lock for
+  // the stack frame.
+  //
   bool alloca_flag = false;
   for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie; ++i) {
-    next_inst = dyn_cast<Instruction>(i);      
+    next_inst = cast<Instruction>(i);      
     Value* v1 = next_inst;
-    if(isa<AllocaInst>(next_inst) && m_present_in_original.count(v1)){
-      /* function has allocas */
+    if (isa<AllocaInst>(next_inst) && m_present_in_original.count(v1)) {
+      // function has allocas
       alloca_flag = true;
       func_alloca_inst = next_inst;
-#if 0
-      if(MEMTRACKER){          
-        Instruction* insert_at = getNextInstruction(next_inst);
-        addMemtrackerAllocation(func, next_inst, insert_at);
-        func_cap = m_constantint64ty_zero;
-        func_cap_addr = m_void_null_ptr;
-      }
-#endif
+    }
+  }
+  
+  next_inst = NULL;
+  for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie; ++i) {
+    next_inst = dyn_cast<Instruction>(i);    
+    
+    //
+    // If the function has no allocas implies it is not performing any
+    // stack memory allocation, then there is no need to allocate a
+    // key and lock for the function stack frame.
+    //
+    if (!isa<AllocaInst>(next_inst)) {
+      break;
     }
   }
 
-#if 0
-
-  if(!MEMTRACKER){
-#endif
-
-    next_inst = NULL;
-    for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie; ++i) {
-      next_inst = dyn_cast<Instruction>(i);
-        
-      if(!isa<AllocaInst>(next_inst)){
-        break;
-      }
-    }
-
-    assert(next_inst != NULL && "basic block does not have instructions");
-    if(alloca_flag){
-      assert(func_alloca_inst && "alloca_inst_null?");
-      Instruction* tmp_next_inst = dyn_cast<Instruction>(func_alloca_inst);
-      next_inst = getNextInstruction(tmp_next_inst);
-      /* first alloca in the function is passed as the address to the stack frame */
-      addMemoryAllocationCall(func, func_alloca_inst, func_key, func_lock, next_inst, true);
-    }
-
-#if 0
-  }    
-#endif
-
+  assert(next_inst != NULL && "basic block does not have instructions");
+  if (alloca_flag) {
+    assert(func_alloca_inst && "alloca_inst_null?");
+    next_inst = getNextInstruction(func_alloca_inst);
+    addMemoryAllocationCall(func, func_alloca_inst, func_key, 
+                            func_lock, next_inst, true);
+  }
   return;
 }
 
-void SoftBoundCETSPass::addMemoryAllocationCall(Function* func, Value* ptr, Value* & ptr_key, Value* & ptr_lock, Instruction* insert_at, bool is_stack) {
+//
+// Method: addMemoryAllocationCall()
+//
+// This function introduces a call to the C-handler function for
+// allocating key and lock for stack frames. After the handler call,
+// it performs the load of the key and the lock to use it as the
+// metadata for pointers pointing to stack allocations in the
+// function.
+//
+// Inputs: 
+//
+// func: Function for which the key and the lock is being allocated
+// 
+// ptr_key: Reference argument to return the key after the key and lock
+// allocation 
+//
+// ptr_lock: Reference argument to return the lock after
+// the key and lock allocation 
+//
+// insert_at: Instruction* before which the C-handler is introduced
+// 
+// is_stack: boolean flag indicating whether a stack allocation is
+// being performed. (Obsolete now. It was used earlier with llvm-2.6
+// where malloc was an IR instruction.)
+//
+// Outputs:
+//
+// A new key and lock is allocated by the C-handler and then returned
+// via reference arguments that is used as key and lock for pointers
+// pointing to stack allocations in the function.
+//
+
+
+void 
+SoftBoundCETSPass::addMemoryAllocationCall(Function* func, Value* ptr, 
+                                           Value* & ptr_key, 
+                                           Value* & ptr_lock, 
+                                           Instruction* insert_at,
+                                           bool is_stack) {
 
   SmallVector<Value*, 8> args;
-  Instruction* first_inst_func = dyn_cast<Instruction>(func->begin()->begin());
-  assert(first_inst_func && "function doesn't have any instruction and there is load???");
-
-  AllocaInst* lock_alloca = new AllocaInst(m_void_ptr_type, "lock_alloca", first_inst_func);
-  AllocaInst* key_alloca = new AllocaInst(Type::getInt64Ty(func->getContext()), "key_alloca", first_inst_func);
-
+  Instruction* first_inst_func = cast<Instruction>(func->begin()->begin());
+  AllocaInst* lock_alloca = new AllocaInst(m_void_ptr_type, 
+                                           "lock_alloca", 
+                                           first_inst_func);
+  AllocaInst* key_alloca = new AllocaInst(Type::getInt64Ty(func->getContext()), 
+                                          "key_alloca", first_inst_func);
   Value* cast_ptr = castToVoidPtr(ptr, insert_at);
-
   args.push_back(cast_ptr);
   args.push_back(lock_alloca);
   args.push_back(key_alloca);
   
   CallInst::Create(m_temporal_stack_memory_allocation, args, "", insert_at);
-
+  
+  //
+  // Load the key and lock from the reference arguments passed to the
+  // C-handler
+  //
   Instruction* alloca_lock = new LoadInst(lock_alloca, "lock.load", insert_at);
   Instruction* alloca_key = new LoadInst(key_alloca, "key.load", insert_at);
-
+ 
   ptr_key = alloca_key;
   ptr_lock = alloca_lock;
 }
 
-
-
-
-/* Renames the function main as pseudo_main */
+//
+// Method: transformMain()
+//
+// Description:
+//
+// This method renames the function "main" in the module as
+// pseudo_main. The C-handler has the main function which calls
+// pseudo_main. Actually transformation of the main takes places in
+// two steps.  Step1: change the name to pseudo_main and Step2:
+// Function renaming to append the function name with softboundcets_
+//
+// Inputs:
+// module: Input module with the function main
+//
+// Outputs:
+//
+// Changed module with any function named "main" is changed to
+// "pseudo_main"
+//
+// Comments:
+//
+// This function is doing redundant work. We should probably use
+// renameFunction to accomplish the task. The key difference is that
+// transform renames it the function as either pseudo_main or
+// softboundcets_pseudo_main which is subsequently renamed to
+// softboundcets_pseudo_main in the first case by renameFunction
+//
 
 void SoftBoundCETSPass::transformMain(Module& module) {
     
   Function* main_func = module.getFunction("main");
 
-  /* if the program doesn't have main then don't do anything */
-  if(!main_func) return;
+  // 
+  // If the program doesn't have main then don't do anything
+  //
+  if (!main_func) return;
 
   Type* ret_type = main_func->getReturnType();
   const FunctionType* fty = main_func->getFunctionType();
   std::vector<Type*> params;
 
   SmallVector<AttributeWithIndex, 8> param_attrs_vec;
-
   const AttrListPtr& pal = main_func->getAttributes();
 
-  if(Attributes attrs = pal.getRetAttributes()) 
+  //
+  // Get the attributes of the return value
+  //
+  if (Attributes attrs = pal.getRetAttributes()) 
     param_attrs_vec.push_back(AttributeWithIndex::get(0, attrs));
 
-    
+  // Get the attributes of the arguments 
   int arg_index = 1;
-
-  for(Function::arg_iterator i = main_func->arg_begin(), e = main_func->arg_end();
+  for(Function::arg_iterator i = main_func->arg_begin(), 
+        e = main_func->arg_end();
       i != e; ++i, arg_index++) {
-
     params.push_back(i->getType());
-    if(Attributes attrs = pal.getParamAttributes(arg_index))
+    if (Attributes attrs = pal.getParamAttributes(arg_index))
       param_attrs_vec.push_back(AttributeWithIndex::get(params.size(), attrs));
-
   }
 
   FunctionType* nfty = FunctionType::get(ret_type, params, fty->isVarArg());
   Function* new_func = NULL;
 
-  bool main_without_args = true;
+  // create the new function 
+  new_func = Function::Create(nfty, main_func->getLinkage(), 
+                              "softboundcets_pseudo_main");
 
-  for(Function::arg_iterator fi = main_func->arg_begin(), fe = main_func->arg_end();
-      fi != fe; ++fi) {
-    main_without_args = false;
-  }
-
-  if(main_without_args) {
-    new_func = Function::Create(nfty, main_func->getLinkage(), "softboundcets_pseudo_main");
-  }
-  else {
-    new_func = Function::Create(nfty, main_func->getLinkage(), "pseudo_main");
-  }
-
+  // set the new function attributes 
   new_func->copyAttributesFrom(main_func);
-  new_func->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), param_attrs_vec.end()));
+  new_func->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), 
+                                           param_attrs_vec.end()));
     
   main_func->getParent()->getFunctionList().insert(main_func, new_func);
-    
-  SmallVector<Value*, 16> call_args;
+  main_func->replaceAllUsesWith(new_func);
 
-  while(!main_func->use_empty()) {
-      
-    param_attrs_vec.clear();
-    call_args.clear();
-
-    CallSite cs(main_func->use_back());
-    Instruction* call = cs.getInstruction();
-
-    const AttrListPtr& call_pal = cs.getAttributes();
-
-    if(!call)
-      assert( 0 && "Non Call use of a function not handled");
-
-      
-    if (Attributes attrs = call_pal.getRetAttributes())
-      param_attrs_vec.push_back(AttributeWithIndex::get(0, attrs));
-      
-
-    CallSite::arg_iterator arg_i = cs.arg_begin();
-    arg_index = 1 ;
-
-    for(Function::arg_iterator fi = main_func->arg_begin(), fe = main_func->arg_end();
-        fi != fe; ++fi, ++arg_i, ++arg_index) {
-
-      if(Attributes attrs = call_pal.getParamAttributes(arg_index))
-        param_attrs_vec.push_back(AttributeWithIndex::get(call_args.size(), attrs));
-
-      call_args.push_back(*arg_i);
-    }
-
-    Instruction* new_inst;
-
-    new_inst = CallInst::Create(new_func, call_args, "", call);
-
-    cast<CallInst>(new_inst)->setCallingConv(new_func->getCallingConv());
-    cast<CallInst>(new_inst)->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), 
-                                                             param_attrs_vec.end()));
-      
-    call->eraseFromParent();
-  }
-
-  new_func->getBasicBlockList().splice(new_func->begin(), main_func->getBasicBlockList());
-
+  // 
+  // Splice the instructions from the old function into the new
+  // function and set the arguments appropriately
+  // 
+  new_func->getBasicBlockList().splice(new_func->begin(), 
+                                       main_func->getBasicBlockList());
   Function::arg_iterator arg_i2 = new_func->arg_begin();
-
-  for(Function::arg_iterator arg_i = main_func->arg_begin(), arg_e = main_func->arg_end(); 
-      arg_i != arg_e; ++arg_i) {
-      
+  for(Function::arg_iterator arg_i = main_func->arg_begin(), 
+        arg_e = main_func->arg_end(); 
+      arg_i != arg_e; ++arg_i) {      
     arg_i->replaceAllUsesWith(arg_i2);
     arg_i2->takeName(arg_i);
-
     ++arg_i2;
     arg_index++;
-  }
-                            
+  }  
+  //
+  // Remove the old function from the module
+  //
   main_func->eraseFromParent();
 }
+
+//
+// Method: isFuncDefSoftBound
+//
+// Description: 
+//
+// This function checks if the input function name is a
+// SoftBound/CETS defined function
+//
 
 bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
   if (m_func_def_softbound.getNumItems() == 0) {
@@ -640,13 +775,6 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     m_func_wrappers_available["softboundcets___ctype_toupper_loc"] = true;
     m_func_wrappers_available["softboundcets___ctype_tolower_loc"] = true;
     m_func_wrappers_available["softboundcets_qsort"] = true;
-
-
-
-
-
-    
-    
     
     m_func_def_softbound["__softboundcets_introspect_metadata"] = true;
     m_func_def_softbound["__softboundcets_copy_metadata"] = true;
@@ -679,8 +807,6 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     m_func_def_softbound["__softboundcets_memory_deallocation"] = true;
     m_func_def_softbound["__softboundcets_stack_memory_deallocation"] = true;
 
-    
-
     m_func_def_softbound["__softboundcets_metadata_load"] = true;
     m_func_def_softbound["__softboundcets_metadata_store"] = true;
     m_func_def_softbound["__hashProbeAddrOfPtr"] = true;
@@ -694,6 +820,7 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     
     m_func_def_softbound["__softboundcets_stub"] = true;
 
+    m_func_def_softbound["safe_mmap"] = true;
     m_func_def_softbound["safe_calloc"] = true;
     m_func_def_softbound["safe_malloc"] = true;
     m_func_def_softbound["safe_free"] = true;
@@ -735,8 +862,8 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     return true;
   }
 
-  /* handling new intrinsics which have isoc99 in their name */
-  if(str.find("isoc99") != std::string::npos){
+  // FIXME: handling new intrinsics which have isoc99 in their name
+  if (str.find("isoc99") != std::string::npos){
     return true;
   }
 
@@ -748,90 +875,123 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
   return false;
 }
 
+// 
+// Method: identifyFuncToTrans
+//
+// Description: This function traverses the module and identifies the
+// functions that need to be transformed by SoftBound/CETS
+//
+
 void SoftBoundCETSPass::identifyFuncToTrans(Module& module) {
     
-  for(Module::iterator fb_it = module.begin(), fe_it = module.end(); 
+  for (Module::iterator fb_it = module.begin(), fe_it = module.end(); 
       fb_it != fe_it; ++fb_it) {
 
     Function* func = dyn_cast<Function>(fb_it);
     assert(func && " Not a function");
 
-    /* Check if the function is defined in the module */
-    if(!func->isDeclaration()) {
-      if(isFuncDefSoftBound(func->getName())) 
+    // Check if the function is defined in the module
+    if (!func->isDeclaration()) {
+      if (isFuncDefSoftBound(func->getName())) 
         continue;
       
       m_func_softboundcets_transform[func->getName()] = true;
-      if(hasPtrArgRetType(func)) {
+      if (hasPtrArgRetType(func)) {
         m_func_to_transform[func->getName()] = true;
       }
     }
   }
 }
 
+//
+// Method: introduceGlobalLockFunction()
+//
+// Description:
+//
+// This function introduces the function to retrieve the lock for the
+// global variables. This function should be introduced only once for
+// every function in the entry block of the function.
+//
+
 Value* SoftBoundCETSPass::introduceGlobalLockFunction(Instruction* insert_at){
 
   SmallVector<Value*, 8> args;
-  Value* call_inst = CallInst::Create(m_temporal_global_lock_function, args, "", insert_at);
+  Value* call_inst = CallInst::Create(m_temporal_global_lock_function, 
+                                      args, "", insert_at);
   return call_inst;
 }
 
+// 
+// Method: castToVoidPtr()
+//
+// Description: 
+// 
+// This function introduces a bitcast instruction in the IR when an
+// input operand that is a pointer type is not of type i8*. This is
+// required as all the SoftBound/CETS handlers take i8*s
+//
 
-Value* SoftBoundCETSPass:: castToVoidPtr(Value* operand, Instruction* insert_at) {
+Value* 
+SoftBoundCETSPass:: castToVoidPtr(Value* operand, Instruction* insert_at) {
 
   Value* cast_bitcast = operand;
-  if(operand->getType() != m_void_ptr_type) {
+  if (operand->getType() != m_void_ptr_type) {
     cast_bitcast = new BitCastInst(operand, m_void_ptr_type,
                                    "bitcast",
                                    insert_at);
   }
   return cast_bitcast;
-
 }
 
-/* Check if the function has either pointer arguments or returns a
- * pointer. This function is used for ascertaining whether the
- * function needs to transformed to allow base or bound propagation
- * or not
- */
+
+//
+// Method: hasPtrArgRetType()
+//
+// Description:
+//
+// This function checks if the function has either pointer arguments
+// or returns a pointer value. This function is used to determine
+// whether shadow stack loads/stores need to be introduced for
+// metadata propagation.
+//
+
 bool SoftBoundCETSPass::hasPtrArgRetType(Function* func) {
    
   const Type* ret_type = func->getReturnType();
-  if(isa<PointerType>(ret_type))
+  if (isa<PointerType>(ret_type))
     return true;
 
-  for(Function::arg_iterator i = func->arg_begin(), e = func->arg_end(); 
+  for (Function::arg_iterator i = func->arg_begin(), e = func->arg_end(); 
       i != e; ++i) {
       
-    if(isa<PointerType>(i->getType()))
+    if (isa<PointerType>(i->getType()))
       return true;
   }
   return false;
 }
 
-/* getNextInstruction : Get the next instruction after the
- * instruction provided as the argument. Assert needed by the caller
- * of this func to check if it is NULL
- */
-Instruction* SoftBoundCETSPass::getNextInstruction(Instruction* inst) {
-
-  BasicBlock* basic_block = inst->getParent();
-  for(BasicBlock::iterator ib = basic_block->begin(), ie = basic_block->end(); 
-      ib != ie; ++ib) {
-    Instruction* current = dyn_cast<Instruction>(ib);
-    if(current == inst) {
-      Instruction* ret_inst = dyn_cast<Instruction>(++ib);
-      if(ret_inst) {
-        return ret_inst;
-      }
-      else {
-        return basic_block->getTerminator();
-      }
-    }
-  }
-  return NULL;
-}
-
+//
+// Method: addStoreBaseBoundFunc
+//
+// Description:
+//
+// This function inserts metadata stores into the bitcode whenever a
+// pointer is being stored to memory.
+//
+// Inputs:
+//
+// pointer_dest: address where the pointer being stored
+//
+// pointer_base, pointer_bound, pointer_key, pointer_lock: metadata
+// associated with the pointer being stored
+//
+// pointer : pointer being stored to memory
+//
+// size_of_type: size of the access
+//
+// insert_at: the insertion point in the bitcode before which the
+// metadata store is introduced.
+//
 void SoftBoundCETSPass::addStoreBaseBoundFunc(Value* pointer_dest, 
                                               Value* pointer_base, 
                                               Value* pointer_bound, 
@@ -847,7 +1007,7 @@ void SoftBoundCETSPass::addStoreBaseBoundFunc(Value* pointer_dest,
   
   Value* pointer_dest_cast = castToVoidPtr(pointer_dest, insert_at);
 
-  if(spatial_safety){
+  if (spatial_safety) {
     pointer_base_cast = castToVoidPtr(pointer_base, insert_at);
     pointer_bound_cast = castToVoidPtr(pointer_bound, insert_at);
   }
@@ -857,358 +1017,48 @@ void SoftBoundCETSPass::addStoreBaseBoundFunc(Value* pointer_dest,
 
   args.push_back(pointer_dest_cast);
 
-  if(spatial_safety){
+  if (spatial_safety) {
     args.push_back(pointer_base_cast);
     args.push_back(pointer_bound_cast);
   }
 
-  if(temporal_safety){
+  if (temporal_safety) {
     args.push_back(pointer_key);
     args.push_back(pointer_lock);
   }
   CallInst::Create(m_store_base_bound_func, args, "", insert_at);
 }
 
+//
+// The metadata propagation for PHINode occurs in two passes. In the
+// first pass, SoftBound/CETS transformation just creates the metadata
+// PHINodes and records it in the maps maintained by
+// SoftBound/CETS. In the second pass, it populates the incoming
+// values of the PHINodes. This two pass approach ensures that every
+// incoming value of the original PHINode will have metadata in the
+// SoftBound/CETS maps
+// 
 
-void SoftBoundCETSPass::handlePHIPass2(PHINode* phi_node) {
-
-
-  /* We are concerned only with phi nodes which are pointers */
-  if(!isa<PointerType>(phi_node->getType())) 
-    return;
-
-  PHINode* base_phi_node = NULL;
-  PHINode* bound_phi_node  = NULL;
-  PHINode* key_phi_node = NULL;
-  PHINode* lock_phi_node = NULL;
-  
-  if(spatial_safety){
-    base_phi_node = dyn_cast<PHINode>(getAssociatedBase(phi_node));
-    bound_phi_node = dyn_cast<PHINode>(getAssociatedBound(phi_node));
-  }
-
-  if(temporal_safety){
-    key_phi_node = dyn_cast<PHINode>(getAssociatedKey(phi_node));
-    Value* func_lock = getAssociatedFuncLock(phi_node);
-    lock_phi_node= dyn_cast<PHINode>(getAssociatedLock(phi_node, func_lock));
-  }
-  
-  std::map<Value*, Value*> globals_base;
-  std::map<Value*, Value*> globals_bound;
-
-  std::map<Value*, Value*> globals_key;
-  std::map<Value*, Value*> globals_lock;
- 
-  unsigned num_incoming_values = phi_node->getNumIncomingValues();
-
-  for(unsigned m = 0; m < num_incoming_values; m++) {
-
-    Value* incoming_value = phi_node->getIncomingValue(m);
-    BasicBlock* bb_incoming = phi_node->getIncomingBlock(m);
-
-    if(isa<ConstantPointerNull>(incoming_value)) {
-      if(spatial_safety){
-        base_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-        bound_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-      }
-      if(temporal_safety){
-        key_phi_node->addIncoming(m_constantint64ty_zero, bb_incoming);
-        lock_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-      }
-      continue;
-    } /* ConstantPointerNull ends */
-    
-        
-    /* It is possible that the phi node can have undef values!!! */
-    if (isa<UndefValue>(incoming_value)) {        
-      //      UndefValue* undef_value = UndefValue::get(m_void_ptr_type);
-      if(spatial_safety){
-        base_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-        bound_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-      }
-      if(temporal_safety){
-        key_phi_node->addIncoming(m_constantint64ty_zero, bb_incoming);
-        lock_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
-      }      
-      continue;
-    } /* Undef value ends */
-      
-    Value* incoming_value_base = NULL;
-    Value* incoming_value_bound = NULL;
-    Value* incoming_value_key  = NULL;
-    Value* incoming_value_lock = NULL;
-    
-    GlobalVariable* gv = dyn_cast<GlobalVariable>(incoming_value);
-      
-    /* handle global variables */
-      
-    if(gv) {
-
-      if(spatial_safety){
-        if(!globals_base.count(gv)){
-          Value* tmp_base = NULL;
-          Value* tmp_bound = NULL;
-          getGlobalVariableBaseBound(incoming_value, tmp_base, tmp_bound);
-          assert(tmp_base && "base of a global variable null?");
-          assert(tmp_bound && "bound of a global variable null?");
-          
-          incoming_value_base = castToVoidPtr(tmp_base, phi_node->getParent()->getParent()->begin()->begin());
-          incoming_value_bound = castToVoidPtr(tmp_bound, phi_node->getParent()->getParent()->begin()->begin());
-            
-          globals_base[incoming_value] = incoming_value_base;
-          globals_bound[incoming_value] = incoming_value_bound;       
-        }
-        else {
-          incoming_value_base = globals_base[incoming_value];
-          incoming_value_bound = globals_bound[incoming_value];          
-        }
-      } /* spatial safety ends */
-      
-      if(temporal_safety){
-        incoming_value_key = m_constantint64ty_one;
-        Value* tmp_lock = m_func_global_lock[phi_node->getParent()->getParent()->getName()];
-        incoming_value_lock = tmp_lock;
-      }
-    }/* Global Variable ends */
-      
-    /* handle constant expressions */
-    Constant* given_constant = dyn_cast<Constant>(incoming_value);
-    if(given_constant){
-
-      if(spatial_safety){
-        if(!globals_base.count(incoming_value)){
-          Value* tmp_base = NULL;
-          Value* tmp_bound = NULL;
-          getConstantExprBaseBound(given_constant, tmp_base, tmp_bound);
-          assert(tmp_base && tmp_bound  &&"[handlePHIPass2] tmp_base tmp_bound, null?");
-          incoming_value_base = castToVoidPtr(tmp_base, phi_node->getParent()->getParent()->begin()->begin());
-          incoming_value_bound = castToVoidPtr(tmp_bound, phi_node->getParent()->getParent()->begin()->begin());
-          
-          globals_base[incoming_value] = incoming_value_base;
-          globals_bound[incoming_value] = incoming_value_bound;        
-        }
-        else{
-          incoming_value_base = globals_base[incoming_value];
-          incoming_value_bound = globals_bound[incoming_value];          
-        }
-      }/* spatial safety ends */
-
-      if(temporal_safety){
-        incoming_value_key = m_constantint64ty_one;
-        Value* tmp_lock = m_func_global_lock[phi_node->getParent()->getParent()->getName()];
-        incoming_value_lock = tmp_lock;
-      }
-    }
-
-    /* handle values having map based pointer base and bounds */     
-    if(spatial_safety && checkBaseBoundMetadataPresent(incoming_value)){
-      incoming_value_base = getAssociatedBase(incoming_value);
-      incoming_value_bound = getAssociatedBound(incoming_value);
-    }
-
-    if(temporal_safety && checkKeyLockMetadataPresent(incoming_value)){
-      incoming_value_key = getAssociatedKey(incoming_value);
-      Value* func_lock = getAssociatedFuncLock(phi_node);
-      incoming_value_lock = getAssociatedLock(incoming_value, func_lock);
-    }
-    
-    if(spatial_safety){
-      assert(incoming_value_base && "[handlePHIPass2] incoming_value doesn't have base?");
-      assert(incoming_value_bound && "[handlePHIPass2] incoming_value doesn't have bound?");
-      
-      base_phi_node->addIncoming(incoming_value_base, bb_incoming);
-      bound_phi_node->addIncoming(incoming_value_bound, bb_incoming);
-    }
-
-    if(temporal_safety){
-      assert(incoming_value_key && "[handlePHIPass2] incoming_value doesn't have key?");
-      assert(incoming_value_lock && "[handlePHIPass2] incoming_value doesn't have lock?");
-
-      key_phi_node->addIncoming(incoming_value_key, bb_incoming);
-      lock_phi_node->addIncoming(incoming_value_lock, bb_incoming);
-    }
-    
-      
-  } /* iterating over incoming values ends */
-
-  if(spatial_safety){
-    assert(base_phi_node && "[handlePHIPass2] base_phi_node null?");
-    assert(bound_phi_node && "[handlePHIPass2] bound_phi_node null?");
-  }
-  
-  if(temporal_safety){
-    assert(key_phi_node && "[handlePHIPass2] key_phi_node null?");
-    assert(lock_phi_node && "[handlePHIPass2] lock_phi_node null?");
-  }
-  
-  unsigned n_values = phi_node->getNumIncomingValues();
-  if(spatial_safety){
-    unsigned n_base_values = base_phi_node->getNumIncomingValues();
-    unsigned n_bound_values = bound_phi_node->getNumIncomingValues();    
-    assert((n_values == n_base_values)  && "[handlePHIPass2] number of values different for original phi node and the base phi node");
-    assert((n_values == n_bound_values) && "[handlePHIPass2] number of values different for original phi node and the bound phi node");
-  }
-  
-  if(temporal_safety){
-    unsigned n_key_values = key_phi_node->getNumIncomingValues();
-    unsigned n_lock_values = lock_phi_node->getNumIncomingValues();
-    assert((n_values == n_key_values)  && "[handlePHIPass2] number of values different for original phi node and the key phi node");
-    assert((n_values == n_lock_values) && "[handlePHIPass2] number of values different for original phi node and the lock phi node");
-  }  
-}
-
-void SoftBoundCETSPass:: propagateMetadata(Value* pointer_operand, Instruction* inst, int instruction_type){
-
-  /*  Need to just propagate the base and bound here if I am not
-   *  shrinking bounds
-   */
-
-  if(spatial_safety){
-
-    if(checkBaseBoundMetadataPresent(inst)){
-      /* Base-Bound introduced in the first pass */      
-      return;
-    }
-  }
-  if(temporal_safety){
-    
-    if(checkKeyLockMetadataPresent(inst)){
-      /* Key/Lock introduced in the first pass */
-      return;
-    }    
-  }
-
-  if(isa<ConstantPointerNull>(pointer_operand)) {
-    if(spatial_safety){
-      associateBaseBound(inst, m_void_null_ptr, m_void_null_ptr);
-    }
-    if(temporal_safety){
-      associateKeyLock(inst, m_constantint64ty_zero, m_void_null_ptr);
-    }
-    return;
-  }
-
-  if(spatial_safety){
-    
-    if(checkBaseBoundMetadataPresent(pointer_operand)){
-      
-      Value* tmp_base = getAssociatedBase(pointer_operand); 
-      Value* tmp_bound = getAssociatedBound(pointer_operand);       
-      associateBaseBound(inst, tmp_base, tmp_bound);
-    }
-    else{
-      if(isa<Constant>(pointer_operand)) {
-        
-        Value* tmp_base = NULL;
-        Value* tmp_bound = NULL;
-        Constant* given_constant = dyn_cast<Constant>(pointer_operand);
-        getConstantExprBaseBound(given_constant, tmp_base, tmp_bound);
-        assert(tmp_base && "gep with cexpr and base null?");
-        assert(tmp_bound && "gep with cexpr and bound null?");
-        tmp_base = castToVoidPtr(tmp_base, inst);
-        tmp_bound = castToVoidPtr(tmp_bound, inst);        
-    
-        associateBaseBound(inst, tmp_base, tmp_bound);
-      }/* constant check ends here */
-      /* could be in the first pass, do nothing here */
-    }
-  } /* spatial safety ends here */
-
-  if(temporal_safety){
-    if(checkKeyLockMetadataPresent(pointer_operand)){      
-      Value* tmp_key = getAssociatedKey(pointer_operand);
-      Value* func_lock = getAssociatedFuncLock(inst);
-      Value* tmp_lock = getAssociatedLock(pointer_operand, func_lock);
-      associateKeyLock(inst, tmp_key, tmp_lock);
-    }
-    else{      
-      if(isa<Constant>(pointer_operand)){
-        Value* func_lock = m_func_global_lock[inst->getParent()->getParent()->getName()];
-        associateKeyLock(inst, m_constantint64ty_one, func_lock);
-      }
-    }
-  } /* temporal safety ends here */
-
-}
-
-void SoftBoundCETSPass::handleBitCast(BitCastInst* bitcast_inst) {
-
-  Value* pointer_operand = bitcast_inst->getOperand(0);
-  
-  propagateMetadata(pointer_operand, bitcast_inst, SBCETS_BITCAST);
-
-#if 0   
-  if(isa<ConstantPointerNull>(pointer_operand)) {
-    associateBaseBound(pointer_operand, m_void_null_ptr, m_void_null_ptr);
-    return;
-  }
-   
-  if(checkBaseBoundMetadataPresent(bitcast_inst)){
-    /* Base-Bound introduced in the first pass */
-    return;
-  }
-
-  if(checkBaseBoundMetadataPresent(pointer_operand)){
-      
-    Value* tmp_base = getAssociatedBase(pointer_operand); 
-    Value* tmp_cast_base = NULL;
-        
-    /* FIX : If I don't cast them here, phi nodes will complain. This is
-     * because phi nodes can have multiple entries for the same
-     * incoming value and then, base and bound for such an incoming
-     * value will be different and hence breaks LLVM assertion
-     */      
-    tmp_cast_base = castToVoidPtr(tmp_base, bitcast_inst);    
-    Value* tmp_bound = getAssociatedBound(pointer_operand); 
-    Value* tmp_cast_bound = NULL;
-    tmp_cast_bound = castToVoidPtr(tmp_bound, bitcast_inst);
-    associateBaseBound(bitcast_inst, tmp_cast_base, tmp_cast_bound);
-  }
-#endif
-
-}
-
-void SoftBoundCETSPass::getGlobalVariableBaseBound(Value* operand, Value* & operand_base, Value* & operand_bound){
-
-  GlobalVariable* gv = dyn_cast<GlobalVariable>(operand);
-  Module* module = gv->getParent();
-  assert(gv && "[getGlobalVariableBaseBound] not a global variable?");
-    
-  // here implies the global was initially present before the transformation
-
-  std::vector<Constant*> indices_base;
-  Constant* index_base = ConstantInt::get(Type::getInt32Ty(module->getContext()), 0);
-  indices_base.push_back(index_base);
-
-  Constant* base_exp = ConstantExpr::getGetElementPtr(gv, indices_base);
-        
-  std::vector<Constant*> indices_bound;
-  Constant* index_bound = ConstantInt::get(Type::getInt32Ty(module->getContext()), 1);
-  indices_bound.push_back(index_bound);
-    
-  Constant* bound_exp = ConstantExpr::getGetElementPtr(gv, indices_bound);
-    
-  operand_base = base_exp;
-  operand_bound = bound_exp;
-
-
-    
-}
-
+//
+// Method: handlePHIPass1()
+//
+// Description:
+//
+// This function creates a PHINode for the metadata in the bitcode for
+// pointer PHINodes. It is important to note that this function just
+// creates the PHINode and does not populate the incoming values of
+// the PHINode, which is handled by the handlePHIPass2.
+//
 
 void SoftBoundCETSPass::handlePHIPass1(PHINode* phi_node) {
 
-  /* If the phi_node returns a pointer then insert phi-nodes if the
-   * base and bound of the pointers involved in the phi_node are
-   * available
-   */
-  if(!isa<PointerType>(phi_node->getType()))
+  // Not a Pointer PHINode, then just return
+  if (!isa<PointerType>(phi_node->getType()))
     return;
-
 
   unsigned num_incoming_values = phi_node->getNumIncomingValues();
 
-  if(spatial_safety){
+  if (spatial_safety) {
     PHINode* base_phi_node = PHINode::Create(m_void_ptr_type,
                                              num_incoming_values,
                                              "phi.base",
@@ -1225,10 +1075,11 @@ void SoftBoundCETSPass::handlePHIPass1(PHINode* phi_node) {
     associateBaseBound(phi_node, base_phi_node_value, bound_phi_node_value);
   }
 
-  if(temporal_safety){
-    PHINode* key_phi_node = PHINode::Create(Type::getInt64Ty(phi_node->getType()->getContext()),
-                                            num_incoming_values,
-                                            "phi.key", phi_node);
+  if (temporal_safety) {
+    PHINode* key_phi_node = 
+      PHINode::Create(Type::getInt64Ty(phi_node->getType()->getContext()),
+                      num_incoming_values,
+                      "phi.key", phi_node);
 
     PHINode* lock_phi_node = PHINode::Create(m_void_ptr_type, 
                                              num_incoming_values,
@@ -1239,35 +1090,390 @@ void SoftBoundCETSPass::handlePHIPass1(PHINode* phi_node) {
 
 }
 
-void SoftBoundCETSPass:: introduceShadowStackAllocation(CallInst* call_inst){
-    
-  /* count the number of pointer arguments and whether a pointer return */
-    
-  int pointer_args_return = getNumPointerArgsAndReturn(call_inst);
 
-  if(pointer_args_return == 0)
+//
+// Method: handlePHIPass2()
+//
+// Description: This pass fills the incoming values for the metadata
+// PHINodes inserted in the first pass. There are four cases that
+// needs to be handled for each incoming value.  First, if the
+// incoming value is a ConstantPointerNull, then base, bound, key,
+// lock will be default values.  Second, the incoming value can be an
+// undef which results in default metadata values.  Third, Global
+// variables need to get the same base and bound for each
+// occurence. So we maintain a map which maps the base and boundfor
+// each global variable in the incoming value.  Fourth, by default it
+// retrieves the metadata from the SoftBound/CETS maps.
+
+// Check if we need separate global variable and constant expression
+// cases.
+
+void SoftBoundCETSPass::handlePHIPass2(PHINode* phi_node) {
+
+  // Work to be done only for pointer PHINodes.
+  if (!isa<PointerType>(phi_node->getType())) 
     return;
 
+  PHINode* base_phi_node = NULL;
+  PHINode* bound_phi_node  = NULL;
+  PHINode* key_phi_node = NULL;
+  PHINode* lock_phi_node = NULL;
+
+  // Obtain the metada PHINodes 
+  if (spatial_safety) {
+    base_phi_node = dyn_cast<PHINode>(getAssociatedBase(phi_node));
+    bound_phi_node = dyn_cast<PHINode>(getAssociatedBound(phi_node));
+  }
+
+  if (temporal_safety) {
+    key_phi_node = dyn_cast<PHINode>(getAssociatedKey(phi_node));
+    Value* func_lock = getAssociatedFuncLock(phi_node);
+    lock_phi_node= dyn_cast<PHINode>(getAssociatedLock(phi_node, func_lock));
+  }
+  
+  std::map<Value*, Value*> globals_base;
+  std::map<Value*, Value*> globals_bound;
+  std::map<Value*, Value*> globals_key;
+  std::map<Value*, Value*> globals_lock;
+ 
+  unsigned num_incoming_values = phi_node->getNumIncomingValues();
+  for (unsigned m = 0; m < num_incoming_values; m++) {
+
+    Value* incoming_value = phi_node->getIncomingValue(m);
+    BasicBlock* bb_incoming = phi_node->getIncomingBlock(m);
+
+    if (isa<ConstantPointerNull>(incoming_value)) {
+      if (spatial_safety) {
+        base_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+        bound_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+      }
+      if (temporal_safety) {
+        key_phi_node->addIncoming(m_constantint64ty_zero, bb_incoming);
+        lock_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+      }
+      continue;
+    } // ConstantPointerNull ends
+   
+    // The incoming vlaue can be a UndefValue
+    if (isa<UndefValue>(incoming_value)) {        
+      if (spatial_safety) {
+        base_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+        bound_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+      }
+      if (temporal_safety) {
+        key_phi_node->addIncoming(m_constantint64ty_zero, bb_incoming);
+        lock_phi_node->addIncoming(m_void_null_ptr, bb_incoming);
+      }      
+      continue;
+    } // UndefValue ends
+      
+    Value* incoming_value_base = NULL;
+    Value* incoming_value_bound = NULL;
+    Value* incoming_value_key  = NULL;
+    Value* incoming_value_lock = NULL;
+    
+    // handle global variables      
+    GlobalVariable* gv = dyn_cast<GlobalVariable>(incoming_value);
+    if (gv) {
+      if (spatial_safety) {
+        if (!globals_base.count(gv)) {
+          Value* tmp_base = NULL;
+          Value* tmp_bound = NULL;
+          getGlobalVariableBaseBound(incoming_value, tmp_base, tmp_bound);
+          assert(tmp_base && "base of a global variable null?");
+          assert(tmp_bound && "bound of a global variable null?");
+          
+          Function * PHI_func = phi_node->getParent()->getParent();
+          Instruction* PHI_func_entry = PHI_func->begin()->begin();
+          
+          incoming_value_base = castToVoidPtr(tmp_base, PHI_func_entry);                                               
+          incoming_value_bound = castToVoidPtr(tmp_bound, PHI_func_entry);
+            
+          globals_base[incoming_value] = incoming_value_base;
+          globals_bound[incoming_value] = incoming_value_bound;       
+        } else {
+          incoming_value_base = globals_base[incoming_value];
+          incoming_value_bound = globals_bound[incoming_value];          
+        }
+      } // spatial safety ends
+      
+      if (temporal_safety) {
+        incoming_value_key = m_constantint64ty_one;
+        Value* tmp_lock = 
+          m_func_global_lock[phi_node->getParent()->getParent()->getName()];
+        incoming_value_lock = tmp_lock;
+      }
+    } // global variable ends
+      
+    // handle constant expressions 
+    Constant* given_constant = dyn_cast<Constant>(incoming_value);
+    if (given_constant) {
+      if (spatial_safety) {
+        if (!globals_base.count(incoming_value)) {
+          Value* tmp_base = NULL;
+          Value* tmp_bound = NULL;
+          getConstantExprBaseBound(given_constant, tmp_base, tmp_bound);
+          assert(tmp_base && tmp_bound  &&
+                 "[handlePHIPass2] tmp_base tmp_bound, null?");
+          
+          Function* PHI_func = phi_node->getParent()->getParent();
+          Instruction* PHI_func_entry = PHI_func->begin()->begin();
+
+          incoming_value_base = castToVoidPtr(tmp_base, PHI_func_entry);
+          incoming_value_bound = castToVoidPtr(tmp_bound, PHI_func_entry);
+          
+          globals_base[incoming_value] = incoming_value_base;
+          globals_bound[incoming_value] = incoming_value_bound;        
+        }
+        else{
+          incoming_value_base = globals_base[incoming_value];
+          incoming_value_bound = globals_bound[incoming_value];          
+        }
+      } // spatial safety ends
+
+      if (temporal_safety) {        
+        incoming_value_key = m_constantint64ty_one;
+        Value* tmp_lock = 
+          m_func_global_lock[phi_node->getParent()->getParent()->getName()];
+        incoming_value_lock = tmp_lock;
+      }
+    }
+    
+    // handle values having map based pointer base and bounds 
+    if(spatial_safety && checkBaseBoundMetadataPresent(incoming_value)){
+      incoming_value_base = getAssociatedBase(incoming_value);
+      incoming_value_bound = getAssociatedBound(incoming_value);
+    }
+
+    if(temporal_safety && checkKeyLockMetadataPresent(incoming_value)){
+      incoming_value_key = getAssociatedKey(incoming_value);
+      Value* func_lock = getAssociatedFuncLock(phi_node);
+      incoming_value_lock = getAssociatedLock(incoming_value, func_lock);
+    }
+    
+    if(spatial_safety){
+      assert(incoming_value_base &&
+             "[handlePHIPass2] incoming_value doesn't have base?");
+      assert(incoming_value_bound && 
+             "[handlePHIPass2] incoming_value doesn't have bound?");
+      
+      base_phi_node->addIncoming(incoming_value_base, bb_incoming);
+      bound_phi_node->addIncoming(incoming_value_bound, bb_incoming);
+    }
+
+    if(temporal_safety){
+      assert(incoming_value_key && 
+             "[handlePHIPass2] incoming_value doesn't have key?");
+      assert(incoming_value_lock && 
+             "[handlePHIPass2] incoming_value doesn't have lock?");
+
+      key_phi_node->addIncoming(incoming_value_key, bb_incoming);
+      lock_phi_node->addIncoming(incoming_value_lock, bb_incoming);
+    }      
+  } // Iterating over incoming values ends 
+
+  if(spatial_safety){
+    assert(base_phi_node && "[handlePHIPass2] base_phi_node null?");
+    assert(bound_phi_node && "[handlePHIPass2] bound_phi_node null?");
+  }  
+  if(temporal_safety){
+    assert(key_phi_node && "[handlePHIPass2] key_phi_node null?");
+    assert(lock_phi_node && "[handlePHIPass2] lock_phi_node null?");
+  }  
+  unsigned n_values = phi_node->getNumIncomingValues();
+  if(spatial_safety){
+    unsigned n_base_values = base_phi_node->getNumIncomingValues();
+    unsigned n_bound_values = bound_phi_node->getNumIncomingValues();    
+    assert((n_values == n_base_values)  && 
+           "[handlePHIPass2] number of values different for base");
+    assert((n_values == n_bound_values) && 
+           "[handlePHIPass2] number of values different for bound");
+  }
+  
+  if(temporal_safety){
+    unsigned n_key_values = key_phi_node->getNumIncomingValues();
+    unsigned n_lock_values = lock_phi_node->getNumIncomingValues();
+    assert((n_values == n_key_values)  && 
+           "[handlePHIPass2] number of values different for key");
+    assert((n_values == n_lock_values) &&
+           "[handlePHIPass2] number of values different for lock");
+  }  
+}
+
+//
+// Method: propagateMetadata
+//
+// Descripton;
+//
+// This function propagates the metadata from the source to the
+// destination in the map for pointer arithmetic operations~(gep) and
+// bitcasts. This is the place where we need to shrink bounds.
+//
+
+void 
+SoftBoundCETSPass:: propagateMetadata(Value* pointer_operand, 
+                                      Instruction* inst, 
+                                      int instruction_type){
+
+  // Need to just propagate the base and bound here if I am not
+  // shrinking bounds
+  if (spatial_safety) {
+    if(checkBaseBoundMetadataPresent(inst)){
+      // Metadata added to the map in the first pass
+      return;
+    }
+  }
+  if (temporal_safety) {
+    if (checkKeyLockMetadataPresent(inst)){
+      // Metadata added to the map in the first pass
+      return;
+    }    
+  }
+
+  if(isa<ConstantPointerNull>(pointer_operand)) {
+    if(spatial_safety){
+      associateBaseBound(inst, m_void_null_ptr, m_void_null_ptr);
+    }
+    if(temporal_safety){
+      associateKeyLock(inst, m_constantint64ty_zero, m_void_null_ptr);
+    }
+    return;
+  }
+
+  if (spatial_safety) {
+    if (checkBaseBoundMetadataPresent(pointer_operand)) {
+      Value* tmp_base = getAssociatedBase(pointer_operand); 
+      Value* tmp_bound = getAssociatedBound(pointer_operand);       
+      associateBaseBound(inst, tmp_base, tmp_bound);
+    } else{
+      if(isa<Constant>(pointer_operand)) {
+        
+        Value* tmp_base = NULL;
+        Value* tmp_bound = NULL;
+        Constant* given_constant = dyn_cast<Constant>(pointer_operand);
+        getConstantExprBaseBound(given_constant, tmp_base, tmp_bound);
+        assert(tmp_base && "gep with cexpr and base null?");
+        assert(tmp_bound && "gep with cexpr and bound null?");
+        tmp_base = castToVoidPtr(tmp_base, inst);
+        tmp_bound = castToVoidPtr(tmp_bound, inst);        
+    
+        associateBaseBound(inst, tmp_base, tmp_bound);
+      } // Constant case ends here
+      // Could be in the first pass, do nothing here
+    }
+  }// Spatial safety ends here
+
+  if(temporal_safety){
+    if(checkKeyLockMetadataPresent(pointer_operand)){      
+      Value* tmp_key = getAssociatedKey(pointer_operand);
+      Value* func_lock = getAssociatedFuncLock(inst);
+      Value* tmp_lock = getAssociatedLock(pointer_operand, func_lock);
+      associateKeyLock(inst, tmp_key, tmp_lock);
+    }
+    else{      
+      if(isa<Constant>(pointer_operand)){
+        Value* func_lock = 
+          m_func_global_lock[inst->getParent()->getParent()->getName()];
+        associateKeyLock(inst, m_constantint64ty_one, func_lock);
+      }
+    }
+  } // Temporal safety ends here
+}
+
+//
+// Method: handleBitCast
+//
+// Description: Propagate metadata from source to destination with
+// pointer bitcast operations.
+
+void SoftBoundCETSPass::handleBitCast(BitCastInst* bitcast_inst) {
+
+  Value* pointer_operand = bitcast_inst->getOperand(0);  
+  propagateMetadata(pointer_operand, bitcast_inst, SBCETS_BITCAST);
+}
+
+//
+// Method: getGlobalVariableBaseBound
+
+// Description: This function returns the base and bound for the
+// global variables in the input reference arguments. This function
+// may now be obsolete. We should try to use getConstantExprBaseBound
+// instead in all places.
+void 
+SoftBoundCETSPass::getGlobalVariableBaseBound(Value* operand, 
+                                              Value* & operand_base, 
+                                              Value* & operand_bound){
+
+  GlobalVariable* gv = dyn_cast<GlobalVariable>(operand);
+  Module* module = gv->getParent();
+  assert(gv && "[getGlobalVariableBaseBound] not a global variable?");
+    
+  std::vector<Constant*> indices_base;
+  Constant* index_base = 
+    ConstantInt::get(Type::getInt32Ty(module->getContext()), 0);
+  indices_base.push_back(index_base);
+
+  Constant* base_exp = ConstantExpr::getGetElementPtr(gv, indices_base);
+        
+  std::vector<Constant*> indices_bound;
+  Constant* index_bound = 
+    ConstantInt::get(Type::getInt32Ty(module->getContext()), 1);
+  indices_bound.push_back(index_bound);
+    
+  Constant* bound_exp = ConstantExpr::getGetElementPtr(gv, indices_bound);
+    
+  operand_base = base_exp;
+  operand_bound = bound_exp;    
+}
+
+//
+// Method: introduceShadowStackAllocation
+//
+// Description: For every function call that has a pointer argument or
+// a return value, shadow stack is used to propagate metadata. This
+// function inserts the shadow stack allocation C-handler that
+// reserves space in the shadow stack by reserving the requiste amount
+// of space based on the input passed to it(number of pointer
+// arguments/return).
+
+
+void SoftBoundCETSPass:: introduceShadowStackAllocation(CallInst* call_inst){
+    
+  // Count the number of pointer arguments and whether a pointer return     
+  int pointer_args_return = getNumPointerArgsAndReturn(call_inst);
+  if(pointer_args_return == 0)
+    return;
   Value* total_ptr_args;    
-  total_ptr_args = ConstantInt::get(Type::getInt32Ty(call_inst->getType()->getContext()), pointer_args_return, false);
+  total_ptr_args = 
+    ConstantInt::get(Type::getInt32Ty(call_inst->getType()->getContext()), 
+                     pointer_args_return, false);
 
   SmallVector<Value*, 8> args;
   args.push_back(total_ptr_args);
   CallInst::Create(m_shadow_stack_allocate, args, "", call_inst);
 }
 
+//
+// Method: introduceShadowStackStores
+//
+// Description: This function inserts a call to the shadow stack store
+// C-handler that stores the metadata, before the function call in the
+// bitcode for pointer arguments.
 
-void SoftBoundCETSPass::introduceShadowStackStores(Value* ptr_value, Instruction* insert_at, int arg_no){
-  if(!isa<PointerType>(ptr_value->getType())){
+void 
+SoftBoundCETSPass::introduceShadowStackStores(Value* ptr_value, 
+                                              Instruction* insert_at, 
+                                              int arg_no){
+  if(!isa<PointerType>(ptr_value->getType()))
     return;
-  }
+  
 
   Value* argno_value;    
-  argno_value = ConstantInt::get(Type::getInt32Ty(ptr_value->getType()->getContext()), arg_no, false);
-
+  argno_value = 
+    ConstantInt::get(Type::getInt32Ty(ptr_value->getType()->getContext()), 
+                     arg_no, false);
 
   if(spatial_safety){
-
     Value* ptr_base = getAssociatedBase(ptr_value);
     Value* ptr_bound = getAssociatedBound(ptr_value);
     
@@ -1286,12 +1492,10 @@ void SoftBoundCETSPass::introduceShadowStackStores(Value* ptr_value, Instruction
   }
 
   if(temporal_safety){
-
     Value* ptr_key = getAssociatedKey(ptr_value);    
     Value* func_lock = getAssociatedFuncLock(insert_at);
     Value* ptr_lock = getAssociatedLock(ptr_value, func_lock);
-
-    
+ 
     SmallVector<Value*, 8> args;
     args.clear();
     args.push_back(ptr_key);
@@ -1302,28 +1506,38 @@ void SoftBoundCETSPass::introduceShadowStackStores(Value* ptr_value, Instruction
     args.push_back(ptr_lock);
     args.push_back(argno_value);
     CallInst::Create(m_shadow_stack_lock_store, args, "", insert_at);
-  }
-    
+  }    
 }
 
+//
+// Method: introduceShadowStackDeallocation
+//
+// Description: This function inserts a call to the C-handler that
+// deallocates the shadow stack space on function exit.
   
 
-void SoftBoundCETSPass:: introduceShadowStackDeallocation(CallInst* call_inst, Instruction* insert_at){
+void 
+SoftBoundCETSPass:: introduceShadowStackDeallocation(CallInst* call_inst, 
+                                                     Instruction* insert_at){
 
   int pointer_args_return = getNumPointerArgsAndReturn(call_inst);
-
   if(pointer_args_return == 0)
     return;
-
   SmallVector<Value*, 8> args;    
   CallInst::Create(m_shadow_stack_deallocate, args, "", insert_at);
 }
 
+//
+// Method: getNumPointerArgsAndReturn
+//
+// Description: Returns the number of pointer arguments and return.
+//
 int SoftBoundCETSPass:: getNumPointerArgsAndReturn(CallInst* call_inst){
 
   int total_pointer_count = 0;
   SmallVector<AttributeWithIndex, 8> param_attrs_vec;
-  call_inst->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), param_attrs_vec.end()));  
+  call_inst->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), 
+                                            param_attrs_vec.end()));  
     
   CallSite cs(call_inst);
   for(unsigned i = 0; i < cs.arg_size(); i++){
@@ -1333,44 +1547,51 @@ int SoftBoundCETSPass:: getNumPointerArgsAndReturn(CallInst* call_inst){
     }
   }
 
-  if(total_pointer_count != 0){
-    /* reserve one for the return address if it has atleast one pointer argument */
+  if (total_pointer_count != 0) {
+    // Reserve one for the return address if it has atleast one
+    // pointer argument 
     total_pointer_count++;
-  }
-  else{
-
-    /* increment the pointer arg return if the call instruction returns a pointer */
+  } else{
+    // Increment the pointer arg return if the call instruction
+    // returns a pointer
     if(isa<PointerType>(call_inst->getType())){
       total_pointer_count++;
     }
   }
-
-
   return total_pointer_count;
 }
 
+// 
+// Method: introduceShadowStackLoads
+//
+// Description: This function introduces calls to the C-handlers that
+// performs the loads from the shadow stack to retrieve the metadata.
+// This function also associates the loaded metadata with the pointer
+// arguments in the SoftBound/CETS maps.
 
-void SoftBoundCETSPass::introduceShadowStackLoads(Value* ptr_value, Instruction* insert_at, int arg_no){
-
+void 
+SoftBoundCETSPass::introduceShadowStackLoads(Value* ptr_value, 
+                                             Instruction* insert_at, 
+                                             int arg_no){
     
-  if(!isa<PointerType>(ptr_value->getType())){
+  if (!isa<PointerType>(ptr_value->getType()))
     return;
-  }
-    
+      
   Value* argno_value;    
-  argno_value = ConstantInt::get(Type::getInt32Ty(ptr_value->getType()->getContext()), arg_no, false);
+  argno_value = 
+    ConstantInt::get(Type::getInt32Ty(ptr_value->getType()->getContext()), 
+                     arg_no, false);
     
   SmallVector<Value*, 8> args;
-
   if(spatial_safety){
     args.clear();
     args.push_back(argno_value);
-    Value* base = CallInst::Create(m_shadow_stack_base_load, args, "", insert_at);
-    
+    Value* base = CallInst::Create(m_shadow_stack_base_load, args, "", 
+                                   insert_at);    
     args.clear();
     args.push_back(argno_value);
-    Value* bound = CallInst::Create(m_shadow_stack_bound_load, args, "", insert_at);
-    
+    Value* bound = CallInst::Create(m_shadow_stack_bound_load, args, "", 
+                                    insert_at);
     associateBaseBound(ptr_value, base, bound);
   }
   
@@ -1381,171 +1602,116 @@ void SoftBoundCETSPass::introduceShadowStackLoads(Value* ptr_value, Instruction*
 
     args.clear();
     args.push_back(argno_value);
-    Value* lock = CallInst::Create(m_shadow_stack_lock_load, args, "", insert_at);
-
+    Value* lock = CallInst::Create(m_shadow_stack_lock_load, args, "", 
+                                   insert_at);
     associateKeyLock(ptr_value, key, lock);
-
-  }
-    
+  }    
 }
-
+//
+// Method: dissociateKeyLock
+//
+// Description: This function removes the key lock metadata associated
+// with the pointer operand in the SoftBound/CETS maps.
 void SoftBoundCETSPass:: dissociateKeyLock(Value* pointer_operand){
 
     if(m_pointer_key.count(pointer_operand)){
       m_pointer_key.erase(pointer_operand);
     }
-
     if(m_pointer_lock.count(pointer_operand)){
       m_pointer_lock.erase(pointer_operand);
     }
-
-    assert((m_pointer_key.count(pointer_operand) == 0) && "dissociating key failed");    
-    assert((m_pointer_lock.count(pointer_operand) == 0) && "dissociating lock failed");
-
-
+    assert((m_pointer_key.count(pointer_operand) == 0) && 
+           "dissociating key failed");    
+    assert((m_pointer_lock.count(pointer_operand) == 0) && 
+           "dissociating lock failed");
 }
-
-
-
-/* Removes the base, bound, key and lock with the pointer */
+//
+// Method: dissociateBaseBound
+//
+// Description: This function removes the base/bound metadata
+// associated with the pointer operand in the SoftBound/CETS maps.
 
 void SoftBoundCETSPass::dissociateBaseBound(Value* pointer_operand){
 
   if(m_pointer_base.count(pointer_operand)){
     m_pointer_base.erase(pointer_operand);
   }
-
   if(m_pointer_bound.count(pointer_operand)){
     m_pointer_bound.erase(pointer_operand);
   }
-
-  assert((m_pointer_base.count(pointer_operand) == 0) && "dissociating base failed\n");
-  assert((m_pointer_bound.count(pointer_operand) == 0) && "dissociating bound failed");
+  assert((m_pointer_base.count(pointer_operand) == 0) && 
+         "dissociating base failed\n");
+  assert((m_pointer_bound.count(pointer_operand) == 0) && 
+         "dissociating bound failed");
 }
 
-void SoftBoundCETSPass::associateKeyLock(Value* pointer_operand, Value* pointer_key, Value* pointer_lock){
+//
+// Method: associateKeyLock
+//
+// Description: This function associates the key lock with the pointer
+// operand in the SoftBound/CETS maps.
+
+void SoftBoundCETSPass::associateKeyLock(Value* pointer_operand, 
+                                         Value* pointer_key, 
+                                         Value* pointer_lock){
   
   if(m_pointer_key.count(pointer_operand)){
     dissociateKeyLock(pointer_operand);
   }
   
-  if(pointer_key->getType() != m_key_type){
+  if(pointer_key->getType() != m_key_type)
     assert(0 && "key does not the right type ");
-  }
 
-  if(pointer_lock->getType() != m_void_ptr_type){
+  if(pointer_lock->getType() != m_void_ptr_type)
     assert(0 && "lock does not have the right type");
-  }
 
   m_pointer_key[pointer_operand] = pointer_key;
-
-  if(m_pointer_lock.count(pointer_operand)){
+  if (m_pointer_lock.count(pointer_operand))
     assert(0 && "lock already has an entry in the map");
-  }
-  m_pointer_lock[pointer_operand] = pointer_lock;
-   
+  
+  m_pointer_lock[pointer_operand] = pointer_lock; 
 }
 
-void SoftBoundCETSPass::associateBaseBound(Value* pointer_operand, Value* pointer_base, Value* pointer_bound){
+//
+// Method: associateBaseBound
+//
+// Description: This function associates the base bound with the
+// pointer operand in the SoftBound/CETS maps.
+
+
+void SoftBoundCETSPass::associateBaseBound(Value* pointer_operand, 
+                                           Value* pointer_base, 
+                                           Value* pointer_bound){
 
   if(m_pointer_base.count(pointer_operand)){
-    /* do something if it already exists in the map */
     dissociateBaseBound(pointer_operand);
-    //      assert(0 && "base map already has an entry in the map");
   }
 
   if(pointer_base->getType() != m_void_ptr_type){
     assert(0 && "base does not have a void pointer type ");
   }
   m_pointer_base[pointer_operand] = pointer_base;
-    
-
   if(m_pointer_bound.count(pointer_operand)){
     assert(0 && "bound map already has an entry in the map");
   }
-
   if(pointer_bound->getType() != m_void_ptr_type) {
     assert(0 && "bound does not have a void pointer type ");
   }
   m_pointer_bound[pointer_operand] = pointer_bound;
 
 }
-
-
-/* Base and Bound which are inputs to the phi node may not be of i8*
- * type, so this functions inserts a bitcast instructions and then
- * adds to the phi_node. A PHINode must always be grouped at the top
- * of the basic block
- */
-void SoftBoundCETSPass::castAddToPhiNode(PHINode* phi_node, Value* base_bound, 
-                                               BasicBlock* bb_incoming, 
-                                               std::map<Value*, Value*> & base_bound_map, 
-                                               Value* map_index) {
-    
-  if( base_bound->getType() != phi_node->getType()) {
-      
-    if(base_bound_map.count(base_bound)) {
-      assert(0 && "already base bound cast exists for incoming value and I am still casting it ???");
-    }
-
-    const PointerType* func_ptr_type = dyn_cast<PointerType>(base_bound->getType());
-
-    if(func_ptr_type) {
-      if(isa<FunctionType>(func_ptr_type->getElementType())) {
-          
-        BitCastInst* incoming_tmp_base_bitcast;
-        GlobalValue* gv = dyn_cast<GlobalValue>(base_bound);
-        Instruction* begin_inst = NULL;
-        if(!gv) {
-            
-          begin_inst = dyn_cast<Instruction>(bb_incoming->getTerminator());
-        }
-        else {
-          begin_inst = dyn_cast<Instruction>(bb_incoming->getParent()->begin()->begin());
-
-        }
-
-          
-
-        assert(begin_inst && " begin_inst null?");
-        incoming_tmp_base_bitcast = new BitCastInst(base_bound, m_void_ptr_type, 
-                                                    base_bound->getName() + ".base", begin_inst);
-
-        phi_node->addIncoming(incoming_tmp_base_bitcast, bb_incoming);
-        base_bound_map[map_index] = incoming_tmp_base_bitcast;
-        return;
-      }
-    }
-
-    /* check if it is a global, then add base and bound at the beginning of the function */
-
-    BitCastInst* incoming_tmp_base_bitcast;
-    Instruction* terminator_inst = NULL;
-
-    terminator_inst = dyn_cast<Instruction>(bb_incoming->getTerminator());
-    assert(terminator_inst && "terminator inst null?");
-      
-    incoming_tmp_base_bitcast = new BitCastInst(base_bound, m_void_ptr_type, 
-                                                base_bound->getName() + ".base", 
-                                                terminator_inst);
-      
-    phi_node->addIncoming(incoming_tmp_base_bitcast, bb_incoming);
-    base_bound_map[map_index] = incoming_tmp_base_bitcast;
-
-  }
-  else{
-    phi_node->addIncoming(base_bound, bb_incoming);
-  }
-}
-
+//
+// Method: handleSelect
+//
+// This function propagates the metadata with Select IR instruction.
+// Select  instruction is also handled in two passes.
 
 void SoftBoundCETSPass::handleSelect(SelectInst* select_ins, int pass) {
 
-  if(!isa<PointerType>(select_ins->getType())) 
+  if (!isa<PointerType>(select_ins->getType())) 
     return;
     
   Value* condition = select_ins->getOperand(0);
-    
   Value* operand_base[2];
   Value* operand_bound[2];    
   Value* operand_key[2];
@@ -1554,50 +1720,54 @@ void SoftBoundCETSPass::handleSelect(SelectInst* select_ins, int pass) {
   for(unsigned m = 0; m < 2; m++) {
     Value* operand = select_ins->getOperand(m+1);
     
-    if(spatial_safety){
+    if (spatial_safety) {
       operand_base[m] = NULL;
       operand_bound[m] = NULL;
-      if(checkBaseBoundMetadataPresent(operand)){      
+      if (checkBaseBoundMetadataPresent(operand)) {      
         operand_base[m] = getAssociatedBase(operand);
         operand_bound[m] = getAssociatedBound(operand);
       }
       
-      if(isa<ConstantPointerNull>(operand) && !checkBaseBoundMetadataPresent(operand)) {            
+      if (isa<ConstantPointerNull>(operand) && 
+          !checkBaseBoundMetadataPresent(operand)) {            
         operand_base[m] = m_void_null_ptr;
         operand_bound[m] = m_void_null_ptr;
       }        
         
       Constant* given_constant = dyn_cast<Constant>(operand);
-      
       if(given_constant) {
-        getConstantExprBaseBound(given_constant, operand_base[m], operand_bound[m]);     
+        getConstantExprBaseBound(given_constant, 
+                                 operand_base[m], 
+                                 operand_bound[m]);     
       }    
-      assert(operand_base[m] != NULL && "operand doesn't have base with select?");
-      assert(operand_bound[m] != NULL && "operand doesn't have bound with select?");
+      assert(operand_base[m] != NULL && 
+             "operand doesn't have base with select?");
+      assert(operand_bound[m] != NULL && 
+             "operand doesn't have bound with select?");
       
-      /* Introduce a bit cast if the types don't match */
-      
-      if(operand_base[m]->getType() != m_void_ptr_type) {          
+      // Introduce a bit cast if the types don't match 
+      if (operand_base[m]->getType() != m_void_ptr_type) {          
         operand_base[m] = new BitCastInst(operand_base[m], m_void_ptr_type,
                                           "select.base", select_ins);          
       }
       
-      if(operand_bound[m]->getType() != m_void_ptr_type) {
+      if (operand_bound[m]->getType() != m_void_ptr_type) {
         operand_bound[m] = new BitCastInst(operand_bound[m], m_void_ptr_type,
                                            "select_bound", select_ins);
       }
-    } /* spatial safety ends */
+    } //Spatial safety ends
     
-    if(temporal_safety){
+    if (temporal_safety){
       operand_key[m] = NULL;
       operand_lock[m] = NULL;
-      if(checkKeyLockMetadataPresent(operand)){
+      if (checkKeyLockMetadataPresent(operand)){
         operand_key[m] = getAssociatedKey(operand);
         Value* func_lock = getAssociatedFuncLock(select_ins);
         operand_lock[m] = getAssociatedLock(operand, func_lock);
       }
 
-      if(isa<ConstantPointerNull>(operand) && !checkKeyLockMetadataPresent(operand)){
+      if (isa<ConstantPointerNull>(operand) && 
+          !checkKeyLockMetadataPresent(operand)){
         operand_key[m] = m_constantint64ty_zero;
         operand_lock[m] = m_void_null_ptr;
       }
@@ -1605,61 +1775,90 @@ void SoftBoundCETSPass::handleSelect(SelectInst* select_ins, int pass) {
       Constant* given_constant = dyn_cast<Constant>(operand);
       if(given_constant){
         operand_key[m] = m_constantint64ty_one;
-        operand_lock[m] = m_func_global_lock[select_ins->getParent()->getParent()->getName()];
+        operand_lock[m] = 
+          m_func_global_lock[select_ins->getParent()->getParent()->getName()];
       }
 
-      assert(operand_key[m] != NULL && "operand doesn't have key with select?");
-      assert(operand_lock[m] != NULL && "operand doesn't have lock with select?");
-    }/* temporal safety ends */
+      assert(operand_key[m] != NULL && 
+             "operand doesn't have key with select?");
+      assert(operand_lock[m] != NULL && 
+             "operand doesn't have lock with select?");
+    } // Temporal safety ends
   
-  }/* for loop ends */
+  } // for loop ends
     
-
-  if(spatial_safety){
+  if (spatial_safety) {
       
-    SelectInst* select_base = SelectInst::Create(condition, operand_base[0], 
-                                                 operand_base[1], "select.base",
+    SelectInst* select_base = SelectInst::Create(condition, 
+                                                 operand_base[0], 
+                                                 operand_base[1], 
+                                                 "select.base",
                                                  select_ins);
     
-    SelectInst* select_bound = SelectInst::Create(condition, operand_bound[0], 
-                                                  operand_bound[1], "select.bound",
+    SelectInst* select_bound = SelectInst::Create(condition, 
+                                                  operand_bound[0], 
+                                                  operand_bound[1], 
+                                                  "select.bound",
                                                   select_ins);
-  
-    
     associateBaseBound(select_ins, select_base, select_bound);
   }
 
   if(temporal_safety){
 
-    SelectInst* select_key = SelectInst::Create(condition, operand_key[0], 
-                                                operand_key[1], "select.key",
-                                                 select_ins);
+    SelectInst* select_key = SelectInst::Create(condition, 
+                                                operand_key[0], 
+                                                operand_key[1], 
+                                                "select.key",
+                                                select_ins);
     
-    SelectInst* select_lock = SelectInst::Create(condition, operand_lock[0], 
-                                                 operand_lock[1], "select.lock",
+    SelectInst* select_lock = SelectInst::Create(condition, 
+                                                 operand_lock[0], 
+                                                 operand_lock[1], 
+                                                 "select.lock",
                                                  select_ins);
-
     associateKeyLock(select_ins, select_key, select_lock);
   }
-
 }
 
-bool SoftBoundCETSPass::checkBaseBoundMetadataPresent(Value* pointer_operand){
+//
+// Method: checkBaseBoundMetadataPresent()
+//
+// Description:
+// Checks if the metadata is present in the SoftBound/CETS maps.
 
-  if(m_pointer_base.count(pointer_operand) && m_pointer_bound.count(pointer_operand)){
+bool 
+SoftBoundCETSPass::checkBaseBoundMetadataPresent(Value* pointer_operand){
+
+  if(m_pointer_base.count(pointer_operand) && 
+     m_pointer_bound.count(pointer_operand)){
       return true;
   }
   return false;
 }
 
-bool SoftBoundCETSPass::checkKeyLockMetadataPresent(Value* pointer_operand){
+//
+// Method: checkKeyLockMetadataPresent()
+//
+// Description:
+// Checks if the metadata is present in the SoftBound/CETS maps.
 
-  if(m_pointer_key.count(pointer_operand) && m_pointer_lock.count(pointer_operand)){
+
+bool 
+SoftBoundCETSPass::checkKeyLockMetadataPresent(Value* pointer_operand){
+
+  if(m_pointer_key.count(pointer_operand) && 
+     m_pointer_lock.count(pointer_operand)){
       return true;
   }
   return false;
 }
 
+//
+// Method: handleReturnInst
+//
+// Description: 
+// This function inserts C-handler calls to store
+// metadata for return values in the shadow stack.
 
 void SoftBoundCETSPass:: handleReturnInst(ReturnInst* ret){
 
@@ -1672,14 +1871,24 @@ void SoftBoundCETSPass:: handleReturnInst(ReturnInst* ret){
   }
 }
 
+//
+// Method: handleGlobalSequentialTypeInitializer
+//
+// Description: This performs the initialization of the metadata for
+// the pointers in the global segments that are initialized with
+// non-zero values.
+//
+// Comments: This function requires review and rewrite
 
-void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, GlobalVariable* gv) {
+void 
+SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, 
+                                                         GlobalVariable* gv) {
 
-
-  
-  /* Sequential type can be an array type, a pointer type */
-  const SequentialType* init_seq_type = dyn_cast<SequentialType>((gv->getInitializer())->getType());
-  assert(init_seq_type && "[handleGlobalSequentialTypeInitializer] initializer sequential type null?");
+  // Sequential type can be an array type, a pointer type 
+  const SequentialType* init_seq_type = 
+    dyn_cast<SequentialType>((gv->getInitializer())->getType());
+  assert(init_seq_type && 
+         "[handleGlobalSequentialTypeInitializer] initializer  null?");
 
   Instruction* init_function_terminator = getGlobalInitInstruction(module);
   if(gv->getInitializer()->isNullValue())
@@ -1688,22 +1897,24 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
   if(isa<ArrayType>(init_seq_type)){      
     const ArrayType* init_array_type = dyn_cast<ArrayType>(init_seq_type);     
     if(isa<StructType>(init_array_type->getElementType())){
-      /* it is a array of structures */
+      // It is an array of structures
 
-      /* Check whether the structure has a pointer, if it has a
-       * pointer then, we need to store the base and bound of the
-       * pointer into the metadata space. However, if the structure
-       * does not have any pointer, we can make a quick exit in
-       * processing this global
-       */
+      // Check whether the structure has a pointer, if it has a
+      // pointer then, we need to store the base and bound of the
+      // pointer into the metadata space. However, if the structure
+      // does not have any pointer, we can make a quick exit in
+      // processing this global
+      //
 
       bool struct_has_pointers = false;
-      StructType* init_struct_type = dyn_cast<StructType>(init_array_type->getElementType());
-      CompositeType* struct_comp_type = dyn_cast<CompositeType>(init_struct_type);
-      
+      StructType* init_struct_type = 
+        dyn_cast<StructType>(init_array_type->getElementType());
+      CompositeType* struct_comp_type = 
+        dyn_cast<CompositeType>(init_struct_type);
       
       assert(struct_comp_type && "struct composite type null?");
-      assert(init_struct_type && "Array of structures and struct type null?");        
+      assert(init_struct_type && 
+             "Array of structures and struct type null?");        
       unsigned num_struct_elements = init_struct_type->getNumElements();        
       for(unsigned i = 0; i < num_struct_elements; i++) {
         Type* element_type = struct_comp_type->getTypeAtIndex(i);
@@ -1714,26 +1925,25 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
       if(!struct_has_pointers)
         return;
 
-      /* Here implies, global variable is an array of structures
-       * with a pointer. Thus for each pointer we need to store the
-       * base and bound
-       */
+      // Here implies, global variable is an array of structures with
+      // a pointer. Thus for each pointer we need to store the base
+      // and bound
 
       size_t num_array_elements = init_array_type->getNumElements();
-
-      ConstantArray* const_array = dyn_cast<ConstantArray>(gv->getInitializer());
+      ConstantArray* const_array = 
+        dyn_cast<ConstantArray>(gv->getInitializer());
       if(!const_array)
         return;
 
       for( unsigned i = 0; i < num_array_elements ; i++) {
         Constant* struct_constant = const_array->getOperand(i);
-        assert(struct_constant && "Initializer structure type but not a constant?");          
-        /* constant has zero initializer */
+        assert(struct_constant && 
+               "Initializer structure type but not a constant?");          
+        // Constant has zero initializer 
         if(struct_constant->isNullValue())
           continue;
           
         for( unsigned j = 0 ; j < num_struct_elements; j++) {
-            
           const Type* element_type = init_struct_type->getTypeAtIndex(j);
             
           if(isa<PointerType>(element_type)){
@@ -1742,13 +1952,17 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
             Value* operand_base = NULL;
             Value* operand_bound = NULL;
             Constant* given_constant = dyn_cast<Constant>(initializer_opd);
-            assert(given_constant && "[handleGlobalStructTypeInitializer] not a constant?");
+            assert(given_constant && 
+                   "[handleGlobalStructTypeInitializer] not a constant?");
               
             getConstantExprBaseBound(given_constant, operand_base, operand_bound);            
-            /* creating the address of ptr */
-            Constant* index0 = ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
-            Constant* index1 = ConstantInt::get(Type::getInt32Ty(module.getContext()), i);
-            Constant* index2 = ConstantInt::get(Type::getInt32Ty(module.getContext()), j);
+            // Creating the address of ptr
+            Constant* index0 = 
+              ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
+            Constant* index1 = 
+              ConstantInt::get(Type::getInt32Ty(module.getContext()), i);
+            Constant* index2 = 
+              ConstantInt::get(Type::getInt32Ty(module.getContext()), j);
               
             std::vector<Constant *> indices_addr_ptr;            
                             
@@ -1756,10 +1970,8 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
             indices_addr_ptr.push_back(index1);
             indices_addr_ptr.push_back(index2);
 
-            Constant* Indices[3] = {index0, index1, index2};
-              
-            Constant* addr_of_ptr = ConstantExpr::getGetElementPtr(gv, Indices);              
-            
+            Constant* Indices[3] = {index0, index1, index2};              
+            Constant* addr_of_ptr = ConstantExpr::getGetElementPtr(gv, Indices);
             Type* initializer_type = initializer_opd->getType();
             Value* initializer_size = getSizeOfType(initializer_type);
             
@@ -1767,28 +1979,31 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
             Value* operand_lock = NULL;
             if(temporal_safety){
               operand_key = m_constantint_one;
-              operand_lock = introduceGlobalLockFunction(init_function_terminator);
+              operand_lock = 
+                introduceGlobalLockFunction(init_function_terminator);
             }
-
             addStoreBaseBoundFunc(addr_of_ptr, operand_base, operand_bound, 
                                   operand_key, operand_lock, initializer_opd, 
                                   initializer_size, init_function_terminator);
           }                       
-        } /* iterating over struct element ends */
-      }/* Iterating over array element ends  */        
-    }/* Array of Structures Ends */
-    if(isa<PointerType>(init_array_type->getElementType())){
-      /* it is a array of pointers */
+        } // Iterating over struct element ends 
+      } // Iterating over array element ends         
+    }/// Array of Structures Ends 
+
+    if (isa<PointerType>(init_array_type->getElementType())){
+      // It is a array of pointers
     }
-  }/* Array type case ends */
+  }  // Array type case ends 
 
   if(isa<PointerType>(init_seq_type)){
-    /* individual pointer stores */
+    // individual pointer stores 
     Value* initializer_base = NULL;
     Value* initializer_bound = NULL;
     Value* initializer = gv->getInitializer();
     Constant* given_constant = dyn_cast<Constant>(initializer);
-    getConstantExprBaseBound(given_constant, initializer_base, initializer_bound);
+    getConstantExprBaseBound(given_constant, 
+                             initializer_base, 
+                             initializer_bound);
     Type* initializer_type = initializer->getType();
     Value* initializer_size = getSizeOfType(initializer_type);
     
@@ -1796,44 +2011,51 @@ void SoftBoundCETSPass::handleGlobalSequentialTypeInitializer(Module& module, Gl
     Value* operand_lock = NULL;
     if(temporal_safety){
       operand_key = m_constantint_one;
-      operand_lock = introduceGlobalLockFunction(init_function_terminator);
+      operand_lock = 
+        introduceGlobalLockFunction(init_function_terminator);
     }
     
-    addStoreBaseBoundFunc(gv, initializer_base, initializer_bound, operand_key, 
+    addStoreBaseBoundFunc(gv, initializer_base, initializer_bound, operand_key,
                           operand_lock, initializer, initializer_size, 
                           init_function_terminator);        
   }
 
 }
 
+// Method: handleGlobalStructTypeInitializer()
+//
+// Description: handles the global
+// initialization for global variables which are of struct type and
+// have a pointer as one of their fields and is globally
+// initialized 
+//
+// Comments: This function requires review and rewrite
 
-  /* handleGlobalStructTypeInitializer: handles the global
-   * initialization for global variables which are of struct type and
-   * have a pointer as one of their fields and is global
-   * initialized 
-   */
-
-void SoftBoundCETSPass::handleGlobalStructTypeInitializer(Module& module, 
-                                                          StructType* init_struct_type, 
-                                                          Constant* initializer, 
-                                                          GlobalVariable* gv, 
-                                                          std::vector<Constant*> indices_addr_ptr, 
-                                                          int length) {
+void 
+SoftBoundCETSPass::
+handleGlobalStructTypeInitializer(Module& module, 
+                                  StructType* init_struct_type,
+                                  Constant* initializer, 
+                                  GlobalVariable* gv, 
+                                  std::vector<Constant*> indices_addr_ptr, 
+                                  int length) {
   
-  /* TODO:URGENT: Do I handle nested structures? */
+  // TODO:URGENT: Do I handle nested structures
   
-  /* has zero initializer */
+  // has zero initializer 
   if(initializer->isNullValue())
     return;
     
   Instruction* first = getGlobalInitInstruction(module);
   unsigned num_elements = init_struct_type->getNumElements();
   Constant* constant = dyn_cast<Constant>(initializer);
-  assert(constant && "[handleGlobalStructTypeInitializer] global struct type with initializer but not a constant array?");
+  assert(constant && 
+         "[handleGlobalStructTypeInit] global stype with init but not CA?");
 
   for(unsigned i = 0; i < num_elements ; i++) {
     
-    CompositeType* struct_comp_type = dyn_cast<CompositeType>(init_struct_type);
+    CompositeType* struct_comp_type = 
+      dyn_cast<CompositeType>(init_struct_type);
     assert(struct_comp_type && "not a struct type?");
     
     Type* element_type = struct_comp_type->getTypeAtIndex(i);      
@@ -1849,17 +2071,18 @@ void SoftBoundCETSPass::handleGlobalStructTypeInitializer(Module& module,
       
       if(temporal_safety){
         operand_key = m_constantint_one;
-        operand_lock = introduceGlobalLockFunction(first);
-        
+        operand_lock = introduceGlobalLockFunction(first);  
       }
       
       if(spatial_safety){
         Constant* given_constant = dyn_cast<Constant>(initializer_opd);
-        assert(given_constant && "[handleGlobalStructTypeInitializer] not a constant?");
+        assert(given_constant && 
+               "[handleGlobalStructTypeInitializer] not a constant?");
         
-        getConstantExprBaseBound(given_constant, operand_base, operand_bound);      
-        /* creating the address of ptr */
-        //      Constant* index1 = ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
+        getConstantExprBaseBound(given_constant, operand_base, operand_bound);   
+        // Creating the address of ptr
+        //      Constant* index1 = 
+        //                ConstantInt::get(Type::getInt32Ty(module.getContext()), 0);
         Constant* index2 = ConstantInt::get(Type::getInt32Ty(module.getContext()), i);
         
         //      indices_addr_ptr.push_back(index1);
@@ -1869,7 +2092,10 @@ void SoftBoundCETSPass::handleGlobalStructTypeInitializer(Module& module,
       }   
       Type* initializer_type = initializer_opd->getType();
       Value* initializer_size = getSizeOfType(initializer_type);     
-      addStoreBaseBoundFunc(addr_of_ptr, operand_base, operand_bound, operand_key, operand_lock, initializer_opd, initializer_size, first);
+      addStoreBaseBoundFunc(addr_of_ptr, operand_base, 
+                            operand_bound, operand_key, 
+                            operand_lock, initializer_opd, 
+                            initializer_size, first);
       
       if(spatial_safety){
         indices_addr_ptr.pop_back();
@@ -1879,22 +2105,31 @@ void SoftBoundCETSPass::handleGlobalStructTypeInitializer(Module& module,
       continue;
     }     
     if(isa<StructType>(element_type)){
-      StructType* child_element_type = dyn_cast<StructType>(element_type);
-      Constant* struct_initializer = dyn_cast<Constant>(constant->getOperand(i));      
-      Constant* index2 = ConstantInt::get(Type::getInt32Ty(module.getContext()), i);
+      StructType* child_element_type = 
+        dyn_cast<StructType>(element_type);
+      Constant* struct_initializer = 
+        dyn_cast<Constant>(constant->getOperand(i));      
+      Constant* index2 =
+        ConstantInt::get(Type::getInt32Ty(module.getContext()), i);
       indices_addr_ptr.push_back(index2);
       length++;
-      handleGlobalStructTypeInitializer(module, child_element_type, struct_initializer, gv, indices_addr_ptr, length); 
+      handleGlobalStructTypeInitializer(module, child_element_type, 
+                                        struct_initializer, gv, 
+                                        indices_addr_ptr, length); 
       indices_addr_ptr.pop_back();
       length--;
       continue;
     }
   }
-
 }
 
+//
+// Method: getConstantExprBaseBound
+//
+// Description: This function uniform handles all global constant
+// expression and obtains the base and bound for these expressions
+// without introducing any extra IR modifications.
 
-/* A uniform function to handle all constant expressions */
 void SoftBoundCETSPass::getConstantExprBaseBound(Constant* given_constant, 
                                              Value* & tmp_base,
                                              Value* & tmp_bound){
@@ -1934,19 +2169,19 @@ void SoftBoundCETSPass::getConstantExprBaseBound(Constant* given_constant,
       {
         break;
       }
-    } /* switch ends */
+    } // Switch ends
     
-  } /* cexpr ends */
-  else {
+  } else {
       
-    const PointerType* func_ptr_type = dyn_cast<PointerType>(given_constant->getType());
+    const PointerType* func_ptr_type = 
+      dyn_cast<PointerType>(given_constant->getType());
       
     if(isa<FunctionType>(func_ptr_type->getElementType())) {
       tmp_base = m_void_null_ptr;
       tmp_bound = m_infinite_bound_ptr;
       return;
     }
-    /* Create getElementPtrs to create the base and bound */
+    // Create getElementPtrs to create the base and bound 
 
     std::vector<Constant*> indices_base;
     std::vector<Constant*> indices_bound;
@@ -1954,7 +2189,7 @@ void SoftBoundCETSPass::getConstantExprBaseBound(Constant* given_constant,
     GlobalVariable* gv = dyn_cast<GlobalVariable>(given_constant);
 
 
-    /* TODO: External globals get zero base and infinite_bound */
+    // TODO: External globals get zero base and infinite_bound 
 
     if(gv && !gv->hasInitializer()) {
       tmp_base = m_void_null_ptr;
@@ -1962,34 +2197,37 @@ void SoftBoundCETSPass::getConstantExprBaseBound(Constant* given_constant,
       return;
     }
 
-    Constant* index_base0 = Constant::getNullValue(Type::getInt32Ty(given_constant->getType()->getContext()));
-    Constant* index_bound0 = ConstantInt::get(Type::getInt32Ty(given_constant->getType()->getContext()), 1);
+    Constant* index_base0 = 
+      Constant::
+      getNullValue(Type::getInt32Ty(given_constant->getType()->getContext()));
+
+    Constant* index_bound0 = 
+      ConstantInt::
+      get(Type::getInt32Ty(given_constant->getType()->getContext()), 1);
 
     indices_base.push_back(index_base0);
     indices_bound.push_back(index_bound0);
 
-
-    // Constant* index1 = ConstantInt::get(Type::getInt32Ty(given_constant->getType()->getContext()), 0);
-    // indices_base.push_back(index1);
-    // indices_bound.push_back(index1);
-
-    Constant* gep_base = ConstantExpr::getGetElementPtr(given_constant, indices_base);    
-    Constant* gep_bound = ConstantExpr::getGetElementPtr(given_constant, indices_bound);
+    Constant* gep_base = ConstantExpr::getGetElementPtr(given_constant, 
+                                                        indices_base);    
+    Constant* gep_bound = ConstantExpr::getGetElementPtr(given_constant, 
+                                                         indices_bound);
       
     tmp_base = gep_base;
     tmp_bound = gep_bound;      
   }
-
-
 }
 
 
+//
+// Methods: getAssociatedBase, getAssociatedBound, getAssociatedKey,
+// getAssociatedLock
+//
+// Description: Retrieves the metadata from SoftBound/CETS maps 
+//
 
-/* Function that returns the associated base Value* with the pointer
- * operand under consideration
- */
-
-Value* SoftBoundCETSPass::getAssociatedBase(Value* pointer_operand) {
+Value* 
+SoftBoundCETSPass::getAssociatedBase(Value* pointer_operand) {
     
   if(isa<Constant>(pointer_operand)){
     Value* base = NULL;
@@ -2002,7 +2240,8 @@ Value* SoftBoundCETSPass::getAssociatedBase(Value* pointer_operand) {
   if(!m_pointer_base.count(pointer_operand)){
     pointer_operand->dump();
   }
-  assert(m_pointer_base.count(pointer_operand) && "Pointer does not have a base entry in the map, probably because of dead code, try compiling with -simplifycfg option?");
+  assert(m_pointer_base.count(pointer_operand) && 
+         "Base absent. Try compiling with -simplifycfg option?");
     
   Value* pointer_base = m_pointer_base[pointer_operand];
   assert(pointer_base && "base present in the map but null?");
@@ -2013,11 +2252,8 @@ Value* SoftBoundCETSPass::getAssociatedBase(Value* pointer_operand) {
   return pointer_base;
 }
 
-/* Function that returns the associated bound Value* with the pointer
- * operand under consideration
- */
-
-Value* SoftBoundCETSPass::getAssociatedBound(Value* pointer_operand) {
+Value* 
+SoftBoundCETSPass::getAssociatedBound(Value* pointer_operand) {
 
   if(isa<Constant>(pointer_operand)){
     Value* base = NULL;
@@ -2028,9 +2264,11 @@ Value* SoftBoundCETSPass::getAssociatedBound(Value* pointer_operand) {
   }
 
     
-  assert(m_pointer_bound.count(pointer_operand) && "Pointer does not have a bound entry in the map?");
+  assert(m_pointer_bound.count(pointer_operand) && 
+         "Bound absent.");
   Value* pointer_bound = m_pointer_bound[pointer_operand];
-  assert(pointer_bound && "bound present in the map but null?");    
+  assert(pointer_bound && 
+         "bound present in the map but null?");    
 
   if(pointer_bound->getType() != m_void_ptr_type)
     assert(0 && "bound in the map does not have the right type");
@@ -2039,7 +2277,8 @@ Value* SoftBoundCETSPass::getAssociatedBound(Value* pointer_operand) {
 }
 
 
-Value* SoftBoundCETSPass::getAssociatedKey(Value* pointer_operand) {
+Value* 
+SoftBoundCETSPass::getAssociatedKey(Value* pointer_operand) {
     
   if(!temporal_safety){
     return NULL;
@@ -2052,7 +2291,8 @@ Value* SoftBoundCETSPass::getAssociatedKey(Value* pointer_operand) {
   if(!m_pointer_key.count(pointer_operand)){
     pointer_operand->dump();
   }
-  assert(m_pointer_key.count(pointer_operand) && "Pointer does not have a base entry in the map, probably because of dead code, try compiling with -simplifycfg option?");
+  assert(m_pointer_key.count(pointer_operand) && 
+         "Key absent. Try compiling with -simplifycfg option?");
     
   Value* pointer_key = m_pointer_key[pointer_operand];
   assert(pointer_key && "key present in the map but null?");
@@ -2063,7 +2303,8 @@ Value* SoftBoundCETSPass::getAssociatedKey(Value* pointer_operand) {
   return pointer_key;
 }
 
-Value* SoftBoundCETSPass::getAssociatedLock(Value* pointer_operand, Value* func_lock) {
+Value* 
+SoftBoundCETSPass::getAssociatedLock(Value* pointer_operand, Value* func_lock){
     
   if(!temporal_safety){
     return NULL;
@@ -2080,7 +2321,8 @@ Value* SoftBoundCETSPass::getAssociatedLock(Value* pointer_operand, Value* func_
   if(!m_pointer_lock.count(pointer_operand)){
     pointer_operand->dump();
   }
-  assert(m_pointer_lock.count(pointer_operand) && "Pointer does not have a base entry in the map, probably because of dead code, try compiling with -simplifycfg option?");
+  assert(m_pointer_lock.count(pointer_operand) && 
+         "Lock absent. Try compiling with -simplifycfg option?");
     
   Value* pointer_lock = m_pointer_lock[pointer_operand];
   assert(pointer_lock && "lock present in the map but null?");
@@ -2091,42 +2333,59 @@ Value* SoftBoundCETSPass::getAssociatedLock(Value* pointer_operand, Value* func_
   return pointer_lock;
 }
 
+// 
+// Method: transformFunctionName
+//
+// Description:
+//
+// This function returns the transformed name for the function. This
+// function appends softboundcets_ to the input string.
 
 
-std::string SoftBoundCETSPass::transformFunctionName(const std::string &str) { 
+std::string 
+SoftBoundCETSPass::transformFunctionName(const std::string &str) { 
 
   // If the function name starts with this prefix, don't just
   // concatenate, but instead transform the string
   return "softboundcets_" + str; 
 }
 
-/* Member Function Definitions begin here */
 
 void SoftBoundCETSPass::addMemcopyCheck(CallInst* call_inst) {
 
   if(!MEMCOPYCHECK) 
     return;
   
-  /* FIXME do something here */
+  // TODO: FIXME do something here 
 }
+
+//
+// Method: getSizeOfType 
+// 
+// Description: This function returns the size of the memory access
+// based on the type of the pointer which is being dereferenced.  This
+// function is used to pass the size of the access in many checks to
+// perform byte granularity checking.
+//
+// Comments: May we should use TargetData instead of m_is_64_bit
+// according Criswell's comments.
+ 
 
 Value* SoftBoundCETSPass:: getSizeOfType(Type* input_type) {
 
-  /* Create a Constant Pointer Null of the input type.
-   * Then get a getElementPtr of it with next element access
-   * cast it to unsigned int 
-   */
+  // Create a Constant Pointer Null of the input type.  Then get a
+  // getElementPtr of it with next element access cast it to unsigned
+  // int
+   
   const PointerType* ptr_type = dyn_cast<PointerType>(input_type);
 
-  if(isa<FunctionType>(ptr_type->getElementType())) {
-    if(m_is_64_bit) {
+  if (isa<FunctionType>(ptr_type->getElementType())) {
+    if (m_is_64_bit) {
       return ConstantInt::get(Type::getInt64Ty(ptr_type->getContext()), 0);
-    }
-    else{
+    } else{
       return ConstantInt::get(Type::getInt32Ty(ptr_type->getContext()), 0);
     }
   }
-
 
   const SequentialType* seq_type = dyn_cast<SequentialType>(input_type);
   Constant* int64_size = NULL;
@@ -2148,25 +2407,36 @@ Value* SoftBoundCETSPass:: getSizeOfType(Type* input_type) {
   if(m_is_64_bit) {
     int64_size = ConstantExpr::getSizeOf(seq_type->getElementType());
     return int64_size;
-  }
-  else {
+  } else {
 
-    /* doing what ConstantExpr::getSizeOf() does */
-    Constant* gep_idx = ConstantInt::get(Type::getInt32Ty(seq_type->getContext()), 1);
-    Constant* gep = ConstantExpr::getGetElementPtr(ConstantExpr::getNullValue(PointerType::getUnqual(seq_type->getElementType())), gep_idx);
+    // doing what ConstantExpr::getSizeOf() does 
+    Constant* gep_idx = 
+      ConstantInt::get(Type::getInt32Ty(seq_type->getContext()), 1);
 
-    return ConstantExpr::getPtrToInt(gep, Type::getInt64Ty(seq_type->getContext()));
+    PointerType* ptr_type = PointerType::getUnqual(seq_type->getElementType());
+    Constant* gep_temp = ConstantExpr::getNullValue(ptr_type);
+    Constant* gep = ConstantExpr::getGetElementPtr(gep_temp, gep_idx);
+    
+    Type* int64Ty = Type::getInt64Ty(seq_type->getContext());
+    return ConstantExpr::getPtrToInt(gep, int64Ty);
   }    
-
   assert(0 && "not handled type?");
 
   return NULL;
 }
 
+//
+//
+// Method: addLoadStoreChecks
+//
+// Description: This function inserts calls to C-handler spatial
+// safety check functions and elides the check if the map says it is
+// not necessary to check.
 
 
-
-void SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, std::map<Value*, int>& func_deref_check_elim_map) {
+void 
+SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, 
+                                      std::map<Value*, int>& FDCE_map) {
 
   if(!spatial_safety)
     return;
@@ -2189,37 +2459,41 @@ void SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, std::map<Val
       
     StoreInst* sti = dyn_cast<StoreInst>(load_store);
     assert(sti && "not a store instruction");
-    /* The pointer where the element is being stored is the second operand */
+    // The pointer where the element is being stored is the second
+    // operand
     pointer_operand = sti->getOperand(1);
   }
     
   assert(pointer_operand && "pointer operand null?");
     
-  /* if it is a null pointer which is being loaded, then 
-   * it must seg fault, no dereference check here 
-   */
+  // If it is a null pointer which is being loaded, then it must seg
+  // fault, no dereference check here
+  
     
   if(isa<ConstantPointerNull>(pointer_operand))
     return;
-  /* Find all uses of pointer operand, then check if it
-   * dominates and if so, make a note in the map
-   */
 
+  // Find all uses of pointer operand, then check if it dominates and
+  //if so, make a note in the map
+   
   GlobalVariable* gv = dyn_cast<GlobalVariable>(pointer_operand);    
   if(gv && GLOBALCONSTANTOPT) {
     return;
   }
     
   if(BOUNDSCHECKOPT) {
-    /* Enable dominator based dereference check optimization only
-     * when suggested 
-     */
-    if(func_deref_check_elim_map.count(load_store)) {
+    // Enable dominator based dereference check optimization only when
+    // suggested
+    
+    if(FDCE_map.count(load_store)) {
       return;
     }
-                      
-    /* iterate over the uses */            
-    for(Value::use_iterator ui = pointer_operand->use_begin(), ue = pointer_operand->use_end(); ui != ue; ++ui) {
+    
+    // FIXME: Add more comments here Iterate over the uses
+
+    for(Value::use_iterator ui = pointer_operand->use_begin(), 
+          ue = pointer_operand->use_end(); 
+        ui != ue; ++ui) {
         
       Instruction* temp_inst = dyn_cast<Instruction>(*ui);       
       if(!temp_inst)
@@ -2233,24 +2507,20 @@ void SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, std::map<Val
         
       if(isa<StoreInst>(temp_inst)){
         if(temp_inst->getOperand(1) != pointer_operand){
-          /* when a pointer is a being stored at at a particular
-           * address, don't elide the check
-           */
+          // When a pointer is a being stored at at a particular
+          // address, don't elide the check
           continue;
         }
       }
 
-
       if(m_dominator_tree->dominates(load_store, temp_inst)) {
-        if(!func_deref_check_elim_map.count(temp_inst)) {
-          func_deref_check_elim_map[temp_inst] = true;
+        if(!FDCE_map.count(temp_inst)) {
+          FDCE_map[temp_inst] = true;
           continue;
         }                  
       }
-
-
-    } /* Iterating over uses ends */
-  } /* BOUNDSCHECKOPT ends */
+    } // Iterating over uses ends 
+  } // BOUNDSCHECKOPT ends 
 
     
   Value* tmp_base = NULL;
@@ -2274,10 +2544,11 @@ void SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, std::map<Val
   Value* bitcast_bound = castToVoidPtr(tmp_bound, load_store);    
   args.push_back(bitcast_bound);
    
-  Value* cast_pointer_operand_value = castToVoidPtr(pointer_operand, load_store);    
+  Value* cast_pointer_operand_value = castToVoidPtr(pointer_operand, 
+                                                    load_store);    
   args.push_back(cast_pointer_operand_value);
     
-  /* pushing the size of the type */
+  // Pushing the size of the type 
   Type* pointer_operand_type = pointer_operand->getType();
   Value* size_of_type = getSizeOfType(pointer_operand_type);
   args.push_back(size_of_type);
@@ -2291,35 +2562,37 @@ void SoftBoundCETSPass::addLoadStoreChecks(Instruction* load_store, std::map<Val
   return;
 }
 
-bool SoftBoundCETSPass::optimizeGlobalAndStackVariableChecks(Instruction* load_store) {
+//
+// Method: optimizeGlobalAndStackVariables
+//
+// Description: This function elides temporal safety checks for stack
+// and global variables.
+
+
+bool 
+SoftBoundCETSPass::
+optimizeGlobalAndStackVariableChecks(Instruction* load_store) {
     
   Value* pointer_operand = NULL;
-
   if(isa<LoadInst>(load_store)){
     pointer_operand = load_store->getOperand(0);
-  }
-  else{
+  } else{
     pointer_operand = load_store->getOperand(1);
   }
 
-  while(true) {
-      
-    if(isa<AllocaInst>(pointer_operand)){
-        
+  while(true) {      
+    if(isa<AllocaInst>(pointer_operand)){        
       if(STACKTEMPORALCHECKOPT){
         return true;
-      }
-      else{
+      } else{
         return false;
       }
     }
 
-    if(isa<GlobalVariable>(pointer_operand)){
-        
+    if(isa<GlobalVariable>(pointer_operand)){        
       if(GLOBALTEMPORALCHECKOPT){
         return true;
-      }
-      else{
+      } else{
         return false;
       }
     }
@@ -2331,85 +2604,108 @@ bool SoftBoundCETSPass::optimizeGlobalAndStackVariableChecks(Instruction* load_s
     }
 
     if(isa<GetElementPtrInst>(pointer_operand)){
-      GetElementPtrInst* gep_inst = dyn_cast<GetElementPtrInst>(pointer_operand);
-      pointer_operand = gep_inst->getOperand(0); 
+      GetElementPtrInst* gep = dyn_cast<GetElementPtrInst>(pointer_operand);
+      pointer_operand = gep->getOperand(0); 
       continue;
-    }
-    else{
+    } else{
       return false;
     }
   }
 }
 
-bool SoftBoundCETSPass::bbTemporalCheckElimination(Instruction* load_store, std::map<Value*, int>& bb_temporal_check_elim_map){
+//
+// Method: bbTemporalCheckElimination
+//
+// Description: This function eliminates the redundant temporal safety
+// checks in the basic block
+//
+// Comments: Describe the algorithm here
+
+bool 
+SoftBoundCETSPass::bbTemporalCheckElimination(Instruction* load_store, 
+                                              std::map<Value*, int>& BBTCE_map){
     
   if(!BBDOMTEMPORALCHECKOPT)
     return false;
 
-  if(bb_temporal_check_elim_map.count(load_store))
+  if(BBTCE_map.count(load_store))
     return true;
 
-  /* Check if the operand is a getelementptr, then get the first
-     operand and check for all other load/store instructions in the
-     current basic block and check if they are pointer operands are
-     getelementptrs. If so, check if it is same the pointer being
-     checked now 
-  */
+  // Check if the operand is a getelementptr, then get the first
+  // operand and check for all other load/store instructions in the
+  // current basic block and check if they are pointer operands are
+  // getelementptrs. If so, check if it is same the pointer being
+  // checked now
     
   Value* pointer_operand = getPointerLoadStore(load_store);
 
   Value* gep_source = NULL;
-  if(isa<GetElementPtrInst>(pointer_operand)){
-
-    GetElementPtrInst* ptr_gep_inst = dyn_cast<GetElementPtrInst>(pointer_operand);
-    assert(ptr_gep_inst && "[bbTemporalCheckElimination] gep_inst null?");
-      
-    gep_source = ptr_gep_inst->getOperand(0);
-  }
-  else {
+  if (isa<GetElementPtrInst>(pointer_operand)) {
+    GetElementPtrInst* ptr_gep = cast<GetElementPtrInst>(pointer_operand);
+    gep_source = ptr_gep->getOperand(0);
+  } else {
     gep_source = pointer_operand;
   }
     
-  /* Iterate over all other instructions in this basic block and look for gep_instructions with the same source */
+  // Iterate over all other instructions in this basic block and look
+  // for gep_instructions with the same source 
   BasicBlock* bb_curr = load_store->getParent();
   assert(bb_curr && "bb null?");
 
   Instruction* next_inst = getNextInstruction(load_store);
   BasicBlock* next_inst_bb = next_inst->getParent();
-  while((next_inst_bb == bb_curr) && (next_inst != bb_curr->getTerminator())) {
+  while((next_inst_bb == bb_curr) && 
+        (next_inst != bb_curr->getTerminator())) {
 
     if(isa<CallInst>(next_inst) && OPAQUECALLS)
       break;
       
     if(checkLoadStoreSourceIsGEP(next_inst, gep_source)){
-      bb_temporal_check_elim_map[next_inst] = 1;
+      BBTCE_map[next_inst] = 1;
     }
 
     next_inst = getNextInstruction(next_inst);
     next_inst_bb = next_inst->getParent();
   }
   return false;
-
 }
+//
+// Method:getPointerLoadStore
+//
+// Description: This function obtains the pointer operand which is
+// being dereferenced in the memory access.
 
-Value* SoftBoundCETSPass::getPointerLoadStore(Instruction* load_store) {
+Value* 
+SoftBoundCETSPass::getPointerLoadStore(Instruction* load_store) {
 
   Value* pointer_operand  = NULL;
-
-  if(isa<LoadInst>(load_store)){
+  if (isa<LoadInst>(load_store)) {
     pointer_operand = load_store->getOperand(0);
   }
 
-  if(isa<StoreInst>(load_store)){
+  if (isa<StoreInst>(load_store)) {
     pointer_operand = load_store->getOperand(1);
   }
   assert((pointer_operand != NULL) && "pointer_operand null");
-
   return pointer_operand;
 }
 
+// 
+// Method : checkLoadSourceIsGEP
+//
+// Description: This function is used to optimize temporal checks by
+// identifying the root object of the pointer being dereferenced.  If
+// the pointer being deferenced is a bitcast or a GEP instruction then
+// the source of GEP/bitcast is noted and checked to ascertain whether
+// any check to the root object has been performed and not killed.
+// 
+// Comments:
+//
+// TODO: A detailed algorithm here
 
-bool SoftBoundCETSPass::checkLoadStoreSourceIsGEP(Instruction* load_store, Value* gep_source){
+bool 
+SoftBoundCETSPass::checkLoadStoreSourceIsGEP(Instruction* load_store, 
+                                             Value* gep_source){
 
   Value* pointer_operand = NULL;
 
@@ -2440,13 +2736,22 @@ bool SoftBoundCETSPass::checkLoadStoreSourceIsGEP(Instruction* load_store, Value
   return false;
 }
 
+// 
+// Method: funcTemporalCheckElimination
+//
+// Description: This function elides temporal checks for by performing
+// root object identification at the function level.
 
-bool SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, std::map<Value*, int>& func_temporal_check_elim_map) {
+
+
+bool 
+SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, 
+                                                std::map<Value*, int>& FTCE_map) {
 
   if(!FUNCDOMTEMPORALCHECKOPT)
     return false;
 
-  if(func_temporal_check_elim_map.count(load_store))
+  if(FTCE_map.count(load_store))
     return true;
 
   Value* pointer_operand = getPointerLoadStore(load_store);
@@ -2454,9 +2759,9 @@ bool SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, st
   Value* gep_source = NULL;
   if(isa<GetElementPtrInst>(pointer_operand)){
 
-    GetElementPtrInst* ptr_gep_inst = dyn_cast<GetElementPtrInst>(pointer_operand);
-    assert(ptr_gep_inst && "[bbTemporalCheckElimination] gep_inst null?");
-    gep_source = ptr_gep_inst->getOperand(0);
+    GetElementPtrInst* ptr_gep = dyn_cast<GetElementPtrInst>(pointer_operand);
+    assert(ptr_gep && "[bbTemporalCheckElimination] gep_inst null?");
+    gep_source = ptr_gep->getOperand(0);
   }
   else {
     gep_source = pointer_operand;
@@ -2483,16 +2788,16 @@ bool SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, st
 
     bool break_flag = false;
 
-    /* Iterating over the successors and adding the successors to
-     * the work list
-     */
+    // Iterating over the successors and adding the successors to the
+    // work list
 
-    /* if this is the current basic block under question */
+    // if this is the current basic block under question 
     if(bb == bb_curr) {
-      /* bbTemporalCheckElimination should handle this */
+      // bbTemporalCheckElimination should handle this 
       Instruction* next_inst = getNextInstruction(load_store);
       BasicBlock* next_inst_bb = next_inst->getParent();
-      while((next_inst_bb == bb_curr) && (next_inst != bb_curr->getTerminator())) {
+      while((next_inst_bb == bb_curr) && 
+            (next_inst != bb_curr->getTerminator())) {
 
         if(isa<CallInst>(next_inst) && OPAQUECALLS){
           break_flag = true;
@@ -2501,30 +2806,28 @@ bool SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, st
           
         if(checkLoadStoreSourceIsGEP(next_inst, gep_source)){
           if(m_dominator_tree->dominates(load_store, next_inst)){              
-            func_temporal_check_elim_map[next_inst] = 1;
+            FTCE_map[next_inst] = 1;
           }
         }
           
         next_inst = getNextInstruction(next_inst);
         next_inst_bb = next_inst->getParent();
       }
-    }
-    else {
+    } else {
       for(BasicBlock::iterator i = bb->begin(), ie = bb->end(); i != ie; ++i){
         Instruction* new_inst = dyn_cast<Instruction>(i);
         if(isa<CallInst>(new_inst) && OPAQUECALLS){
           break_flag = true;
           break;
         }
-
           
         if(checkLoadStoreSourceIsGEP(new_inst, gep_source)){
 
           if(m_dominator_tree->dominates(load_store, new_inst)){
-            func_temporal_check_elim_map[new_inst] = 1;
+            FTCE_map[new_inst] = 1;
           }
         }          
-      } /* iterating over the instructions in the basic block ends */
+      } // Iterating over the instructions in the basic block ends
     }
 
     for(succ_iterator si = succ_begin(bb), se = succ_end(bb); si != se; ++si) {
@@ -2532,25 +2835,26 @@ bool SoftBoundCETSPass::funcTemporalCheckElimination(Instruction* load_store, st
       if(break_flag)
         break;
         
-      BasicBlock* next_bb = *si;
-      assert(next_bb && "Not a basic block and I am adding to the base and bound worklist?");
+      BasicBlock* next_bb = cast<BasicBlock>(*si);
       bb_worklist.push(next_bb);
     }      
-  } /* worklist algorithm ends */
+  } // Worklist algorithm ends
   return false;
 }
 
 
-
-bool SoftBoundCETSPass::optimizeTemporalChecks(Instruction* load_store, std::map<Value*, int>& bb_temporal_check_elim_map, std::map<Value*, int>& func_temporal_check_elim_map) {
-    
+bool 
+SoftBoundCETSPass::optimizeTemporalChecks(Instruction* load_store, 
+                                          std::map<Value*, int>& BBTCE_map, 
+                                          std::map<Value*, int>& FTCE_map) {
+  
   if(optimizeGlobalAndStackVariableChecks(load_store))
     return true;
 
-  if(bbTemporalCheckElimination(load_store, bb_temporal_check_elim_map))
+  if(bbTemporalCheckElimination(load_store, BBTCE_map))
     return true;
 
-  if(funcTemporalCheckElimination(load_store, func_temporal_check_elim_map))
+  if(funcTemporalCheckElimination(load_store, FTCE_map))
     return true;
 
   return false;
@@ -2558,9 +2862,10 @@ bool SoftBoundCETSPass::optimizeTemporalChecks(Instruction* load_store, std::map
 }
 
 
-
-
-void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Value*,int>& bb_temporal_check_elim_map, std::map<Value*,int>& func_temporal_check_elim_map) {
+void 
+SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, 
+                                     std::map<Value*,int>& BBTCE_map, 
+                                     std::map<Value*,int>& FTCE_map) {
   
   SmallVector<Value*, 8> args;
   Value* pointer_operand = NULL;
@@ -2569,7 +2874,7 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
     return;
   
   
-  if(optimizeTemporalChecks(load_store, bb_temporal_check_elim_map, func_temporal_check_elim_map))
+  if(optimizeTemporalChecks(load_store, BBTCE_map, FTCE_map))
     return;
   
   if(isa<LoadInst>(load_store)) {
@@ -2587,7 +2892,8 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
     
     StoreInst* sti = dyn_cast<StoreInst>(load_store);
     assert(sti && "not a store instruction");
-    /* The pointer where the element is being stored is the second operand */
+    // The pointer where the element is being stored is the second
+    // operand
     pointer_operand = sti->getOperand(1);
   }
   
@@ -2595,10 +2901,8 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
   
   if(isa<ConstantPointerNull>(pointer_operand))
     return;
-  
-  /* Temporal check optimizations go here */
-  
-  /* don't insert checks for globals and constant expressions */
+    
+  // Do not insert checks for globals and constant expressions
   GlobalVariable* gv = dyn_cast<GlobalVariable>(pointer_operand);    
   if(gv) {
     return;
@@ -2617,12 +2921,13 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
        * when suggested 
        */
       
-      if(func_temporal_check_elim_map.count(load_store)) {
+      if(FTCE_map.count(load_store)) {
         return;
       }
       
       /* iterate over the uses */            
-      for(Value::use_iterator ui = pointer_operand->use_begin(), ue = pointer_operand->use_end(); ui != ue; ++ui) {
+      for(Value::use_iterator ui = pointer_operand->use_begin(), 
+            ue = pointer_operand->use_end(); ui != ue; ++ui) {
         
         Instruction* temp_inst = cast<Instruction>(*ui);       
         if(!temp_inst)
@@ -2644,8 +2949,8 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
         }
         
         if(m_dominator_tree->dominates(load_store, temp_inst)) {
-          if(!func_temporal_check_elim_map.count(temp_inst)) {
-            func_temporal_check_elim_map[temp_inst] = true;
+          if(!FTCE_map.count(temp_inst)) {
+            FTCE_map[temp_inst] = true;
             continue;
           }                  
         }
@@ -2685,8 +2990,7 @@ void SoftBoundCETSPass::addTemporalChecks(Instruction* load_store, std::map<Valu
     }
     else {
       CallInst::Create(m_temporal_store_dereference_check, args, "", load_store);
-    }
-    
+    }    
     return;
 }
 
@@ -3175,7 +3479,8 @@ void SoftBoundCETSPass::handleMemcpy(CallInst* call_inst){
     
 }
 
-void SoftBoundCETSPass:: iterateCallSiteIntroduceShadowStackStores(CallInst* call_inst){
+void 
+SoftBoundCETSPass:: iterateCallSiteIntroduceShadowStackStores(CallInst* call_inst){
     
   int pointer_args_return = getNumPointerArgsAndReturn(call_inst);
 
@@ -3350,8 +3655,7 @@ void SoftBoundCETSPass::gatherBaseBoundPass2(Function* func){
 }
 
 void SoftBoundCETSPass::introspectMetadata(Function* func, Value* ptr_value, Instruction* insert_at, int arg_no){
-  
-  if(func->getName() != "quantum_gate1")
+  if(func->getName() != "debug_instrument_softboundcets")
     return;
 
   Value* ptr_base = getAssociatedBase(ptr_value);
@@ -3452,7 +3756,7 @@ void SoftBoundCETSPass::gatherBaseBoundPass1 (Function * func) {
     }
     else{
       introduceShadowStackLoads(ptr_argument_value, fst_inst, arg_count);
-      introspectMetadata(func, ptr_argument_value, fst_inst, arg_count);
+      //      introspectMetadata(func, ptr_argument_value, fst_inst, arg_count);
     }
   }
 
@@ -3689,7 +3993,8 @@ void SoftBoundCETSPass::handleLoad(LoadInst* load_inst) {
  */
 void SoftBoundCETSPass::identifyInitialGlobals(Module& module) {
 
-  for(Module::global_iterator it = module.global_begin(), ite = module.global_end();
+  for(Module::global_iterator it = module.global_begin(), 
+        ite = module.global_end();
       it != ite; ++it) {
       
     GlobalVariable* gv = dyn_cast<GlobalVariable>(it);
@@ -3818,10 +4123,9 @@ void SoftBoundCETSPass::identifyOriginalInst (Function * func) {
 
 bool SoftBoundCETSPass::runOnModule(Module& module) {
 
-  if(module.getPointerSize() == llvm::Module::Pointer64) {
+  if (module.getPointerSize() == llvm::Module::Pointer64) {
     m_is_64_bit = true;
-  }
-  else {
+  } else {
     m_is_64_bit = false;
   }
   
@@ -3838,36 +4142,38 @@ bool SoftBoundCETSPass::runOnModule(Module& module) {
     Function* func_ptr = dyn_cast<Function>(ff_begin);
     assert(func_ptr && "Not a function??");
     
-    /* No instrumentation for functions introduced by us for updating
-     * and retrieving the shadow space
-     */
+    //
+    // No instrumentation for functions introduced by us for updating
+    // and retrieving the shadow space
+    //
       
-    if(!checkIfFunctionOfInterest(func_ptr)) {
+    if (!checkIfFunctionOfInterest(func_ptr)) {
       continue;
-    }   
-    /* Iterating over the instructions in the function to identify IR
-     * instructions in the original program In this pass, the pointers
-     * in the original program are also identified
-     */
+    }  
+    //
+    // Iterating over the instructions in the function to identify IR
+    // instructions in the original program In this pass, the pointers
+    // in the original program are also identified
+    //
       
     identifyOriginalInst(func_ptr);
       
-    /* iterate over all basic block and then each insn within a basic
-     * block We make two passes over the IR for base and bound
-     * propagation and one pass for dereference checks
-     */
+    //
+    // Iterate over all basic block and then each insn within a basic
+    // block We make two passes over the IR for base and bound
+    // propagation and one pass for dereference checks
+    //
 
-    if(temporal_safety){
-      Value* func_global_lock = introduceGlobalLockFunction(func_ptr->begin()->begin());
+    if (temporal_safety) {
+      Value* func_global_lock = 
+        introduceGlobalLockFunction(func_ptr->begin()->begin());
       m_func_global_lock[func_ptr->getName()] = func_global_lock;      
     }
       
     gatherBaseBoundPass1(func_ptr);
     gatherBaseBoundPass2(func_ptr);
-
     addDereferenceChecks(func_ptr);            
   }
-
 
   renameFunctions(module);
   DEBUG(errs()<<"Done with SoftBoundCETSPass\n");
@@ -3880,13 +4186,13 @@ bool SoftBoundCETSPass::runOnModule(Module& module) {
     assert(func_ptr && "not a function??");
 
     if(func_ptr->isDeclaration()){
-      if(!isFuncDefSoftBound(func_ptr->getName()) && !(m_func_wrappers_available.count(func_ptr->getName()))){
-        DEBUG(errs()<<"External function not wrapped:"<<func_ptr->getName()<<"\n");
+      if(!isFuncDefSoftBound(func_ptr->getName()) && 
+         !(m_func_wrappers_available.count(func_ptr->getName()))){
+        DEBUG(errs()<<"External function not wrapped:"<<
+              func_ptr->getName()<<"\n");
       }
 
     }    
   }
-    
   return true;
 }
-

@@ -51,9 +51,9 @@
 #include <unistd.h>
 #include <assert.h>
 
+
 #define __SOFTBOUNDCETS_TRIE 1
 #define __SOFTBOUNDCETS_SPATIAL_TEMPORAL 1
-
 
 /* Trie represented by the following by a structure with four fields
  * if both __SOFTBOUNDCETS_SPATIAL and __SOFTBOUNDCETS_TEMPORAL are
@@ -178,7 +178,7 @@ static const int __SOFTBOUNDCETS_PREALLOCATE_TRIE = 0;
 #endif
 
 #ifdef __SOFTBOUNDCETS_TEMPORAL
-#define __SOFTBOUNDCETS_FREE_MAP
+//#define __SOFTBOUNDCETS_FREE_MAP
 #endif
 
 #ifdef __SOFTBOUNDCETS_FREE_MAP
@@ -239,11 +239,11 @@ extern size_t __softboundcets_statistics_store_dereference_checks;
 extern size_t __softboundcets_statistics_temporal_load_dereference_checks;
 extern size_t __softboundcets_statistics_temporal_store_dereference_checks;
 
-void* safe_calloc(size_t, size_t);
-void* safe_malloc(size_t);
-void safe_free(void*);
+void* __softboundcets_safe_calloc(size_t, size_t);
+void* __softboundcets_safe_malloc(size_t);
+void __softboundcets_safe_free(void*);
 
-void * safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset);
+void * __softboundcets_safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset);
 __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate(void* addr_of_ptr);
 
 /******************************************************************************/
@@ -415,7 +415,7 @@ __WEAK_INLINE __softboundcets_trie_entry_t* __softboundcets_trie_allocate(){
   
   __softboundcets_trie_entry_t* secondary_entry;
   size_t length = (__SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES) * sizeof(__softboundcets_trie_entry_t);
-  secondary_entry = safe_mmap(0, length, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  secondary_entry = __softboundcets_safe_mmap(0, length, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   //assert(secondary_entry != (void*)-1); 
   //printf("snd trie table %p %lx\n", secondary_entry, length);
   return secondary_entry;

@@ -360,7 +360,23 @@ class SoftBoundCETSPass: public ModulePass {
 
   void checkIfRetTypePtr(Function*, bool &);
   Instruction* getReturnInst(Function*, int);
-  Instruction* getNextInstruction(Instruction*);
+  
+  // 
+  // Method: getNextInstruction
+  // 
+  // Description:
+  // This method returns the next instruction after the input instruction.
+  //
+  
+  Instruction* getNextInstruction(Instruction* I){
+    
+    if (isa<TerminatorInst>(I)) {
+      return I;
+    } else {
+      BasicBlock::iterator i = I;
+      return ++i;
+    }    
+  }
   
   const Type* getStructType(const Type*);
   Value*  getSizeOfType(Type*);
