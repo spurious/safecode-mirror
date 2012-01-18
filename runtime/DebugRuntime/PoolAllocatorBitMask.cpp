@@ -343,7 +343,7 @@ poolargvregister (int argc, char ** argv) {
   ExternalObjects->insert(argv, ((unsigned char *)(&(argv[argc+1]))) - 1);
 
   //
-  // Register errno for kicks and gibbles.
+  // Register errno for kicks and giggles.
   //
   unsigned char * errnoAdd = (unsigned char *) &errno;
   ExternalObjects->insert(errnoAdd, errnoAdd + sizeof (errno) - 1);
