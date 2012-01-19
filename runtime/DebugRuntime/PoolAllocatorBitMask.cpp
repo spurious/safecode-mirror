@@ -1407,7 +1407,11 @@ getProgramCounter (void * context) {
 #if defined(__linux__)
   // Cast parameters to the desired type
   ucontext_t * mycontext = (ucontext_t *) context;
-  return (mycontext->uc_mcontext.gregs[14]);
+#if defined(__x86_64__)
+  return (mycontext->uc_mcontext.gregs[16]); // rip
+#else
+  return (mycontext->uc_mcontext.gregs[14]); // eip
+#endif
 #endif
 
   return 0;
