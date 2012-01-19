@@ -61,7 +61,7 @@ char StringTransform::ID = 0;
 // Statistics counters
 
 #define ADD_STATISTIC_FOR(func) \
-  STATISTIC(st_xform_ ## func, "Total " #func "() calls transforms")
+  STATISTIC(st_xform_ ## func, "Total " #func "() calls transformed")
 
 ADD_STATISTIC_FOR(vprintf);
 ADD_STATISTIC_FOR(vfprintf);
