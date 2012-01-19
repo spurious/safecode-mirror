@@ -685,7 +685,7 @@ match_string(call_info    *ci,
           // first time that it occurs.
           //
           if (writecount - maxwrite > 0 &&
-	      (writecount - maxwrite) <= sizeof(wchar_t))
+            (writecount - maxwrite) <= sizeof(wchar_t))
           {
             cerr << "Writing out of bounds!" << endl;
             write_out_of_bounds_error(ci, p, maxwrite, writecount);

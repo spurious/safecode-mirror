@@ -240,7 +240,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(Instruction *MI) {
 
 // Precondition: Enforce that the alloca nodes haven't been already converted
 void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *> 
-						     & unsafeAllocaNodes) {
+                                                     & unsafeAllocaNodes) {
 
   std::list<DSNode *>::const_iterator iCurrent = unsafeAllocaNodes.begin(), 
                                       iEnd     = unsafeAllocaNodes.end();
@@ -248,7 +248,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
   for (; iCurrent != iEnd; ++iCurrent) {
     DSNode *DSN = *iCurrent;
     
-    // Now change the alloca instruction corresponding to the node	
+    // Now change the alloca instruction corresponding to the node  
     // to malloc 
     DSGraph *DSG = DSN->getParentGraph();
     DSGraph::ScalarMapTy &SM = DSG->getScalarMap();
@@ -284,7 +284,7 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
-                                                 AI);	    
+                                                 AI);     
             std::vector<Value *> args(1, AllocSize);
             CallInst *CI = CallInst::Create (kmalloc, args.begin(), args.end(), "", AI);
             MI = castTo (CI, AI->getType(), "", AI);
@@ -293,12 +293,12 @@ void ConvertUnsafeAllocas::TransformAllocasToMallocs(std::list<DSNode *>
             SM.erase(SMI++);
             AI->getParent()->getInstList().erase(AI);
             ++ConvAllocas;
-	    	    InsertFreesAtEnd(MI);
-#ifndef LLVA_KERNEL	    
+            InsertFreesAtEnd(MI);
+#ifndef LLVA_KERNEL     
             if (stackAllocate) {
               ArrayMallocs.insert(MI);
             }
-#endif	      
+#endif        
           } else {
             ++SMI;
           } 
@@ -456,7 +456,7 @@ ConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",
-                                        AI);	    
+                                        AI);      
 
   //
   // Insert a call to the heap allocator.
@@ -521,15 +521,15 @@ ConvertUnsafeAllocas::TransformCollapsedAllocas(Module &M) {
             if (AI->isArrayAllocation())
               AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
                                                  AI->getOperand(0), "sizetmp",
-                                                 AI);	    
+                                                 AI);     
 
             CallInst *CI = CallInst::Create (kmalloc, AllocSize, "", AI);
             Value * MI = castTo (CI, AI->getType(), "", AI);
-	    	    InsertFreesAtEnd(CI);
+            InsertFreesAtEnd(CI);
             AI->replaceAllUsesWith(MI);
             SMI->second.getNode()->setHeapMarker();
             SM.erase(SMI++);
-            AI->getParent()->getInstList().erase(AI);	  
+            AI->getParent()->getInstList().erase(AI);   
             ++ConvAllocas;
           } else {
             ++SMI;
@@ -551,7 +551,7 @@ class UnsafeAllocaNodeListBuilder : public InstVisitor<UnsafeAllocaNodeListBuild
       Value *pointerOperand = GEP.getPointerOperand();
       DSGraph * TDG = budsPass->getDSGraph(*(GEP.getParent()->getParent()));
       DSNode *DSN = TDG->getNodeForValue(pointerOperand).getNode();
-      //FIXME DO we really need this ?	    markReachableAllocas(DSN);
+      //FIXME DO we really need this ?      markReachableAllocas(DSN);
       if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
         unsafeAllocaNodes.push_back(DSN);
       }
@@ -595,14 +595,14 @@ ConvertUnsafeAllocas::getUnsafeAllocsFromABC(Module & M) {
         Value *pointerOperand = GEP->getPointerOperand();
         DSGraph * TDG = budsPass->getDSGraph(*(GEP->getParent()->getParent()));
         DSNode *DSN = TDG->getNodeForValue(pointerOperand).getNode();
-        //FIXME DO we really need this ?	    markReachableAllocas(DSN);
+        //FIXME DO we really need this ?      markReachableAllocas(DSN);
         if (DSN && DSN->isAllocaNode() && !DSN->isNodeCompletelyFolded()) {
           unsafeAllocaNodes.push_back(DSN);
         }
       } else {
         
-        //call instruction add the corresponding 	  *iCurrent->dump();
-        //FIXME 	  abort();
+        //call instruction add the corresponding    *iCurrent->dump();
+        //FIXME     abort();
       }
     }
   }
@@ -679,7 +679,7 @@ PAConvertUnsafeAllocas::promoteAlloca (AllocaInst * AI, DSNode * Node) {
   if (AI->isArrayAllocation())
     AllocSize = BinaryOperator::Create (Instruction::Mul, AllocSize,
                                         AI->getOperand(0), "sizetmp",
-                                        AI);	    
+                                        AI);      
 
   //
   // Get the pool associated with the alloca instruction.

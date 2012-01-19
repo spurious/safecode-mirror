@@ -64,7 +64,7 @@ namespace llvm {
 
   private:
     void wrapCheckingRegionAsFunction(Module & M, const BasicBlock * bb, 
-				      const CodeDuplicationAnalysis::InputArgumentsTy & args);
+                                      const CodeDuplicationAnalysis::InputArgumentsTy & args);
   };
 
 
@@ -103,11 +103,11 @@ namespace llvm {
     LoopInfo * LI;
     std::set<Function *> cloneFunction;
   
-		/**
-		 * Try to duplicate loops in a prefix order
-		 **/
-	 	void duplicateLoop(Loop * L, Module * M);
-		/**
+    /**
+     * Try to duplicate loops in a prefix order
+     **/
+    void duplicateLoop(Loop * L, Module * M);
+    /**
      * Calculate arguments of a particular loop
      **/
     void calculateArgument(const Loop * L);

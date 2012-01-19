@@ -3074,11 +3074,11 @@ void SoftBoundCETSPass::addDereferenceChecks(Function* func) {
 
       /* check call through function pointers */
       if(isa<CallInst>(new_inst)) {
-          
+
         if(!CALLCHECKS) {
           continue;
         }          
-	  
+
 
         SmallVector<Value*, 8> args;
         CallInst* call_inst = dyn_cast<CallInst>(new_inst);
@@ -3843,7 +3843,7 @@ void SoftBoundCETSPass::gatherBaseBoundPass1 (Function * func) {
           handleGEP(gep_inst);
         }
         break;
-	
+
       case BitCastInst::BitCast:
         {
           BitCastInst* bitcast_inst = dyn_cast<BitCastInst>(v1);

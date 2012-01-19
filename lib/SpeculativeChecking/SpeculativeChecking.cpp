@@ -48,14 +48,14 @@ static const char * safeFunctions[] = {
   "llvm.memset.i32", "llvm.memset.i64",
   "llvm.memmove.i32", "llvm.memmove.i64",
   "llvm.sqrt.f64",
-	// HACK: these two should be handled by poolalloc
-	"calloc", "realloc",
+  // HACK: these two should be handled by poolalloc
+  "calloc", "realloc",
   // These functions are not marked as "readonly"
   // So we have to add them to the list explicitly
   "atoi", "atof", "srand", "fabs", "random", "srandom", "drand48",
   "pow", "sqrt", "lrand48",
-	"clock",
-	"strcpy", "strncpy"
+  "clock",
+  "strcpy", "strncpy"
 };
 
 // TODO: Should use the information from the intrinsic pass
@@ -108,7 +108,7 @@ namespace {
       }
 
       for (size_t i = 0; i < sizeof(safeFunctions) / sizeof(const char *); ++i) {
-				sSafeFuncSet.insert(safeFunctions[i]);
+        sSafeFuncSet.insert(safeFunctions[i]);
       }
     };
   }; 

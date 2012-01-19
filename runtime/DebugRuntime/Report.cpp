@@ -116,7 +116,7 @@ ReportMemoryViolation(const ViolationInfo *v) {
   //
   // Print the error to the error log.
   //
-	v->print(*ErrorLog);
+  v->print(*ErrorLog);
   *ErrorLog << std::flush;
 
   //

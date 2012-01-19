@@ -54,7 +54,7 @@ namespace llvm {
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         AU.addRequiredTransitive<EQTDDataStructures>();
-        AU.setPreservesAll();	
+        AU.setPreservesAll(); 
       }
       virtual bool runOnModule(Module&M);
 

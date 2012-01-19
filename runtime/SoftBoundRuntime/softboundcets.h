@@ -732,7 +732,7 @@ __WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base,
 
 
     if(!__SOFTBOUNDCETS_PREALLOCATE_TRIE) {      
-      if(trie_secondary_table == NULL) {	
+      if(trie_secondary_table == NULL) {  
 #ifdef __SOFTBOUNDCETS_SPATIAL
         *((void**) base) = 0;
         *((void**) bound) = 0;
@@ -756,7 +756,7 @@ __WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base,
         return;
       }
     } /* PREALLOCATE_ENDS */
-	
+
       /* MAIN SOFTBOUNDCETS LOAD WHICH RUNS ON THE NORMAL MACHINE */
     size_t secondary_index = ((ptr >> 3) & 0x3fffff);
     __softboundcets_trie_entry_t* entry_ptr = &trie_secondary_table[secondary_index];

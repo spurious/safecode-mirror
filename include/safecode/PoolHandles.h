@@ -34,7 +34,7 @@ NAMESPACE_SC_BEGIN
 
 /// Passes that holds DSNode and Pool Handle information
 struct DSNodePass : public ModulePass {
-	public :
+  public :
     static char ID;
     DSNodePass () : ModulePass ((intptr_t) &ID) { }
     const char *getPassName() const {
@@ -114,7 +114,7 @@ struct DSNodePass : public ModulePass {
 //
 struct PoolMDPass : public ModulePass,
                     public InstVisitor<PoolMDPass> {
-	public :
+  public :
     static char ID;
     PoolMDPass () : ModulePass ((intptr_t) &ID) { }
     const char *getPassName() const {
@@ -212,7 +212,7 @@ struct QueryPoolPass : public ModulePass {
 //
 struct RemovePoolMDPass : public ModulePass,
                           public InstVisitor<PoolMDPass> {
-	public :
+  public :
     static char ID;
     RemovePoolMDPass () : ModulePass ((intptr_t) &ID) { }
     const char *getPassName() const {

@@ -90,9 +90,9 @@ namespace llvm {
     EmbeCFreeRemoval () : ModulePass ((intptr_t) &ID) {}
     const char *getPassName() const { return "Embedded C Free Removal"; }
     void checkPoolSSAVarUses(Function *F, Value *V, 
-			     map<Value *, set<Instruction *> > &FuncAllocs, 
-			     map<Value *, set<Instruction *> > &FuncFrees, 
-			     map<Value *, set<Instruction *> > &FuncDestroy);
+                             map<Value *, set<Instruction *> > &FuncAllocs, 
+                             map<Value *, set<Instruction *> > &FuncFrees, 
+                             map<Value *, set<Instruction *> > &FuncDestroy);
 
     void propagateCollapsedInfo(Function *F, Value *V);
     DSNode *guessDSNode(Value *v, DSGraph &G, PA::FuncInfo *PAFI);

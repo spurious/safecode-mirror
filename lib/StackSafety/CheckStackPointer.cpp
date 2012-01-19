@@ -138,7 +138,7 @@ checkStackSafety::runOnModule(Module &M) {
     if (&F != MainFunc) {
       if (!F.isDeclaration()) {
         DSGraph * BUG = BUDS->getDSGraph(F);
-	
+
         //
         // If the function can return a pointer, see if a stack object can
         // escape via the return value.
@@ -168,7 +168,7 @@ checkStackSafety::runOnModule(Module &M) {
             markReachableAllocas(DSN, true);
           }
         }
-	
+
         //
         // Any stack object that is reachable by a global may also escape the
         // function.  Scan both for local variables that may alias with globals

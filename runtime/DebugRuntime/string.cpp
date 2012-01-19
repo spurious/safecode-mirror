@@ -1543,7 +1543,7 @@ pool_strnlen(DebugPoolTy *stringPool,
              char *string, 
              size_t maxlen,
              const uint8_t complete) {
-	return pool_strnlen_debug(stringPool, string, maxlen, complete, DEFAULTS);
+  return pool_strnlen_debug(stringPool, string, maxlen, complete, DEFAULTS);
 }
 
 //
@@ -1571,14 +1571,14 @@ pool_strnlen_debug(DebugPoolTy *strPool,
                    const uint8_t complete, 
                    TAG, 
                    SRC_INFO) {
-	size_t safelen, len;
-	void *strBegin = str, *strEnd = NULL;
-	const bool strComplete = ARG1_COMPLETE(complete);
-	bool strFound;
-	if (!(strFound = pool_find(strPool, str, strBegin, strEnd)) && strComplete) {
-		err << "String not found in pool!\n";
-		LOAD_STORE_VIOLATION(str, strPool, SRC_INFO_ARGS);
-	}
+  size_t safelen, len;
+  void *strBegin = str, *strEnd = NULL;
+  const bool strComplete = ARG1_COMPLETE(complete);
+  bool strFound;
+  if (!(strFound = pool_find(strPool, str, strBegin, strEnd)) && strComplete) {
+    err << "String not found in pool!\n";
+    LOAD_STORE_VIOLATION(str, strPool, SRC_INFO_ARGS);
+  }
   if (strFound) {
     // This is the maximum number of characters that can be read from str
     // without causing a memory safety error.
