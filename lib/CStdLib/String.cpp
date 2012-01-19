@@ -60,71 +60,71 @@ char StringTransform::ID = 0;
 
 // Statistics counters
 
-STATISTIC(st_xform_vprintf,   "Total vprintf() calls transformed");
-STATISTIC(st_xform_vfprintf,  "Total vfprintf() calls transformed");
-STATISTIC(st_xform_vsprintf,  "Total vsprintf() calls transformed");
-STATISTIC(st_xform_vsnprintf, "Total vsnprintf() calls transformed");
-STATISTIC(st_xform_vscanf,    "Total vscanf() calls transformed");
-STATISTIC(st_xform_vsscanf,   "Total vsscanf() calls transformed");
-STATISTIC(st_xform_vfscanf,   "Total vfscanf() calls transformed");
-STATISTIC(st_xform_vsyslog,   "Total vsyslog() calls transformed");
-STATISTIC(st_xform_memccpy, "Total memccpy() calls transformed");
-STATISTIC(st_xform_memchr,  "Total memchr() calls transformed");
-STATISTIC(st_xform_memcmp,  "Total memcmp() calls transformed");
-STATISTIC(st_xform_memcpy,  "Total memcpy() calls transformed");
-STATISTIC(st_xform_memmove, "Total memmove() calls transformed");
-STATISTIC(st_xform_memset,  "Total memset() calls transformed");
-STATISTIC(st_xform_strcat,  "Total strcat() calls transformed");
-STATISTIC(st_xform_strchr,  "Total strchr() calls transformed");
-STATISTIC(st_xform_strcmp,  "Total strcmp() calls transformed");
-STATISTIC(st_xform_strcoll, "Total strcoll() calls transformed");
-STATISTIC(st_xform_strcpy,  "Total strcpy() calls transformed");
-STATISTIC(st_xform_strcspn, "Total strcspn() calls transformed");
-// strerror_r
-STATISTIC(st_xform_strlen,  "Total strlen() calls transformed");
-STATISTIC(st_xform_strncat, "Total strncat() calls transformed");
-STATISTIC(st_xform_strncmp, "Total strncmp() calls transformed");
-STATISTIC(st_xform_strncpy, "Total strncpy() calls transformed");
-STATISTIC(st_xform_strpbrk, "Total strpbrk() calls transformed");
-STATISTIC(st_xform_strrchr, "Total strrchr() calls transformed");
-STATISTIC(st_xform_strspn,  "Total strspn() calls transformed");
-STATISTIC(st_xform_strstr,  "Total strstr() calls transformed");
-STATISTIC(st_xform_strxfrm, "Total strxfrm() calls transformed");
-// strtok, strtok_r, strxfrm
+#define ADD_STATISTIC_FOR(func) \
+  STATISTIC(st_xform_ ## func, "Total " #func "() calls transforms")
+
+ADD_STATISTIC_FOR(vprintf);
+ADD_STATISTIC_FOR(vfprintf);
+ADD_STATISTIC_FOR(vsprintf);
+ADD_STATISTIC_FOR(vsnprintf);
+ADD_STATISTIC_FOR(vscanf);
+ADD_STATISTIC_FOR(vsscanf);
+ADD_STATISTIC_FOR(vfscanf);
+ADD_STATISTIC_FOR(vsyslog);
+ADD_STATISTIC_FOR(memccpy);
+ADD_STATISTIC_FOR(memchr);
+ADD_STATISTIC_FOR(memcmp);
+ADD_STATISTIC_FOR(memcpy);
+ADD_STATISTIC_FOR(memmove);
+ADD_STATISTIC_FOR(memset);
+ADD_STATISTIC_FOR(strcat);
+ADD_STATISTIC_FOR(strchr);
+ADD_STATISTIC_FOR(strcmp);
+ADD_STATISTIC_FOR(strcoll);
+ADD_STATISTIC_FOR(strcpy);
+ADD_STATISTIC_FOR(strcspn);
+ADD_STATISTIC_FOR(strlen);
+ADD_STATISTIC_FOR(strncat);
+ADD_STATISTIC_FOR(strncmp);
+ADD_STATISTIC_FOR(strncpy);
+ADD_STATISTIC_FOR(strpbrk);
+ADD_STATISTIC_FOR(strrchr);
+ADD_STATISTIC_FOR(strspn);
+ADD_STATISTIC_FOR(strstr);
+ADD_STATISTIC_FOR(strxfrm);
+ADD_STATISTIC_FOR(bcmp);
+ADD_STATISTIC_FOR(bcopy);
+ADD_STATISTIC_FOR(bzero);
+ADD_STATISTIC_FOR(index);
+ADD_STATISTIC_FOR(rindex);
+ADD_STATISTIC_FOR(strcasecmp);
+ADD_STATISTIC_FOR(strncasecmp);
+ADD_STATISTIC_FOR(fgets);
+ADD_STATISTIC_FOR(fputs);
+ADD_STATISTIC_FOR(fwrite);
+ADD_STATISTIC_FOR(fread);
+ADD_STATISTIC_FOR(gets);
+ADD_STATISTIC_FOR(puts);
 
 #ifdef HAVE_MEMPCPY
-STATISTIC(st_xform_mempcpy,  "Total mempcpy() calls transformed");
+ADD_STATISTIC_FOR(mempcpy);
 #endif
 #ifdef HAVE_STRCASESTR
-STATISTIC(st_xform_strcasestr,  "Total strcasestr() calls transformed");
+ADD_STATISTIC_FOR(strcasestr);
 #endif
 #ifdef HAVE_STPCPY
-STATISTIC(st_xform_stpcpy,  "Total stpcpy() calls transformed");
+ADD_STATISTIC_FOR(stpcpy);
 #endif
 #ifdef HAVE_STRNLEN
-STATISTIC(st_xform_strnlen, "Total strnlen() calls transformed");
+ADD_STATISTIC_FOR(strnlen);
 #endif
-
-STATISTIC(st_xform_bcmp,    "Total bcmp() calls transformed");
-STATISTIC(st_xform_bcopy,   "Total bcopy() calls transformed");
-STATISTIC(st_xform_bzero,   "Total bzero() calls transformed");
-STATISTIC(st_xform_index,   "Total index() calls transformed");
-STATISTIC(st_xform_rindex,  "Total rindex() calls transformed");
-STATISTIC(st_xform_strcasecmp,  "Total strcasecmp() calls transformed");
-STATISTIC(st_xform_strncasecmp, "Total strncasecmp() calls transformed");
-
-STATISTIC(st_xform_fgets, "Total fgets() calls transformed");
-STATISTIC(st_xform_fputs, "Total fputs() calls transformed");
-STATISTIC(st_xform_fwrite, "Total fwrite() calls transformed");
-STATISTIC(st_xform_fread, "Total fread() calls transformed");
-STATISTIC(st_xform_gets, "Total gets() calls transformed");
-STATISTIC(st_xform_puts, "Total puts() calls transformed");
 
 //
 // Functions that aren't handled (yet...):
 //  - stpncpy and __stpncpy_chk
 //  - setbuf
 //  - setvbuf
+//  - strtok() family
 //
 
 static RegisterPass<StringTransform>
