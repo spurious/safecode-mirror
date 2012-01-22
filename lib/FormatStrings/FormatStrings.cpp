@@ -594,7 +594,7 @@ FormatStringTransform::addCallInfo(Instruction *i,
 //
 // Inputs:
 //   newFunc - the function to which a call will be built
-//   oldCall - a reference to the CallSite to tranform
+//   oldCall - a reference to the CallSite to transform
 //
 // Returns:
 //   This function returns a CallInst that replaces the old instruction.
