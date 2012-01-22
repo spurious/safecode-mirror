@@ -1,6 +1,8 @@
 #ifndef _STRNLEN_H
 #define _STRNLEN_H
 
+#include <cstddef>
+
 namespace
 {
   // This function is identical to strnlen(), which is not found on Darwin.
