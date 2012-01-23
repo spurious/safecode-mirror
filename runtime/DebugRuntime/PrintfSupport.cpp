@@ -98,7 +98,7 @@ struct suio
   // Number of buffers
   int uio_iovcnt;
   // Total number of bytes to print
-  int uio_resid;
+  size_t uio_resid;
 };
 
 //
@@ -232,9 +232,9 @@ do_output(call_info *c, output_parameter *p, struct suio *uio)
     //
     // Allocate a new string if the old one isn't large enough.
     //
-    if ((size_t) uio->uio_resid > bufsz - pos)
+    if (uio->uio_resid > bufsz - pos)
     {
-      do bufsz *= 2; while ((size_t) uio->uio_resid > bufsz - pos);
+      do bufsz *= 2; while (uio->uio_resid > bufsz - pos);
       dest = (char *) realloc(dest, bufsz);
       if (dest == 0)
         return 1; // Output error
