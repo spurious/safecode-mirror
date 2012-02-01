@@ -1199,7 +1199,7 @@ void CodeGenFunction::EmitSwitchStmt(const SwitchStmt &S) {
 
   // Update the default block in case explicit case range tests have
   // been chained on top.
-  SwitchInsn->setSuccessor(0, CaseRangeBlock);
+  SwitchInsn->setDefaultDest(CaseRangeBlock);
 
   // If a default was never emitted:
   if (!DefaultBlock->getParent()) {
