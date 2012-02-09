@@ -388,8 +388,20 @@ Gold Plugin document
 (<a href="http://llvm.org/docs/GoldPlugin.html">http://llvm.org/docs/GoldPlugin.html</a>).
 Briefly, you will need to compile
 new versions of the ld, nm, and ar utilities if the versions on your machine do
-not support the Gold plugin.  After installing the new utilities,
-you need to copy SAFECode's libLTO.so over the libLTO.so built in the LLVM
+not support the Gold plugin, and your LLVM source tree will be configured to
+build the gold plugin (<tt>LLVMGold.so</tt>).
+
+<p>
+If you used <tt>make install</tt> in the SAFECode object tree to install Clang,
+then SAFECode's <tt>libLTO.so</tt> and LLVM's <tt>LLVMGold.so</tt> plugins
+should already be installed in Clang's installation directory and should be
+ready to use.  To verify that they have been installed, look for them in
+<tt>PREFIX/lib</tt> where <tt>PREFIX</tt> is the location into which you
+installed SAFECode.
+
+<p>
+If you are using Clang from within the LLVM object tree, you will need to
+copy SAFECode's libLTO.so over the libLTO.so built in the LLVM
 object tree.  Assuming you performed a Debug build, the commands would be:
 
 <ul>
@@ -397,16 +409,6 @@ object tree.  Assuming you performed a Debug build, the commands would be:
   <li><tt>cd projects/safecode</tt></li>
   <li><tt>cp Debug/lib/libLTO.so ../../Debug/lib</tt></li>
 </ul>
-
-If you used <tt>make install</tt> to install Clang, then you should copy
-<tt>libLTO.so</tt> into Clang's installation directory as well.  Assuming that
-<tt>PREFIX</tt> was the argument given to the <tt>--prefix</tt> option in the
-<tt>configure</tt> command line, the command to install libLTO are:
-
-<ul>
-  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
-  <li><tt>cd projects/safecode</tt></li>
-  <li><tt>cp Debug/lib/libLTO.so PREFIX/lib</tt></li>
-</ul>
+</p>
 
 </div>
