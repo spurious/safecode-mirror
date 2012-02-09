@@ -91,6 +91,19 @@ located; <tt>$PREFIX</tt> is the directory into which SAFECode was installed:
 </ul>
 </p>
 
+Finally, you may want to utilize SAFECode's whole-program analysis features;
+these features allow SAFECode to detect more memory safety errors and to
+optimize its run-time checks.  To use this feature, just add the
+<tt>-flto</tt> option to the command line (and <tt>-use-gold-plugin</tt> if you
+are using SAFECode on Linux):
+
+<ul>
+  <li><b>Mac OS X:</b> <tt>clang -flto -fmemsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
+  -L$PREFIX/lib</tt></li>
+    <li><b>Linux:</b> <tt>clang -flto -use-gold-plugin -fmemsafety -o <i>file</i> <i>file1.o</i> <i>file2.o</i> ...
+  -L$PREFIX/lib</tt></li>
+</ul>
+
 <p>
 That's it!  Note the use of the <tt>-g</tt> option; that generates debugging
 information that the SAFECode transforms can use to enhance its run-time
@@ -107,7 +120,7 @@ the following:
 <ol>
 <li> Set the environment variable CC to $PREFIX/clang.</li>
 <li> Set the environment variable CXX to $PREFIX/clang++.</li>
-<li> Set the environment variable CFLAGS to "-g -fmemsafety"</li>
+<li> Set the environment variable CFLAGS to "-g -fmemsafety -flto"</li>
 <li> Set the environment variable LDFLAGS to "-L$PREFIX/lib"
 where $PREFIX is the directory into which SAFECode was installed.</li>
 <li> Run the configure script</li>
