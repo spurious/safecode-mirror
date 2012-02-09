@@ -411,11 +411,17 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
       return true;
     }
 
-    // Add the SAFECode optimization/finalization passes
-    passes.add(new TargetData(*_target->getTargetData()));
-    passes.add(new ExactCheckOpt());
-    if (mergedModule->getFunction("main")) {
-      passes.add(new CompleteChecks());
+    // Add the SAFECode optimization/finalization passes.
+    // Note that we only run these passes (which require DSA) if we detect
+    // that run-time checks have been added to the code.
+    for (unsigned index = 0; index < numChecks; ++index) {
+      if (mergedModule->getFunction(RuntimeChecks[index].name)) {
+        passes.add(new TargetData(*_target->getTargetData()));
+        passes.add(new ExactCheckOpt());
+        if (mergedModule->getFunction("main")) {
+          passes.add(new CompleteChecks());
+        }
+      }
     }
 
     // Run our queue of passes all at once now, efficiently.
