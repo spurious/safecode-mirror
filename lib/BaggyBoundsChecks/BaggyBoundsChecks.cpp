@@ -1,4 +1,4 @@
-//===- BaggyBoundChecks.cpp - Instrumentation for Baggy Bounds -------------------- --//
+//===- BaggyBoundChecks.cpp - Instrumentation for Baggy Bounds ------------ --//
 // 
 //                          The SAFECode Compiler 
 //
@@ -10,9 +10,11 @@
 // This pass aligns globals and stack allocated values to the correct power to 
 // two boundary.
 //
-// FIXME: Alignment for Global Variables in LLVM 2.7 is a 16 bit field, and thus 
-// setting alignments larger than 2^16 fails. Have hacked it to work, by changing 
-// the alignment field to 32 bit in LLVM_SRC/include/llvm/GlobalValue.h.
+// FIXME: Alignment for Global Variables in LLVM 2.7 is a 16 bit field, and
+// thus setting alignments larger than 2^16 fails. Have hacked it to work, by
+// changing the alignment field to 32 bit in
+// LLVM_SRC/include/llvm/GlobalValue.h.
+//
 // Should work fine on LLVM 2.8. 
 //===----------------------------------------------------------------------===//
 
@@ -187,8 +189,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     }
   }
 
+  //
   // align byval arguments
-  // FIXME Alignment does not work for byval arguments on x86_64(see LLVM Bug 6965, 9637)
+  // FIXME: Alignment does not work for byval arguments on x86_64 (see LLVM
+  // Bug 6965, 9637)
   // Fixed in r132764.
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
