@@ -48,6 +48,80 @@ static RegisterPass<InsertBaggyBoundsChecks> P("baggy bounds aligning",
                                                "Baggy Bounds Transform");
 
 //
+// Method: adjustGlobalValue()
+//
+// Description:
+//  This method adjusts the size and alignment of a global variable to suit
+//  baggy bounds checking.
+//
+void
+InsertBaggyBoundsCheck::adjustGlobalValue (GlobalValue * Value) {
+  //
+  // Only modify global variables.  Everything else is left unchanged.
+  //
+  GlobalVariable * GV = dyn_cast<GlobalVariable>(Value);
+  if (!GV) return;
+
+  //
+  // Don't modify external global variables or variables with no uses.
+  // 
+  if (GV->isDeclaration()) {
+    return;
+  }
+  if (GV->getNumUses() == 0) continue;
+
+  //
+  // Don't bother modifying the size of metadata.
+  //
+  if (GV->getSection() == "llvm.metadata") continue;
+
+  std::string name = GV->getName();
+  if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
+  if (strncmp(name.c_str(), "baggy.", 6) == 0) continue;
+  if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
+
+  // Don't modify globals in the exitcall section of the Linux kernel
+  if (GV->getSection() == ".exitcall.exit") continue;
+
+  //
+  // Find the greatest power-of-two size that is larger than the object's
+  // current size.
+  //
+  Type * GlobalType = GV->getType()->getElementType();
+  unsigned long int i = TD->getTypeAllocSize(GlobalType);
+  unsigned int size= 0;
+  while ((unsigned int)(1u<<size) < i) {
+    size++;
+  }
+  if (size < SLOT_SIZE) {
+    size = SLOT_SIZE;
+  }
+
+  unsigned int alignment = 1u << (size); 
+  if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
+  if(i == (unsigned)(1u<<size)) {
+    GV->setAlignment(1u<<size); 
+  } else {
+    Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
+    StructType *newType = StructType::get(M.getContext(), GlobalType, newType1, NULL);
+    std::vector<Constant *> vals(2);
+    vals[0] = GV->getInitializer();
+    vals[1] = Constant::getNullValue(newType1);
+    Constant *c = ConstantStruct::get(newType, vals);
+    GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
+    GV_new->setAlignment(1u<<size);
+    Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
+    Constant *idx[2] = {Zero, Zero};
+    Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
+    GV->replaceAllUsesWith(init);
+  } 
+}
+
+
+  return;
+}
+
+//
 // Method: runOnModule()
 //
 // Description:
@@ -59,8 +133,6 @@ static RegisterPass<InsertBaggyBoundsChecks> P("baggy bounds aligning",
 //
 bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
-
-
   // Get prerequisite analysis resuilts.
   TD = &getAnalysis<TargetData>();
   Type *Int8Type = Type::getInt8Ty(M.getContext());
