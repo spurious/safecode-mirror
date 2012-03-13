@@ -10,12 +10,6 @@
 // This pass aligns globals and stack allocated values to the correct power to 
 // two boundary.
 //
-// FIXME: Alignment for Global Variables in LLVM 2.7 is a 16 bit field, and
-// thus setting alignments larger than 2^16 fails. Have hacked it to work, by
-// changing the alignment field to 32 bit in
-// LLVM_SRC/include/llvm/GlobalValue.h.
-//
-// Should work fine on LLVM 2.8. 
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "baggy-bound-checks"
@@ -26,19 +20,24 @@
 #include "llvm/InstrTypes.h"
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
+#include "llvm/Module.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+
 #include "safecode/BaggyBoundsChecks.h"
-#include "SCUtils.h"
 
 #include <iostream>
+#include <set>
 #include <string>
 #include <functional>
-using namespace llvm;
 
-NAMESPACE_SC_BEGIN
 #define SLOT_SIZE 4
 #define SLOT 16
+
+using namespace llvm;
+
+namespace llvm {
+
 // Identifier variable for the pass
 char InsertBaggyBoundsChecks::ID = 0;
 
@@ -64,9 +63,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
   // Get prerequisite analysis resuilts.
   TD = &getAnalysis<TargetData>();
-  intrinsicPass = &getAnalysis<InsertSCIntrinsic>();
-  const Type *Int8Type = Type::getInt8Ty(getGlobalContext());
-  const Type *Int32Type = Type::getInt32Ty(getGlobalContext());
+  Type *Int8Type = Type::getInt8Ty(M.getContext());
+  Type *Int32Type = Type::getInt32Ty(M.getContext());
 
   // align globals, and pad 
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
@@ -86,12 +84,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     if (strncmp(name.c_str(), "baggy.", 6) == 0) continue;
     if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
 
-    if (SCConfig.svaEnabled()) {
-      // Linking fails when registering objects in section exitcall.exit
-      if (GV->getSection() == ".exitcall.exit") continue;
-    }
+    // Linking fails when registering objects in section exitcall.exit
+    if (GV->getSection() == ".exitcall.exit") continue;
 
-    const Type * GlobalType = GV->getType()->getElementType();
+    Type * GlobalType = GV->getType()->getElementType();
     unsigned long int i = TD->getTypeAllocSize(GlobalType);
     unsigned int size= 0;
     while((unsigned int)(1u<<size) < i) {
@@ -107,7 +103,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       GV->setAlignment(1u<<size); 
     } else {
       Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
-      StructType *newType = StructType::get(getGlobalContext(), GlobalType, newType1, NULL);
+      StructType *newType = StructType::get(M.getContext(), GlobalType, newType1, NULL);
       std::vector<Constant *> vals(2);
       vals[0] = GV->getInitializer();
       vals[1] = Constant::getNullValue(newType1);
@@ -122,13 +118,12 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   }
 
   //align allocas
-  Function *F = intrinsicPass->getIntrinsic("sc.pool_register_stack").F;  
+  Function * F = M.getFunction ("pool_register_stack");
+  assert (F && "FIXME: We should not assume that a call was inserted!");
   for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
 
-    if (CallInst * CI = dyn_cast<CallInst>(FU)) {
-      std::set<Value *>Chain;
-      Value * RealOperand = intrinsicPass->getValuePointer (CI);
-      Value * PeeledOperand = peelCasts(RealOperand, Chain);
+    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
+      Value * PeeledOperand = CI->getArgOperand(2)->stripPointerCasts();
       if(!isa<AllocaInst>(PeeledOperand)){
         continue;
       }
@@ -149,7 +144,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         BasicBlock::iterator InsertPt1 = AI;
         Instruction * iptI1 = ++InsertPt1;
         Type *newType1 = ArrayType::get(Int8Type, (1<<size)-i);
-        StructType *newType = StructType::get(getGlobalContext(), AI->getType()->getElementType(), newType1, NULL);
+        StructType *newType = StructType::get(M.getContext(), AI->getType()->getElementType(), newType1, NULL);
         AllocaInst * AI_new = new AllocaInst(newType, 0,(1<<size) , "baggy."+AI->getName(), iptI1);
         AI_new->setAlignment(1u<<size);
         Value *Zero= ConstantInt::getSigned(Int32Type, 0);
@@ -164,19 +159,20 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   }
 
   // changes for register argv
-  Function *ArgvReg = intrinsicPass->getIntrinsic("sc.pool_argvregister").F;  
+  Function *ArgvReg = M.getFunction ("sc.pool_argvregister");
+  assert (ArgvReg && "FIXME: Should not assume that argvregister is used!");
   if (!ArgvReg->use_empty()) {
     assert (isa<PointerType>(ArgvReg->getReturnType()));
     assert (ArgvReg->getNumUses() == 1);
-    CallInst *CI = cast<CallInst>(ArgvReg->use_begin()); 
-    Value *Argv = intrinsicPass->getValuePointer (CI);
+    CallInst *CI = cast<CallInst>(*(ArgvReg->use_begin())); 
+    Value *Argv = CI-getArgOperand(2);
     BasicBlock::iterator I = CI;
     I++;
     BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
     std::vector<User *> Uses;
     Value::use_iterator UI = Argv->use_begin();
     for (; UI != Argv->use_end(); ++UI) {
-      if (Instruction * Use = dyn_cast<Instruction>(UI))
+      if (Instruction * Use = dyn_cast<Instruction>(*UI))
         if (CI != Use) {
           Uses.push_back (*UI);
         }
@@ -191,10 +187,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
   //
   // align byval arguments
-  // FIXME: Alignment does not work for byval arguments on x86_64 (see LLVM
-  // Bug 6965, 9637)
-  // Fixed in r132764.
-
+  //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     if (I->isDeclaration()) continue;
 
@@ -211,8 +204,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         if(It->use_empty())
           continue;
         assert (isa<PointerType>(It->getType()));
-        const PointerType * PT = cast<PointerType>(It->getType());
-        const Type * ET = PT->getElementType();
+        PointerType * PT = cast<PointerType>(It->getType());
+        Type * ET = PT->getElementType();
         unsigned  AllocSize = TD->getTypeAllocSize(ET);
         unsigned char size= 0;
         while((unsigned)(1u<<size) < AllocSize) {
@@ -226,7 +219,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         if(AllocSize == alignment) {
           F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
           for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
-            if (CallInst * CI = dyn_cast<CallInst>(FU)) {
+            if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
               if (CI->getCalledFunction() == &F) {
                 CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
               }
@@ -234,9 +227,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           } 
         } else {
           Type *newType1 = ArrayType::get(Int8Type, (alignment)-AllocSize);
-          StructType *newSType = StructType::get(getGlobalContext(), ET, newType1, NULL);
+          StructType *newSType = StructType::get(M.getContext(), ET, newType1, NULL);
 
-          const FunctionType *FTy = F.getFunctionType();
+          FunctionType *FTy = F.getFunctionType();
           // Construct the new Function Type
           // Appends the struct Type at the beginning
           std::vector<const Type*>TP;
@@ -245,7 +238,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
             TP.push_back(FTy->getParamType(c));
           }
           //return type is same as that of original instruction
-          const FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
+          FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
           Function *NewF = Function::Create(NewFTy,
                                             GlobalValue::InternalLinkage,
                                             F.getNameStr() + ".TEST",
@@ -299,7 +292,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
           // Change uses.
           for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ) {
-            if (CallInst * CI = dyn_cast<CallInst>(FU++)) {
+            if (CallInst * CI = dyn_cast<CallInst>(*FU++)) {
               if (CI->getCalledFunction() == &F) {
                 Function *Caller = CI->getParent()->getParent();
                 Instruction *InsertPoint;
@@ -329,5 +322,5 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   return true;
 }
 
-NAMESPACE_SC_END
+}
 

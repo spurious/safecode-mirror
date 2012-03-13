@@ -7,7 +7,9 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// 
+// This file defines a pass that modifies global and stack allocations to
+// allocate memory objects with a power-of-two size and with the alignment
+// needed for baggy bounds checking.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,16 +18,11 @@
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Analysis/Dominators.h"
-#include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Target/TargetData.h"
+
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
-#include "safecode/PoolHandles.h"
 
-using namespace llvm;
-
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 //
 // Pass:InsertBaggyBoundsChecks 
@@ -36,16 +33,12 @@ NAMESPACE_SC_BEGIN
 struct InsertBaggyBoundsChecks : public ModulePass {
   public:
     static char ID;
-    InsertBaggyBoundsChecks () : ModulePass ((intptr_t) &ID) { }
+    InsertBaggyBoundsChecks () : ModulePass (ID) { }
     const char *getPassName() const { return "Insert BaggyBounds Checks"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
       AU.addRequired<TargetData>();
-      AU.addRequired<InsertSCIntrinsic>();
-
-      // Preserved passes
-      AU.setPreservesAll();
     };
 
     // Visitor methods
@@ -53,9 +46,7 @@ struct InsertBaggyBoundsChecks : public ModulePass {
   protected:
     // Pointers to required passes
     TargetData * TD;
-    InsertSCIntrinsic *intrinsicPass;
-
 };
 
-NAMESPACE_SC_END
+}
 #endif
