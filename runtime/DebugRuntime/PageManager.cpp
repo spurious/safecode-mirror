@@ -156,8 +156,7 @@ RemapPages (void * va, unsigned length) {
 #endif
 */
 }
-#endif
-
+#else
 #if defined(__linux__)
 void *
 RemapPages (void * va, unsigned length) {
@@ -215,6 +214,7 @@ RemapPages (void * va, unsigned length) {
   abort();
   return 0;
 }
+#endif
 #endif
 
 //
