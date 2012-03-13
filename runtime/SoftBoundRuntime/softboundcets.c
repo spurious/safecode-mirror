@@ -47,7 +47,9 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <sys/mman.h>
+#if !defined(__FreeBSD__)
 #include <execinfo.h>
+#endif
 #include "softboundcets.h"
 
 __softboundcets_trie_entry_t** __softboundcets_trie_primary_table;
@@ -87,8 +89,10 @@ __SOFTBOUNDCETS_NORETURN void __softboundcets_abort()
   size_t size;
   void *array[100];
   
+#if !defined (__FreeBSD__)
   size = backtrace(array, 100);
   backtrace_symbols_fd(array, size, fileno(stderr));
+#endif
   
   fprintf(stderr, "\n\n");
 
