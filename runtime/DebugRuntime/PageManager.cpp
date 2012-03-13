@@ -156,7 +156,9 @@ RemapPages (void * va, unsigned length) {
 #endif
 */
 }
-#else
+#endif
+
+#if defined(__linux__)
 void *
 RemapPages (void * va, unsigned length) {
   void *  target_addr = 0;
@@ -205,6 +207,13 @@ fprintf (stderr, "value: %p=%x, %p=%x\n", (void *) p, p[0], (void *) q, q[0]);
 fflush (stderr);
 #endif
   return target_addr;
+}
+#else
+void *
+RemapPages (void * va, unsigned length) {
+  assert (0 && "Implement remapping for your OS\n");
+  abort();
+  return 0;
 }
 #endif
 
