@@ -15,6 +15,7 @@
 #define DEBUG_TYPE "baggy-bound-checks"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/GlobalVariable.h"
 #include "llvm/Value.h"
 #include "llvm/Constants.h"
 #include "llvm/InstrTypes.h"
@@ -31,8 +32,8 @@
 #include <string>
 #include <functional>
 
-#define SLOT_SIZE 4
-#define SLOT 16
+static const unsigned SLOT_SIZE=4;
+static const unsigned SLOT=16;
 
 using namespace llvm;
 
@@ -48,6 +49,30 @@ static RegisterPass<InsertBaggyBoundsChecks> P("baggy bounds aligning",
                                                "Baggy Bounds Transform");
 
 //
+// Function: findP2Size()
+//
+// Description:
+//  Find the power-of-two size that is greater than or equal to the specified
+//  size.  Note that we will round small sizes up to SLOT_SIZE.
+//
+// Inputs:
+//  objectSize - The size of the original object in bytes.
+//
+// Return value:
+//  The exponent of the required size rounded to a power of two.  For example,
+//  if we need 8 (2^3) bytes, we'd return 3.
+//
+static inline unsigned
+findP2Size (unsigned long objectSize) {
+  unsigned int size = SLOT_SIZE;
+  while (((unsigned int)(1u<<size)) < objectSize) {
+    ++size;
+  }
+
+  return size;
+}
+
+//
 // Method: adjustGlobalValue()
 //
 // Description:
@@ -55,11 +80,11 @@ static RegisterPass<InsertBaggyBoundsChecks> P("baggy bounds aligning",
 //  baggy bounds checking.
 //
 void
-InsertBaggyBoundsCheck::adjustGlobalValue (GlobalValue * Value) {
+InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   // Only modify global variables.  Everything else is left unchanged.
   //
-  GlobalVariable * GV = dyn_cast<GlobalVariable>(Value);
+  GlobalVariable * GV = dyn_cast<GlobalVariable>(V);
   if (!GV) return;
 
   //
@@ -68,55 +93,81 @@ InsertBaggyBoundsCheck::adjustGlobalValue (GlobalValue * Value) {
   if (GV->isDeclaration()) {
     return;
   }
-  if (GV->getNumUses() == 0) continue;
+  if (GV->getNumUses() == 0) return;
 
   //
   // Don't bother modifying the size of metadata.
   //
-  if (GV->getSection() == "llvm.metadata") continue;
+  if (GV->getSection() == "llvm.metadata") return;
 
   std::string name = GV->getName();
-  if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
-  if (strncmp(name.c_str(), "baggy.", 6) == 0) continue;
-  if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
+  if (strncmp(name.c_str(), "llvm.", 5) == 0) return;
+  if (strncmp(name.c_str(), "baggy.", 6) == 0) return;
+  if (strncmp(name.c_str(), "__poolalloc", 11) == 0) return;
 
   // Don't modify globals in the exitcall section of the Linux kernel
-  if (GV->getSection() == ".exitcall.exit") continue;
+  if (GV->getSection() == ".exitcall.exit") return;
 
   //
   // Find the greatest power-of-two size that is larger than the object's
   // current size.
   //
   Type * GlobalType = GV->getType()->getElementType();
-  unsigned long int i = TD->getTypeAllocSize(GlobalType);
-  unsigned int size= 0;
-  while ((unsigned int)(1u<<size) < i) {
-    size++;
-  }
-  if (size < SLOT_SIZE) {
-    size = SLOT_SIZE;
-  }
+  unsigned long objectSize = TD->getTypeAllocSize(GlobalType);
+  unsigned int size = findP2Size (objectSize);
 
+  //
+  // Find the optimal alignment for the memory object.  Note that we can use
+  // a larger alignment than needed.
+  //
   unsigned int alignment = 1u << (size); 
-  if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
-  if(i == (unsigned)(1u<<size)) {
+  if (GV->getAlignment() > alignment) alignment = GV->getAlignment();
+
+  //
+  // Adjust the size and alignment of the memory object.  If the object size
+  // is already a power-of-two, then just set the alignment.  Otherwise, add
+  // fields to the memory object to make it sufficiently large.
+  //
+  if (objectSize == (unsigned)(1u<<size)) {
     GV->setAlignment(1u<<size); 
   } else {
-    Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
-    StructType *newType = StructType::get(M.getContext(), GlobalType, newType1, NULL);
+    //
+    // Create a structure type.  The first element will be the global memory
+    // object; the second will be an array of bytes that will pad the size out.
+    //
+    Type *Int8Type = Type::getInt8Ty(GV->getContext());
+    Type *newType1 = ArrayType::get (Int8Type, (alignment)-objectSize);
+    StructType *newType = StructType::get(GlobalType, newType1, NULL);
+
+    //
+    // Create a global initializer.  The first has the initializer of the
+    // memory object, and the second initializes the padding array.
+    //
     std::vector<Constant *> vals(2);
     vals[0] = GV->getInitializer();
     vals[1] = Constant::getNullValue(newType1);
     Constant *c = ConstantStruct::get(newType, vals);
-    GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
+
+    //
+    // Create the new global memory object with the correct alignment.
+    //
+    GlobalVariable *GV_new = new GlobalVariable (newType,
+                                                 GV->isConstant(),
+                                                 GV->getLinkage(),
+                                                 c,
+                                                 "baggy." + GV->getName());
     GV_new->setAlignment(1u<<size);
+
+    //
+    // Create a GEP expression that will represent the global value and replace
+    // all uses of the global value with the new constant GEP.
+    //
+    Type *Int32Type = Type::getInt32Ty(GV->getContext());
     Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
     Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
-  } 
-}
-
+  }
 
   return;
 }
@@ -135,61 +186,21 @@ bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
   // Get prerequisite analysis resuilts.
   TD = &getAnalysis<TargetData>();
+#if 0
   Type *Int8Type = Type::getInt8Ty(M.getContext());
   Type *Int32Type = Type::getInt32Ty(M.getContext());
+#endif
 
-  // align globals, and pad 
+  //
+  // Align and pad global variables.
+  //
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for ( ; GI != GE; ++GI) {
-    GlobalVariable *GV = dyn_cast<GlobalVariable>(GI);
-    if (!GV) continue;
-    if (GV->isDeclaration()) {
-      // Don't bother to register external global variables
-      continue;
-    }
-
-    if (GV->getNumUses() == 0) continue;
-    if (GV->getSection() == "llvm.metadata") continue;
-
-    std::string name = GV->getName();
-    if (strncmp(name.c_str(), "llvm.", 5) == 0) continue;
-    if (strncmp(name.c_str(), "baggy.", 6) == 0) continue;
-    if (strncmp(name.c_str(), "__poolalloc", 11) == 0) continue;
-
-    // Linking fails when registering objects in section exitcall.exit
-    if (GV->getSection() == ".exitcall.exit") continue;
-
-    Type * GlobalType = GV->getType()->getElementType();
-    unsigned long int i = TD->getTypeAllocSize(GlobalType);
-    unsigned int size= 0;
-    while((unsigned int)(1u<<size) < i) {
-      size++;
-    }
-    if(size < SLOT_SIZE) {
-      size = SLOT_SIZE;
-    }
-
-    unsigned int alignment = 1u << (size); 
-    if(GV->getAlignment() > alignment) alignment = GV->getAlignment();
-    if(i == (unsigned)(1u<<size)) {
-      GV->setAlignment(1u<<size); 
-    } else {
-      Type *newType1 = ArrayType::get(Int8Type, (alignment)-i);
-      StructType *newType = StructType::get(M.getContext(), GlobalType, newType1, NULL);
-      std::vector<Constant *> vals(2);
-      vals[0] = GV->getInitializer();
-      vals[1] = Constant::getNullValue(newType1);
-      Constant *c = ConstantStruct::get(newType, vals);
-      GlobalVariable *GV_new = new GlobalVariable(M, newType, GV->isConstant(), GV->getLinkage(),c, "baggy."+GV->getName());
-      GV_new->setAlignment(1u<<size);
-      Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
-      Constant *idx[2] = {Zero, Zero};
-      Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
-      GV->replaceAllUsesWith(init);
-    } 
+    adjustGlobalValue (GI);
   }
 
-  //align allocas
+#if 0
+  // align allocas
   Function * F = M.getFunction ("pool_register_stack");
   assert (F && "FIXME: We should not assume that a call was inserted!");
   for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
@@ -391,6 +402,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       }
     }
   }
+#endif
   return true;
 }
 

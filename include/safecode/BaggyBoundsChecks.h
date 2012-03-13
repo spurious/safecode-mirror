@@ -41,11 +41,12 @@ struct InsertBaggyBoundsChecks : public ModulePass {
       AU.addRequired<TargetData>();
     };
 
-    // Visitor methods
-
   protected:
     // Pointers to required passes
     TargetData * TD;
+
+    // Protected methods
+    void adjustGlobalValue (GlobalValue * GV);
 };
 
 }
