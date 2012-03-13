@@ -140,8 +140,8 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     StructType *newType = StructType::get(GlobalType, newType1, NULL);
 
     //
-    // Create a global initializer.  The first has the initializer of the
-    // memory object, and the second initializes the padding array.
+    // Create a global initializer.  The first element has the initializer of
+    // the original memory object, and the second initializes the padding array.
     //
     std::vector<Constant *> vals(2);
     vals[0] = GV->getInitializer();
@@ -167,6 +167,100 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
+  }
+
+  return;
+}
+
+//
+// Method: adjustAlloca()
+//
+// Description:
+//  Modify the specified alloca instruction (if necessary) to give it the
+//  needed alignment and padding for baggy bounds checking.
+//
+void
+InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
+  //
+  // Get the power-of-two size for the alloca.
+  //
+  unsigned objectSize = TD->getTypeAllocSize (AI->getAllocatedType());
+  unsigned char size = findP2Size (objectSize);
+
+  //
+  // Adjust the size and alignment of the memory object.  If the object size
+  // is already a power-of-two, then just set the alignment.  Otherwise, add
+  // fields to the memory object to make it sufficiently large.
+  //
+  if (objectSize == (unsigned)(1u<<size)) {
+    AI->setAlignment(1u<<size);
+  } else {
+    //
+    // Create necessary types.
+    //
+    Type *Int8Type = Type::getInt8Ty (AI->getContext());
+    Type *Int32Type = Type::getInt32Ty (AI->getContext());
+
+    //
+    // Create a structure type.  The first element will be the global memory
+    // object; the second will be an array of bytes that will pad the size out.
+    //
+    Type *newType1 = ArrayType::get(Int8Type, (1<<size) - objectSize);
+    StructType *newType = StructType::get (AI->getType()->getElementType(),
+                                           newType1,
+                                           NULL);
+
+    //
+    // Create the new alloca instruction and set its alignment.
+    //
+    AllocaInst * AI_new = new AllocaInst (newType,
+                                          0,
+                                          (1<<size),
+                                          "baggy." + AI->getName(),
+                                          AI);
+    AI_new->setAlignment(1u<<size);
+
+    //
+    // Create a GEP that accesses the first element of this new structure.
+    //
+    Value * Zero = ConstantInt::getSigned(Int32Type, 0);
+    Value *idx[3] = {Zero, Zero, NULL};
+    Instruction *init = GetElementPtrInst::Create(AI_new,
+                                                  idx,
+                                                  Twine(""),
+                                                  AI);
+    AI->replaceAllUsesWith(init);
+    AI->removeFromParent(); 
+    AI_new->setName(AI->getName());
+  }
+
+  return;
+}
+
+//
+// Method: adjustAllocasFor()
+//
+// Description:
+//  Look for allocas used in calls to the specified function and adjust their
+//  size and alignment for baggy bounds checking.
+//
+void
+InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
+  //
+  // If there is no such function, do nothing.
+  //
+  if (!F) return;
+
+  //
+  // Scan through all uses of the function and process any allocas used by it.
+  //
+  for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
+    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
+      Value * Ptr = CI->getArgOperand(2)->stripPointerCasts();
+      if (AllocaInst * AI = dyn_cast<AllocaInst>(Ptr)){
+        adjustAlloca (AI);
+      } 
+    }
   }
 
   return;
@@ -199,48 +293,15 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     adjustGlobalValue (GI);
   }
 
+  //
+  // Align and pad stack allocations (allocas) that are registered with the
+  // run-time.  We don't do all stack objects because we don't need to adjust
+  // the size of an object that is never returned in a table lookup.
+  //
+  adjustAllocasFor (M.getFunction ("pool_register_stack"));
+  adjustAllocasFor (M.getFunction ("pool_register_stack_debug"));
+
 #if 0
-  // align allocas
-  Function * F = M.getFunction ("pool_register_stack");
-  assert (F && "FIXME: We should not assume that a call was inserted!");
-  for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
-
-    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
-      Value * PeeledOperand = CI->getArgOperand(2)->stripPointerCasts();
-      if(!isa<AllocaInst>(PeeledOperand)){
-        continue;
-      }
-      AllocaInst *AI = cast<AllocaInst>(PeeledOperand);
-      unsigned i = TD->getTypeAllocSize(AI->getAllocatedType());
-      unsigned char size = 0;
-      while((unsigned)(1<<size) < i) {
-        size++;
-      }
-
-      if(size < SLOT_SIZE) {
-        size = SLOT_SIZE;
-      }
-
-      if(i == (unsigned)(1u<<size)) {
-        AI->setAlignment(1u<<size);
-      } else {
-        BasicBlock::iterator InsertPt1 = AI;
-        Instruction * iptI1 = ++InsertPt1;
-        Type *newType1 = ArrayType::get(Int8Type, (1<<size)-i);
-        StructType *newType = StructType::get(M.getContext(), AI->getType()->getElementType(), newType1, NULL);
-        AllocaInst * AI_new = new AllocaInst(newType, 0,(1<<size) , "baggy."+AI->getName(), iptI1);
-        AI_new->setAlignment(1u<<size);
-        Value *Zero= ConstantInt::getSigned(Int32Type, 0);
-        Value *idx[3] = {Zero, Zero, NULL};
-        Instruction *init = GetElementPtrInst::Create(AI_new, idx + 0, idx + 1, Twine(""), iptI1);
-        init = GetElementPtrInst::Create(init, idx + 0, idx + 2, Twine(""), iptI1);
-        AI->replaceAllUsesWith(init);
-        AI->removeFromParent(); 
-        AI_new->setName(AI->getName());
-      } 
-    }
-  }
-
   // changes for register argv
   Function *ArgvReg = M.getFunction ("sc.pool_argvregister");
   assert (ArgvReg && "FIXME: Should not assume that argvregister is used!");
