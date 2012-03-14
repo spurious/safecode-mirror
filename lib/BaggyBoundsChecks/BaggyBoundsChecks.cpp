@@ -73,6 +73,49 @@ findP2Size (unsigned long objectSize) {
 }
 
 //
+// Function: mustAdjustGlobalValue()
+//
+// Description:
+//  This function determines whether the global value must be adjusted for
+//  baggy bounds checking.
+//
+// Return value:
+//  0 - The value does not need to be adjusted for baggy bounds checking.
+//  Otherwise, a pointer to the value is returned.
+//
+GlobalVariable *
+mustAdjustGlobalValue (GlobalValue * V) {
+  //
+  // Only modify global variables.  Everything else is left unchanged.
+  //
+  GlobalVariable * GV = dyn_cast<GlobalVariable>(V);
+  if (!GV) return 0;
+
+  //
+  // Don't modify external global variables or variables with no uses.
+  // 
+  if (GV->isDeclaration()) {
+    return 0;
+  }
+  if (GV->getNumUses() == 0) return 0;
+
+  //
+  // Don't bother modifying the size of metadata.
+  //
+  if (GV->getSection() == "llvm.metadata") return 0;
+
+  std::string name = GV->getName();
+  if (strncmp(name.c_str(), "llvm.", 5) == 0) return 0;
+  if (strncmp(name.c_str(), "baggy.", 6) == 0) return 0;
+  if (strncmp(name.c_str(), "__poolalloc", 11) == 0) return 0;
+
+  // Don't modify globals in the exitcall section of the Linux kernel
+  if (GV->getSection() == ".exitcall.exit") return 0;
+
+  return GV;
+}
+
+//
 // Method: adjustGlobalValue()
 //
 // Description:
@@ -167,6 +210,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
+    GV_new->takeName (GV);
   }
 
   return;
@@ -288,10 +332,18 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   //
   // Align and pad global variables.
   //
+#if 0
+  std::vector<GlobalVariable *> varsToTransform;
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
-  for ( ; GI != GE; ++GI) {
-    adjustGlobalValue (GI);
+  for (; GI != GE; ++GI) {
+    if (GlobalVariable * GV = mustAdjustGlobalValue (GI))
+      varsToTransform.push_back (GV);
   }
+
+  for (unsigned index = 0; index < varsToTransform.size(); ++index)
+    adjustGlobalValue (varsToTransform[index]);
+  varsToTransform.clear();
+#endif
 
   //
   // Align and pad stack allocations (allocas) that are registered with the
