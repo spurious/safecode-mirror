@@ -183,7 +183,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     // object; the second will be an array of bytes that will pad the size out.
     //
     Type *Int8Type = Type::getInt8Ty(GV->getContext());
-    Type *newType1 = ArrayType::get (Int8Type, (alignment)-objectSize);
+    Type *newType1 = ArrayType::get (Int8Type, (1u<<size)-objectSize);
     StructType *newType = StructType::get(GlobalType, newType1, NULL);
 
     //
@@ -198,12 +198,14 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     //
     // Create the new global memory object with the correct alignment.
     //
-    GlobalVariable *GV_new = new GlobalVariable (newType,
+    GlobalVariable *GV_new = new GlobalVariable (*(GV->getParent()),
+                                                 newType,
                                                  GV->isConstant(),
                                                  GV->getLinkage(),
                                                  c,
                                                  "baggy." + GV->getName());
     GV_new->setAlignment(1u<<size);
+    GV_new->takeName (GV);
 
     //
     // Create a GEP expression that will represent the global value and replace
@@ -214,7 +216,6 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
-    GV_new->takeName (GV);
   }
 
   return;
@@ -336,7 +337,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   //
   // Align and pad global variables.
   //
-#if 0
+#if 1
   std::vector<GlobalVariable *> varsToTransform;
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for (; GI != GE; ++GI) {
@@ -344,8 +345,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       varsToTransform.push_back (GV);
   }
 
-  for (unsigned index = 0; index < varsToTransform.size(); ++index)
+  for (unsigned index = 0; index < varsToTransform.size(); ++index) {
     adjustGlobalValue (varsToTransform[index]);
+  }
   varsToTransform.clear();
 #endif
 
