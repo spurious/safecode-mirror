@@ -112,6 +112,10 @@ mustAdjustGlobalValue (GlobalValue * V) {
   // Don't modify globals in the exitcall section of the Linux kernel
   if (GV->getSection() == ".exitcall.exit") return 0;
 
+  //
+  // Don't modify globals that are not emitted into the final executable.
+  //
+  if (GV->hasAvailableExternallyLinkage()) return 0;
   return GV;
 }
 
