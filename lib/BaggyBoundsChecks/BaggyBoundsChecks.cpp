@@ -131,29 +131,8 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   // Only modify global variables.  Everything else is left unchanged.
   //
-  GlobalVariable * GV = dyn_cast<GlobalVariable>(V);
+  GlobalVariable * GV = mustAdjustGlobalValue(V);
   if (!GV) return;
-
-  //
-  // Don't modify external global variables or variables with no uses.
-  // 
-  if (GV->isDeclaration()) {
-    return;
-  }
-  if (GV->getNumUses() == 0) return;
-
-  //
-  // Don't bother modifying the size of metadata.
-  //
-  if (GV->getSection() == "llvm.metadata") return;
-
-  std::string name = GV->getName();
-  if (strncmp(name.c_str(), "llvm.", 5) == 0) return;
-  if (strncmp(name.c_str(), "baggy.", 6) == 0) return;
-  if (strncmp(name.c_str(), "__poolalloc", 11) == 0) return;
-
-  // Don't modify globals in the exitcall section of the Linux kernel
-  if (GV->getSection() == ".exitcall.exit") return;
 
   //
   // Find the greatest power-of-two size that is larger than the object's
@@ -183,17 +162,20 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     // object; the second will be an array of bytes that will pad the size out.
     //
     Type *Int8Type = Type::getInt8Ty(GV->getContext());
-    Type *newType1 = ArrayType::get (Int8Type, (1u<<size)-objectSize);
+    Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - objectSize);
     StructType *newType = StructType::get(GlobalType, newType1, NULL);
 
     //
     // Create a global initializer.  The first element has the initializer of
     // the original memory object, and the second initializes the padding array.
     //
-    std::vector<Constant *> vals(2);
-    vals[0] = GV->getInitializer();
-    vals[1] = Constant::getNullValue(newType1);
-    Constant *c = ConstantStruct::get(newType, vals);
+    Constant *c = 0;
+    if (GV->hasInitializer()) {
+      std::vector<Constant *> vals(2);
+      vals[0] = GV->getInitializer();
+      vals[1] = Constant::getNullValue(newType1);
+      c = ConstantStruct::get(newType, vals);
+    }
 
     //
     // Create the new global memory object with the correct alignment.
@@ -204,6 +186,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
                                                  GV->getLinkage(),
                                                  c,
                                                  "baggy." + GV->getName());
+    GV_new->copyAttributesFrom (GV);
     GV_new->setAlignment(1u<<size);
     GV_new->takeName (GV);
 
@@ -216,6 +199,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
+    GV->eraseFromParent();
   }
 
   return;
@@ -337,7 +321,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   //
   // Align and pad global variables.
   //
-#if 1
   std::vector<GlobalVariable *> varsToTransform;
   Module::global_iterator GI = M.global_begin(), GE = M.global_end();
   for (; GI != GE; ++GI) {
@@ -349,7 +332,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     adjustGlobalValue (varsToTransform[index]);
   }
   varsToTransform.clear();
-#endif
 
   //
   // Align and pad stack allocations (allocas) that are registered with the
