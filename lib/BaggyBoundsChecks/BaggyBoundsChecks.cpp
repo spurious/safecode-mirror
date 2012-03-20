@@ -92,22 +92,34 @@ mustAdjustGlobalValue (GlobalValue * V) {
   if (!GV) return 0;
 
   //
+  // Don't adjust a global which has an opaque type.
+  //
+  if (StructType * ST = dyn_cast<StructType>(GV->getType()->getElementType())) {
+    if (ST->isOpaque()) {
+      return 0;
+    }
+  }
+
+  //
   // Don't modify external global variables or variables with no uses.
   // 
   if (GV->isDeclaration()) {
     return 0;
   }
-  if (GV->getNumUses() == 0) return 0;
 
   //
   // Don't bother modifying the size of metadata.
   //
+  if (GV->hasSection()) return 0;
   if (GV->getSection() == "llvm.metadata") return 0;
 
   std::string name = GV->getName();
   if (strncmp(name.c_str(), "llvm.", 5) == 0) return 0;
   if (strncmp(name.c_str(), "baggy.", 6) == 0) return 0;
   if (strncmp(name.c_str(), "__poolalloc", 11) == 0) return 0;
+
+  // Don't modify something created by FreeBSD's ASSYM macro
+  if (name[name.length()-2] == 'w') return 0;
 
   // Don't modify globals in the exitcall section of the Linux kernel
   if (GV->getSection() == ".exitcall.exit") return 0;
