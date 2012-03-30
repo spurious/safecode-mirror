@@ -32,11 +32,10 @@ SCOPTS2 := -pa=apa
 #SCOPTS2 := -dpchecks
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc
-CLANG    = $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
-CLANGXX  = $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang++
-
-# Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libaddchecks.a
+CLANGBIN := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
+CLANGCPPBIN := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
+CLANG    = $(RUNTOOLSAFELY) $(WATCHDOG) $(CLANGBIN)
+CLANGXX  = $(RUNTOOLSAFELY) $(WATCHDOG) $(CLANGCPPBIN)
 
 LDFLAGS += -L$(PROJECT_DIR)/$(CONFIGURATION)/lib
 
@@ -177,4 +176,4 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@cat $<
 
-REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc)
+REPORT_DEPENDENCIES := $(PA_RT_O) $(CLANGBIN) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc)
