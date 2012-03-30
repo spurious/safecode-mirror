@@ -105,11 +105,11 @@ Output/%.sc.o: %.cpp $(CLANG)
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
-	-$(CLANG) -O4 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(Source)
-	-$(CLANG) -O4 -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
 endif
 ##############################################################################
 # Rules for running executables and generating reports
