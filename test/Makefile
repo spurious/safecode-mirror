@@ -113,6 +113,12 @@ NORMAL_PROBLEM_SIZE_DIRS := \
    $(addprefix $(TEST_OBJDIR)/,$(NORMAL_PROBLEM_SIZE_DIRS))
 
 ##############################################################################
+# Target for preparing the test suite for a clean run
+##############################################################################
+prepare:
+	    (cd $(TEST_OBJDIR); $(MAKE) clean)
+               
+##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
                
