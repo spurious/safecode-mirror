@@ -38,7 +38,7 @@ namespace {
 
   // Various violation types
 
-  inline void
+  static inline void
   OOB_VIOLATION(const void *fault_ptr,
                 DebugPoolTy *handle,
                 const void *start,
@@ -58,7 +58,7 @@ namespace {
     ReportMemoryViolation(&v);
   }
 
-  inline void
+  static inline void
   WRITE_VIOLATION(const void *fault_ptr,
                   DebugPoolTy *handle,
                   size_t dst_sz,
@@ -78,7 +78,7 @@ namespace {
     ReportMemoryViolation(&v);
   }
 
-  inline void
+  static inline void
   LOAD_STORE_VIOLATION(const void *fault_ptr,
                        DebugPoolTy *handle,
                        SRC_INFO) {
@@ -93,7 +93,7 @@ namespace {
     ReportMemoryViolation(&v);
   }
 
-  inline void
+  static inline void
   C_LIBRARY_VIOLATION(const void *fault_ptr,
                       DebugPoolTy *handle,
                       const char *function,
@@ -121,7 +121,7 @@ namespace {
    * @param   size     Number of characters to copy
    * @return  Number of characters copied (including \0)
    */
-  inline size_t
+  static inline size_t
   strncpy_asm(char *dst, const char *src, size_t size) {
     long copied;
 
@@ -165,7 +165,7 @@ namespace {
    *
    * Note that start and end should be valid boundaries for a valid object.
    */
-  inline bool
+  static inline bool
   isTerminated(const char *start, void *end, size_t &p) {
     size_t max = 1 + ((char *)end - (const char *)start), len;
     len = _strnlen((const char *)start, max);
@@ -188,7 +188,7 @@ namespace {
    *
    * @return           Whether these 2 memory object overlaps
    */
-  inline bool
+  static inline bool
   isOverlapped(const void* ptr1Start, 
                const void* ptr1End, 
                const void* ptr2Start, 
@@ -216,7 +216,7 @@ namespace {
    *                     the memory object.
    * @return  Returns true if the object was found, false otherwise.
    */
-  inline bool
+  static inline bool
   pool_find(DebugPoolTy *pool, void *address, void *&poolBegin, void *&poolEnd) {
 
     if (address == NULL)
@@ -274,7 +274,7 @@ namespace {
    *                     incomplete.
    *
    */
-  inline bool
+  static inline bool
   validStringCheck(const char *string,
                    DebugPoolTy *pool,
                    bool complete,
