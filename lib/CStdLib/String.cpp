@@ -134,8 +134,7 @@ ST("string_transform", "Secure C standard string library calls");
 // Entry point for the LLVM pass that transforms C standard string library calls
 //
 bool
-StringTransform::runOnModule(Module &M)
-{
+StringTransform::runOnModule (Module & M) {
   // Flags whether we modified the module.
   bool chgd = false;
 
@@ -289,8 +288,7 @@ StringTransform::transform(Module &M,
                            const unsigned argc,
                            const unsigned pool_argc,
                            Type *ReturnTy,
-                           Statistic &statistic)
-{
+                           Statistic &statistic) {
   SourceFunction src = { FunctionName.data(), ReturnTy, argc };
   string dst_name  = "pool_" + FunctionName.str();
   DestFunction dst = { dst_name.c_str(), argc, pool_argc };
@@ -309,8 +307,7 @@ StringTransform::vtransform(Module &M,
                             const SourceFunction &from,
                             const DestFunction &to,
                             Statistic &stat,
-                            ...)
-{
+                            ...) {
   vector<unsigned> args;
   va_list ap;
   va_start(ap, stat);
@@ -362,8 +359,7 @@ StringTransform::gtransform(Module &M,
                             const SourceFunction &from,
                             const DestFunction &to,
                             Statistic &stat,
-                            const vector<unsigned> &append_order)
-{
+                            const vector<unsigned> &append_order) {
   // Get the source function if it exists in the module.
   Function *src = M.getFunction(from.name);
   if (!src)
