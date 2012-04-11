@@ -44,6 +44,7 @@
 #include<sys/wait.h>
 #include <wait.h>
 #include <obstack.h>
+#include <libintl.h>
 #endif
 
 #include<sys/mman.h>
@@ -52,7 +53,7 @@
 #include<sys/stat.h>
 #include<sys/time.h>
 #include<sys/resource.h>
-#include <libintl.h>
+
 #include<sys/socket.h>
 #include<fnmatch.h>
 #include <wchar.h>
@@ -1023,6 +1024,8 @@ int softboundcets_fchmodat(int dirfd, const char *pathname,
   return fchmodat(dirfd, pathname, mode, flags);
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE 
 int softboundcets___xmknodat (int __ver, int __fd, const char *__path,
                               __mode_t __mode, __dev_t *__dev){
@@ -1033,6 +1036,8 @@ __WEAK_INLINE
 int softboundcets_mkfifoat(int dirfd, const char *pathname, mode_t mode){
   return mkfifoat(dirfd, pathname, mode);
 }
+
+#endif
 
 __WEAK_INLINE 
 pid_t softboundcets_getpid(void){
@@ -1768,6 +1773,7 @@ softboundcets_select(int nfds, fd_set* readfds, fd_set* writefds,
   return select(nfds, readfds, writefds, exceptfds, timeout);
 }
 
+#if defined (__linux__)
 
 __WEAK_INLINE char* 
 softboundcets_setlocale(int category, const char* locale){
@@ -1870,7 +1876,7 @@ softboundcets_dcgettext (const char * domainname,
   
 }
 
-
+#endif
 
 #if defined(__linux__)
 __WEAK_INLINE int* softboundcets___errno_location() {
@@ -2027,6 +2033,7 @@ softboundcets_qsort(void* base, size_t nmemb, size_t size,
   my_qsort(base, nmemb, size, compar);
 }
 
+#if defined(__linux__)
 
 __WEAK_INLINE 
 void softboundcets__obstack_newchunk(struct obstack *obj, int b){
@@ -2063,7 +2070,7 @@ int softboundcets_clock_gettime(clockid_t clk_id, struct timespec *tp){
   return clock_gettime(clk_id, tp);
 }
 
-
+#endif
 
 #if 0
 
@@ -2074,3 +2081,4 @@ int softboundcets__obstack_memory_used(struct obstack *h){
 
 
 #endif
+
