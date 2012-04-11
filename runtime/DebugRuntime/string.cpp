@@ -19,6 +19,33 @@
 #include <algorithm>
 
 //
+// Function: poolcheckstr()
+//
+// Description:
+//  This function is a generic load check on a string.  It is intended to be
+//  used for C library functions that take a string and read its contents.
+//
+void
+poolcheckstr (DebugPoolTy * Pool, const char * str) {
+  validStringCheck (str, Pool, true, "Generic", DEFAULT_SRC_INFO);
+}
+
+void
+poolcheckstr_debug (DebugPoolTy * Pool, char * str, TAG, SRC_INFO) {
+  validStringCheck (str, Pool, true, "Generic", SRC_INFO_ARGS);
+}
+
+void
+poolcheckstrui (DebugPoolTy * Pool, char * str) {
+  validStringCheck (str, Pool, false, "Generic", DEFAULT_SRC_INFO);
+}
+
+void
+poolcheckstrui_debug (DebugPoolTy * Pool, char * str, TAG, SRC_INFO) {
+  validStringCheck (str, Pool, false, "Generic", SRC_INFO_ARGS);
+}
+
+//
 // pool_memccpy()
 //
 // See pool_memccpy_debug().

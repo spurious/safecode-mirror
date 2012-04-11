@@ -33,6 +33,12 @@
 
 extern "C"
 {
+  // Generic C string checking functions
+  void poolcheckstr (PPOOL, const char * str);
+  void poolcheckstr_debug (PPOOL, char * str, TAG, SRC_INFO);
+  void poolcheckstrui (PPOOL, char * str);
+  void poolcheckstrui_debug (PPOOL, char * str, TAG, SRC_INFO);
+
   // Functions from <stdio.h>, <stdarg.h>
 
   int pool_vprintf(PPOOL fmtPool, char *fmt, va_list ap, COMPLETE);

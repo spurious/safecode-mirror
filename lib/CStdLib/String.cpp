@@ -131,6 +131,68 @@ static RegisterPass<StringTransform>
 ST("string_transform", "Secure C standard string library calls");
 
 //
+// Function: addStringCheck()
+//
+// Description:
+//  This function will add a run-time check for the specified argument for
+//  calls to the specified function.
+//
+// Inputs:
+//  M - The module to modify
+//  name - The name of the function which uses a string input.
+//  argNo - The argument of the function which is a string.
+//
+static void
+addStringCheck (Module & M, const std::string & name, unsigned argNo) {
+  //
+  // Get the function that uses a string.  If it is not used within the
+  // program, do nothing.
+  //
+  Function * F = M.getFunction (name);
+  if (!F) return;
+
+  //
+  // Scan through the module for uses of the function to instrument.
+  //
+  std::vector<Instruction *> callsToInstrument;
+  for (Value::use_iterator UI = F->use_begin(), UE = F->use_end();
+       UI != UE;
+       ++UI) {
+    // Ensure the use is an instruction and that the instruction calls the
+    // source function (as opposed to passing it as a parameter or other
+    // possible uses).
+    CallSite CS (*UI);
+    if (!CS || CS.getCalledValue() != F)
+      continue;
+    callsToInstrument.push_back(CS.getInstruction());
+  }
+
+  //
+  // Go through all of the calls and instrument them.
+  //
+  Function * strCheck = cast<Function>(M.getFunction ("poolcheckstrui"));
+  for (unsigned index = 0; index < callsToInstrument.size(); ++index) {
+    CallSite CS = callsToInstrument[index];
+
+    //
+    // Setup the arguments for the run-time check.  The first is the NULL
+    // pool handle.  The second is the argument from the actual function call.
+    //
+    std::vector<Value *> Params;
+    PointerType *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());
+    Params.push_back (ConstantPointerNull::get(VoidPtrTy));
+    Params.push_back (CS.getArgument (argNo));
+
+    //
+    // Create a call instruction to the string run-time check.
+    //
+    CallInst::Create (strCheck, Params, "", CS.getInstruction());
+  }
+
+  return;
+}
+
+//
 // Entry point for the LLVM pass that transforms C standard string library calls
 //
 bool
@@ -147,6 +209,21 @@ StringTransform::runOnModule (Module & M) {
   // Create other return types (int, void).
   Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
   Type *VoidTy  = Type::getVoidTy(M.getContext());
+
+  //
+  // Add a function that will perform a basic check upon string inputs.
+  //
+  std::vector<Type *> ParamTypes;
+  ParamTypes.push_back (VoidPtrTy);
+  ParamTypes.push_back (VoidPtrTy);
+  FunctionType *FT = FunctionType::get(VoidPtrTy, ParamTypes, false);
+  M.getOrInsertFunction ("poolcheckstrui", FT);
+
+  //
+  // Add basic checks on strings which are read by their C library functions.
+  //
+  addStringCheck (M, "fopen", 0);
+  addStringCheck (M, "\01_fopen", 0);
 
   // Functions from <stdio.h>, <syslog.h>
   chgd |= transform(M, "vprintf",  2, 1, Int32Ty, st_xform_vprintf);
