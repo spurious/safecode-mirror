@@ -232,6 +232,10 @@ extern int softboundcets_pseudo_main(int argc, char **argv);
 
 int main(int argc, char **argv){
 
+#if __WORDSIZE == 32
+  exit(1);
+#endif
+
   char** new_argv = argv;
   int i;
   char* temp_ptr;
