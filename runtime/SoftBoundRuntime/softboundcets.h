@@ -625,19 +625,19 @@ __WEAK_INLINE void __softboundcets_memcopy_check(char* dest, char* dest_base, ch
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
-__WEAK_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound) {
+void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound) {
 
 #elif __SOFTBOUNDCETS_TEMPORAL
 
-__WEAK_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, size_t key, void* lock) {
+void __softboundcets_metadata_store(void* addr_of_ptr, size_t key, void* lock) {
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
 
-__WEAK_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
+void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
   
 #else
 
-__WEAK_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
+void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
 
 #endif 
 
@@ -711,19 +711,19 @@ __WEAK_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base,
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
-__WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound){   
+void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound){   
 
 #elif __SOFTBOUNDCETS_TEMPORAL
 
-__WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, size_t* key, void** lock){   
+void __softboundcets_metadata_load(void* addr_of_ptr, size_t* key, void** lock){   
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
 
-__WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){   
+void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){   
 
 #else
  
-__WEAK_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){
+void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){
 
 #endif
 

@@ -3580,6 +3580,13 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
+    if (!Args.hasArg(options::OPT_nostdlib) &&
+        !Args.hasArg(options::OPT_nodefaultlibs)) {
+      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+    }
+
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -3753,6 +3760,9 @@ void auroraux::Link::ConstructJob(Compilation &C, const JobAction &JA,
   
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lstdc++");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -3879,6 +3889,9 @@ void openbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
+    CmdArgs.push_back("-lstdc++");
   }
   
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -4045,6 +4058,9 @@ void freebsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lstdc++");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
   }
   
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -4235,6 +4251,9 @@ void netbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lstdc++");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -4451,7 +4470,9 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lrt");
     CmdArgs.push_back("-lm");
+    CmdArgs.push_back("-lstdc++");
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
@@ -4590,6 +4611,9 @@ void minix::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
+    CmdArgs.push_back("-lstdc++");
   }
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");
@@ -4725,6 +4749,9 @@ void dragonfly::Link::ConstructJob(Compilation &C, const JobAction &JA,
   //
   if (Args.hasArg(options::OPT_softbound)){
     CmdArgs.push_back("-lsoftbound_rt");
+    CmdArgs.push_back("-lrt");
+    CmdArgs.push_back("-lm");
+    CmdArgs.push_back("-lstdc++");
   }
   if (Args.hasArg(options::OPT_memsafety)) {
     CmdArgs.push_back("-lsc_dbg_rt");

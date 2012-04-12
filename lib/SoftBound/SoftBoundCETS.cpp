@@ -52,6 +52,12 @@ temporal_safety
  cl::init(true));
 
 static cl::opt<bool>
+store_only
+("softboundcets_store_only",
+ cl::desc("perform store only checking"),
+ cl::init(false));
+
+static cl::opt<bool>
 LOADCHECKS
 ("softboundcets_spatial_safety_load_checks",
  cl::desc("introduce load dereference checks for spatial safety"),
@@ -819,7 +825,6 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     m_func_def_softbound["__softboundcets_printf"] = true;
     
     m_func_def_softbound["__softboundcets_stub"] = true;
-
     m_func_def_softbound["safe_mmap"] = true;
     m_func_def_softbound["safe_calloc"] = true;
     m_func_def_softbound["safe_malloc"] = true;
@@ -830,7 +835,16 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     m_func_def_softbound["__strspn_c2"] = true;
     m_func_def_softbound["__strcspn_c2"] = true;
     m_func_def_softbound["__strtol_internal"] = true;
+    m_func_def_softbound["__stroul_internal"] = true;
+    m_func_def_softbound["ioctl"] = true;
+    m_func_def_softbound["error"] = true;
     m_func_def_softbound["__strtod_internal"] = true;
+    m_func_def_softbound["__strtoul_internal"] = true;
+    
+    
+    m_func_def_softbound["fflush_unlocked"] = true;
+    m_func_def_softbound["full_write"] = true;
+    m_func_def_softbound["safe_read"] = true;
     m_func_def_softbound["_IO_getc"] = true;
     m_func_def_softbound["_IO_putc"] = true;
     m_func_def_softbound["__xstat"] = true;
@@ -855,6 +869,29 @@ bool SoftBoundCETSPass::isFuncDefSoftBound(const std::string &str) {
     m_func_def_softbound["scanf"] = true;
     m_func_def_softbound["fscanf"] = true;
     m_func_def_softbound["sscanf"] = true;   
+
+    m_func_def_softbound["asprintf"] = true;
+    m_func_def_softbound["vasprintf"] = true;
+    m_func_def_softbound["__fpending"] = true;
+    m_func_def_softbound["fcntl"] = true;
+
+    m_func_def_softbound["vsnprintf"] = true;
+    m_func_def_softbound["fwrite_unlocked"] = true;
+    m_func_def_softbound["__overflow"] = true;
+    m_func_def_softbound["__uflow"] = true;
+    m_func_def_softbound["execlp"] = true;
+    m_func_def_softbound["execl"] = true;
+    m_func_def_softbound["waitpid"] = true;
+    m_func_def_softbound["dup"] = true;
+    m_func_def_softbound["setuid"] = true;
+    
+    m_func_def_softbound["_exit"] = true;
+    m_func_def_softbound["funlockfile"] = true;
+    m_func_def_softbound["flockfile"] = true;
+
+    m_func_def_softbound["_option_is_short"] = true;
+    
+
   }
 
   // Is the function name in the above list?
@@ -2134,6 +2171,12 @@ void SoftBoundCETSPass::getConstantExprBaseBound(Constant* given_constant,
                                              Value* & tmp_base,
                                              Value* & tmp_bound){
 
+
+  if(isa<ConstantPointerNull>(given_constant)){
+    tmp_base = m_void_null_ptr;
+    tmp_bound = m_void_null_ptr;
+    return;
+  }
   
   ConstantExpr* cexpr = dyn_cast<ConstantExpr>(given_constant);
   tmp_base = NULL;
@@ -2405,6 +2448,10 @@ Value* SoftBoundCETSPass:: getSizeOfType(Type* input_type) {
   }
   
   if(m_is_64_bit) {
+
+    if(!seq_type->getElementType()->isSized()){
+      return ConstantInt::get(Type::getInt64Ty(seq_type->getContext()), 0);
+    }
     int64_size = ConstantExpr::getSizeOf(seq_type->getElementType());
     return int64_size;
   } else {
@@ -3001,6 +3048,9 @@ void SoftBoundCETSPass::addDereferenceChecks(Function* func) {
 
   m_dominator_tree = &getAnalysis<DominatorTree>(*func);
 
+  if(func->isVarArg())
+    return;
+
 
   /* intra-procedural load dererference check elimination map */
   std::map<Value*, int> func_deref_check_elim_map;
@@ -3061,6 +3111,10 @@ void SoftBoundCETSPass::addDereferenceChecks(Function* func) {
         continue;
 
       if(isa<LoadInst>(new_inst)){
+
+        if(store_only)
+          continue;
+
         addLoadStoreChecks(new_inst, func_deref_check_elim_map);
         addTemporalChecks(new_inst, bb_temporal_check_elim_map, func_temporal_check_elim_map);
         continue;
@@ -3074,11 +3128,11 @@ void SoftBoundCETSPass::addDereferenceChecks(Function* func) {
 
       /* check call through function pointers */
       if(isa<CallInst>(new_inst)) {
-
+          
         if(!CALLCHECKS) {
           continue;
         }          
-
+	  
 
         SmallVector<Value*, 8> args;
         CallInst* call_inst = dyn_cast<CallInst>(new_inst);
@@ -3843,7 +3897,7 @@ void SoftBoundCETSPass::gatherBaseBoundPass1 (Function * func) {
           handleGEP(gep_inst);
         }
         break;
-
+	
       case BitCastInst::BitCast:
         {
           BitCastInst* bitcast_inst = dyn_cast<BitCastInst>(v1);
