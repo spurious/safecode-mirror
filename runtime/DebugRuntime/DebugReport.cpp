@@ -29,7 +29,7 @@ DebugViolationInfo::print(std::ostream & OS) const {
   // Print the source filename and line number.
   //
   OS << "= Fault PC Source                       :\t"
-     << (this->SourceFile ? this->SourceFile : "<unknown>")
+     << (this->SourceFile ? this->SourceFile : "UNKNOWN")
      << ":" << std::dec << this->lineNo << "\n";
 
   //
@@ -140,7 +140,7 @@ DebugMetaData::print(std::ostream & OS) const {
      << "= Object allocated at PC                :\t" << std::hex
      << this->allocPC << "\n"
      << "= Allocated in Source File              :\t"
-     << (this->SourceFile ? (char *) this->SourceFile : "<unknown>")
+     << (this->SourceFile ? (char *) this->SourceFile : "UNKNOWN")
      << ":" << std::dec << this->lineno << "\n";
   if (this->allocID) {
     OS << "= Object allocation sequence number     :\t" << std::dec
@@ -155,7 +155,7 @@ DebugMetaData::print(std::ostream & OS) const {
        << "= Object freed at PC                    :\t" << std::hex
        << this->freePC << "\n";
     OS << "= Freed in Source File                  :\t"
-       << (this->FreeSourceFile ? (char *) this->FreeSourceFile : "<unknown>")
+       << (this->FreeSourceFile ? (char *) this->FreeSourceFile : "UNKNOWN")
        << ":" << std::dec << this->Freelineno << "\n";
     OS << "= Object free sequence number           :\t" << std::dec
        << this->freeID << "\n";

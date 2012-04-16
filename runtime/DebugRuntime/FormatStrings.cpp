@@ -198,7 +198,7 @@ void *__sc_fscallinfo(void *_dest, uint32_t vargc, ...)
   // Add empty debugging information.
   //
   dest->tag         = 0;
-  dest->source_info = "<unknown>";
+  dest->source_info = "UNKNOWN";
   dest->line_no     = 0;
 
   return dest;

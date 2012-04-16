@@ -115,7 +115,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
                                          void *,
                                          void *,
                                          void *,
-                                         const char * SourceFile = "<unknown>",
+                                         const char * SourceFile = "UNKNOWN",
                                          unsigned lineno = 0);
 
 //===----------------------------------------------------------------------===//
@@ -727,7 +727,7 @@ pool_register_global (DebugPoolTy *Pool, void * allocaptr, unsigned NumBytes) {
                           allocaptr,
                           NumBytes,
                           0,
-                          "<unknown>",
+                          "UNKNOWN",
                           0,
                           Global);
 }
@@ -1764,7 +1764,7 @@ __sc_dbg_src_poolcalloc (DebugPoolTy *Pool,
 
 void *
 __sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
-  return __sc_dbg_src_poolcalloc (Pool, Number, NumBytes, 0, "<unknown>", 0);
+  return __sc_dbg_src_poolcalloc (Pool, Number, NumBytes, 0, "UNKNOWN", 0);
 }
 
 void *
