@@ -227,7 +227,6 @@ StringTransform::runOnModule (Module & M) {
   //
   // Add basic checks on strings which are read by their C library functions.
   //
-  //
   addStringCheck (M, "access", 0);
   addStringCheck (M, "chdir", 0);
   addStringCheck (M, "chmod", 0);

@@ -182,8 +182,8 @@ pool_write (DebugPoolTy * Pool,
 //
 // Inputs:
 //   Pool     - The pool handle for the output buffer
-//   FD       - The file descriptor
 //   Buf      - The output buffer
+//   FD       - The file descriptor
 //   Count    - The maximum number of bytes to write
 //   Complete - The Completeness bit vector
 //   TAG      - The Tag information for debugging purposes
