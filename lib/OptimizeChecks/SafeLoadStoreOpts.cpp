@@ -45,7 +45,7 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   //
   std::vector <CallInst *> toRemoveTypeSafe;
   std::vector <CallInst *> toRemoveObvious;
-  Function * LSCheck   = M.getFunction ("sc.lscheck");
+  Function * LSCheck   = M.getFunction ("poolcheck");
   Value::use_iterator UI = LSCheck->use_begin();
   Value::use_iterator  E = LSCheck->use_end();
   for (; UI != E; ++UI) {
