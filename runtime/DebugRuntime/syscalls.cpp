@@ -40,7 +40,7 @@ minSizeCheck (DebugPoolTy * Pool,
               size_t MinSize,
               SRC_INFO) {
   bool Found;
-  void * BufStart, * BufEnd;
+  void * BufStart = 0, * BufEnd = 0;
 
   //
   // Retrive the buffer's bound from the pool. If we cannot find the object and
