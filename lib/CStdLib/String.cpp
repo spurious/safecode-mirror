@@ -222,8 +222,39 @@ StringTransform::runOnModule (Module & M) {
   //
   // Add basic checks on strings which are read by their C library functions.
   //
+  //
+  addStringCheck (M, "access", 0);
+  addStringCheck (M, "chdir", 0);
+  addStringCheck (M, "chmod", 0);
+  addStringCheck (M, "chown", 0);
+  addStringCheck (M, "creat", 0);
+  addStringCheck (M, "fdopen", 1);
   addStringCheck (M, "fopen", 0);
   addStringCheck (M, "\01_fopen", 0);
+  addStringCheck (M, "freopen", 0);
+  addStringCheck (M, "getaddrinfo", 0);
+  addStringCheck (M, "gethostbyname", 0);
+  addStringCheck (M, "lchown", 0);
+  addStringCheck (M, "link", 0);
+  addStringCheck (M, "link", 1);
+  addStringCheck (M, "linkat", 1);
+  addStringCheck (M, "linkat", 3);
+  addStringCheck (M, "lstat", 0);
+  addStringCheck (M, "mkdir", 0);
+  addStringCheck (M, "mkdirat", 1);
+  addStringCheck (M, "mkfifo", 0);
+  addStringCheck (M, "mknod", 0);
+  addStringCheck (M, "open", 0);
+  addStringCheck (M, "openat", 1);
+  addStringCheck (M, "readlink", 0);
+  addStringCheck (M, "remove", 0);
+  addStringCheck (M, "rename", 0);
+  addStringCheck (M, "rename", 1);
+  addStringCheck (M, "rmdir", 0);
+  addStringCheck (M, "stat", 0);
+  addStringCheck (M, "system", 0);
+  addStringCheck (M, "truncate", 0);
+  addStringCheck (M, "unlink", 0);
 
   // Functions from <stdio.h>, <syslog.h>
   chgd |= transform(M, "vprintf",  2, 1, Int32Ty, st_xform_vprintf);
