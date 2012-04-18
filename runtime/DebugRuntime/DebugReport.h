@@ -19,6 +19,8 @@
 #include "../include/DebugRuntime.h"
 #include "../include/Report.h"
 
+#include <cstddef>
+
 namespace llvm {
 
 struct DebugViolationInfo : public ViolationInfo {
