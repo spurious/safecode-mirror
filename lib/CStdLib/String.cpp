@@ -105,6 +105,10 @@ ADD_STATISTIC_FOR(fwrite);
 ADD_STATISTIC_FOR(fread);
 ADD_STATISTIC_FOR(gets);
 ADD_STATISTIC_FOR(puts);
+ADD_STATISTIC_FOR(read);
+ADD_STATISTIC_FOR(recv);
+ADD_STATISTIC_FOR(write);
+ADD_STATISTIC_FOR(send);
 
 #ifdef HAVE_MEMPCPY
 ADD_STATISTIC_FOR(mempcpy);
@@ -206,6 +210,7 @@ StringTransform::runOnModule (Module & M) {
   Type *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());
   // Determine the type of size_t for functions that return this result.
   Type *SizeTTy = tdata->getIntPtrType(M.getContext());
+  Type *SSizeTTy = SizeTTy;
   // Create other return types (int, void).
   Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
   Type *VoidTy  = Type::getVoidTy(M.getContext());
@@ -369,6 +374,21 @@ StringTransform::runOnModule (Module & M) {
   chgd |= transform(M, "fread", 4, 1, SizeTTy, st_xform_fread);
   chgd |= transform(M, "gets", 1, 1, VoidPtrTy, st_xform_gets);
   chgd |= transform(M, "puts", 1, 1, Int32Ty, st_xform_puts);
+
+  // System calls
+  SourceFunction Read  = { "read", SSizeTTy, 3 };
+  SourceFunction Recv  = { "recv", SSizeTTy, 4 };
+  SourceFunction Write = { "write", SSizeTTy, 3 };
+  SourceFunction Send  = { "send", SSizeTTy, 4 };
+  DestFunction PoolRead  = { "pool_read", 3, 1 };
+  DestFunction PoolRecv  = { "pool_recv", 4, 1 };
+  DestFunction PoolWrite = { "pool_write", 3, 1 };
+  DestFunction PoolSend  = { "pool_send", 4, 1 };
+  chgd |= vtransform(M, Read, PoolRead, st_xform_read, 2u, 1u, 3u);
+  chgd |= vtransform(M, Recv, PoolRecv, st_xform_recv, 2u, 1u, 3u, 4u);
+  chgd |= vtransform(M, Write, PoolWrite, st_xform_write, 2u, 1u, 3u);
+  chgd |= vtransform(M, Send, PoolSend, st_xform_send, 2u, 1u, 3u, 4u);
+
   return chgd;
 }
 

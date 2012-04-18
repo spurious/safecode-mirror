@@ -208,6 +208,20 @@ extern "C"
 
   size_t pool_fwrite (PPOOL, void *, size_t, size_t, FILE *, COMPLETE);
   size_t pool_fwrite_debug (PPOOL, void *, size_t, size_t, FILE *, COMPLETE, DEBUG_INFO);
+
+  // System calls
+
+  ssize_t pool_read (PPOOL, void *, int, size_t, COMPLETE);
+  ssize_t pool_read_debug (PPOOL, void *, int, size_t, COMPLETE, DEBUG_INFO);
+
+  ssize_t pool_recv (PPOOL, void *, int, size_t, int, COMPLETE);
+  ssize_t pool_recv_debug (PPOOL, void *, int, size_t, int, COMPLETE, DEBUG_INFO);
+  
+  ssize_t pool_write (PPOOL, void *, int, size_t, COMPLETE);
+  ssize_t pool_write_debug (PPOOL, void *, int, size_t, COMPLETE, DEBUG_INFO);
+
+  ssize_t pool_send (PPOOL, void *, int, size_t, int, COMPLETE);
+  ssize_t pool_send_debug (PPOOL, void *, int, size_t, int, COMPLETE, DEBUG_INFO);
 }
 
 #undef PPOOL

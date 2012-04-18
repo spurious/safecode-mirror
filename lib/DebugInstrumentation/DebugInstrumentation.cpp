@@ -514,6 +514,10 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_gets"), LInfo);
   transformFunction (M.getFunction ("pool_fread"), LInfo);
   transformFunction (M.getFunction ("pool_fwrite"), LInfo);
+  transformFunction (M.getFunction ("pool_read"), LInfo);
+  transformFunction (M.getFunction ("pool_recv"), LInfo);
+  transformFunction (M.getFunction ("pool_write"), LInfo);
+  transformFunction (M.getFunction ("pool_send"), LInfo);
 
   return true;
 }
