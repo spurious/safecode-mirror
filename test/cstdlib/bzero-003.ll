@@ -1,4 +1,4 @@
-; RUN: test.sh -e -t %t %s
+; RUN: test.sh -p -t %t %s
 ; XFAIL: darwin
 
 ; Example of the correct usage of bzero().

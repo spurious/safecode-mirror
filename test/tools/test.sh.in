@@ -99,11 +99,12 @@ runtest()
       exit 1 # An unexpected error occurred.
     fi
   else
-    if [ $retval -eq 0 ]
+    if [ $retval -eq 0 -a $expect_error -eq 0 ]
     then
       exit 0 # No error was expected, none was caught, program ran as expected.
     else
-      exit 1 # Some non-SAFECode related error occurred.
+      exit 1 # Some non-SAFECode related error occurred, or a SAFECode error
+             # was expected.
     fi
   fi
 }
