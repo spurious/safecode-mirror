@@ -134,7 +134,7 @@ static PDebugMetaData createPtrMetaData (unsigned,
 // Inputs:
 //  Dangling   - Set to non-zero to enable dangling pointer detection.
 //  RewriteOOB - Set to non-zero to enable Out-Of-Bounds pointer rewriting.
-//  Termiante  - Set to non-zero to have SAFECode terminate when an error
+//  Terminate  - Set to non-zero to have SAFECode terminate when an error
 //               occurs.
 //
 
