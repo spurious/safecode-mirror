@@ -25,6 +25,15 @@
 //  This function is a generic load check on a string.  It is intended to be
 //  used for C library functions that take a string and read its contents.
 //
+// Inputs:
+//   Pool - The pool handle for the pool in which the string should be.
+//          Pool handles can be NULL.
+//   str  - A pointer to the string to check.
+//
+// Notes:
+//   We have versions of poolcheckstr() for incomplete/unknown pointers as
+//   well as debug versions that pass along debugging information.
+//
 void
 poolcheckstr (DebugPoolTy * Pool, const char * str) {
   if (str == NULL) return;
