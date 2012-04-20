@@ -27,21 +27,25 @@
 //
 void
 poolcheckstr (DebugPoolTy * Pool, const char * str) {
+  if (str == NULL) return;
   validStringCheck (str, Pool, true, "Generic", DEFAULT_SRC_INFO);
 }
 
 void
 poolcheckstr_debug (DebugPoolTy * Pool, char * str, TAG, SRC_INFO) {
+  if (str == NULL) return;
   validStringCheck (str, Pool, true, "Generic", SRC_INFO_ARGS);
 }
 
 void
 poolcheckstrui (DebugPoolTy * Pool, char * str) {
+  if (str == NULL) return;
   validStringCheck (str, Pool, false, "Generic", DEFAULT_SRC_INFO);
 }
 
 void
 poolcheckstrui_debug (DebugPoolTy * Pool, char * str, TAG, SRC_INFO) {
+  if (str == NULL) return;
   validStringCheck (str, Pool, false, "Generic", SRC_INFO_ARGS);
 }
 
