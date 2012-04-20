@@ -24,15 +24,13 @@
 NAMESPACE_SC_BEGIN
 
 //
-// Value used to initialize memory.
-//    o Linux : We use the reserved address space for the kernel.
-//    o Others: We use the first page in memory (aka zero page).
+// Value used to initialize memory.  This value, when repeated, must land in
+// an unallocated region of the virtual address space.  The original SAFECode
+// used 0xcc since that landed in 0xcccccccc (kernel memory) on 32-bit x86
+// systems.  Newer systems may have that region mapped, so we opt to use the
+// zero page.
 //
-#if defined(__linux__)
-static const unsigned initvalue = 0xcc;
-#else
 static const unsigned initvalue = 0x00;
-#endif
 
 /// PageMultipler - This variable holds the ratio between physical pages and
 /// the number of pages returned by AllocatePage.

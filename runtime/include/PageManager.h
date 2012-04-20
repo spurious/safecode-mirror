@@ -22,15 +22,10 @@
 namespace llvm {
 
 //
-// Value used to initialize memory.
-//    o Linux : We use the reserved address space for the kernel.
-//    o Others: We use the first page in memory (aka zero page).
+// Value used to initialize memory.  We use zero because, when repeated, it
+// maps to an unmapped virtual address on nearly any operating system.
 //
-#if defined(__linux__)
-static const unsigned initvalue = 0xcc;
-#else
 static const unsigned initvalue = 0x00;
-#endif
 
 /// PageMultipler - This variable holds the ratio between physical pages and
 /// the number of pages returned by AllocatePage.
