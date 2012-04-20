@@ -80,10 +80,8 @@ DebugPoolTy dummyPool;
 struct ConfigData ConfigData = {false, true, false};
 
 // Invalid address range
-#if !defined(__linux__)
 uintptr_t InvalidUpper = 0x00000000;
 uintptr_t InvalidLower = 0x00000003;
-#endif
 
 // Splay tree for mapping shadow pointers to canonical pointers
 static RangeSplayMap<void *> ShadowMap;
@@ -164,7 +162,6 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Allocate a range of memory for rewrite pointers.
   //
-#if !defined(__linux__)
   const unsigned invalidsize = 1 * 1024 * 1024 * 1024;
   void * Addr = mmap (0, invalidsize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
   if (Addr == MAP_FAILED) {
@@ -174,7 +171,11 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
      assert(0 && "valloc failed\n");
   }
   //memset (Addr, 0x00, invalidsize);
+#if !defined(__linux__)
   madvise (Addr, invalidsize, MADV_FREE);
+#else
+  madvise (Addr, invalidsize, MADV_DONTNEED);
+#endif
   InvalidLower = (uintptr_t) Addr;
   InvalidUpper = (uintptr_t) Addr + invalidsize;
 
@@ -183,7 +184,6 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
                                             (void *) InvalidUpper);
     fflush (stderr);
   }
-#endif
 
   //
   // Leave initialization of the Report logfile to the reporting routines.

@@ -35,13 +35,8 @@ namespace llvm {
 //  o) Other platforms - We allocate a range of memory and disable read and
 //                       write permissions for the pages contained within it.
 //
-#if defined(__linux__)
-static const uintptr_t InvalidUpper = 0xf0000000;
-static const uintptr_t InvalidLower = 0xc0000000;
-#else
 extern uintptr_t InvalidUpper;
 extern uintptr_t InvalidLower;
-#endif
 
 // Map between rewrite pointer and source file information
 extern llvm::DenseMap<void *, const char*>  RewriteSourcefile;
