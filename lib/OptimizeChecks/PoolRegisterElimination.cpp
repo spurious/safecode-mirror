@@ -78,9 +78,9 @@ PoolRegisterElimination::runOnModule(Module & M) {
   // List of registration intrinsics.
   //
   const char * registerIntrinsics[] = {
-    "sc.pool_register_global",
-    "sc.pool_register_stack",
-    "sc.pool_unregister_stack"
+    "pool_register_global",
+    "pool_register_stack",
+    "pool_unregister_stack"
   };
 
   //
@@ -94,13 +94,13 @@ PoolRegisterElimination::runOnModule(Module & M) {
   //
   // Remove registrations for type-safe singleton objects.
   //
-  removeTypeSafeRegistrations ("sc.pool_register");
+  removeTypeSafeRegistrations ("pool_register");
 
   //
   // Remove registrations for singleton objects.  Note that we only do this for
   // heap objects.
   //
-  removeSingletonRegistrations ("sc.pool_register");
+  removeSingletonRegistrations ("pool_register");
 
   //
   // Deallocate memory and return;
@@ -120,9 +120,9 @@ DebugPoolRegisterElimination::runOnModule(Module & M) {
   // List of registration intrinsics.
   //
   const char * registerIntrinsics[] = {
-    "sc.pool_register_global",
-    "sc.pool_register_stack",
-    "sc.pool_unregister_stack",
+    "pool_register_global",
+    "pool_register_stack",
+    "pool_unregister_stack",
   };
 
   //
