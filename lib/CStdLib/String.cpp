@@ -236,12 +236,16 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "chmod", 0);
   addStringCheck (M, "chown", 0);
   addStringCheck (M, "creat", 0);
+  addStringCheck (M, "dlopen", 0);
+  addStringCheck (M, "fattach", 1);
   addStringCheck (M, "fdopen", 1);
   addStringCheck (M, "fopen", 0);
   addStringCheck (M, "\01_fopen", 0);
   addStringCheck (M, "freopen", 0);
   addStringCheck (M, "getaddrinfo", 0);
+  addStringCheck (M, "getenv", 0);
   addStringCheck (M, "gethostbyname", 0);
+  addStringCheck (M, "lchmod", 0);
   addStringCheck (M, "lchown", 0);
   addStringCheck (M, "link", 0);
   addStringCheck (M, "link", 1);
@@ -252,17 +256,37 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "mkdirat", 1);
   addStringCheck (M, "mkfifo", 0);
   addStringCheck (M, "mknod", 0);
+  addStringCheck (M, "mount", 0);
+  addStringCheck (M, "mount", 1);
+  addStringCheck (M, "mount", 2);
   addStringCheck (M, "open", 0);
   addStringCheck (M, "openat", 1);
+  addStringCheck (M, "putenv", 0);
   addStringCheck (M, "readlink", 0);
   addStringCheck (M, "remove", 0);
   addStringCheck (M, "rename", 0);
   addStringCheck (M, "rename", 1);
   addStringCheck (M, "rmdir", 0);
+  addStringCheck (M, "setenv", 0);
   addStringCheck (M, "stat", 0);
+  addStringCheck (M, "symlink", 0);
+  addStringCheck (M, "symlink", 1);
   addStringCheck (M, "system", 0);
+  addStringCheck (M, "tempnam", 0);
+  addStringCheck (M, "tempnam", 1);
   addStringCheck (M, "truncate", 0);
   addStringCheck (M, "unlink", 0);
+  addStringCheck (M, "unsetenv", 0);
+
+  //
+  // exec() family (note only partial support; we only check the first
+  // argument).
+  //
+  addStringCheck (M, "execl", 0);
+  addStringCheck (M, "execlp", 0);
+  addStringCheck (M, "execle", 0);
+  addStringCheck (M, "execv", 0);
+  addStringCheck (M, "execvp", 0);
 
   // Functions from <stdio.h>, <syslog.h>
   chgd |= transform(M, "vprintf",  2, 1, Int32Ty, st_xform_vprintf);
