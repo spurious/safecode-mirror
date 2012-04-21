@@ -430,3 +430,40 @@ pool_fwrite (DebugPoolTy *Pool,
              const uint8_t complete) {
   return pool_fwrite_debug(Pool, ptr, size, nmemb, stream, complete, DEFAULTS);
 }
+
+//
+// Function: pool_tmpnam()
+//
+// Description:
+//  This is a memory safe replacement for the tmpnam() function.
+//
+// Inputs:
+//   Pool     - The pool handle for the buffer to write.
+//   str      - A pointer to a buffer or NULL
+//   complete - The Completeness bit vector.
+//   TAG      - The Tag information for debugging purposes
+//   SRC_INFO - Source file and line number information for debugging purposes
+//
+// Returns:
+//  Returns a pointer to a temporary filename
+//
+char *
+pool_tmpnam_debug (DebugPoolTy *Pool,
+                   char *str,
+                   const uint8_t complete,
+                   TAG,
+                   SRC_INFO) {
+  // str is allowed to be NULL; only perform checks if the string is not null.
+  if (str != 0) {
+    // The passed pointer should point to an object at least L_tmpnam in size.
+    minSizeCheck(Pool, str, ARG1_COMPLETE(complete), L_tmpnam, SRC_INFO_ARGS);
+  }
+  return tmpnam(str);
+}
+
+char *
+pool_tmpnam (DebugPoolTy *Pool,
+             char *str,
+             const uint8_t complete) {
+  return pool_tmpnam_debug(Pool, str, complete, DEFAULTS);
+}

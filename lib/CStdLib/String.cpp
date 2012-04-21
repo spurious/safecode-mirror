@@ -105,10 +105,14 @@ ADD_STATISTIC_FOR(fwrite);
 ADD_STATISTIC_FOR(fread);
 ADD_STATISTIC_FOR(gets);
 ADD_STATISTIC_FOR(puts);
+ADD_STATISTIC_FOR(tmpnam);
 ADD_STATISTIC_FOR(read);
 ADD_STATISTIC_FOR(recv);
+ADD_STATISTIC_FOR(recvfrom);
 ADD_STATISTIC_FOR(write);
 ADD_STATISTIC_FOR(send);
+ADD_STATISTIC_FOR(sendto);
+ADD_STATISTIC_FOR(readdir_r);
 
 #ifdef HAVE_MEMPCPY
 ADD_STATISTIC_FOR(mempcpy);
@@ -373,20 +377,36 @@ StringTransform::runOnModule (Module & M) {
   chgd |= transform(M, "fread", 4, 1, SizeTTy, st_xform_fread);
   chgd |= transform(M, "gets", 1, 1, VoidPtrTy, st_xform_gets);
   chgd |= transform(M, "puts", 1, 1, Int32Ty, st_xform_puts);
+  chgd |= transform(M, "tmpnam", 1, 1, VoidPtrTy, st_xform_tmpnam);
 
   // System calls
   SourceFunction Read  = { "read", SSizeTTy, 3 };
   SourceFunction Recv  = { "recv", SSizeTTy, 4 };
+  SourceFunction RecvFrom  = { "recvfrom", SSizeTTy, 6 };
   SourceFunction Write = { "write", SSizeTTy, 3 };
   SourceFunction Send  = { "send", SSizeTTy, 4 };
+  SourceFunction SendTo = { "sendto", SSizeTTy, 6 };
   DestFunction PoolRead  = { "pool_read", 3, 1 };
   DestFunction PoolRecv  = { "pool_recv", 4, 1 };
+  DestFunction PoolRecvFrom = { "pool_recvfrom", 6, 1 };
   DestFunction PoolWrite = { "pool_write", 3, 1 };
   DestFunction PoolSend  = { "pool_send", 4, 1 };
+  DestFunction PoolSendTo = { "pool_sendto", 6, 1 };
   chgd |= vtransform(M, Read, PoolRead, st_xform_read, 2u, 1u, 3u);
   chgd |= vtransform(M, Recv, PoolRecv, st_xform_recv, 2u, 1u, 3u, 4u);
   chgd |= vtransform(M, Write, PoolWrite, st_xform_write, 2u, 1u, 3u);
   chgd |= vtransform(M, Send, PoolSend, st_xform_send, 2u, 1u, 3u, 4u);
+  chgd |= vtransform(
+    M, RecvFrom, PoolRecvFrom, st_xform_recvfrom, 2u, 1u, 3u, 4u, 5u, 6u
+  );
+  chgd |= vtransform(
+    M, SendTo, PoolSendTo, st_xform_sendto, 2u, 1u, 3u, 4u, 5u, 6u
+  );
+
+  // Functions from <dirent.h>
+  SourceFunction RdDirR = { "readdir_r", Int32Ty, 3 };
+  DestFunction PoolRdDirR = { "pool_readdir_r", 3, 2 };
+  chgd |= vtransform(M, RdDirR, PoolRdDirR, st_xform_readdir_r, 2u, 3u, 1u);
 
   return chgd;
 }

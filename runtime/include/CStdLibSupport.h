@@ -22,6 +22,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 // Use macros so that I won't pollute the namespace
 
@@ -209,6 +211,14 @@ extern "C"
   size_t pool_fwrite (PPOOL, void *, size_t, size_t, FILE *, COMPLETE);
   size_t pool_fwrite_debug (PPOOL, void *, size_t, size_t, FILE *, COMPLETE, DEBUG_INFO);
 
+  char * pool_tmpnam (PPOOL, char *, COMPLETE);
+  char * pool_tmpnam_debug (PPOOL, char *, COMPLETE, DEBUG_INFO);
+
+  // Functions from <dirent.h>
+
+  int pool_readdir_r (PPOOL, PPOOL, void *, void *, void *, COMPLETE);
+  int pool_readdir_r_debug (PPOOL, PPOOL, void *, void *, void *, COMPLETE, DEBUG_INFO);
+
   // System calls
 
   ssize_t pool_read (PPOOL, void *, int, size_t, COMPLETE);
@@ -216,12 +226,18 @@ extern "C"
 
   ssize_t pool_recv (PPOOL, void *, int, size_t, int, COMPLETE);
   ssize_t pool_recv_debug (PPOOL, void *, int, size_t, int, COMPLETE, DEBUG_INFO);
+
+  ssize_t pool_recvfrom (PPOOL, void *, int, size_t, int, struct sockaddr *, socklen_t *, COMPLETE);
+  ssize_t pool_recvfrom_debug (PPOOL, void *, int, size_t, int, struct sockaddr *, socklen_t *, COMPLETE, DEBUG_INFO);
   
   ssize_t pool_write (PPOOL, void *, int, size_t, COMPLETE);
   ssize_t pool_write_debug (PPOOL, void *, int, size_t, COMPLETE, DEBUG_INFO);
 
   ssize_t pool_send (PPOOL, void *, int, size_t, int, COMPLETE);
   ssize_t pool_send_debug (PPOOL, void *, int, size_t, int, COMPLETE, DEBUG_INFO);
+
+  ssize_t pool_sendto (PPOOL, void *, int, size_t, int, const struct sockaddr *, socklen_t, COMPLETE);
+  ssize_t pool_sendto_debug (PPOOL, void *, int, size_t, int, const struct sockaddr *, socklen_t, COMPLETE, DEBUG_INFO);
 }
 
 #undef PPOOL

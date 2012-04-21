@@ -18,53 +18,6 @@
 #include <sys/socket.h>
 
 //
-// Check to see if the memory region between the location pointed to by Buf
-// and the end of the same memory object is of at least the given minimum size.
-//
-// This function will look up the buffer object in the pool to determine its
-// size. If the pointer is complete and not found in the pool the function
-// will report an error. If the pointer points to a region of size less than
-// MinSize then this function will report an error.
-//
-// Inputs
-//   Pool     - The pool handle for the buffer
-//   Buf      - The buffer
-//   Complete - A boolean describing if the pointer is complete
-//   MinSize  - The minimum expected size of the region pointed to by Buf
-//   SRC_INFO - Source file and line number information for debugging purposes
-//
-static inline void
-minSizeCheck (DebugPoolTy * Pool,
-              void * Buf,
-              bool Complete,
-              size_t MinSize,
-              SRC_INFO) {
-  bool Found;
-  void * BufStart = 0, * BufEnd = 0;
-
-  //
-  // Retrive the buffer's bound from the pool. If we cannot find the object and
-  // we know everything about what the buffer should be pointing to, then
-  // report an error.
-  //
-  if (!(Found = pool_find (Pool, Buf, BufStart, BufEnd)) && Complete) {
-    LOAD_STORE_VIOLATION (Buf, Pool, SRC_INFO_ARGS);
-  }
-
-  if (Found) {
-    //
-    // Make sure that the region between the location pointed to by Buf and the
-    // end of the same memory object is of size at least MinSize.
-    //
-    size_t BufSize = byte_range (Buf, BufEnd);
-
-    if (BufSize < MinSize) {
-      C_LIBRARY_VIOLATION (Buf, Pool, "", SRC_INFO_ARGS);
-    }
-  }
-}
-
-//
 // Function: pool_read()
 //
 // Description:
@@ -110,7 +63,8 @@ pool_read (DebugPoolTy * Pool,
 //   Pool     - The pool handle for the input buffer
 //   Buf      - The input buffer
 //   FD       - The file descriptor
-//   Count    - The maximum number of bytes to read
+//   Len      - The maximum number of bytes to read
+//   Flags    - Additional options
 //   Complete - The Completeness bit vector
 //   TAG      - The Tag information for debugging purposes
 //   SRC_INFO - Source file and line number information for debugging purposes
@@ -136,6 +90,53 @@ pool_recv (DebugPoolTy * Pool,
            int Flags,
            const uint8_t Complete) {
   return pool_recv_debug (Pool, Buf, SockFD, Len, Flags, Complete, DEFAULTS);
+}
+
+//
+// Function: pool_recvfrom()
+//
+// Description:
+//  This is a memory safe replacement for the recvfrom() function.
+//
+// Inputs:
+//   Pool     - The pool handle for the input buffer
+//   Buf      - The input buffer
+//   FD       - The file descriptor
+//   Len      - The maximum number of bytes to read
+//   Flags    - Additional options
+//   SrcAddr  - Behavior depends on protocol
+//   AddrLen  - Behavior depends on protocol
+//   Complete - The Completeness bit vector
+//   TAG      - The Tag information for debugging purposes
+//   SRC_INFO - Source file and line number information for debugging purposes
+//
+ssize_t
+pool_recvfrom_debug (DebugPoolTy * Pool,
+                     void * Buf,
+                     int SockFD,
+                     size_t Len,
+                     int Flags,
+                     struct sockaddr *SrcAddr,
+                     socklen_t *AddrLen,
+                     const uint8_t Complete,
+                     TAG,
+                     SRC_INFO) {
+  minSizeCheck (Pool, Buf, ARG1_COMPLETE(Complete), Len, SRC_INFO_ARGS);
+  return recvfrom (SockFD, Buf, Len, Flags, SrcAddr, AddrLen);
+}
+
+ssize_t
+pool_recvfrom (DebugPoolTy * Pool,
+               void * Buf,
+               int SockFD,
+               size_t Len,
+               int Flags,
+               struct sockaddr *SrcAddr,
+               socklen_t *AddrLen,
+               const uint8_t Complete) {
+  return pool_recvfrom_debug(
+           Pool, Buf, SockFD, Len, Flags, SrcAddr, AddrLen, Complete, DEFAULTS
+         );
 }
 
 //
@@ -184,7 +185,8 @@ pool_write (DebugPoolTy * Pool,
 //   Pool     - The pool handle for the output buffer
 //   Buf      - The output buffer
 //   FD       - The file descriptor
-//   Count    - The maximum number of bytes to write
+//   Len      - The maximum number of bytes to write
+//   Flags    - Additional options
 //   Complete - The Completeness bit vector
 //   TAG      - The Tag information for debugging purposes
 //   SRC_INFO - Source file and line number information for debugging purposes
@@ -210,4 +212,51 @@ pool_send (DebugPoolTy * Pool,
            int Flags,
            const uint8_t Complete) {
   return pool_send_debug (Pool, Buf, SockFD, Len, Flags, Complete, DEFAULTS);
+}
+
+//
+// Function: pool_sendto()
+//
+// Description:
+//  This is a memory safe replacement for the sendto() function.
+//
+// Inputs:
+//   Pool     - The pool handle for the output buffer
+//   Buf      - The output buffer
+//   FD       - The file descriptor
+//   Len      - The maximum number of bytes to write
+//   Flags    - Additional options
+//   DestAddr - Behavior depends on protocol
+//   DestLen  - Behavior depends on protocol
+//   Complete - The Completeness bit vector
+//   TAG      - The Tag information for debugging purposes
+//   SRC_INFO - Source file and line number information for debugging purposes
+//
+ssize_t
+pool_sendto_debug (DebugPoolTy * Pool,
+                   void * Buf,
+                   int SockFD,
+                   size_t Len,
+                   int Flags,
+                   const struct sockaddr *DestAddr,
+                   socklen_t DestLen,
+                   const uint8_t Complete,
+                   TAG,
+                   SRC_INFO) {
+  minSizeCheck (Pool, Buf, ARG1_COMPLETE(Complete), Len, SRC_INFO_ARGS);
+  return sendto (SockFD, Buf, Len, Flags, DestAddr, DestLen);
+}
+
+ssize_t
+pool_sendto (DebugPoolTy * Pool,
+             void * Buf,
+             int SockFD,
+             size_t Len,
+             int Flags,
+             const struct sockaddr *DestAddr,
+             socklen_t DestLen,
+             const uint8_t Complete) {
+  return pool_sendto_debug(
+           Pool, Buf, SockFD, Len, Flags, DestAddr, DestLen, Complete, DEFAULTS
+         );
 }
