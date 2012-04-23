@@ -464,16 +464,23 @@ SETENV = TARGET_TRIPLE=$(TARGET_TRIPLE)           \
          SC_OBJ_ROOT=$(PROJ_OBJ_ROOT)
 
 # Path to test files
+CORESRC=$(PROJ_SRC_ROOT)/test/core
 CSTDLIB=$(PROJ_SRC_ROOT)/test/cstdlib
 FMTSTR=$(PROJ_SRC_ROOT)/test/formatstrings
 REGRSN=$(PROJ_SRC_ROOT)/test/regression
+COREOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
 CSTDLIBOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
 FMTSTROBJ=$(PROJ_OBJ_ROOT)/test/formatstrings
 REGRSNOBJ=$(PROJ_OBJ_ROOT)/test/regression
 TESTSCRIPT=$(PROJ_OBJ_ROOT)/test/tools/test.sh
 
 # Run all lit tests
-lit: lit-formatstrings lit-cstdlib lit-regression
+lit: lit-core lit-formatstrings lit-cstdlib lit-regression
+
+# Run the lit tests for core SAFECode
+lit-core: $(TESTSCRIPT)
+	@mkdir -p $(COREOBJ)
+	$(Verb) $(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(CORESRC) LIT_ARGS=-j1
 
 # Run the lit tests for cstdlib
 lit-cstdlib: $(TESTSCRIPT)
