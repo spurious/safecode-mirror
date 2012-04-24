@@ -140,7 +140,7 @@ ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   // backwards from the beginning of the object.  We know that this is illegal;
   // declare it unsafe.
   //
-  if (SE->getSMaxExpr(offset, zero) == zero && offset != zero) {
+  if ((SE->getSMaxExpr(offset, zero) == zero) && (offset != zero)) {
     ++unsafeGEPs;
     return;
   }
@@ -149,7 +149,7 @@ ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   // Otherwise, we are indexing zero or more bytes forward.  Determine whether
   // we will index past the end of the object.
   //
-  if (SE->getSMaxExpr(diff, zero) == diff) {
+  if ((SE->getSMaxExpr(diff, zero) == diff) && (diff != zero)) {
     ++safeGEPs;
     SafeGEPs.insert (&GEP);
     return;
