@@ -1,6 +1,6 @@
 // RUN: test.sh -e -t %t %s
 //
-// TEST: buffer-001
+// TEST: buffer-003
 //
 // Description:
 //  Test that an off-by-one read on a global is detected.

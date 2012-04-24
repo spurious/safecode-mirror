@@ -1,6 +1,6 @@
 // RUN: test.sh -p -t %t %s
 //
-// TEST: buffer-002
+// TEST: buffer-004
 //
 // Description:
 //  Test that staying within the bounds of an array never causes a problem.
