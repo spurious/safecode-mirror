@@ -458,6 +458,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("funccheck"), LInfo);
   transformFunction (M.getFunction ("funccheckui"), LInfo);
   transformFunction (M.getFunction ("pool_register"), LInfo);
+  transformFunction (M.getFunction ("pool_register_global"), LInfo);
   transformFunction (M.getFunction ("pool_register_stack"), LInfo);
   transformFunction (M.getFunction ("pool_unregister"), LInfo);
   transformFunction (M.getFunction ("pool_unregister_stack"), LInfo);
