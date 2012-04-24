@@ -17,6 +17,7 @@ main (int argc, char ** argv) {
 
   for (index = 0; index < 1024; ++index)
     sum += array[index];
-  return sum;
+  printf ("%d\n", sum);
+  return 0;
 }
 

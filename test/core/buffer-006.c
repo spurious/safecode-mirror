@@ -16,6 +16,7 @@ main (int argc, char ** argv) {
   volatile char * array = malloc (sizeof (char) * 1024);
   for (index = 0; index < 1024; ++index)
     sum += array[index];
-  return sum;
+  printf ("%d\n", sum);
+  return 0;
 }
 
