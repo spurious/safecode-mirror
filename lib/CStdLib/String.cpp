@@ -160,6 +160,12 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
   if (!F) return;
 
   //
+  // Don't instrument calls to the function if it is defined in this program.
+  //
+  if (!(F->isDeclaration()))
+    return;
+
+  //
   // Scan through the module for uses of the function to instrument.
   //
   std::vector<Instruction *> callsToInstrument;
@@ -277,6 +283,36 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "truncate", 0);
   addStringCheck (M, "unlink", 0);
   addStringCheck (M, "unsetenv", 0);
+
+  //
+  // Handle 64-bit versions of these functions that may exist on hybrid 32/64
+  // bit systems.
+  //
+  addStringCheck (M, "access64", 0);
+  addStringCheck (M, "chdir64", 0);
+  addStringCheck (M, "chmod64", 0);
+  addStringCheck (M, "chown64", 0);
+  addStringCheck (M, "creat64", 0);
+  addStringCheck (M, "fopen64", 0);
+  addStringCheck (M, "lchmod64", 0);
+  addStringCheck (M, "lchown64", 0);
+  addStringCheck (M, "link64", 0);
+  addStringCheck (M, "link64", 1);
+  addStringCheck (M, "lstat64", 0);
+  addStringCheck (M, "mkdir64", 0);
+  addStringCheck (M, "mkfifo64", 0);
+  addStringCheck (M, "mknod64", 0);
+  addStringCheck (M, "open64", 0);
+  addStringCheck (M, "openat64", 1);
+  addStringCheck (M, "readlink64", 0);
+  addStringCheck (M, "remove64", 0);
+  addStringCheck (M, "rename64", 0);
+  addStringCheck (M, "rename64", 1);
+  addStringCheck (M, "rmdir64", 0);
+  addStringCheck (M, "stat64", 0);
+  addStringCheck (M, "symlink64", 0);
+  addStringCheck (M, "symlink64", 1);
+  addStringCheck (M, "unlink64", 0);
 
   //
   // exec() family (note only partial support; we only check the first
