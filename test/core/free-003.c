@@ -1,6 +1,7 @@
 // RUN: test.sh -e -t %t %s
 //
 // TEST: free-001
+// XFAIL: darwin
 //
 // Description:
 //  Test invalid memory deallocations
