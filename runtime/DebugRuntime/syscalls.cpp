@@ -260,3 +260,53 @@ pool_sendto (DebugPoolTy * Pool,
            Pool, Buf, SockFD, Len, Flags, DestAddr, DestLen, Complete, DEFAULTS
          );
 }
+
+//
+// Function: pool_readlink()
+//
+// Description:
+//  Implement a memory safe replacement for readlink().
+//
+ssize_t
+pool_readlink_debug (DebugPoolTy * PathPool,
+                     DebugPoolTy * BufPool,
+                     const char *path,
+                     char *buf,
+                     size_t len,
+                     const uint8_t Complete,
+                     TAG,
+                     SRC_INFO) {
+  //
+  // First ensure that the buffer containing the pathname is properly
+  // terminated.  Note that a NULL path pointer is okay.
+  //
+  if (path != NULL) {
+    validStringCheck (path, PathPool, true, "Generic", SRC_INFO_ARGS);
+  }
+
+  //
+  // Next, if the caller provided a buffer for the result, make sure that the
+  // size is okay.
+  //
+  if (buf) {
+    minSizeCheck (BufPool, buf, ARG2_COMPLETE(Complete), len, SRC_INFO_ARGS);
+  }
+
+  readlink (path, buf, len);
+}
+
+ssize_t
+pool_readlink (DebugPoolTy * PathPool,
+               DebugPoolTy * BufPool,
+               const char *path,
+               char *buf,
+               size_t len,
+               const uint8_t Complete) {
+  return pool_readlink_debug (PathPool,
+                              BufPool,
+                              path,
+                              buf,
+                              len,
+                              Complete,
+                              DEFAULTS);
+}

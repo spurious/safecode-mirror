@@ -238,6 +238,9 @@ extern "C"
 
   ssize_t pool_sendto (PPOOL, void *, int, size_t, int, const struct sockaddr *, socklen_t, COMPLETE);
   ssize_t pool_sendto_debug (PPOOL, void *, int, size_t, int, const struct sockaddr *, socklen_t, COMPLETE, DEBUG_INFO);
+
+  ssize_t pool_readlink (PPOOL, PPOOL, const char *path, char *buf, size_t bufsiz, COMPLETE);
+  ssize_t pool_readlink_debug (PPOOL, PPOOL, const char *path, char *buf, size_t bufsiz, COMPLETE, DEBUG_INFO);
 }
 
 #undef PPOOL
