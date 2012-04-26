@@ -10,6 +10,7 @@
 int main()
 {
   char * buffer = malloc (24);
-  realpath (getenv ("SHELL"), buffer);
+  if (buffer)
+    realpath (getenv ("SHELL"), buffer);
   return 0;
 }
