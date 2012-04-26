@@ -113,6 +113,7 @@ ADD_STATISTIC_FOR(write);
 ADD_STATISTIC_FOR(send);
 ADD_STATISTIC_FOR(sendto);
 ADD_STATISTIC_FOR(readdir_r);
+ADD_STATISTIC_FOR(readlink);
 
 #ifdef HAVE_MEMPCPY
 ADD_STATISTIC_FOR(mempcpy);
@@ -268,7 +269,6 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "open", 0);
   addStringCheck (M, "openat", 1);
   addStringCheck (M, "putenv", 0);
-  addStringCheck (M, "readlink", 0);
   addStringCheck (M, "remove", 0);
   addStringCheck (M, "rename", 0);
   addStringCheck (M, "rename", 1);
@@ -304,7 +304,6 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "mknod64", 0);
   addStringCheck (M, "open64", 0);
   addStringCheck (M, "openat64", 1);
-  addStringCheck (M, "readlink64", 0);
   addStringCheck (M, "remove64", 0);
   addStringCheck (M, "rename64", 0);
   addStringCheck (M, "rename64", 1);
@@ -452,6 +451,7 @@ StringTransform::runOnModule (Module & M) {
   DestFunction PoolWrite = { "pool_write", 3, 1 };
   DestFunction PoolSend  = { "pool_send", 4, 1 };
   DestFunction PoolSendTo = { "pool_sendto", 6, 1 };
+  chgd |= transform(M, "readlink", 3, 2, SSizeTTy,   st_xform_readlink);
   chgd |= vtransform(M, Read, PoolRead, st_xform_read, 2u, 1u, 3u);
   chgd |= vtransform(M, Recv, PoolRecv, st_xform_recv, 2u, 1u, 3u, 4u);
   chgd |= vtransform(M, Write, PoolWrite, st_xform_write, 2u, 1u, 3u);
