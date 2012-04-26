@@ -13,6 +13,8 @@
 
 #include "CStdLib.h"
 
+#include <climits>
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -337,7 +339,8 @@ pool_realpath_debug (DebugPoolTy * PathPool,
   // Next, get the path, but permit realpath to allocate the buffer.  This
   // should ensure that the buffer is sufficiently large.
   //
-  char * resolved = realpath (path, NULL);
+  char resolved[PATH_MAX + 1];
+  realpath (path, resolved);
 
   //
   // Using pool_strcpy() to copy the data into the caller's buffer.
