@@ -526,6 +526,7 @@ DebugInstrument::runOnModule (Module &M) {
   transformFunction (M.getFunction ("pool_sendto"), LInfo);
   transformFunction (M.getFunction ("pool_readdir_r"), LInfo);
   transformFunction (M.getFunction ("pool_readlink"), LInfo);
+  transformFunction (M.getFunction ("pool_realpath"), LInfo);
 
   return true;
 }

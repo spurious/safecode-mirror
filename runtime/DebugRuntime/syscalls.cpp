@@ -281,7 +281,7 @@ pool_readlink_debug (DebugPoolTy * PathPool,
   // terminated.  Note that a NULL path pointer is okay.
   //
   if (path != NULL) {
-    validStringCheck (path, PathPool, true, "Generic", SRC_INFO_ARGS);
+    validStringCheck (path, PathPool, ARG1_COMPLETE(Complete), "Generic", SRC_INFO_ARGS);
   }
 
   //
@@ -307,6 +307,65 @@ pool_readlink (DebugPoolTy * PathPool,
                               path,
                               buf,
                               len,
+                              Complete,
+                              DEFAULTS);
+}
+
+//
+// Function: pool_realpath()
+//
+// Description:
+//  Implement a memory safe replacement for realpath().
+//
+char *
+pool_realpath_debug (DebugPoolTy * PathPool,
+                     DebugPoolTy * BufPool,
+                     const char *path,
+                     char *buf,
+                     const uint8_t Complete,
+                     TAG,
+                     SRC_INFO) {
+  //
+  // First ensure that the buffer containing the pathname is properly
+  // terminated.  Note that a NULL path pointer is okay.
+  //
+  if (path != NULL) {
+    validStringCheck (path, PathPool, ARG1_COMPLETE(Complete), "Generic", SRC_INFO_ARGS);
+  }
+
+  //
+  // Next, get the path, but permit realpath to allocate the buffer.  This
+  // should ensure that the buffer is sufficiently large.
+  //
+  char * resolved = realpath (path, NULL);
+
+  //
+  // Using pool_strcpy() to copy the data into the caller's buffer.
+  //
+  if (buf) {
+    size_t realLength = strlen (resolved);
+    minSizeCheck (BufPool,
+                  buf,
+                  ARG2_COMPLETE(Complete),
+                  realLength,
+                  SRC_INFO_ARGS);
+    strcpy (buf, resolved);
+    return buf;
+  }
+
+  return resolved;
+}
+
+char *
+pool_realpath (DebugPoolTy * PathPool,
+               DebugPoolTy * BufPool,
+               const char *path,
+               char *buf,
+               const uint8_t Complete) {
+  return pool_realpath_debug (PathPool,
+                              BufPool,
+                              path,
+                              buf,
                               Complete,
                               DEFAULTS);
 }

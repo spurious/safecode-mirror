@@ -114,6 +114,7 @@ ADD_STATISTIC_FOR(send);
 ADD_STATISTIC_FOR(sendto);
 ADD_STATISTIC_FOR(readdir_r);
 ADD_STATISTIC_FOR(readlink);
+ADD_STATISTIC_FOR(realpath);
 
 #ifdef HAVE_MEMPCPY
 ADD_STATISTIC_FOR(mempcpy);
@@ -452,6 +453,7 @@ StringTransform::runOnModule (Module & M) {
   DestFunction PoolSend  = { "pool_send", 4, 1 };
   DestFunction PoolSendTo = { "pool_sendto", 6, 1 };
   chgd |= transform(M, "readlink", 3, 2, SSizeTTy,   st_xform_readlink);
+  chgd |= transform(M, "realpath", 2, 2, VoidPtrTy,   st_xform_realpath);
   chgd |= vtransform(M, Read, PoolRead, st_xform_read, 2u, 1u, 3u);
   chgd |= vtransform(M, Recv, PoolRecv, st_xform_recv, 2u, 1u, 3u, 4u);
   chgd |= vtransform(M, Write, PoolWrite, st_xform_write, 2u, 1u, 3u);

@@ -241,6 +241,9 @@ extern "C"
 
   ssize_t pool_readlink (PPOOL, PPOOL, const char *path, char *buf, size_t bufsiz, COMPLETE);
   ssize_t pool_readlink_debug (PPOOL, PPOOL, const char *path, char *buf, size_t bufsiz, COMPLETE, DEBUG_INFO);
+
+  char * pool_realpath (PPOOL, PPOOL, const char *path, char *buf, COMPLETE);
+  char * pool_realpath_debug (PPOOL, PPOOL, const char *path, char *buf, COMPLETE, DEBUG_INFO);
 }
 
 #undef PPOOL
