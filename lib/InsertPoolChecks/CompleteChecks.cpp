@@ -169,8 +169,8 @@ CompleteChecks::makeCStdLibCallsComplete (Function *F,
   else
     vect_position = F_type->getNumParams() - 1;
 
-  assert(F_type->getParamType(vect_position - 1) == int8ty && \
-    "Last parameter to the function should be a byte!");
+  assert(F_type->getParamType(vect_position) == int8ty && \
+    "Unexpected parameter type where complete byte should be!");
 
   //
   // Iterate over all calls of the function in the module, computing the
