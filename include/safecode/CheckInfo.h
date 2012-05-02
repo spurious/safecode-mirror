@@ -95,8 +95,8 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"boundscheckui_debug",    "boundscheck_debug",  2, gepcheck, 0, false},
   {"exactcheck2_debug",      "exactcheck2_debug",  1, gepcheck, 0, true},
   {"fastlscheck_debug",      "fastlscheck_debug",  1, memcheck, 3, true},
-  {"funccheck_debug",        "funccheck_debug",    1, funccheck,  0, true},
-  {"funccheckui_debug",      "funccheck_debug",    1, funccheck,  0, false}
+  {"funccheck_debug",        "funccheck_debug",    0, funccheck,  0, true},
+  {"funccheckui_debug",      "funccheck_debug",    0, funccheck,  0, false}
 };
 
 //
