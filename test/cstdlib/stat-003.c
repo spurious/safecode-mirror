@@ -1,5 +1,5 @@
 // RUN: test.sh -e -t %t %s
-// XFAIL: darwin
+// XFAIL: darwin,linux
 
 //
 // We expect this test to fail on Mac OS X (Darwin) because the system call
