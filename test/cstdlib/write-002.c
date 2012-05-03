@@ -1,4 +1,5 @@
 // RUN: test.sh -e -t %t %s
+// XFAIL: darwin
 
 #include <string.h>
 #include <unistd.h>
