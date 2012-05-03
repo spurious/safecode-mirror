@@ -421,6 +421,8 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
         if (mergedModule->getFunction("main")) {
           passes.add(new CompleteChecks());
         }
+
+        break;
       }
     }
 
