@@ -294,7 +294,7 @@ pool_readlink_debug (DebugPoolTy * PathPool,
     minSizeCheck (BufPool, buf, ARG2_COMPLETE(Complete), len, SRC_INFO_ARGS);
   }
 
-  readlink (path, buf, len);
+  return readlink (path, buf, len);
 }
 
 ssize_t
@@ -340,12 +340,13 @@ pool_realpath_debug (DebugPoolTy * PathPool,
   // should ensure that the buffer is sufficiently large.
   //
   char resolved[PATH_MAX + 1];
-  realpath (path, resolved);
+  char *result;
+  result = realpath (path, resolved);
 
   //
   // Using pool_strcpy() to copy the data into the caller's buffer.
   //
-  if (buf) {
+  if (buf && result) {
     size_t realLength = strlen (resolved);
     minSizeCheck (BufPool,
                   buf,
@@ -356,7 +357,11 @@ pool_realpath_debug (DebugPoolTy * PathPool,
     return buf;
   }
 
-  return resolved;
+  //
+  // realpath() returns the original buffer pointer on success, or NULL on
+  // error.
+  //
+  return (result ? buf : 0);
 }
 
 char *
