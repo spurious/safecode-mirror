@@ -184,7 +184,6 @@ class AllocatorInfoPass : public ImmutablePass {
       static ArrayAllocatorInfo  CallocAllocator ("calloc", "", 1, 2, 1);
       static ReAllocatorInfo     ReAllocator     ("realloc", "", 2, 1, 1);
       static StringAllocatorInfo StrdupAllocator ("strdup", "", 1);
-      static StringAllocatorInfo GetenvAllocator ("getenv", "", 0);
 
       // Add the standard C allocators
       addAllocator   (&MallocAllocator);
@@ -199,7 +198,6 @@ class AllocatorInfoPass : public ImmutablePass {
 
       // Add the string allocator functions
       addAllocator   (&StrdupAllocator);
-      addAllocator   (&GetenvAllocator);
       return;
     }
 
