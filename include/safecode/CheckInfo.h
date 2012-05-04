@@ -23,7 +23,7 @@ using namespace llvm;
 
 namespace {
 
-enum CheckType {memcheck, gepcheck, funccheck};
+enum CheckType {memcheck, gepcheck, strcheck, funccheck};
 
 //
 // Structure: CheckInfo
@@ -72,13 +72,15 @@ struct CheckInfo {
 //
 // Create a table describing all of the SAFECode run-time checks.
 //
-static const unsigned numChecks = 20;
+static const unsigned numChecks = 24;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
   {"poolcheck",        "lscheck",      1, memcheck,  2, true},
   {"poolcheckui",      "lscheck",      1, memcheck,  2, false},
   {"poolcheckalign",   "lscheckalign", 1, memcheck,  0, true},
   {"poolcheckalignui", "lscheckalign", 1, memcheck,  0, false},
+  {"poolcheckstr",     "poolcheckstr", 1, strcheck,  0, true},
+  {"poolcheckstrui",   "poolcheckstr", 1, strcheck,  0, false},
   {"boundscheck",      "boundscheck",  2, gepcheck, 0, true},
   {"boundscheckui",    "boundscheck",  2, gepcheck, 0, false},
   {"exactcheck2",      "exactcheck2",  1, gepcheck, 0, true},
@@ -91,6 +93,8 @@ static const struct CheckInfo RuntimeChecks[numChecks] = {
   {"poolcheckui_debug",      "poolcheck_debug",      1, memcheck,  2, false},
   {"poolcheckalign_debug",   "poolcheckalign_debug", 1, memcheck,  0, true},
   {"poolcheckalignui_debug", "poolcheckalign_debug", 1, memcheck,  0, false},
+  {"poolcheckstr_debug",     "poolcheckstr_debug",   1, strcheck,  0, true},
+  {"poolcheckstrui_debug",   "poolcheckstr_debug",   1, strcheck,  0, false},
   {"boundscheck_debug",      "boundscheck_debug",  2, gepcheck, 0, true},
   {"boundscheckui_debug",    "boundscheck_debug",  2, gepcheck, 0, false},
   {"exactcheck2_debug",      "exactcheck2_debug",  1, gepcheck, 0, true},
