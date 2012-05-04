@@ -115,7 +115,7 @@ class ReAllocatorInfo : public SimpleAllocatorInfo {
     uint32_t allocPtrOperand;
 };
 
-/// ArrayAllocatorInfo - define the abstraction of array allcators /
+/// ArrayAllocatorInfo - define the abstraction of array allocators /
 /// deallocators such as calloc / free
 class ArrayAllocatorInfo : public SimpleAllocatorInfo {
   protected:
