@@ -339,7 +339,7 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   // Ensure that a prototype for strlen() exists.
   //
   TargetData & TD = getAnalysis<TargetData>();
-  M.getOrInsertFunction ("strlen",
+  M.getOrInsertFunction ("nullstrlen",
                          TD.getIntPtrType(M.getContext()),
                          getVoidPtrType(M.getContext()),
                          NULL);

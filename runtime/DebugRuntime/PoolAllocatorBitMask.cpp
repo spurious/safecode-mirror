@@ -406,6 +406,12 @@ _internal_poolregister (DebugPoolTy *Pool,
   if (NumBytes == 0) return;
 
   //
+  // If we're trying to register a NULL pointer, return.
+  //
+  if (!allocaptr)
+    return;
+
+  //
   // If there was no pool specified, use the splay tree associated with
   // externally allocated objects.
   //
@@ -2088,5 +2094,19 @@ __sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
   Pool->cacheIndex = 0;
 
   return Pool;
+}
+
+//
+// Function: nullstrlen()
+//
+// Description:
+//  This version of strlen() will return zero for NULL pointers.
+//
+extern "C" size_t nullstrlen (const char * s);
+size_t
+nullstrlen (const char * s) {
+  if (s)
+    return strlen (s);
+  return 0;
 }
 

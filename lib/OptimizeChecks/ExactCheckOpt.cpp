@@ -76,10 +76,12 @@ ExactCheckOpt::runOnModule(Module & M) {
   //
   for (unsigned index = 0; index < numChecks; ++index) {
     //
-    // Skip function checks.
+    // Skip function checks and string checks.
     //
-    if (RuntimeChecks[index].checkType == funccheck)
+    if ((RuntimeChecks[index].checkType == funccheck) ||
+        (RuntimeChecks[index].checkType == strcheck)) {
       continue;
+    }
 
     //
     // Clear the list of calls to intrinsics that must be removed.

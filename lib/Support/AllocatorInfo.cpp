@@ -101,14 +101,15 @@ StringAllocatorInfo::getOrCreateAllocSize (Value * AllocSite) const {
 
   //
   // Insert a call to strlen() to determine the length of the string that was
-  // allocated.
+  // allocated.  Use a version of strlen() in the SAFECode library that can
+  // handle NULL pointers.
   //
   Module * M = CI->getParent()->getParent()->getParent();
-  Function * Strlen = M->getFunction ("strlen");
-  assert (Strlen && "No strlen function in the module");
+  Function * Strlen = M->getFunction ("nullstrlen");
+  assert (Strlen && "No nullstrlen function in the module");
   BasicBlock::iterator InsertPt = CI;
   ++InsertPt;
-  Value * Length = CallInst::Create (Strlen, CS.getArgument(0), "", InsertPt);
+  Value * Length = CallInst::Create (Strlen, CS.getInstruction(), "", InsertPt);
 
   //
   // The size of the allocation is the string length plus one.
