@@ -21,6 +21,7 @@
 #include "DebugReport.h"
 
 #include "safecode/Runtime/BBRuntime.h"
+#include "safecode/Runtime/BBMetaData.h"
 
 #include <map>
 #include <cstdarg>
@@ -36,6 +37,21 @@ extern unsigned SLOT_SIZE;
 extern unsigned WORD_SIZE;
 extern const unsigned int  logregs;
 using namespace NAMESPACE_SC;
+
+static inline int
+_barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
+  unsigned char e;
+  e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
+
+  if (e == 0)
+    return Source != Dest;
+
+  uintptr_t begin = Source & ~((1<<e)-1);
+  BBMetaData *data = (BBMetaData*)(begin + (1<<e) - sizeof(BBMetaData));
+  uintptr_t end = begin + data->size;
+
+  return !(begin <= Source && Source < end && begin <= Dest && Dest < end);
+}
 
 //
 // Function: _barebone_boundscheck()
@@ -57,7 +73,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   unsigned char e;
 
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
-  val = (Source^Dest)>>e;
+  val = _barebone_pointers_in_bounds(Source, Dest);
 
   if (val) {
   
@@ -78,7 +94,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
     if (e == 0) {
       return (void*)Dest;
     }
-    val = (Source^Dest)>>e;
+    val = _barebone_pointers_in_bounds(Source, Dest);
 
   //
   //Set high bit, for OOB pointer 

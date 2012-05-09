@@ -10,7 +10,7 @@
 // This file is one possible implementation of the LLVM pool allocator runtime
 // library.
 //
-// Uses Baggy Bounds Checking 
+// Uses Baggy Bounds Checking
 //
 //===----------------------------------------------------------------------===//
 // NOTES:
@@ -43,6 +43,8 @@
 #include <sys/mman.h>
 
 #include <stdio.h>
+
+#include "safecode/Runtime/BBMetaData.h"
 
 #define TAG unsigned tag
 
@@ -90,16 +92,16 @@ __sc_bb_pooldestroy(DebugPoolTy *Pool) {
 //
 // Function: pool_init_runtime
 //
-// Description: 
-//   This function is called to initialize the entire SAFECode run-time. It 
+// Description:
+//   This function is called to initialize the entire SAFECode run-time. It
 //   configures the various run-time options for SAFECode and performs other
 //   initialization tasks.
 //
 // Inputs:
 //  Dangling   - Set to non-zero to enable dangling pointer detection
 //  RewriteOOB - Set to non-zero to enable Out-Of-Bounds pointer rewriting.
-//  Terminate  - Set to non-zero to have SAFECode terminate when an error 
-//               occurs. 
+//  Terminate  - Set to non-zero to have SAFECode terminate when an error
+//               occurs.
 //
 
 void
@@ -127,7 +129,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   /*if (ConfigData.TrackExternalMallocs) {
     installAllocHooks();
-    } */ 
+    } */
   //
   // Initialize the signal handlers for catching errors.
   //
@@ -228,7 +230,13 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
                           unsigned NumBytes, TAG,
                           const char* SourceFilep,
                           unsigned lineno) {
-  __internal_register(allocaptr, NumBytes);
+
+  //TODO: Fix massive hack. 
+  // We have to manulally add the size of the allocation, since the size of
+  // the allocation+metadata isn't threaded through the calls.
+  // Also, only heap allocations currently have this metadata, so it needs
+  // to be here instead of inside __internal_register.
+  __internal_register(allocaptr, NumBytes+sizeof(BBMetaData));
   return;
 }
 
