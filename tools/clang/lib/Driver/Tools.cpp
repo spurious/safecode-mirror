@@ -1759,6 +1759,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fmemsafety");
   }
 
+  if (Args.getLastArg(options::OPT_bbc)) {
+    CmdArgs.push_back("-bbc");
+  }
+
   if (Args.getLastArg(options::OPT_terminate)) {
     CmdArgs.push_back("-fmemsafety-terminate");
   }
@@ -3590,8 +3594,12 @@ void darwin::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
 
     if (!Args.hasArg(options::OPT_nostdlib) &&
@@ -3766,8 +3774,12 @@ void auroraux::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -3895,8 +3907,12 @@ void openbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
   
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -4064,8 +4080,12 @@ void freebsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
   
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -4257,8 +4277,12 @@ void netbsd::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -4476,8 +4500,12 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -4616,8 +4644,12 @@ void minix::Link::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-lstdc++");
   }
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }
@@ -4754,8 +4786,12 @@ void dragonfly::Link::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-lstdc++");
   }
   if (Args.hasArg(options::OPT_memsafety)) {
-    CmdArgs.push_back("-lsc_dbg_rt");
-    CmdArgs.push_back("-lpoolalloc_bitmap");
+    if (Args.hasArg(options::OPT_bbc)) {
+      CmdArgs.push_back("-lsc_bb_rt");
+    } else {
+      CmdArgs.push_back("-lsc_dbg_rt");
+      CmdArgs.push_back("-lpoolalloc_bitmap");
+    }
     CmdArgs.push_back("-lgdtoa"); 
     CmdArgs.push_back("-lstdc++");
   }

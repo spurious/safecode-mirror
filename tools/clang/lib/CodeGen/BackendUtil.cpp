@@ -38,6 +38,7 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 #include "safecode/ArrayBoundsCheck.h"
+#include "safecode/BaggyBoundsChecks.h"
 #include "safecode/CFIChecks.h"
 #include "safecode/CStdLib.h"
 #include "safecode/DebugInstrumentation.h"
@@ -258,6 +259,10 @@ void EmitAssemblyHelper::CreatePasses() {
     if (CodeGenOpts.MemSafeTerminate) {
       MPM->add (llvm::createSCTerminatePass ());
     }
+  }
+
+  if (CodeGenOpts.BaggyBounds) {
+    MPM->add (new InsertBaggyBoundsChecks());
   }
 
   //

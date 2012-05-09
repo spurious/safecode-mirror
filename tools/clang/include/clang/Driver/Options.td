@@ -880,6 +880,8 @@ def Z_reserved_lib_cckext : Flag<"-Z-reserved-lib-cckext">,
 // Memory safety options
 def memsafety : Flag<"-fmemsafety">,
  HelpText<"Instrument program with memory-safety checks">;
+def bbc : Flag<"-bbc">,
+ HelpText<"Use Baggy Bounds Checking">;
 def softbound: Flag<"-fsoftbound">,
  HelpText<"Instrument program with SoftBound+CETS style pointer based memory safety checks">;
 def msLogFile : Separate<"-fmemsafety-logfile">,

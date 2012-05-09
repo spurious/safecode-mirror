@@ -720,6 +720,8 @@ def cl_std_EQ : Joined<"-cl-std=">,
 //===----------------------------------------------------------------------===//
 def memsafety : Flag<"-fmemsafety">,
   HelpText<"Instrument program with memory-safety checks">;
+def bbc : Flag<"-bbc">,
+  HelpText<"Use Baggy Bounds Checking">;
 def msLogFile : Separate<"-fmemsafety-logfile">,
     MetaVarName<"<path>">, HelpText<"Specify memory safety checks log file">;
 def terminate : Flag<"-fmemsafety-terminate">,
