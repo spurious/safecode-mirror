@@ -28,7 +28,7 @@
 
 #define TAG unsigned tag
 
-
+#include <stdio.h>
 
 extern FILE * ReportLog;
 extern unsigned char* __baggybounds_size_table_begin; 
@@ -58,6 +58,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   val = (Source^Dest)>>e;
+
   if (val) {
   
     if (Source & SET_MASK) {
@@ -141,6 +142,15 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
     return;
   }
   return;
+}
+
+extern "C" void
+poolcheckui_debug (DebugPoolTy *Pool,
+                 void *Node,
+                 unsigned length, TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+  bb_poolcheckui_debug(Pool, Node, tag, SourceFilep, lineno);
 }
 
 //
@@ -230,6 +240,15 @@ bb_boundscheckui_debug (DebugPoolTy * Pool,
                      const char * SourceFile,
                      unsigned int lineno) {
   return  _barebone_boundscheck((uintptr_t)Source, (uintptr_t)Dest);
+}
+
+extern "C" void *
+boundscheckui_debug (DebugPoolTy * Pool,
+                     void * Source,
+                     void * Dest, TAG,
+                     const char * SourceFile,
+                     unsigned int lineno) {
+  return bb_boundscheckui_debug(Pool, Source, Dest, tag, SourceFile, lineno);
 }
 
 
@@ -326,5 +345,3 @@ __sc_bb_funccheck (unsigned num, void *f, void *g, ...) {
   }
   abort();
 }
-
-

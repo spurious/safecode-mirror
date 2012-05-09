@@ -42,6 +42,8 @@
 #include <ucontext.h>
 #include <sys/mman.h>
 
+#include <stdio.h>
+
 #define TAG unsigned tag
 
 #define DEBUG(x)
@@ -65,7 +67,7 @@ static void bus_error_handler(int, siginfo_t *, void *);
 
 unsigned SLOT_SIZE = 4;
 unsigned WORD_SIZE = 64;
-unsigned char * __baggybounds_size_table_begin; 
+unsigned char * __baggybounds_size_table_begin;
 const size_t table_size = 1L << 43;
 
 
@@ -80,7 +82,7 @@ __sc_bb_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
   return Pool;
 }
 
-void 
+void
 __sc_bb_pooldestroy(DebugPoolTy *Pool) {
   return;
 }
@@ -100,7 +102,7 @@ __sc_bb_pooldestroy(DebugPoolTy *Pool) {
 //               occurs. 
 //
 
-void 
+void
 pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Initialize the signal handlers for catching errors.
@@ -145,9 +147,9 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
 
   // Initialize the baggy bounds table
   __baggybounds_size_table_begin = NULL;
-  __baggybounds_size_table_begin = 
-    (unsigned char*) mmap(0, table_size, 
-                          PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE, 
+  __baggybounds_size_table_begin =
+    (unsigned char*) mmap(0, table_size,
+                          PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE,
                           -1, 0);
 
   if (__baggybounds_size_table_begin == MAP_FAILED) {
@@ -186,13 +188,13 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
 // Description:
 //  Register all of the argv strings in the external object pool.
 //
-void * 
+void *
 __sc_bb_poolargvregister(int argc, char **argv) {
-  char ** argv_temp = 
+  char ** argv_temp =
     (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
 
   for (int index=0; index < argc; ++index) {
-    char *argv_index_temp = 
+    char *argv_index_temp =
       (char *)__sc_bb_src_poolalloc(NULL,(strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
 
@@ -220,13 +222,12 @@ __sc_bb_poolargvregister(int argc, char **argv) {
 //  This function is externally visible and is called by code to register
 //  a heap allocation.
 //
-void 
+void
 __sc_bb_src_poolregister (DebugPoolTy *Pool,
-                          void * allocaptr, 
+                          void * allocaptr,
                           unsigned NumBytes, TAG,
-                          const char* SourceFilep, 
+                          const char* SourceFilep,
                           unsigned lineno) {
-
   __internal_register(allocaptr, NumBytes);
   return;
 }
@@ -238,11 +239,11 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
 //  This function is externally visible and is called by code to register
 //  a stack allocation.
 //
-void 
+void
 __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
-                                void * allocaptr, 
+                                void * allocaptr,
                                 unsigned NumBytes, TAG,
-                                const char* SourceFilep, 
+                                const char* SourceFilep,
                                 unsigned lineno) {
   __internal_register(allocaptr, NumBytes);
   return;
@@ -255,9 +256,9 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
 //  This function is externally visible and is called by code to register
 //  a stack allocation without debug information.
 //
-void 
+void
 __sc_bb_poolregister_stack (DebugPoolTy *Pool,
-                            void * allocaptr, 
+                            void * allocaptr,
                             unsigned NumBytes) {
   __sc_bb_src_poolregister_stack(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
   return;
@@ -270,11 +271,11 @@ __sc_bb_poolregister_stack (DebugPoolTy *Pool,
 //  This function is externally visible and is called by code to register
 //  a global variable.
 //
-void 
+void
 __sc_bb_poolregister_global (DebugPoolTy *Pool,
-                             void *allocaptr, 
+                             void *allocaptr,
                              unsigned NumBytes) {
-  __sc_bb_src_poolregister_global_debug(Pool, 
+  __sc_bb_src_poolregister_global_debug(Pool,
                                         allocaptr, NumBytes, 0 , "<unknown>", 0);
   return;
 }
@@ -286,10 +287,10 @@ __sc_bb_poolregister_global (DebugPoolTy *Pool,
 //  This function is externally visible and is called by code to register
 //  a global variable with debugging information attached.
 //
-void 
+void
 __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
-                                       void *allocaptr, 
-                                       unsigned NumBytes,TAG, 
+                                       void *allocaptr,
+                                       unsigned NumBytes,TAG,
                                        const char *SourceFilep,
                                        unsigned lineno) {
   __internal_register(allocaptr, NumBytes);
@@ -303,20 +304,20 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
 //  with the given Pool.  This version will also record debug information about
 //  the object being registered.
 //
-void 
-__sc_bb_poolregister(DebugPoolTy *Pool, 
-                     void *allocaptr, 
+void
+__sc_bb_poolregister(DebugPoolTy *Pool,
+                     void *allocaptr,
                      unsigned NumBytes) {
   __sc_bb_src_poolregister(Pool, allocaptr, NumBytes, 0, "<unknown>", 0);
 }
 
 void
 __sc_bb_poolunregister(DebugPoolTy *Pool, void *allocaptr) {
-  __sc_bb_poolunregister_debug(Pool, allocaptr, 0, "<unknown>", 0); 
+  __sc_bb_poolunregister_debug(Pool, allocaptr, 0, "<unknown>", 0);
 }
 
 void
-__sc_bb_poolunregister_debug (DebugPoolTy *Pool, 
+__sc_bb_poolunregister_debug (DebugPoolTy *Pool,
                               void *allocaptr,
                               TAG,
                               const char* SourceFilep,
@@ -336,13 +337,13 @@ __sc_bb_poolunregister_debug (DebugPoolTy *Pool,
 }
 
 void
-__sc_bb_poolunregister_stack(DebugPoolTy *Pool, 
+__sc_bb_poolunregister_stack(DebugPoolTy *Pool,
                              void *allocaptr) {
-  __sc_bb_poolunregister_stack_debug(Pool, allocaptr, 0, "<unknown>", 0); 
+  __sc_bb_poolunregister_stack_debug(Pool, allocaptr, 0, "<unknown>", 0);
 }
 
 void
-__sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool, 
+__sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
                                     void *allocaptr,
                                     TAG,
                                     const char* SourceFilep,
@@ -363,7 +364,7 @@ __sc_bb_poolunregister_stack_debug (DebugPoolTy *Pool,
 
 void *
 __sc_bb_src_poolalloc(DebugPoolTy *Pool,
-                      unsigned NumBytes, TAG, 
+                      unsigned NumBytes, TAG,
                       const char * SourceFilep,
                       unsigned lineno) {
   unsigned char size= 0;
@@ -380,8 +381,8 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
 }
 
 void*
-__sc_bb_poolmemalign(DebugPoolTy *Pool, 
-                     unsigned Alignment, 
+__sc_bb_poolmemalign(DebugPoolTy *Pool,
+                     unsigned Alignment,
                      unsigned NumBytes) {
 
   unsigned char size= 0;
@@ -400,11 +401,11 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
   return p;
 }
 
-void * 
-__sc_bb_src_poolcalloc(DebugPoolTy *Pool, 
-                       unsigned Number, 
-                       unsigned NumBytes, TAG, 
-                       const char* SourceFilep, 
+void *
+__sc_bb_src_poolcalloc(DebugPoolTy *Pool,
+                       unsigned Number,
+                       unsigned NumBytes, TAG,
+                       const char* SourceFilep,
                        unsigned lineno) {
 
   unsigned char size= 0;
@@ -424,9 +425,9 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool,
 
 void *
 __sc_bb_poolcalloc(DebugPoolTy *Pool,
-                   unsigned Number, 
+                   unsigned Number,
                    unsigned NumBytes, TAG) {
-  return __sc_bb_src_poolcalloc(Pool,Number,  NumBytes, 0, "<unknown>",0); 
+  return __sc_bb_src_poolcalloc(Pool,Number,  NumBytes, 0, "<unknown>",0);
 }
 
 void *
@@ -439,7 +440,7 @@ __sc_bb_poolrealloc_debug (DebugPoolTy *Pool,
 }
 void *
 __sc_bb_poolrealloc(DebugPoolTy *Pool,
-                    void *Node, 
+                    void *Node,
                     unsigned NumBytes) {
   if (Node == 0) {
     void *New = __sc_bb_poolalloc(Pool, NumBytes);
@@ -453,7 +454,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
     return 0;
   }
 
-  uintptr_t Source = (uintptr_t)Node; 
+  uintptr_t Source = (uintptr_t)Node;
   if (Source & SET_MASK) {
     return 0;
   }
@@ -465,13 +466,13 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
 
   unsigned  char e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   unsigned int size_old = 1 << e;
-  uintptr_t Source_new = (uintptr_t)New; 
+  uintptr_t Source_new = (uintptr_t)New;
   unsigned  char e_new = __baggybounds_size_table_begin[Source_new >> SLOT_SIZE];
   unsigned int size_new = 1 << e_new;
 
   if(size_new > size_old)
     memcpy(New, Node, size_old);
-  else 
+  else
     memcpy(New, Node, size_new);
 
   __sc_bb_poolunregister(Pool, Node);
@@ -479,16 +480,26 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   return New;
 }
 
+unsigned char baggybounds_getdata(void* ptr) {
+  uintptr_t x = (uintptr_t)ptr;
+  return __baggybounds_size_table_begin[x >> SLOT_SIZE];
+}
+
+void baggybounds_getdata(void* ptr, unsigned char data) {
+  uintptr_t x = (uintptr_t)ptr;
+  __baggybounds_size_table_begin[x >> SLOT_SIZE] = data;
+}
+
 void *
 __sc_bb_poolalloc(DebugPoolTy *Pool,
                   unsigned NumBytes) {
-  return __sc_bb_src_poolalloc(Pool, NumBytes, 0, "<unknown>",0); 
+  return __sc_bb_src_poolalloc(Pool, NumBytes, 0, "<unknown>",0);
 }
 
 void
 __sc_bb_src_poolfree (DebugPoolTy *Pool,
                       void *Node,TAG,
-                      const char* SourceFile, 
+                      const char* SourceFile,
                       unsigned lineno) {
   free(Node);
 }	
@@ -496,7 +507,7 @@ __sc_bb_src_poolfree (DebugPoolTy *Pool,
 void
 __sc_bb_poolfree (DebugPoolTy *Pool,
                   void *Node) {
-  __sc_bb_src_poolfree(Pool, Node, 0, "<unknown>", 0); 
+  __sc_bb_src_poolfree(Pool, Node, 0, "<unknown>", 0);
 }
 
 
@@ -515,7 +526,7 @@ __sc_bb_poolfree (DebugPoolTy *Pool,
 //  ~0 - Otherwise, the program counter at which the fault occurred is
 //       returned.
 //
-static unsigned
+static unsigned long
   getProgramCounter (void * context) {
 #if defined(__APPLE__)
 #if defined(i386) || defined(__i386__) || defined(__x86__)
@@ -554,12 +565,12 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   //
   // Get the program counter for where the fault occurred.
   //
-  unsigned program_counter = getProgramCounter (context);
+  unsigned long program_counter = getProgramCounter (context);
 
   //
   // Get the address causing the fault.
   //
-  void * faultAddr = info->si_addr; 
+  void * faultAddr = info->si_addr;
 
   //
   // This is not a dangling pointer, uninitialized pointer, or a rewrite
@@ -571,7 +582,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = (const void*)program_counter,
     v.faultPtr = faultAddr,
-    v.SourceFile = 0,
+    v.SourceFile = NULL,
     v.lineNo = 0;
 
   ReportMemoryViolation(&v);
@@ -590,4 +601,3 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   return;
 
 }
-
