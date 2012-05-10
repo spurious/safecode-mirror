@@ -383,7 +383,10 @@ __sc_bb_src_poolalloc(DebugPoolTy *Pool,
     size = SLOT_SIZE;
   unsigned int alloc = 1 << size;
   void *p;
-  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
+  int result;
+
+  result = posix_memalign(&p, alloc, alloc);
+  assert(!result && "Memory allocation failed");
 
   return p;
 }
@@ -403,8 +406,10 @@ __sc_bb_poolmemalign(DebugPoolTy *Pool,
     size = Alignment;
   unsigned int alloc = 1 << size;
   void *p;
+  int result;
 
-  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
+  result = posix_memalign(&p, alloc, alloc);
+  assert(!result && "Memory allocation failed");
   __sc_bb_poolregister(Pool, p, NumBytes);
   return p;
 }
@@ -423,7 +428,9 @@ __sc_bb_src_poolcalloc(DebugPoolTy *Pool,
   if (size < SLOT_SIZE) size = SLOT_SIZE;
   unsigned int alloc = 1<< size;
   void *p;
-  assert(!posix_memalign(&p, alloc, alloc) && "Memory allocation failed");
+  int result;
+  result = posix_memalign(&p, alloc, alloc);
+  assert(!result && "Memory allocation failed");
   __sc_bb_src_poolregister(Pool, p, (Number*NumBytes), tag, SourceFilep, lineno);
   if (p) {
     bzero(p, Number*NumBytes);
