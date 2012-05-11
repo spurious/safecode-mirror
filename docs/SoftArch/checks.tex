@@ -9,38 +9,38 @@ that are determined to be incomplete or unknown by SAFECode's
 points-to analysis algorithm.
 
 \begin{itemize}
-\item{\tt lscheck (void * ptr, int length)}: \\
-The {\tt lscheck} call is used to instrument loads and stores to
+\item{\tt poolcheck (void * pool, void * ptr, size\_t length)}: \\
+The {\tt poolcheck} call is used to instrument loads and stores to
 memory (including LLVM atomic operations).  It ensures that the
 pointer points within a memory object in the pool and that the load or
 store will not read/write past the end of the memory object.
 
-\item{\tt fastlscheck (void * ptr, void * start, int objsize, int
-len)}: \\
-The {\tt fastlscheck()} function is identical to the {\tt lscheck()}
+\item{\tt fastlscheck (void * ptr, void * start, size\_t objsz,
+size\_t len)}: \\
+The {\tt fastlscheck()} function is identical to the {\tt poolcheck()}
 function in functionality; the difference is that {\tt fastlscheck()}
 is passed the bounds of the memory object into which the pointer
-should point.  It is an optimized version of {\tt lscheck()} that
+should point.  It is an optimized version of {\tt poolcheck()} that
 does not need to search for object bounds information in a side data
 structure.
 
-\item{\tt lscheck\_align}: \\
-The {\tt lscheck\_align()} function is used when type-safe
+\item{\tt poolcheck\_align (void * pool, void * ptr)}: \\
+The {\tt poolcheck\_align()} function is used when type-safe
 load/store optimizations are enabled.  It is possible for a pointer which
 is type-safe to be loaded from a memory object which is not type-safe.
 When a type-safe pointer is loaded via a type-inconsistent pointer,
-{\tt lscheck\_align()} verifies that the loaded pointer points
+{\tt poolcheck\_align()} verifies that the loaded pointer points
 within the specified pool at the correctly aligned offset for objects
 of its type.  This ensures that no further checks are needed when the
 type-safe poiner is used for loads and stores.
 
-\item{\tt free\_check}: \\
+\item{\tt free\_check (void * pool, void * ptr)}: \\
 The {\tt free\_check()} function checks that the pointer points to
 the beginning of a valid heap object.  It is used to catch invalid
 {\tt free} calls for allocators not known to tolerate invalid
 deallocation requests.
 
-\item{\tt boundscheck (void * src, void * dest)}: \\
+\item{\tt boundscheck (void * pool, void * src, void * dest)}: \\
 The {\tt boundscheck()} function takes a source pointer and a
 destination pointer that is computed from the source pointer; the
 checks first determines whether the source pointer is within a valid
@@ -61,7 +61,7 @@ The {\tt exactcheck()} function is a fast version of the {\tt
 boundscheck()} function that does not need to do an object bounds
 lookup.
 
-\item{\tt funccheck}: \\
+\item{\tt funccheck (void * pool, void f()}: \\
 The {\tt funccheck()} function determines if a function pointer
 belongs to the set of valid function pointer targets for an indirect
 function call.  It is used to ensure control-flow integrity.
