@@ -66,6 +66,7 @@ AC_CHECK_LIB(cvc3, vc_get_error_status,[],[],[-lgmp -lstdc++])
 dnl **************************************************************************
 dnl * Checks for header files.
 dnl **************************************************************************
+AC_CHECK_HEADERS([iconv.h])
 
 dnl **************************************************************************
 dnl * Checks for typedefs, structures, and compiler characteristics.

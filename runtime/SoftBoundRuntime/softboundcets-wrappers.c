@@ -37,6 +37,8 @@
 //===---------------------------------------------------------------------===//
 
 
+#include "safecode/Config/config.h"
+
 #include <arpa/inet.h>
 
 #if defined(__linux__)
@@ -86,7 +88,10 @@
 #include <langinfo.h>
 #include <regex.h>
 
+#ifdef HAVE_ICONV_H
 #include <iconv.h>
+#endif
+
 #include <utime.h>
 #include <math.h>
 #include <locale.h>
@@ -765,6 +770,7 @@ int softboundcets_regexec(const regex_t *preg, const char *string,
 }
 
 
+#ifdef HAVE_ICONV_H
 __WEAK_INLINE
 size_t softboundcets_iconv(iconv_t cd,
                            char **inbuf, size_t *inbytesleft,
@@ -778,6 +784,7 @@ iconv_t softboundcets_iconv_open(const char *tocode, const char *fromcode){
 
   return iconv_open(tocode, fromcode);
 }
+#endif
 
 
 

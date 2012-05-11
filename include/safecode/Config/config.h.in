@@ -533,3 +533,6 @@
 /* Define to 1 if building for use with the Linux kernel */
 #undef LLVA_KERNEL
 
+/* Define to 1 if iconv.h is available */
+#undef HAVE_ICONV_H
+
