@@ -3,6 +3,45 @@
 \label{section:checks}
 %%-----------------------------------------------------------------------------
 
+%%-----------------------------------------------------------------------------
+\subsection{Complete vs. Incomplete Checks}
+\label{section:checks:complete}
+%%-----------------------------------------------------------------------------
+
+Most of the SAFECode run-time checks come in two flavors: complete
+and incomplete.  A complete check attempts to find the bounds of a
+memory object into which a pointer points; if it cannot find the
+memory object, then the pointer must be invalid, and the check fails.
+
+The problem with complete checks is that they only work when the
+compiler knows everything that can be known about a memory object.
+Sadly, this isn't always true; applications are linked with native
+code libraries compiled with other compilers (unthinkable, I know, but
+it happens); the SAFECode compiler cannot analyze native code, and so
+it does not know about memory objects allocated or freed by the
+library code (also known as \emph{external code}).
+
+Incomplete checks are SAFECode's way of permitting a mixture of
+SAFECode-compiled code and native external code; if a pointer could be
+manipulated by external code, SAFECode relaxes its run-time checks so
+that failure to find the referant memory object does not cause a
+run-time check to fail.
+
+By default, SAFECode makes all of its checks incomplete checks (this
+is because each compilation unit treats other compilation units as
+external code).  When used with libLTO, SAFECode can use points-to
+analysis to determine which incomplete checks can be converted into
+complete checks without causing false positives.
+
+Incomplete checks admit the possibility that memory safety errors will escape
+detection.  However, they make memory safety usable in practice, and
+so we use them.
+
+%%-----------------------------------------------------------------------------
+\subsection{Run-time Checks}
+\label{section:checks:checks}
+%%-----------------------------------------------------------------------------
+
 Below are the run-time checks that SAFECode may add to a program.
 Note that many of these functions have alternate versions for pointers
 that are determined to be incomplete or unknown by SAFECode's
