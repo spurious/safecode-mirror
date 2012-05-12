@@ -88,7 +88,7 @@ extern "C" {
 
 
 char *bb_pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst, const char *src, const unsigned char complete, TAG, SRC_INFO) {
-  void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (char *)src, *srcEnd = NULL;
+  void *dstBegin = dst, *dstEnd = NULL, *srcBegin = (void *)src, *srcEnd = NULL;
 
   // Ensure all valid pointers.
   assert(dst && src && "Null parameters!");
