@@ -11,7 +11,8 @@ endif
 endif
 
 #SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp MonotonicLoopOpt.cpp
-SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp GlobalRegisterOpt.cpp RemoveSlowChecks.cpp
+SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp GlobalRegisterOpt.cpp \
+					 RemoveSlowChecks.cpp InlineFastChecks.cpp
 
 include $(LEVEL)/Makefile.common
 
