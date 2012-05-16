@@ -141,7 +141,7 @@ createFaultBlock (Function & F) {
   //
   LLVMContext & Context = F.getContext();
   Module * M = F.getParent();
-  M->getOrInsertFunction ("abort", Type::getVoidTy (Context), 0);
+  M->getOrInsertFunction ("abort", Type::getVoidTy (Context), NULL);
   CallInst::Create (M->getFunction ("abort"), "", UI);
 
   return faultBB;
@@ -188,31 +188,48 @@ llvm::InlineFastChecks::createBodyFor (Function * F) {
   Value * Base = arg++;
   Value * Result = arg++;
   Value * Size = arg++;
+
+  // Compare the base of the object to the pointer being checked.
   ICmpInst * Compare1 = new ICmpInst (*entryBB,
                                    CmpInst::ICMP_ULE,
                                    Base,
                                    Result,
                                    "cmp1");
 
+  // Calculate the address of the first byte beyond the memory object
   TargetData & TD = getAnalysis<TargetData>();
   Value * BaseInt = new PtrToIntInst (Base,
-                                    TD.getIntPtrType(Context), "tmp", entryBB);
-  Value * SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", entryBB);
+                                      TD.getIntPtrType(Context),
+                                      "tmp",
+                                      entryBB);
+  Value * SizeInt = new ZExtInst (Size,
+                                  TD.getIntPtrType(Context),
+                                  "size",
+                                  entryBB);
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
                                              BaseInt,
                                              SizeInt,
                                              "lastbyte",
                                              entryBB);
+
+  // Compare the pointer to the first byte beyond the end of the memory object
   Value * PtrInt = new PtrToIntInst (Result,
-                                    TD.getIntPtrType(Context), "tmp", entryBB);
+                                    TD.getIntPtrType(Context),
+                                    "tmp",
+                                    entryBB);
   Value * Compare2 = new ICmpInst (*entryBB,
                                    CmpInst::ICMP_ULT,
                                    PtrInt,
                                    LastByte,
                                    "cmp2");
 
-  Value * Sum = BinaryOperator::Create (Instruction::And, Compare1, Compare2, "and", entryBB);
-
+  // Create the branch instruction.  Both comparisons must return true for the
+  // pointer to be within bounds.
+  Value * Sum = BinaryOperator::Create (Instruction::And,
+                                        Compare1,
+                                        Compare2,
+                                        "and",
+                                        entryBB);
   BranchInst::Create (goodBB, faultBB, Sum, entryBB);
 
   //
