@@ -11,13 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "opt-safecode"
+#define DEBUG_TYPE "typesafe-lsopt"
 
 #include "safecode/SafeLoadStoreOpts.h"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Module.h"
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 char OptimizeSafeLoadStore::ID = 0;
 
@@ -36,12 +37,13 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   //
   // Get access to prerequisite passes.
   //
-  InsertSCIntrinsic & intrinsic = getAnalysis<InsertSCIntrinsic>();
   dsa::TypeSafety<EQTDDataStructures> & TS = getAnalysis<dsa::TypeSafety<EQTDDataStructures> >();
 
   //
   // Scan through all uses of the complete run-time check and record any checks
   // on type-known pointers.  These can be removed.
+  //
+  // TODO: This code should also work on fastlscheck calls.
   //
   std::vector <CallInst *> toRemoveTypeSafe;
   std::vector <CallInst *> toRemoveObvious;
@@ -54,7 +56,9 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
         //
         // Get the pointer that is checked by this run-time check.
         //
-        Value * CheckPtr = intrinsic.getValuePointer (CI)->stripPointerCasts();
+        CallSite CS(CI);
+        Value * CheckPtr = CS.getArgument(1)->stripPointerCasts();
+        CheckPtr->dump();
 
         //
         // If it is obvious that the pointer is within a valid object, then
@@ -108,4 +112,4 @@ OptimizeSafeLoadStore::runOnModule(Module & M) {
   return modified;
 }
 
-NAMESPACE_SC_END
+}

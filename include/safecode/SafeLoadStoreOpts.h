@@ -15,7 +15,6 @@
 #define SAFECODE_SAFELOADSTOREOPTS_H
 
 #include "safecode/SAFECode.h"
-#include "safecode/Intrinsic.h"
 
 #include "dsa/TypeSafety.h"
 #include "poolalloc/PoolAllocate.h"
@@ -24,7 +23,7 @@
 
 using namespace llvm;
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 //
 // Pass: OptimizeSafeLoadStore
@@ -39,7 +38,7 @@ struct OptimizeSafeLoadStore : public ModulePass {
 
   public:
     static char ID;
-    OptimizeSafeLoadStore() : ModulePass((intptr_t)(&ID)) {}
+    OptimizeSafeLoadStore() : ModulePass(ID) {}
     virtual bool runOnModule (Module & M);
 
     const char *getPassName() const {
@@ -47,13 +46,12 @@ struct OptimizeSafeLoadStore : public ModulePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<EQTDDataStructures>();
       AU.addRequired<dsa::TypeSafety<EQTDDataStructures> >();
       AU.setPreservesCFG();
     }
 };
 
-NAMESPACE_SC_END
+}
 #endif
 
