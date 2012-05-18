@@ -36,7 +36,7 @@ namespace llvm {
 struct ExactCheckOpt : public ModulePass {
  public:
   static char ID;
- ExactCheckOpt() : ModulePass(ID) {}
+  ExactCheckOpt() : ModulePass(ID) {}
   virtual bool runOnModule (Module & M);
   const char *getPassName() const {
     return "Exact check optimization";
