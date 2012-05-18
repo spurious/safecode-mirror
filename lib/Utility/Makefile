@@ -14,7 +14,5 @@ ifneq ($(OS),MingW)
 endif
 endif
 
-SOURCES := SCPoolHeuristic.cpp
-
 include $(LEVEL)/Makefile.common
 
