@@ -40,8 +40,8 @@ namespace PA {
       static char ID;
 
       // Method used to implement analysis groups without C++ inheritance
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
