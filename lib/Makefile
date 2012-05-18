@@ -12,11 +12,11 @@ PARALLEL_DIRS = \
                CStdLib \
                SoftBound \
                BaggyBoundsChecks \
+               Utility \
 #               StackSafety \
 #               SpeculativeChecking \
 #               DanglingPointers \
 #               CStdLib \
-#               Utility \
 #               FaultInjector \
 #               IndirectCallChecks \
 #               PointerChecks \

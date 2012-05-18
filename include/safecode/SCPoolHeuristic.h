@@ -46,7 +46,7 @@ namespace PA {
         return this;
       }
 
-      SCHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (IDp) { }
+      SCHeuristic (): ModulePass (ID) { }
       virtual ~SCHeuristic () {return;}
       virtual bool runOnModule (Module & M);
       virtual void releaseMemory ();
