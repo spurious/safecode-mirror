@@ -23,7 +23,7 @@ SHARED_LIBRARY = 1
 LINK_COMPONENTS = $(TARGETS_TO_BUILD) ipo scalaropts linker bitreader \
 	bitwriter mcdisassembler
 
-USEDLIBS := addchecks.a optchecks.a sc-support.a LLVMDataStructure.a
+USEDLIBS := addchecks.a optchecks.a sc-support.a LLVMDataStructure.a poolalloc.a
 
 include $(LEVEL)/Makefile.common
 
@@ -66,5 +66,10 @@ endif
 # library dependencies.
 #
 $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libLLVMDataStructure.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/LLVMDataStructure.a
+	$(VERB) echo "Creating symlink to $@"
+	$(VERB) ln -fs $< $@
+
+$(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpoolalloc.a: $(POOLALLOC_OBJDIR)/$(BuildMode)/lib/poolalloc.a
+	$(VERB) echo "Creating symlink to $@"
 	$(VERB) ln -fs $< $@
 

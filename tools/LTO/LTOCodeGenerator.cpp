@@ -48,8 +48,12 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include "poolalloc/PoolAllocate.h"
+#include "poolalloc/Heuristic.h"
+
 #include "safecode/CompleteChecks.h"
 #include "safecode/OptimizeChecks.h"
+#include "safecode/SafeLoadStoreOpts.h"
 
 #include <cstdlib>
 #include <unistd.h>
@@ -421,6 +425,11 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
         if (mergedModule->getFunction("main")) {
           passes.add(new CompleteChecks());
         }
+#ifdef POOLALLOC
+        passes.add(new OptimizeSafeLoadStore());
+        passes.add(new PA::AllNodesHeuristic());
+        passes.add(new PoolAllocate());
+#endif
 
         break;
       }
