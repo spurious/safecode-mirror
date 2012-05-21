@@ -48,7 +48,7 @@ SearchForContainingSlab(BitmapPoolTy *Pool, void *Node, unsigned &TheIndex);
 //  pool descriptor.
 //
 void
-__pa_bitmap_poolinit(BitmapPoolTy *Pool, unsigned NodeSize) {
+poolinit(BitmapPoolTy *Pool, unsigned NodeSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   DEBUG(printf("pool init %x, %d\n", Pool, NodeSize);)
 
@@ -76,7 +76,7 @@ __pa_bitmap_poolinit(BitmapPoolTy *Pool, unsigned NodeSize) {
 // FIXME: determine how to adjust debug logs when 
 //        pooldestroy is called
 void
-__pa_bitmap_pooldestroy(BitmapPoolTy *Pool) {
+pooldestroy(BitmapPoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
   if (Pool->NumSlabs > BitmapPoolTy::AddrArrSize) {
@@ -122,7 +122,7 @@ __pa_bitmap_pooldestroy(BitmapPoolTy *Pool) {
 //         *not* need to match the size of the objects found in the pool.
 //
 void *
-__pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
+poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
   void *retAddress = NULL;
   assert(Pool && "Null pool pointer passed into poolalloc!\n");
 
@@ -136,7 +136,7 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
   // of the specified size.
   //
   unsigned NodeSize = Pool->NodeSize;
-  assert (NodeSize && "__pa_bitmap_poolalloc: Node Size is zero!\n");
+  assert (NodeSize && "poolalloc: Node Size is zero!\n");
   unsigned NodesToAllocate = (NumBytes + NodeSize - 1) / NodeSize;
   
   // Call a helper function if we need to allocate more than 1 node.
@@ -219,6 +219,41 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
 }
 
 //
+// Function: poolcalloc()
+//
+// Description:
+//  This is a pool allocated version of calloc().
+//
+// Inputs:
+//  Pool        - The pool from which to allocate the elements.
+//  Number      - The number of elements to allocate.
+//  NumBytes    - The size of each element in bytes.
+//
+// Return value:
+//  NULL - The allocation did not succeed.
+//  Otherwise, a fresh pointer to the allocated memory is returned, and the
+//  memory is zero'ed out.
+//
+void *
+poolcalloc (BitmapPoolTy *Pool, unsigned Number, unsigned NumBytes) {
+  //
+  // Allocate the desired amount of memory.
+  //
+  void * New = poolalloc (Pool, Number * NumBytes);
+
+  //
+  // If the allocation succeeded, zero out the memory and do needed SAFECode
+  // operations.
+  //
+  if (New) {
+    // Zero the memory
+    bzero (New, Number * NumBytes);
+  }
+
+  return New;
+}
+
+//
 // Function: poolstrdup()
 //
 // Description:
@@ -234,11 +269,11 @@ __pa_bitmap_poolalloc(BitmapPoolTy *Pool, unsigned NumBytes) {
 //  Otherwise, a pointer to the duplicated string is returned.
 //
 void *
-__pa_bitmap_poolstrdup (BitmapPoolTy *Pool, void *Node) {
+poolstrdup (BitmapPoolTy *Pool, void *Node) {
   if (Node == 0) return 0;
 
   unsigned int NumBytes = strlen((char*)Node) + 1;
-  void *New = __pa_bitmap_poolalloc (Pool, NumBytes);
+  void *New = poolalloc (Pool, NumBytes);
   if (New) {
     memcpy(New, Node, NumBytes+1);
   }
@@ -339,7 +374,7 @@ poolallocarray(BitmapPoolTy* Pool, unsigned Size) {
 //    o) Deallocating an already-free object.
 //
 void
-__pa_bitmap_poolfree(BitmapPoolTy *Pool, void *Node) {
+poolfree(BitmapPoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   PoolSlab *PS;
   int Idx;

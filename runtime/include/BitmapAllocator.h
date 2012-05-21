@@ -117,11 +117,12 @@ public:
 
 /// Interfaces provided by the bitmap allocators
 extern "C" {
-  void __pa_bitmap_poolinit(llvm::BitmapPoolTy *Pool, unsigned NodeSize);
-  void __pa_bitmap_pooldestroy(llvm::BitmapPoolTy *Pool);
-  void * __pa_bitmap_poolalloc(llvm::BitmapPoolTy *Pool, unsigned NumBytes);
-  void * __pa_bitmap_poolstrdup(llvm::BitmapPoolTy *Pool, void *Node);
-  void __pa_bitmap_poolfree(llvm::BitmapPoolTy *Pool, void *Node);
+  void poolinit(llvm::BitmapPoolTy *Pool, unsigned NodeSize);
+  void pooldestroy(llvm::BitmapPoolTy *Pool);
+  void * poolalloc(llvm::BitmapPoolTy *Pool, unsigned NumBytes);
+  void * poolcalloc(llvm::BitmapPoolTy *Pool, unsigned Num, unsigned NumBytes);
+  void * poolstrdup(llvm::BitmapPoolTy *Pool, void *Node);
+  void poolfree(llvm::BitmapPoolTy *Pool, void *Node);
   void * __pa_bitmap_poolcheck(llvm::BitmapPoolTy *Pool, void *Node);
 }
 

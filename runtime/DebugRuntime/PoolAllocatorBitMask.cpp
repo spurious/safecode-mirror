@@ -279,7 +279,7 @@ pool_init_logfile (const char * name) {
 void *
 __sc_dbg_newpool(unsigned NodeSize) {
   DebugPoolTy * Pool = new DebugPoolTy();
-  __pa_bitmap_poolinit(static_cast<BitmapPoolTy*>(Pool), NodeSize);
+  poolinit(static_cast<BitmapPoolTy*>(Pool), NodeSize);
   return Pool;
 }
 
@@ -308,7 +308,7 @@ __sc_dbg_pooldestroy(DebugPoolTy * Pool) {
   // Let the pool allocator run-time free all objects allocated within the
   // pool.
   //
-  __pa_bitmap_pooldestroy(Pool);
+  pooldestroy(Pool);
 }
 
 //
@@ -1295,7 +1295,7 @@ __sc_dbg_src_poolalloc (DebugPoolTy *Pool,
   if (NumBytes == 0) NumBytes = 1;
 
   // Perform the allocation and determine its offset within the physical page.
-  void * canonptr = __pa_bitmap_poolalloc(Pool, NumBytes);
+  void * canonptr = poolalloc(Pool, NumBytes);
   return canonptr;
 }
 
@@ -1315,7 +1315,7 @@ __sc_dbg_src_poolfree (DebugPoolTy *Pool,
   // Free the object within the pool; the poolunregister() function will
   // detect invalid frees.
   //
-  __pa_bitmap_poolfree (Pool, Node);
+  poolfree (Pool, Node);
 }
 
 
@@ -1774,15 +1774,13 @@ __sc_dbg_poolcalloc (DebugPoolTy *Pool, unsigned Number, unsigned NumBytes) {
 }
 
 void *
-__sc_dbg_poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
+poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   //
   // If the object has never been allocated before, allocate it now, create a
   // shadow object (if necessary), and register the object as a heap object.
   //
   if (Node == 0) {
-    void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
-    if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
-    pool_register (Pool, New, NumBytes);
+    void * New = poolalloc(Pool, NumBytes);
     return New;
   }
 
@@ -1790,9 +1788,7 @@ __sc_dbg_poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Reallocate an object to 0 bytes means that we wish to free it.
   //
   if (NumBytes == 0) {
-    _internal_poolunregister (Pool, Node, Heap, 0, "Unknown", 0);
-    if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
-    __pa_bitmap_poolfree(Pool, Node);
+    poolfree(Pool, Node);
     return 0;
   }
 
@@ -1815,15 +1811,8 @@ __sc_dbg_poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Allocate a new object.  If we fail, return NULL.
   //
   void *New;
-  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
+  if ((New = poolalloc(Pool, NumBytes)) == 0)
     return 0;
-
-  //
-  // Create a shadow of the new object (if necessary) and register it with the
-  // pool.
-  //
-  if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
-  pool_register (Pool, New, NumBytes);
 
   //
   // Determine the number of bytes to copy into the new object.
@@ -1842,9 +1831,7 @@ __sc_dbg_poolrealloc (DebugPoolTy *Pool, void *Node, unsigned NumBytes) {
   // Invalidate the old object and its bounds and return the pointer to the
   // new object.
   //
-  _internal_poolunregister(Pool, Node, Heap, 0, "Unknown", 0);
-  if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
-  __pa_bitmap_poolfree(Pool, Node);
+  poolfree(Pool, Node);
   return New;
 }
 
@@ -1859,7 +1846,7 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
   // shadow object (if necessary), and register the object as a heap object.
   //
   if (Node == 0) {
-    void * New = __pa_bitmap_poolalloc(Pool, NumBytes);
+    void * New = poolalloc(Pool, NumBytes);
     if (ConfigData.RemapObjects) New = pool_shadow (New, NumBytes);
     pool_register_debug (Pool, New, NumBytes, tag, SourceFilep, lineno);
     return New;
@@ -1871,7 +1858,7 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
   if (NumBytes == 0) {
     pool_unregister_debug (Pool, Node, tag, SourceFilep, lineno);
     if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
-    __pa_bitmap_poolfree(Pool, Node);
+    poolfree(Pool, Node);
     return 0;
   }
 
@@ -1894,7 +1881,7 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
   // Allocate a new object.  If we fail, return NULL.
   //
   void *New;
-  if ((New = __pa_bitmap_poolalloc(Pool, NumBytes)) == 0)
+  if ((New = poolalloc(Pool, NumBytes)) == 0)
     return 0;
 
   //
@@ -1923,7 +1910,7 @@ __sc_dbg_poolrealloc_debug (DebugPoolTy *Pool,
   //
   _internal_poolunregister(Pool, Node, Heap, tag, SourceFilep, lineno);
   if (ConfigData.RemapObjects) Node = pool_unshadow (Node);
-  __pa_bitmap_poolfree(Pool, Node);
+  poolfree(Pool, Node);
   return New;
 }
 
@@ -1964,7 +1951,7 @@ internal_poolstrdup (DebugPoolTy * Pool,
   // Now call the pool allocator's strdup() function.
   //
   void * Node = String;
-  void * NewNode = __pa_bitmap_poolstrdup (static_cast<BitmapPoolTy*>(Pool), Node);
+  void * NewNode = poolstrdup (static_cast<BitmapPoolTy*>(Pool), Node);
 
   if (NewNode) {
     //
@@ -2065,7 +2052,7 @@ __sc_dbg_poolinit(DebugPoolTy *Pool, unsigned NodeSize, unsigned) {
   //
   // Call the underlying allocator's poolinit() function to initialze the pool.
   //
-  __pa_bitmap_poolinit(Pool, NodeSize);
+  poolinit(Pool, NodeSize);
 
   //
   // Call the in-place new operator for the splay tree of objects and, if
