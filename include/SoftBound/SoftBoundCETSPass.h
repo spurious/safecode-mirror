@@ -213,6 +213,7 @@ class SoftBoundCETSPass: public ModulePass {
   bool runOnModule(Module&);
   void initializeSoftBoundVariables(Module&);
   void identifyOriginalInst(Function*);
+  bool isAllocaPresent(Function*);
   void gatherBaseBoundPass1(Function*);
   void gatherBaseBoundPass2(Function*);
   void addDereferenceChecks(Function*);
@@ -237,6 +238,7 @@ class SoftBoundCETSPass: public ModulePass {
   void handleCall(CallInst*);
   void handleMemcpy(CallInst*);
   void handleIndirectCall(CallInst*);
+  void handleExtractValue(ExtractValueInst*);
   void handleSelect(SelectInst*, int);
   void handleIntToPtr(IntToPtrInst*);
   void identifyFuncToTrans(Module&);
@@ -251,6 +253,10 @@ class SoftBoundCETSPass: public ModulePass {
   void renameFunctions(Module&);
   void renameFunctionName(Function*, Module&, bool);
   bool checkAndShrinkBounds(GetElementPtrInst*, Value* func_global_lock);
+  bool checkTypeHasPtrs(Argument*);
+  bool checkPtrsInST(StructType*);
+  bool isByValDerived(Value*);
+  
   bool checkBitcastShrinksBounds(Instruction* );
   void addLoadStoreChecks(Instruction*, std::map<Value*, int>&);
   void addTemporalChecks(Instruction*, std::map<Value*, int>&, std::map<Value*, int>&);
@@ -261,7 +267,7 @@ class SoftBoundCETSPass: public ModulePass {
   bool checkLoadStoreSourceIsGEP(Instruction*, Value*);
   void addMemcopyCheck(CallInst*);
   bool isMemcopyFunction(Function*);
-  void addMemoryAllocationCall(Function*, Value*, Value* &, Value* &, Instruction*, bool);
+  void addMemoryAllocationCall(Function*, Value* &, Value* &, Instruction*, bool);
   void getFunctionKeyLock(Function*, Value* &, Value* &, Value* &);
   void freeFunctionKeyLock(Function*, Value* &, Value* &, Value* &);
   Value* getPointerLoadStore(Instruction*);
@@ -392,7 +398,7 @@ class SoftBoundCETSPass: public ModulePass {
   /*               "SoftBound CETS for memory safety", false, false) */
     
     
-  SoftBoundCETSPass(): ModulePass(ID){
+ SoftBoundCETSPass(): ModulePass(ID){
 #if 0
     initializeSoftBoundCETSPass(*PassRegistry::getPassRegistry());
 #endif

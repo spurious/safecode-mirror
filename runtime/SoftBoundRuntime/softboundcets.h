@@ -51,9 +51,24 @@
 #include <unistd.h>
 #include <assert.h>
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+extern size_t __softboundcets_statistics_spatial_load_dereference_checks;
+extern size_t __softboundcets_statistics_spatial_store_dereference_checks ;
+extern size_t __softboundcets_statistics_temporal_load_dereference_checks ;
+extern size_t __softboundcets_statistics_temporal_store_dereference_checks;
+extern size_t __softboundcets_statistics_metadata_loads;
+extern size_t __softboundcets_statistics_metadata_stores;
+extern size_t __softboundcets_statistics_heap_allocations;
+extern size_t __softboundcets_statistics_stack_allocations;
+extern size_t __softboundcets_statistics_heap_deallocations;
+extern size_t __softboundcets_statistics_stack_deallocations;
+extern size_t __softboundcets_statistics_metadata_memcopies;
+#endif
 
+//#if 0
 #define __SOFTBOUNDCETS_TRIE 1
 #define __SOFTBOUNDCETS_SPATIAL_TEMPORAL 1
+//#endif
 
 /* Trie represented by the following by a structure with four fields
  * if both __SOFTBOUNDCETS_SPATIAL and __SOFTBOUNDCETS_TEMPORAL are
@@ -178,7 +193,7 @@ static const int __SOFTBOUNDCETS_PREALLOCATE_TRIE = 0;
 #endif
 
 #ifdef __SOFTBOUNDCETS_TEMPORAL
-//#define __SOFTBOUNDCETS_FREE_MAP
+#define __SOFTBOUNDCETS_FREE_MAP
 #endif
 
 #ifdef __SOFTBOUNDCETS_FREE_MAP
@@ -205,12 +220,10 @@ static const size_t __SOFTBOUNDCETS_N_FREE_MAP_ENTRIES = ((size_t) 32 * (size_t)
 // each secondary entry has 2^ 22 entries 
 static const size_t __SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES = ((size_t) 4 * (size_t) 1024 * (size_t) 1024); 
 
-
 #else
 
 static const size_t __SOFTBOUNDCETS_N_TEMPORAL_ENTRIES = ((size_t) 64*(size_t) 1024 * (size_t) 1024); 
 static const size_t __SOFTBOUNDCETS_LOWER_ZERO_POINTER_BITS = 3;
-
 
 static const size_t __SOFTBOUNDCETS_N_STACK_TEMPORAL_ENTRIES = ((size_t) 1024 * (size_t) 64);
 static const size_t __SOFTBOUNDCETS_N_GLOBAL_LOCK_SIZE = ((size_t) 1024 * (size_t) 32);
@@ -230,6 +243,12 @@ static const size_t __SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES = ((size_t) 4 *
 
 #define __WEAK_INLINE __attribute__((__weak__,__always_inline__)) 
 
+#if __WORDSIZE == 32
+#define __METADATA_INLINE 
+#else
+#define __METADATA_INLINE __attribute__((__weak__, __always_inline__))
+#endif
+
 #define __NO_INLINE __attribute__((__noinline__))
 
 extern __softboundcets_trie_entry_t** __softboundcets_trie_primary_table;
@@ -245,12 +264,6 @@ extern void __softboundcets_init(int is_trie);
 extern __SOFTBOUNDCETS_NORETURN void __softboundcets_abort();
 extern void __softboundcets_printf(const char* str, ...);
 extern size_t* __softboundcets_global_lock; 
-extern size_t __softboundcets_statistics_metadata_stores;
-extern size_t __softboundcets_statistics_metadata_loads;
-extern size_t __softboundcets_statistics_load_dereference_checks;
-extern size_t __softboundcets_statistics_store_dereference_checks;
-extern size_t __softboundcets_statistics_temporal_load_dereference_checks;
-extern size_t __softboundcets_statistics_temporal_store_dereference_checks;
 
 void* __softboundcets_safe_calloc(size_t, size_t);
 void* __softboundcets_safe_malloc(size_t);
@@ -258,6 +271,7 @@ void __softboundcets_safe_free(void*);
 
 void * __softboundcets_safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset);
 __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate(void* addr_of_ptr);
+__WEAK_INLINE void __softboundcets_add_to_free_map(size_t ptr_key, void* ptr) ;
 
 /******************************************************************************/
 
@@ -272,15 +286,17 @@ void __softboundcets_global_init()
 }
 
 
-/* Layout of the sahdow stack
+/* Layout of the shadow stack
 
   1) size of the previous stack frame
   2) size of the current stack frame
   3) base/bound/key/lock of each argument
 
-  Allocation: read the current stack frames size, increment the shadow_stack_ptr by current_size + 2, store the previous size into the new prev value, calcuate the allocation size and store in the new current stack size field;
-  Deallocation: read the previous size, and decrement the shadow_stack_ptr
-*/
+  Allocation: read the current stack frames size, increment the
+  shadow_stack_ptr by current_size + 2, store the previous size into
+  the new prev value, calcuate the allocation size and store in the
+  new current stack size field; Deallocation: read the previous size,
+  and decrement the shadow_stack_ptr */
   
 __WEAK_INLINE void __softboundcets_allocate_shadow_stack_space(int num_pointer_args){
  
@@ -439,9 +455,13 @@ __WEAK_INLINE void __softboundcets_introspect_metadata(void* ptr, void* base, vo
   printf("[introspect_metadata]ptr=%p, base=%p, bound=%p, arg_no=%d\n", ptr, base, bound, arg_no);
 }
 
-__WEAK_INLINE void __softboundcets_copy_metadata(void* dest, void* from, size_t size){
+__METADATA_INLINE void __softboundcets_copy_metadata(void* dest, void* from, size_t size){
   
   //  printf("dest=%p, from=%p, size=%zx\n", dest, from, size);
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_metadata_memcopies++;
+#endif
   
   size_t dest_ptr = (size_t) dest;
   size_t dest_ptr_end = dest_ptr + size;
@@ -449,29 +469,73 @@ __WEAK_INLINE void __softboundcets_copy_metadata(void* dest, void* from, size_t 
   size_t from_ptr = (size_t) from;
   size_t from_ptr_end = from_ptr + size;
 
+
+  if(from_ptr % 8 != 0){
+    //printf("dest=%p, from=%p, size=%zx\n", dest, from, size);
+    return;
+    //    from_ptr = from_ptr %8;
+    //    dest_ptr = dest_ptr %8;
+
+  }
+
+  //  printf("dest=%p, from=%p, size=%zx\n", dest, from, size);
   __softboundcets_trie_entry_t* trie_secondary_table_dest_begin;
   __softboundcets_trie_entry_t* trie_secondary_table_from_begin;
-
+  
   size_t dest_primary_index_begin = (dest_ptr >> 25);
   size_t dest_primary_index_end = (dest_ptr_end >> 25);
 
-  if(dest_primary_index_begin != dest_primary_index_end){
-    __softboundcets_printf("memcopy straddling trie boundaries not supported currently\n");
-    exit(1);
-  }
-  
-  assert(dest_primary_index_begin == dest_primary_index_end);
-
   size_t from_primary_index_begin = (from_ptr >> 25);
   size_t from_primary_index_end =  (from_ptr_end >> 25);
+
+
+  if((from_primary_index_begin != from_primary_index_end) || 
+     (dest_primary_index_begin != dest_primary_index_end)){
+
+    size_t from_sizet = from_ptr;
+    size_t dest_sizet = dest_ptr;
+
+    size_t trie_size = size;
+    size_t index = 0;
+
+    for(index=0; index < trie_size; index = index + 8){
+      
+      size_t temp_from_pindex = (from_sizet + index) >> 25;
+      size_t temp_to_pindex = (dest_sizet + index) >> 25;
+
+      size_t dest_secondary_index = (((dest_sizet + index) >> 3) & 0x3fffff);
+      size_t from_secondary_index = (((from_sizet + index) >> 3) & 0x3fffff);
+      
+      __softboundcets_trie_entry_t* temp_from_strie = __softboundcets_trie_primary_table[temp_from_pindex];
+
+      if(temp_from_strie == NULL){
+        temp_from_strie = __softboundcets_trie_allocate();
+        __softboundcets_trie_primary_table[temp_from_pindex] = temp_from_strie;
+      }
+     __softboundcets_trie_entry_t* temp_to_strie = __softboundcets_trie_primary_table[temp_to_pindex];
+
+      if(temp_to_strie == NULL){
+        temp_to_strie = __softboundcets_trie_allocate();
+        __softboundcets_trie_primary_table[temp_to_pindex] = temp_to_strie;
+      }
+
+      void* dest_entry_ptr = &temp_to_strie[dest_secondary_index];
+      void* from_entry_ptr = &temp_from_strie[from_secondary_index];
   
-  if(from_primary_index_begin != from_primary_index_end){
-    __softboundcets_printf("memcopy straddling trie boundaries not supported currently\n");
-    exit(1);
+#ifdef __SOFTBOUNDCETS_SPATIAL
+      memcpy(dest_entry_ptr, from_entry_ptr, 16);
+#elif __SOFTBOUNDCETS_TEMPORAL
+      memcpy(dest_entry_ptr, from_entry_ptr, 16);
+#elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
+      memcpy(dest_entry_ptr, from_entry_ptr, 32);
+#else
+      memcpy(dest_entry_ptr, from_entry_ptr, 32);
+#endif
+    }    
+    return;
+
   }
-  
-  assert(from_primary_index_begin == from_primary_index_end);
-  
+    
   trie_secondary_table_dest_begin = __softboundcets_trie_primary_table[dest_primary_index_begin];
   trie_secondary_table_from_begin = __softboundcets_trie_primary_table[from_primary_index_begin];
   
@@ -508,10 +572,7 @@ __WEAK_INLINE void __softboundcets_copy_metadata(void* dest, void* from, size_t 
   //  printf("doing 32 byte metadata\n");
   memcpy(dest_entry_ptr, from_entry_ptr, 32* (size>> 3));
 #endif
-
-  
   return;
-  
 }
 
 __WEAK_INLINE void __softboundcets_shrink_bounds(void* new_base, void* new_bound, void* old_base, void* old_bound, void** base_alloca, void** bound_alloca)
@@ -542,6 +603,10 @@ extern void* malloc_address;
 __WEAK_INLINE void __softboundcets_spatial_load_dereference_check(void *base, void *bound, void *ptr, size_t size_of_type)
 {
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_spatial_load_dereference_checks++;
+#endif
+
   if (__SOFTBOUNDCETS_DISABLE) {
     return;
   }
@@ -559,6 +624,10 @@ __WEAK_INLINE void __softboundcets_spatial_load_dereference_check(void *base, vo
 
 __WEAK_INLINE void __softboundcets_spatial_store_dereference_check(void *base, void *bound, void *ptr, size_t size_of_type)
 {
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_spatial_store_dereference_checks++;
+#endif
 
   if (__SOFTBOUNDCETS_DISABLE) {
     return;
@@ -625,22 +694,25 @@ __WEAK_INLINE void __softboundcets_memcopy_check(char* dest, char* dest_base, ch
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
-void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound) {
+__METADATA_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound) {
 
 #elif __SOFTBOUNDCETS_TEMPORAL
 
-void __softboundcets_metadata_store(void* addr_of_ptr, size_t key, void* lock) {
+__METADATA_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, size_t key, void* lock) {
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
 
-void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
+__METADATA_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
   
 #else
 
-void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
+__METADATA_INLINE void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, size_t key, void* lock) {  
 
 #endif 
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_metadata_stores++;
+#endif
 
   if(!__SOFTBOUNDCETS_TRIE)
     return;
@@ -711,22 +783,25 @@ void __softboundcets_metadata_store(void* addr_of_ptr, void* base, void* bound, 
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
-void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound){   
+__METADATA_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound){   
 
 #elif __SOFTBOUNDCETS_TEMPORAL
 
-void __softboundcets_metadata_load(void* addr_of_ptr, size_t* key, void** lock){   
+__METADATA_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, size_t* key, void** lock){   
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
 
-void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){   
+__METADATA_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){   
 
 #else
  
-void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){
+__METADATA_INLINE void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound, size_t* key, void** lock){
 
 #endif
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_metadata_loads++;
+#endif
 
   if (__SOFTBOUNDCETS_DISABLE) {
     return;
@@ -770,7 +845,7 @@ void __softboundcets_metadata_load(void* addr_of_ptr, void** base, void** bound,
       }
     } /* PREALLOCATE_ENDS */
 
-      /* MAIN SOFTBOUNDCETS LOAD WHICH RUNS ON THE NORMAL MACHINE */
+    /* MAIN SOFTBOUNDCETS LOAD WHICH RUNS ON THE NORMAL MACHINE */
     size_t secondary_index = ((ptr >> 3) & 0x3fffff);
     __softboundcets_trie_entry_t* entry_ptr = &trie_secondary_table[secondary_index];
     
@@ -812,9 +887,19 @@ extern size_t* __softboundcets_lock_next_location;
 extern size_t* __softboundcets_lock_new_location;
 
 #ifdef __SOFTBOUNDCETS_SPATIAL_TEMPORAL
-__WEAK_INLINE void __softboundcets_temporal_load_dereference_check(void* pointer_lock, size_t key, void* base, void* bound) {
+__WEAK_INLINE void 
+__softboundcets_temporal_load_dereference_check(void* pointer_lock, 
+                                                size_t key, 
+                                                void* base, 
+                                                void* bound) {
 #else
-  __WEAK_INLINE void __softboundcets_temporal_load_dereference_check(void* pointer_lock, size_t key) {  
+__WEAK_INLINE void 
+__softboundcets_temporal_load_dereference_check(void* pointer_lock, 
+                                                size_t key) {
+#endif
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_temporal_load_dereference_checks++;
 #endif
   
   /* URGENT: I should think about removing this condition check */
@@ -830,44 +915,57 @@ __WEAK_INLINE void __softboundcets_temporal_load_dereference_check(void* pointer
   
   if(temp != key) {
     if(__SOFTBOUNDCETS_DEBUG) {
-      __softboundcets_printf("[TemporalLoadDereferenceCheck]Temporal keys don't match, temporal error, key = %zx, *lock=%zx\n", key, temp );
+      __softboundcets_printf("[TLDC] Key mismatch key = %zx, *lock=%zx\n", 
+                             key, temp );
     }
-    //    __softboundcets_printf("[TemporalLoadDereferenceCheck]Temporal keys don't match, temporal error, key = %zx, *lock=%zx, base=%p, bound=%p, lock=%p\n", key, temp, base, bound, pointer_lock );
+    __softboundcets_printf("[TLDC] Key mismatch key = %zx, *lock=%zx\n", 
+                           key, temp );
     __softboundcets_abort();    
   }
 
 }
 
 #ifdef __SOFTBOUNDCETS_SPATIAL_TEMPORAL
-__WEAK_INLINE void __softboundcets_temporal_store_dereference_check(void* pointer_lock, size_t key, void* base, void* bound) {
+__WEAK_INLINE void 
+__softboundcets_temporal_store_dereference_check(void* pointer_lock, 
+                                                 size_t key, 
+                                                 void* base, 
+                                                 void* bound) {
 #else
-__WEAK_INLINE void __softboundcets_temporal_store_dereference_check(void* pointer_lock, size_t key){
+__WEAK_INLINE void 
+__softboundcets_temporal_store_dereference_check(void* pointer_lock, 
+                                                 size_t key){
 #endif    
-  
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_temporal_store_dereference_checks++;
+#endif
+
   if(!pointer_lock){
-    if(__SOFTBOUNDCETS_DEBUG) {
-      //      __softboundcets_printf("[store]Temporal key location null, base = %p, bound = %p\n", base, bound);
-    }
-    //    __softboundcets_printf("[store]Temporal key location null, base = %p, bound = %p\n", base, bound);
+    __softboundcets_printf("lock null?");
     __softboundcets_abort();    
   }
-
+  
   size_t temp = *((size_t*)pointer_lock);
   
   if(temp != key) {
 
     if(__SOFTBOUNDCETS_DEBUG) {
-      __softboundcets_printf("[TemporalStoreDereferenceCheck]Temporal keys don't match, temporal error, key = %zx, *lock=%zx\n", key, temp );
+      __softboundcets_printf("[TSDC] Key mismatch, key = %zx, *lock=%zx\n", 
+                             key, temp );
     }
-
-    __softboundcets_printf("[TemporalStoreDereferenceCheck]Temporal keys don't match, temporal error, key = %zx, *lock=%zx\n", key, temp );
+    __softboundcets_printf("[TSDC] Key mismatch, key = %zx, *lock=%zx\n", 
+                           key, temp );    
     __softboundcets_abort();    
   }
-
 }
 
 
 __WEAK_INLINE void __softboundcets_stack_memory_deallocation(size_t ptr_key){
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_stack_deallocations++;
+#endif
   
 #ifndef __SOFTBOUNDCETS_CONSTANT_STACK_KEY_LOCK
 
@@ -880,30 +978,35 @@ __WEAK_INLINE void __softboundcets_stack_memory_deallocation(size_t ptr_key){
 
 }
 
-__WEAK_INLINE void __softboundcets_memory_deallocation(void* ptr_lock, size_t ptr_key) {
+__WEAK_INLINE void 
+__softboundcets_memory_deallocation(void* ptr_lock, size_t ptr_key) {
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_heap_deallocations++;
+#endif
   
   if(__SOFTBOUNDCETS_DEBUG){
-    __softboundcets_printf("[__softboundcets_deallocateKeyAddrLocation] pointer_lock = %p, *pointer_lock=%zx\n", ptr_lock, *((size_t*) ptr_lock));
+    __softboundcets_printf("[Hdealloc] pointer_lock = %p, *pointer_lock=%zx\n", 
+                           ptr_lock, *((size_t*) ptr_lock));
   }
   
   *((size_t*)ptr_lock) = 0;
   *((void**) ptr_lock) = __softboundcets_lock_next_location;
   __softboundcets_lock_next_location = ptr_lock;
 
-
 }
 
 __WEAK_INLINE void*  __softboundcets_allocate_lock_location() {
-
   
   void* temp= NULL;
   if(__softboundcets_lock_next_location == NULL) {
     if(__SOFTBOUNDCETS_DEBUG) {
-      __softboundcets_printf("[__softboundcets_allocateKeyAddrLocation] returning softboundcets_lock_new_location=%p\n", __softboundcets_lock_new_location);
+      __softboundcets_printf("[lock_allocate] new_lock_location=%p\n", 
+                             __softboundcets_lock_new_location);
       
-      if(__softboundcets_lock_new_location  > __softboundcets_temporal_space_begin + __SOFTBOUNDCETS_N_TEMPORAL_ENTRIES){
-        __softboundcets_printf("[__softboundcets_allocateKeyAddrLocation] running out of temporal free entries \n");
+      if(__softboundcets_lock_new_location  > 
+         __softboundcets_temporal_space_begin + __SOFTBOUNDCETS_N_TEMPORAL_ENTRIES){
+        __softboundcets_printf("[lock_allocate] out of temporal free entries \n");
         __softboundcets_abort();
       }
     }
@@ -914,7 +1017,7 @@ __WEAK_INLINE void*  __softboundcets_allocate_lock_location() {
 
     temp = __softboundcets_lock_next_location;
     if(__SOFTBOUNDCETS_DEBUG){
-      __softboundcets_printf("[__softboundcets_allocateKeyAddrLocation] returning softboundcetswithss_lock_next_location=%p\n", temp);
+      __softboundcets_printf("[lock_allocate] next_lock_location=%p\n", temp);
     }
 
     __softboundcets_lock_next_location = *((void**)__softboundcets_lock_next_location);
@@ -922,7 +1025,9 @@ __WEAK_INLINE void*  __softboundcets_allocate_lock_location() {
   }
 }
 
-__WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate_range(void* initial_ptr, size_t size) {
+__WEAK_INLINE void 
+__softboundcets_allocation_secondary_trie_allocate_range(void* initial_ptr, 
+                                                         size_t size) {
 
   if(!__SOFTBOUNDCETS_TRIE)
     return;
@@ -939,7 +1044,8 @@ __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate_range(void
   
   for(; start_primary_index <= end_primary_index; start_primary_index++){
     
-    __softboundcets_trie_entry_t* trie_secondary_table = __softboundcets_trie_primary_table[start_primary_index];    
+    __softboundcets_trie_entry_t* 
+      trie_secondary_table = __softboundcets_trie_primary_table[start_primary_index];    
     if(trie_secondary_table == NULL) {
       trie_secondary_table =  __softboundcets_trie_allocate();
       __softboundcets_trie_primary_table[start_primary_index] = trie_secondary_table;
@@ -947,7 +1053,8 @@ __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate_range(void
   }
 }
 
-__WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate(void* addr_of_ptr) {
+__WEAK_INLINE void 
+__softboundcets_allocation_secondary_trie_allocate(void* addr_of_ptr) {
   
   /* URGENT: THIS FUNCTION REQUIRES REWRITE */
 
@@ -959,14 +1066,16 @@ __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate(void* addr
   size_t primary_index = ( ptr >> 25);
   //  size_t secondary_index = ((ptr >> 3) & 0x3fffff);
   
-  __softboundcets_trie_entry_t* trie_secondary_table = __softboundcets_trie_primary_table[primary_index];
+  __softboundcets_trie_entry_t* 
+    trie_secondary_table = __softboundcets_trie_primary_table[primary_index];
 
   if(trie_secondary_table == NULL) {
     trie_secondary_table =  __softboundcets_trie_allocate();
     __softboundcets_trie_primary_table[primary_index] = trie_secondary_table;
   }
 
-  __softboundcets_trie_entry_t* trie_secondary_table_second_entry = __softboundcets_trie_primary_table[primary_index +1];
+  __softboundcets_trie_entry_t* 
+    trie_secondary_table_second_entry = __softboundcets_trie_primary_table[primary_index +1];
 
   if(trie_secondary_table_second_entry == NULL) {
     __softboundcets_trie_primary_table[primary_index+1] = __softboundcets_trie_allocate();
@@ -974,36 +1083,37 @@ __WEAK_INLINE void __softboundcets_allocation_secondary_trie_allocate(void* addr
 
   if(primary_index != 0 && (__softboundcets_trie_primary_table[primary_index -1] == NULL)){
     __softboundcets_trie_primary_table[primary_index-1] = __softboundcets_trie_allocate();    
-
   }
 
   return;
 }
 
 
-__WEAK_INLINE void __softboundcets_stack_memory_allocation(void* ptr, void** ptr_lock, size_t* ptr_key) {
+__WEAK_INLINE void 
+__softboundcets_stack_memory_allocation(void** ptr_lock, size_t* ptr_key) {
 
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_stack_allocations++;
+#endif
 
 #ifdef __SOFTBOUNDCETS_CONSTANT_STACK_KEY_LOCK
   *((size_t*) ptr_key) = 1;
   *((size_t**) ptr_lock) = __softboundcets_global_lock;
 #else
-  //  printf("[stack_memory_allocation] stack_temporal_space_begin =%p\n", __softboundcets_stack_temporal_space_begin);
-  //  printf("[ptr_lock] ptr_lock=%p\n", ptr_lock);
   size_t temp_id = __softboundcets_key_id_counter++;
   *((size_t**) ptr_lock) = (size_t*)__softboundcets_stack_temporal_space_begin++;
   *((size_t*)ptr_key) = temp_id;
   **((size_t**)ptr_lock) = temp_id;  
-
-  //  printf("done with softboundcets_stack_memory_allocation\n");
-  //  __softboundcets_allocation_secondary_trie_allocate(ptr);
 #endif
 
 }
 
+__WEAK_INLINE void 
+__softboundcets_memory_allocation(void* ptr, void** ptr_lock, size_t* ptr_key){
 
-
-__WEAK_INLINE void __softboundcets_memory_allocation(void* ptr, void** ptr_lock, size_t* ptr_key){
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+  __softboundcets_statistics_heap_allocations++;
+#endif
 
   size_t temp_id = __softboundcets_key_id_counter++;
 
@@ -1011,10 +1121,13 @@ __WEAK_INLINE void __softboundcets_memory_allocation(void* ptr, void** ptr_lock,
   *((size_t*) ptr_key) = temp_id;
   **((size_t**) ptr_lock) = temp_id;
 
+  __softboundcets_add_to_free_map(temp_id, ptr);
+  //  printf("memory allocation ptr=%zx, ptr_key=%zx\n", ptr, temp_id);
   __softboundcets_allocation_secondary_trie_allocate(ptr);
 
   if(__SOFTBOUNDCETS_DEBUG) {    
-    __softboundcets_printf("[__softboundcets_memoryAllocation] location_ptr = %p, ptr_key = %p, key = %zx\n", ptr_lock, ptr_key, temp_id);
+    __softboundcets_printf("[mem_alloc] lock = %p, ptr_key = %p, key = %zx\n", 
+                           ptr_lock, ptr_key, temp_id);
   }
 }
 
@@ -1028,6 +1141,8 @@ __WEAK_INLINE void __softboundcets_add_to_free_map(size_t ptr_key, void* ptr) {
   if(!__SOFTBOUNDCETS_FREE_MAP)
     return;
 
+  assert(ptr!= NULL);
+
   size_t counter  = 0;
   while(1){
     size_t index = (ptr_key + counter) % __SOFTBOUNDCETS_N_FREE_MAP_ENTRIES;
@@ -1035,6 +1150,7 @@ __WEAK_INLINE void __softboundcets_add_to_free_map(size_t ptr_key, void* ptr) {
     size_t tag = *entry_ptr;
 
     if(tag == 0 || tag == 2) {
+      //      printf("entry_ptr=%zx, ptr=%zx, key=%zx\n", entry_ptr, ptr, ptr_key);
       *entry_ptr = (size_t)(ptr);
       return;
     }
@@ -1053,6 +1169,8 @@ __WEAK_INLINE void __softboundcets_check_remove_from_free_map(size_t ptr_key, vo
     return;
   }
 
+  //  printf("free_map ptr=%zx, ptr_key=%zx\n", ptr, ptr_key);
+
   size_t counter = 0;
   while(1) {
     size_t index = (ptr_key + counter) % __SOFTBOUNDCETS_N_FREE_MAP_ENTRIES;
@@ -1069,6 +1187,7 @@ __WEAK_INLINE void __softboundcets_check_remove_from_free_map(size_t ptr_key, vo
     }
 
     if(counter >= __SOFTBOUNDCETS_N_FREE_MAP_ENTRIES) {
+      //      printf("free map out of entries\n");
       __softboundcets_abort();
     }
     counter++;

@@ -106,7 +106,7 @@ void InitializeSoftBound:: constructMetadataHandlers(Module & module){
                              VoidPtrTy, NULL);
 
   module.getOrInsertFunction("__softboundcets_stack_memory_allocation", 
-                             VoidTy, VoidPtrTy, PtrVoidPtrTy, 
+                             VoidTy, PtrVoidPtrTy, 
                              PtrSizeTy, NULL);
 
   module.getOrInsertFunction("__softboundcets_stack_memory_deallocation", 

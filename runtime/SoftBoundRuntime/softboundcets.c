@@ -53,8 +53,6 @@
 #include "softboundcets.h"
 
 __softboundcets_trie_entry_t** __softboundcets_trie_primary_table;
-//__softboundcets_trie_entry_t* __softboundcets_trie_primary_table[__SOFTBOUNDCETS_TRIE_PRIMARY_TABLE_ENTRIES] = {NULL};
-
 
 size_t* __softboundcets_free_map_table = NULL;
 
@@ -64,12 +62,19 @@ size_t* __softboundcets_lock_next_location = NULL;
 size_t* __softboundcets_lock_new_location = NULL;
 size_t __softboundcets_key_id_counter = 2;
 
-size_t __softboundcets_statistics_load_dereference_checks = 0;
-size_t __softboundcets_statistics_store_dereference_checks = 0;
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+size_t __softboundcets_statistics_metadata_memcopies = 0;
+size_t __softboundcets_statistics_spatial_load_dereference_checks = 0;
+size_t __softboundcets_statistics_spatial_store_dereference_checks = 0;
 size_t __softboundcets_statistics_temporal_load_dereference_checks = 0;
 size_t __softboundcets_statistics_temporal_store_dereference_checks = 0;
 size_t __softboundcets_statistics_metadata_loads = 0;
 size_t __softboundcets_statistics_metadata_stores = 0;
+size_t __softboundcets_statistics_heap_allocations = 0;
+size_t __softboundcets_statistics_stack_allocations = 0;
+size_t __softboundcets_statistics_heap_deallocations = 0;
+size_t __softboundcets_statistics_stack_deallocations = 0;
+#endif
 
 /* key 0 means not used, 1 means globals*/
 size_t __softboundcets_deref_check_count = 0;
@@ -79,6 +84,56 @@ size_t* __softboundcets_temporal_space_begin = 0;
 size_t* __softboundcets_stack_temporal_space_begin = NULL;
 
 void* malloc_address = NULL;
+
+#ifdef __SOFTBOUNDCETS_STATISTICS_MODE
+
+static __attribute__ ((__destructor__))
+void __softboundcets_statistics_fini() {
+
+  // 4kB page size, 1024*1024 bytes per MB,
+  const double MULTIPLIER = 4096.0/(1024.0*1024.0); 
+  FILE* proc_file, *statistics_file;
+  size_t total_size_in_pages = 0;
+  size_t res_size_in_pages = 0;
+
+  statistics_file = fopen("bench_statistics.log", "w");
+  assert(statistics_file != NULL);
+
+  proc_file = fopen("/proc/self/statm", "r");
+  fscanf(proc_file, "%zd %zd", &total_size_in_pages, &res_size_in_pages);
+
+  fprintf(statistics_file, "memory_total: %lf \n", total_size_in_pages*MULTIPLIER);
+  fprintf(statistics_file, "memory_resident: %lf \n", res_size_in_pages*MULTIPLIER);
+
+  fprintf(statistics_file, "Num_spatial_load_checks:%zd\n",
+          __softboundcets_statistics_spatial_load_dereference_checks);
+  fprintf(statistics_file,  "Num_spatial_store_checks:%zd\n", 
+          __softboundcets_statistics_spatial_store_dereference_checks);
+  fprintf(statistics_file,  "Num_temporal_load_checks:%zd\n", 
+          __softboundcets_statistics_temporal_load_dereference_checks);
+  fprintf(statistics_file,  "Num_temporal_store_checks:%zd\n", 
+          __softboundcets_statistics_temporal_store_dereference_checks);  
+  fprintf(statistics_file, "Num_metadata_loads:%zd\n",
+          __softboundcets_statistics_metadata_loads);
+  fprintf(statistics_file, "Num_metadata_stores:%zd\n",
+          __softboundcets_statistics_metadata_stores);
+  fprintf(statistics_file, "Num_heap_allocations:%zd\n",
+          __softboundcets_statistics_heap_allocations);
+  fprintf(statistics_file, "Num_stack_allocations:%zd\n",
+          __softboundcets_statistics_stack_allocations);
+  fprintf(statistics_file, "Num_heap_deallocations:%zd\n",
+          __softboundcets_statistics_heap_deallocations);
+  fprintf(statistics_file, "Num_stack_deallocations:%zd\n",
+          __softboundcets_statistics_stack_deallocations);
+  fprintf(statistics_file, "Num_metadata_memcopies:%zd\n",
+          __softboundcets_statistics_metadata_memcopies);
+  fprintf(statistics_file, 
+          "============================================\n");
+  fclose(statistics_file);
+  
+}
+
+#endif
 
 
 __SOFTBOUNDCETS_NORETURN void __softboundcets_abort()
@@ -134,20 +189,25 @@ void __softboundcets_init( int is_trie)
 
   size_t temporal_table_length = (__SOFTBOUNDCETS_N_TEMPORAL_ENTRIES)* sizeof(void*);
 
-  __softboundcets_lock_new_location = mmap(0, temporal_table_length, PROT_READ| PROT_WRITE,SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  __softboundcets_lock_new_location = mmap(0, temporal_table_length, 
+                                           PROT_READ| PROT_WRITE,
+                                           SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  
   assert(__softboundcets_lock_new_location != (void*) -1);
   __softboundcets_temporal_space_begin = (size_t *)__softboundcets_lock_new_location;
-  //  printf("temp table %lx %lx\n", __softboundcets_lock_new_location, temporal_table_length);
 
 
   size_t stack_temporal_table_length = (__SOFTBOUNDCETS_N_STACK_TEMPORAL_ENTRIES) * sizeof(void*);
-  __softboundcets_stack_temporal_space_begin = mmap(0, stack_temporal_table_length, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  __softboundcets_stack_temporal_space_begin = mmap(0, stack_temporal_table_length, 
+                                                    PROT_READ| PROT_WRITE, 
+                                                    SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_stack_temporal_space_begin != (void*) -1);
-  //  printf("temp stack table %p %zx\n", __softboundcets_stack_temporal_space_begin, stack_temporal_table_length);
 
 
   size_t global_lock_size = (__SOFTBOUNDCETS_N_GLOBAL_LOCK_SIZE) * sizeof(void*);
-  __softboundcets_global_lock = mmap(0, global_lock_size, PROT_READ|PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  __softboundcets_global_lock = mmap(0, global_lock_size, 
+                                     PROT_READ|PROT_WRITE, 
+                                     SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_global_lock != (void*) -1);
   //  __softboundcets_global_lock =  __softboundcets_lock_new_location++;
   *((size_t*)__softboundcets_global_lock) = 1;
@@ -155,7 +215,9 @@ void __softboundcets_init( int is_trie)
 
 
   size_t shadow_stack_size = __SOFTBOUNDCETS_SHADOW_STACK_ENTRIES * sizeof(size_t);
-  __softboundcets_shadow_stack_ptr = mmap(0, shadow_stack_size, PROT_READ|PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+  __softboundcets_shadow_stack_ptr = mmap(0, shadow_stack_size, 
+                                          PROT_READ|PROT_WRITE, 
+                                          SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
   assert(__softboundcets_shadow_stack_ptr != (void*)-1);
 
   *((size_t*)__softboundcets_shadow_stack_ptr) = 0; /* prev stack size */
@@ -163,20 +225,25 @@ void __softboundcets_init( int is_trie)
   *(current_size_shadow_stack_ptr) = 0;
 
   if(__SOFTBOUNDCETS_SHADOW_STACK_DEBUG){
-    printf("[mmap_shadow_stack]mmaped shadowstack pointer = %p\n", __softboundcets_shadow_stack_ptr);
+    printf("[mmap_shadow_stack]mmaped shadowstack pointer = %p\n", 
+           __softboundcets_shadow_stack_ptr);
   }
 
   if(__SOFTBOUNDCETS_FREE_MAP) {
     size_t length_free_map = (__SOFTBOUNDCETS_N_FREE_MAP_ENTRIES) * sizeof(size_t);
-    __softboundcets_free_map_table = mmap(0, length_free_map, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+    __softboundcets_free_map_table = mmap(0, length_free_map, 
+                                          PROT_READ| PROT_WRITE, 
+                                          SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
     assert(__softboundcets_free_map_table != (void*) -1);
   }
 
   if(__SOFTBOUNDCETS_TRIE) {
     size_t length_trie = (__SOFTBOUNDCETS_TRIE_PRIMARY_TABLE_ENTRIES) * sizeof(__softboundcets_trie_entry_t*);
 
-    __softboundcets_trie_primary_table = mmap(0, length_trie, PROT_READ| PROT_WRITE, SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
-    assert(__softboundcets_trie_primary_table != (void *)-1);  // FIXME - don't use assert, always want this to fail
+    __softboundcets_trie_primary_table = mmap(0, length_trie, 
+                                              PROT_READ| PROT_WRITE, 
+                                              SOFTBOUNDCETS_MMAP_FLAGS, -1, 0);
+    assert(__softboundcets_trie_primary_table != (void *)-1);  
     
     int* temp = malloc(1);
     __softboundcets_allocation_secondary_trie_allocate_range(0, (size_t)temp);
@@ -198,16 +265,21 @@ static void softboundcets_init_ctype(){
   __softboundcets_allocation_secondary_trie_allocate(base_ptr);
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
-  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), ((char*) base_ptr + 256));
+  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), 
+                                 ((char*) base_ptr + 256));
 
 #elif __SOFTBOUNDCETS_TEMPORAL
   __softboundcets_metadata_store(ptr, 1, __softboundcets_global_lock);
 
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
-  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), ((char*) base_ptr + 256), 1, __softboundcets_global_lock);
+  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), 
+                                 ((char*) base_ptr + 256), 1, 
+                                 __softboundcets_global_lock);
 
 #else  
-  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), ((char*) base_ptr + 256), 1, __softboundcets_global_lock);
+  __softboundcets_metadata_store(ptr, ((char*) base_ptr - 129), 
+                                 ((char*) base_ptr + 256), 1, 
+                                 __softboundcets_global_lock);
   
 #endif
 
@@ -224,18 +296,14 @@ void __softboundcets_printf(const char* str, ...)
   va_end(args);
 }
 
-#ifdef __SOFTBOUNDCETS_XMM_MODE
-extern int softboundcets_pseudo_main(int, char**, __v2di, __v2di);
-#else
 extern int softboundcets_pseudo_main(int argc, char **argv);
-#endif
 
 int main(int argc, char **argv){
 
 #if __WORDSIZE == 32
   exit(1);
 #endif
-
+  
   char** new_argv = argv;
   int i;
   char* temp_ptr;
@@ -247,28 +315,38 @@ int main(int argc, char **argv){
   malloc_address = temp;
   __softboundcets_allocation_secondary_trie_allocate_range(0, (size_t)temp);
 
-  __softboundcets_stack_memory_allocation(argv, &argv_loc, &argv_key);
+  __softboundcets_stack_memory_allocation(&argv_loc, &argv_key);
 
 #if defined(__linux__)
   mallopt(M_MMAP_MAX, 0);
 #endif
+
   for(i = 0; i < argc; i++) { 
 
 #ifdef __SOFTBOUNDCETS_SPATIAL
 
-    __softboundcets_metadata_store(&new_argv[i], new_argv[i], new_argv[i] + strlen(new_argv[i]) + 1);
+    __softboundcets_metadata_store(&new_argv[i], 
+                                   new_argv[i], 
+                                   new_argv[i] + strlen(new_argv[i]) + 1);
     
 #elif __SOFTBOUNDCETS_TEMPORAL
     //    printf("performing metadata store\n");
-    __softboundcets_metadata_store(&new_argv[i],  argv_key, argv_loc);
+    __softboundcets_metadata_store(&new_argv[i],  
+                                   argv_key, argv_loc);
     
 #elif __SOFTBOUNDCETS_SPATIAL_TEMPORAL
 
-    __softboundcets_metadata_store(&new_argv[i], new_argv[i], new_argv[i] + strlen(new_argv[i]) + 1, argv_key, argv_loc);
+    __softboundcets_metadata_store(&new_argv[i], 
+                                   new_argv[i], 
+                                   new_argv[i] + strlen(new_argv[i]) + 1, 
+                                   argv_key, argv_loc);
 
 #else
 
-    __softboundcets_metadata_store(&new_argv[i], new_argv[i], new_argv[i] + strlen(new_argv[i]) + 1, argv_key, argv_loc);
+    __softboundcets_metadata_store(&new_argv[i], 
+                                   new_argv[i], 
+                                   new_argv[i] + strlen(new_argv[i]) + 1, 
+                                   argv_key, argv_loc);
 
 #endif
 
@@ -280,7 +358,7 @@ int main(int argc, char **argv){
 
   /* Santosh: Real Nasty hack because C programmers assume argv[argc]
    * to be NULL. Also this NUll is a pointer, doing + 1 will make the
-   * size_of_type to fail 
+   * size_of_type to fail
    */
   temp_ptr = ((char*) &new_argv[argc]) + 8;
 
@@ -319,11 +397,15 @@ int main(int argc, char **argv){
   return_value = softboundcets_pseudo_main(argc, new_argv);
   __softboundcets_deallocate_shadow_stack_space();
 
+  __softboundcets_stack_memory_deallocation(argv_key);
 
   return return_value;
 }
 
-void * __softboundcets_safe_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset){
+void * __softboundcets_safe_mmap(void* addr, 
+                                 size_t length, int prot, 
+                                 int flags, int fd, 
+                                 off_t offset){
   return mmap(addr, length, prot, flags, fd, offset);
 }
 
