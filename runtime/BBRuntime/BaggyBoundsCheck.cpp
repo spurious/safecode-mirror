@@ -70,7 +70,11 @@ static void bus_error_handler(int, siginfo_t *, void *);
 unsigned SLOT_SIZE = 4;
 unsigned WORD_SIZE = 64;
 unsigned char * __baggybounds_size_table_begin;
-const size_t table_size = 1L << 43;
+#if defined(i386) || defined(__i386__)
+#define TABLE_SIZE 1L << 20
+#else
+#define TABLE_SIZE 1L << 43
+#endif
 
 
 //===----------------------------------------------------------------------===//
@@ -150,7 +154,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // Initialize the baggy bounds table
   __baggybounds_size_table_begin = NULL;
   __baggybounds_size_table_begin =
-    (unsigned char*) mmap(0, table_size,
+    (unsigned char*) mmap(0, TABLE_SIZE,
                           PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE,
                           -1, 0);
 
