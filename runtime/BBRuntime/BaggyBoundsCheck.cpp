@@ -71,7 +71,7 @@ unsigned SLOT_SIZE = 4;
 unsigned WORD_SIZE = 64;
 unsigned char * __baggybounds_size_table_begin;
 #if defined(i386) || defined(__i386__)
-#define TABLE_SIZE 1L << 43
+#define TABLE_SIZE 1L << 30
 #else
 #define TABLE_SIZE 1L << 43
 #endif
