@@ -172,7 +172,8 @@ void
 __internal_register(void *allocaptr, unsigned NumBytes) {
   uintptr_t Source = (uintptr_t)allocaptr;
   unsigned char size= 0;
-  while((unsigned)(1<<size) < NumBytes) {
+  size_t adjusted_size = NumBytes + sizeof(BBMetaData);
+  while((unsigned)(1<<size) < adjusted_size) {
     size++;
   }
   size = (size < SLOT_SIZE) ? SLOT_SIZE : size;
