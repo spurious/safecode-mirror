@@ -71,7 +71,7 @@ unsigned SLOT_SIZE = 4;
 unsigned WORD_SIZE = 64;
 unsigned char * __baggybounds_size_table_begin;
 #if defined(i386) || defined(__i386__)
-#define TABLE_SIZE 1L << 20
+#define TABLE_SIZE 1L << 43
 #else
 #define TABLE_SIZE 1L << 43
 #endif
@@ -159,9 +159,10 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
                           -1, 0);
 
   if (__baggybounds_size_table_begin == MAP_FAILED) {
-    fprintf (stderr, "Baggy Bounds Table initialization failed!");
+    fprintf (stderr, "Baggy Bounds Table initialization failed!\n");
     fflush (stderr);
     assert(0 && "Table Init Failed");
+    abort();
   }
 
   return;
