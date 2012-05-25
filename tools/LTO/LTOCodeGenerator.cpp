@@ -426,9 +426,16 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
           passes.add(new CompleteChecks());
         }
 #ifdef POOLALLOC
+        // Add the automatic pool allocation passes
         passes.add(new OptimizeSafeLoadStore());
         passes.add(new PA::AllNodesHeuristic());
         passes.add(new PoolAllocate());
+
+        // Add the writing of the output file to the list of passes
+        raw_ostream *Out = 0;
+        std::string error;
+        Out = new raw_fd_ostream ("/tmp/pafile.bc", error);
+        passes.add (createBitcodeWriterPass(*Out));
 #endif
 
         break;
