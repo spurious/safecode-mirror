@@ -56,9 +56,9 @@
 #include "safecode/SafeLoadStoreOpts.h"
 
 #include <cstdlib>
+#include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
-
 
 using namespace llvm;
 
@@ -430,12 +430,6 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
         passes.add(new OptimizeSafeLoadStore());
         passes.add(new PA::AllNodesHeuristic());
         passes.add(new PoolAllocate());
-
-        // Add the writing of the output file to the list of passes
-        raw_ostream *Out = 0;
-        std::string error;
-        Out = new raw_fd_ostream ("/tmp/pafile.bc", error);
-        passes.add (createBitcodeWriterPass(*Out));
 #endif
 
         break;
@@ -444,6 +438,16 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
 
     // Run our queue of passes all at once now, efficiently.
     passes.run(*mergedModule);
+
+#ifdef POOLALLOC
+    std::cerr << "Writing out poolalloc bitcode file" << std::endl;
+    std::string error;
+    tool_output_file PAFIle("/tmp/pafile.bc", error,
+                         raw_fd_ostream::F_Binary);
+    WriteBitcodeToFile(mergedModule, PAFIle.os());
+    PAFIle.os().close();
+    PAFIle.keep();
+#endif
 
     // Run the code generator, and write assembly file
     codeGenPasses->doInitialization();
