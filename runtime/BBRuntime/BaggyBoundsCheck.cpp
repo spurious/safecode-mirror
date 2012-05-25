@@ -168,15 +168,37 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   return;
 }
 
+//
+// Function: __internal_register
+//
+// Description:
+//   Register the memory starting at the specified pointer of the specified 
+//   size. This function stores the binary logarithm of the aligned size
+//   in the baggy bounds table.
+//
+// Inputs:
+//  allocaptr  - The pointer that pointers the allocated object
+//  NumBytes   - The aligned size, including metadata size, of the alloacated
+//               object in bytes
+//
 void
 __internal_register(void *allocaptr, unsigned NumBytes) {
   uintptr_t Source = (uintptr_t)allocaptr;
   unsigned char size= 0;
-  size_t adjusted_size = NumBytes + sizeof(BBMetaData);
-  while((unsigned)(1<<size) < adjusted_size) {
+  //
+  // Compute the binary logarithm of the aligned size.
+  //
+  while((unsigned)(1<<size) < NumBytes) {
     size++;
   }
+  //
+  // If size is smaller than SLOT_SIZE, it is set to be SLOT_SIZE.
+  //
   size = (size < SLOT_SIZE) ? SLOT_SIZE : size;
+
+  //
+  // Get the base of the Source.
+  //
   uintptr_t Source1 = Source & ~((1<<size)-1);
   if(Source1 != Source) {
     printf("%p, %p, %u Not aligned\n", (void*)Source, (void*)Source1, NumBytes);
@@ -186,6 +208,9 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
   unsigned long index = Source >> SLOT_SIZE;
   unsigned range = 1 << (size - SLOT_SIZE);
 
+  //
+  // Store the binary logarithm of the aligned size in the baggy bounds table.
+  //
   memset(__baggybounds_size_table_begin + index, size, range);
   return;
 }
