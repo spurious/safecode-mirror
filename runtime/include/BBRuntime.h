@@ -91,8 +91,13 @@ void installAllocHooks (void);
 #define TAG unsigned
 #define SRC_INFO const char *, unsigned int
 
+#if defined(_LP64)
 #define UNSET_MASK 0x7fffffffffff
 #define SET_MASK 0xffff800000000000
+#else
+#define UNSET_MASK 0xbfffffff
+#define SET_MASK 0xc0000000
+#endif
 
 extern "C" {
   void pool_init_runtime(unsigned Dangling,
