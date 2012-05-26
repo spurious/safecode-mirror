@@ -34,9 +34,65 @@
 extern FILE * ReportLog;
 extern unsigned char* __baggybounds_size_table_begin; 
 extern unsigned SLOT_SIZE;
+extern unsigned SLOTSIZE;
 extern unsigned WORD_SIZE;
 extern const unsigned int  logregs;
 using namespace NAMESPACE_SC;
+
+//
+// Function: isOOB()
+//  
+// Description:
+//  This function determines whether p is an OOB pointer or not. In our BBC  
+//  implementation, if p is in kernel address space, it is an OOB pointer and 
+//  returns true. On x86_64 machine, kernel address space is greater than
+//  0xffff800000000000 and on x86_32 machine with Linux OS, it is greater than
+//  0xc0000000. Current we only handle 64-bit OS and 32-bit Linux OS.
+//
+static inline int isOOB(uintptr_t p) {
+  return (p & SET_MASK);
+}
+
+//
+// Function: isInUpperHalf()
+//
+// Description:
+//  This function determines whether p that is within SLOTSIZE/2 bytes from the
+//  the original object is pointing to an address before the beginning of the memory 
+//  object or after the end of the memory object. Since in BBC, the allocation bounds 
+//  are aligned to slot boundaries we can find if a OOB pointer is below or above the
+//  allocation by checking whether it lies in the top or the bottom half of a memory 
+//  slot respectively. If p underflowed the buffer,then it will be in the second half
+//  of the slot that precedes the referent. If p overflowed the memory object, then p 
+//  will point in the first half of the slot that comes after the referent. This 
+//  technique only handles OOB pointers within SLOTSIZE/2 bytes from the original object.
+//  More details can see Section 2.4 of BBC paper (Baggy Bounds Checking: An Efficient
+//  and Backwards-Compatiable Defense against Out-of-Bounds Errors)
+//
+static inline int isInUpperHalf(uintptr_t p) {
+  return (p & SLOTSIZE/2);
+}
+
+//
+// Function: getActualValue()
+//
+// Description:
+//  This function returns the actual value of a marked OOB pointer.
+//
+static inline uintptr_t getActualValue(uintptr_t p) {
+  return (p & UNSET_MASK);
+}
+
+//
+// Function: rewritePtr()
+//
+// Description:
+//  This function mark an OOB pointer to be the value that is in the kernel
+//  address space by seeting some significant bits.
+//
+static inline uintptr_t rewritePtr(uintptr_t p) {
+  return (p | SET_MASK);
+}
 
 static inline int
 _barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
@@ -76,16 +132,13 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   val = _barebone_pointers_in_bounds(Source, Dest);
 
   if (val) {
-  
-    if (Source & SET_MASK) {
-
-      Source = Source & UNSET_MASK;
-      if (Source & 0x8) {
-        Source += 16;
-      } else {
-        Source -= 16;
-      }
-      Dest = Dest & UNSET_MASK;
+    if (isOOB(Source)) {
+      //
+      // This means that Source is an OOB pointer
+      //
+      Source = getActualValue(Source);
+      Source += ((isInUpperHalf(Source)) ? SLOTSIZE : -SLOTSIZE);
+      Dest = getActualValue(Dest);
    } 
   //
   // Look for the bounds in the table
@@ -101,7 +154,7 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   //
 
     if (val) {
-        Dest = (Dest | SET_MASK);
+        Dest = rewritePtr(Dest);
     }
   }
   return (void*)Dest;
@@ -325,8 +378,8 @@ bb_poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
 void *
 pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   uintptr_t Source = (uintptr_t)ptr;
-  if (Source & SET_MASK) {
-    Source = Source & UNSET_MASK;
+  if (isOOB(Source)) {
+    Source = getActualValue(Source);
   }
   
   return (void*)Source;

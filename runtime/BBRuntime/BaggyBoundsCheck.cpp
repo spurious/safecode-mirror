@@ -68,6 +68,7 @@ unsigned StopOnError;
 static void bus_error_handler(int, siginfo_t *, void *);
 
 unsigned SLOT_SIZE = 4;
+unsigned SLOTSIZE = 16;
 unsigned WORD_SIZE = 64;
 unsigned char * __baggybounds_size_table_begin;
 #if defined(_LP64)
