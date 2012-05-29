@@ -24,8 +24,10 @@
 #include "llvm/Module.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Support/TypeBuilder.h"
 
 #include "safecode/BaggyBoundsChecks.h"
+#include "safecode/Runtime/BBMetaData.h"
 
 #include <iostream>
 #include <set>
@@ -71,6 +73,22 @@ findP2Size (unsigned long objectSize) {
 
   return size;
 }
+
+//
+// Description:
+//  Define BBMetaData struct type using TypeBuilder template. So for global and stack
+//  variables, we can use this type to record their metadata when padding and aligning 
+//  them.
+//
+template<bool xcompile> class TypeBuilder<BBMetaData, xcompile> {
+public:
+  static  StructType* get(LLVMContext& context) {
+    return StructType::get(
+      TypeBuilder<types::i<32>, xcompile>::get(context),
+      TypeBuilder<types::i<32>*, xcompile>::get(context),
+      NULL);
+   }
+};
 
 //
 // Function: mustAdjustGlobalValue()
@@ -152,7 +170,8 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   Type * GlobalType = GV->getType()->getElementType();
   unsigned long objectSize = TD->getTypeAllocSize(GlobalType);
-  unsigned int size = findP2Size (objectSize);
+  unsigned long adjustedSize = objectSize + sizeof(BBMetaData);
+  unsigned int size = findP2Size (adjustedSize);
 
   //
   // Find the optimal alignment for the memory object.  Note that we can use
@@ -166,26 +185,42 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   // is already a power-of-two, then just set the alignment.  Otherwise, add
   // fields to the memory object to make it sufficiently large.
   //
-  if (objectSize == (unsigned)(1u<<size)) {
+  if (adjustedSize == (unsigned)(1u<<size)) {
     GV->setAlignment(1u<<size); 
   } else {
     //
     // Create a structure type.  The first element will be the global memory
-    // object; the second will be an array of bytes that will pad the size out.
-    //
+    // object; the second will be an array of bytes that will pad the size out;
+    // the third will be the metadata for this object.
     Type *Int8Type = Type::getInt8Ty(GV->getContext());
-    Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - objectSize);
-    StructType *newType = StructType::get(GlobalType, newType1, NULL);
+    Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - adjustedSize);
+    Type *metadataType = TypeBuilder<BBMetaData, false>::get(GV->getContext());
+    StructType *newType = StructType::get(GlobalType, newType1, metadataType, NULL);
 
     //
     // Create a global initializer.  The first element has the initializer of
-    // the original memory object, and the second initializes the padding array.
-    //
+    // the original memory object, the second initializes the padding array, and 
+    // the third initializes the object's metadata.
+
+    GlobalVariable *metaData = new GlobalVariable(*(GV->getParent()),
+                                                 metadataType,
+                                                 GV->isConstant(),
+                                                 GV->getLinkage(),
+                                                 	0,
+                                                 "baggy.metadata");
+
+    Type *Int32Type = Type::getInt32Ty(GV->getContext());
+    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+    Value *idx[2] = {Zero, Zero};
+    Value *V = GetElementPtrInst::Create(metaData,idx, Twine(""));
+    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
+
     Constant *c = 0;
     if (GV->hasInitializer()) {
-      std::vector<Constant *> vals(2);
+      std::vector<Constant *> vals(3);
       vals[0] = GV->getInitializer();
       vals[1] = Constant::getNullValue(newType1);
+      vals[2] = metaData;
       c = ConstantStruct::get(newType, vals);
     }
 
@@ -206,9 +241,6 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     // Create a GEP expression that will represent the global value and replace
     // all uses of the global value with the new constant GEP.
     //
-    Type *Int32Type = Type::getInt32Ty(GV->getContext());
-    Constant *Zero= ConstantInt::getSigned(Int32Type, 0);
-    Constant *idx[2] = {Zero, Zero};
     Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
     GV->replaceAllUsesWith(init);
     GV->eraseFromParent();
