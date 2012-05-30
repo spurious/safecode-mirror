@@ -63,7 +63,11 @@ using namespace llvm;
 // Method: findChecks()
 //
 // Description:
-//  Find the checks that need to be inlined.
+//  Find the checks that need to be inlined and inline them.
+//
+// Inputs:
+//  F - A pointer to the function.  Calls to this function will be inlined.
+//      The pointer is allowed to be NULL.
 //
 // Return value:
 //  true  - One or more calls to the check were inlined.
@@ -124,6 +128,9 @@ llvm::InlineFastChecks::inlineCheck (Function * F) {
 // Description:
 //  Create a basic block which will cause the program to terminate.
 //
+// Inputs:
+//  F - A reference to a function to which a faulting basic block will be added.
+//
 static BasicBlock *
 createFaultBlock (Function & F) {
   //
@@ -147,9 +154,15 @@ createFaultBlock (Function & F) {
   return faultBB;
 }
 
-
-// fastlscheck (const char *base, const char *result, unsigned size,
-//              unsigned lslen) {
+//
+// Method: createBodyFor()
+//
+// Description:
+//  Create the function body for the fastlscheck() function.
+//
+// Inputs:
+//  F - A pointer to a function with no body.  This pointer can be NULL.
+//
 bool
 llvm::InlineFastChecks::createBodyFor (Function * F) {
   //
