@@ -54,6 +54,7 @@ namespace llvm {
      // Private methods
      bool inlineCheck (Function * F);
      bool createBodyFor (Function * F);
+     bool createDebugBodyFor (Function * F);
   };
 }
 
@@ -155,6 +156,60 @@ createFaultBlock (Function & F) {
 }
 
 //
+// Function: createDebugFaultBlock()
+//
+// Description:
+//  Create a basic block which will cause the program to report a memory safety
+//  error.
+//
+// Inputs:
+//  F - A reference to a function to which a faulting basic block will be added.
+//
+static BasicBlock *
+createDebugFaultBlock (Function & F) {
+  //
+  // Create the basic block.
+  //
+  BasicBlock * faultBB = BasicBlock::Create (F.getContext(), "fault", &F);
+
+  //
+  // Terminate the basic block with a return instruction.
+  //
+  Instruction * Ret = ReturnInst::Create (F.getContext(), faultBB);
+
+  //
+  // Create needed types.
+  //
+  LLVMContext & Context = F.getContext();
+  Type * Int8Type  = IntegerType::getInt8Ty (Context);
+
+  //
+  // Add a call to print the debug information.
+  //
+  Module * M = F.getParent();
+  M->getOrInsertFunction ("failLSCheck",
+                          Type::getVoidTy (Context),
+                          PointerType::getUnqual(Int8Type),
+                          PointerType::getUnqual(Int8Type),
+                          IntegerType::getInt32Ty(Context),
+                          PointerType::getUnqual(Int8Type),
+                          IntegerType::getInt32Ty (Context),
+                          NULL);
+  std::vector<Value *> args;
+  unsigned index = 0;
+  for (Function::arg_iterator arg = F.arg_begin();
+       arg != F.arg_end();
+       ++arg, ++index) {
+    if ((index < 3) || (index > 4)) {
+      args.push_back (&*arg);
+    }
+  }
+  CallInst::Create (M->getFunction ("failLSCheck"), args, "", Ret);
+
+  return faultBB;
+}
+
+//
 // Method: createBodyFor()
 //
 // Description:
@@ -215,10 +270,108 @@ llvm::InlineFastChecks::createBodyFor (Function * F) {
                                       TD.getIntPtrType(Context),
                                       "tmp",
                                       entryBB);
-  Value * SizeInt = new ZExtInst (Size,
-                                  TD.getIntPtrType(Context),
-                                  "size",
-                                  entryBB);
+  Value * SizeInt = Size;
+  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
+    SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", entryBB);
+  }
+  Value * LastByte = BinaryOperator::Create (Instruction::Add,
+                                             BaseInt,
+                                             SizeInt,
+                                             "lastbyte",
+                                             entryBB);
+
+  // Compare the pointer to the first byte beyond the end of the memory object
+  Value * PtrInt = new PtrToIntInst (Result,
+                                    TD.getIntPtrType(Context),
+                                    "tmp",
+                                    entryBB);
+  Value * Compare2 = new ICmpInst (*entryBB,
+                                   CmpInst::ICMP_ULT,
+                                   PtrInt,
+                                   LastByte,
+                                   "cmp2");
+
+  // Create the branch instruction.  Both comparisons must return true for the
+  // pointer to be within bounds.
+  Value * Sum = BinaryOperator::Create (Instruction::And,
+                                        Compare1,
+                                        Compare2,
+                                        "and",
+                                        entryBB);
+  BranchInst::Create (goodBB, faultBB, Sum, entryBB);
+
+  //
+  // Make the function internal.
+  //
+  F->setLinkage (GlobalValue::InternalLinkage);
+  return true;
+}
+
+//
+// Method: createDebugBodyFor()
+//
+// Description:
+//  Create the function body for the fastlscheck_debug() function.
+//
+// Inputs:
+//  F - A pointer to a function with no body.  This pointer can be NULL.
+//
+bool
+llvm::InlineFastChecks::createDebugBodyFor (Function * F) {
+  //
+  // If the function does not exist, do nothing.
+  //
+  if (!F) return false;
+
+  //
+  // If the function has a body, do nothing.
+  //
+  if (!(F->isDeclaration())) return false;
+
+  //
+  // Create an entry block that will perform the comparisons and branch either
+  // to the success block or the fault block.
+  //
+  LLVMContext & Context = F->getContext();
+  BasicBlock * entryBB = BasicBlock::Create (Context, "entry", F);
+
+  //
+  // Create a basic block that just returns.
+  //
+  BasicBlock * goodBB = BasicBlock::Create (Context, "pass", F);
+  ReturnInst::Create (F->getContext(), goodBB);
+
+  //
+  // Create a basic block that handles the run-time check failures.
+  //
+  BasicBlock * faultBB = createDebugFaultBlock (*F);
+
+  //
+  // Add instructions to the entry block to perform the pointer comparisons
+  // and to branch to the good or fault blocks, respectively.
+  // 
+  Function::arg_iterator arg = F->arg_begin();
+  Value * Base = arg++;
+  Value * Result = arg++;
+  Value * Size = arg++;
+
+  // Compare the base of the object to the pointer being checked.
+  ICmpInst * Compare1 = new ICmpInst (*entryBB,
+                                   CmpInst::ICMP_ULE,
+                                   Base,
+                                   Result,
+                                   "cmp1");
+
+  // Calculate the address of the first byte beyond the memory object
+  TargetData & TD = getAnalysis<TargetData>();
+  Value * BaseInt = new PtrToIntInst (Base,
+                                      TD.getIntPtrType(Context),
+                                      "tmp",
+                                      entryBB);
+  Value * SizeInt = Size;
+  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
+    SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", entryBB);
+  }
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
                                              BaseInt,
                                              SizeInt,
@@ -258,11 +411,13 @@ llvm::InlineFastChecks::runOnModule (Module & M) {
   // Create a function body for the fastlscheck call.
   //
   createBodyFor (M.getFunction ("fastlscheck"));
+  createDebugBodyFor (M.getFunction ("fastlscheck_debug"));
 
   //
   // Search for call sites to the function and forcibly inline them.
   //
   inlineCheck (M.getFunction ("fastlscheck"));
+  inlineCheck (M.getFunction ("fastlscheck_debug"));
   return true;
 }
 
