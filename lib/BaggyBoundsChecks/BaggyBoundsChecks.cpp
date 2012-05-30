@@ -262,14 +262,15 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
   // Get the power-of-two size for the alloca.
   //
   unsigned objectSize = TD->getTypeAllocSize (AI->getAllocatedType());
-  unsigned char size = findP2Size (objectSize);
+  unsigned adjustedSize = objectSize + sizeof(BBMetaData);
+  unsigned char size = findP2Size (adjustedSize);
 
   //
   // Adjust the size and alignment of the memory object.  If the object size
   // is already a power-of-two, then just set the alignment.  Otherwise, add
   // fields to the memory object to make it sufficiently large.
   //
-  if (objectSize == (unsigned)(1u<<size)) {
+  if (adjustedSize == (unsigned)(1u<<size)) {
     AI->setAlignment(1u<<size);
   } else {
     //
@@ -280,18 +281,30 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
 
     //
     // Create a structure type.  The first element will be the global memory
-    // object; the second will be an array of bytes that will pad the size out.
+    // object; the second will be an array of bytes that will pad the size out;
+    // the third will be the metadata for this object.
     //
-    Type *newType1 = ArrayType::get(Int8Type, (1<<size) - objectSize);
-    StructType *newType = StructType::get (AI->getType()->getElementType(),
-                                           newType1,
-                                           NULL);
+    Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
+    Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
+    
+    GlobalVariable *metaData = new GlobalVariable(*(AI->getParent()->getParent()->getParent()),
+                                                 metadataType,
+                                                 false,
+                                                 GlobalValue::InternalLinkage,
+                                                 	0,
+                                                 "baggy.metadata");
 
+    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+    Value *idx1[2] = {Zero, Zero};
+    Value *V = GetElementPtrInst::Create(metaData,idx1, Twine(""));
+    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
+
+    StructType *newType = StructType::get(AI->getType()->getElementType(), newType1, metaData, NULL);
     //
     // Create the new alloca instruction and set its alignment.
     //
     AllocaInst * AI_new = new AllocaInst (newType,
-                                          0,
+                                               0,
                                           (1<<size),
                                           "baggy." + AI->getName(),
                                           AI);
@@ -300,7 +313,7 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     //
     // Create a GEP that accesses the first element of this new structure.
     //
-    Value * Zero = ConstantInt::getSigned(Int32Type, 0);
+    //Value * Zero = ConstantInt::getSigned(Int32Type, 0);
     Value *idx[3] = {Zero, Zero, NULL};
     Instruction *init = GetElementPtrInst::Create(AI_new,
                                                   idx,
