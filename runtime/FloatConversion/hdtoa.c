@@ -108,11 +108,11 @@ struct ieee_ext {
 };
 
 enum floatkind {
-  _FP_NORMAL,
-  _FP_ZERO,
-  _FP_SUBNORMAL,
-  _FP_INFINITE,
-  _FP_NAN
+  _SC_FP_NORMAL,
+  _SC_FP_ZERO,
+  _SC_FP_SUBNORMAL,
+  _SC_FP_INFINITE,
+  _SC_FP_NAN
 };
 
 enum floatkind dblclassify(struct ieee_double *d)
@@ -120,19 +120,19 @@ enum floatkind dblclassify(struct ieee_double *d)
   if (d->dbl_exp == 0)
   {
     if (d->dbl_fracl | d->dbl_frach)
-      return _FP_SUBNORMAL;
+      return _SC_FP_SUBNORMAL;
     else
-      return _FP_ZERO;
+      return _SC_FP_ZERO;
   }
   else if (d->dbl_exp == 0x7ff)
   {
     if (d->dbl_fracl | d->dbl_frach)
-      return _FP_NAN;
+      return _SC_FP_NAN;
     else
-      return _FP_INFINITE;
+      return _SC_FP_INFINITE;
   }
   else
-    return _FP_NORMAL;
+    return _SC_FP_NORMAL;
 }
 
 enum floatkind extclassify(struct ieee_ext *e)
@@ -140,17 +140,17 @@ enum floatkind extclassify(struct ieee_ext *e)
   if (e->ext_exp == 0x7fff)
   {
     if (e->ext_fracl | e->ext_frach)
-      return _FP_NAN;
+      return _SC_FP_NAN;
     else
-      return _FP_INFINITE;
+      return _SC_FP_INFINITE;
   }
   else if (e->ext_exp == 0)
-    return _FP_SUBNORMAL;
+    return _SC_FP_SUBNORMAL;
   /* Extended precision has an explicit normalization bit. */
   else if (e->ext_fracl | e->ext_frach)
-    return _FP_NORMAL;
+    return _SC_FP_NORMAL;
   else
-    return _FP_ZERO;
+    return _SC_FP_ZERO;
 }
 
 /*
@@ -189,20 +189,20 @@ __hdtoa(double d, const char *xdigs, int ndigits, int *decpt, int *sign,
 	*sign = p->dbl_sign;
 
 	switch (dblclassify(p)) {
-	case _FP_NORMAL:
+	case _SC_FP_NORMAL:
 		*decpt = p->dbl_exp - DBL_ADJ;
 		break;
-	case _FP_ZERO:
+	case _SC_FP_ZERO:
 		*decpt = 1;
 		return (nrv_alloc("0", rve, 1));
-	case _FP_SUBNORMAL:
+	case _SC_FP_SUBNORMAL:
     d *= 5.363123171977039e+154; /* = 0x1p514 */
 		*decpt = p->dbl_exp - (514 + DBL_ADJ);
 		break;
-	case _FP_INFINITE:
+	case _SC_FP_INFINITE:
 		*decpt = INT_MAX;
 		return (nrv_alloc(INFSTR, rve, sizeof(INFSTR) - 1));
-	case _FP_NAN:
+	case _SC_FP_NAN:
 		*decpt = INT_MAX;
 		return (nrv_alloc(NANSTR, rve, sizeof(NANSTR) - 1));
 	default:
@@ -287,20 +287,20 @@ __hldtoa(long double e, const char *xdigs, int ndigits, int *decpt, int *sign,
 	*sign = p->ext_sign;
 
 	switch (extclassify(p)) {
-	case _FP_NORMAL:
+	case _SC_FP_NORMAL:
 		*decpt = p->ext_exp - LDBL_ADJ;
 		break;
-	case _FP_ZERO:
+	case _SC_FP_ZERO:
 		*decpt = 1;
 		return (nrv_alloc("0", rve, 1));
-	case _FP_SUBNORMAL:
+	case _SC_FP_SUBNORMAL:
     e *= 5.363123171977039e+154; /* = 0x1p514 */
 		*decpt = p->ext_exp - (514 + LDBL_ADJ);
 		break;
-	case _FP_INFINITE:
+	case _SC_FP_INFINITE:
 		*decpt = INT_MAX;
 		return (nrv_alloc(INFSTR, rve, sizeof(INFSTR) - 1));
-	case _FP_NAN:
+	case _SC_FP_NAN:
 		*decpt = INT_MAX;
 		return (nrv_alloc(NANSTR, rve, sizeof(NANSTR) - 1));
 	default:
