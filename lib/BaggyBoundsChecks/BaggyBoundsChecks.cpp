@@ -192,6 +192,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     // Create a structure type.  The first element will be the global memory
     // object; the second will be an array of bytes that will pad the size out;
     // the third will be the metadata for this object.
+    //
     Type *Int8Type = Type::getInt8Ty(GV->getContext());
     Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - adjustedSize);
     Type *metadataType = TypeBuilder<BBMetaData, false>::get(GV->getContext());
@@ -201,26 +202,13 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     // Create a global initializer.  The first element has the initializer of
     // the original memory object, the second initializes the padding array, and 
     // the third initializes the object's metadata.
-
-    GlobalVariable *metaData = new GlobalVariable(*(GV->getParent()),
-                                                 metadataType,
-                                                 GV->isConstant(),
-                                                 GV->getLinkage(),
-                                                 	0,
-                                                 "baggy.metadata");
-
-    Type *Int32Type = Type::getInt32Ty(GV->getContext());
-    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *idx[2] = {Zero, Zero};
-    Value *V = GetElementPtrInst::Create(metaData,idx, Twine(""));
-    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
-
+    //
     Constant *c = 0;
     if (GV->hasInitializer()) {
       std::vector<Constant *> vals(3);
       vals[0] = GV->getInitializer();
       vals[1] = Constant::getNullValue(newType1);
-      vals[2] = metaData;
+      vals[2] = Constant::getNullValue(metadataType);
       c = ConstantStruct::get(newType, vals);
     }
 
@@ -238,10 +226,21 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     GV_new->takeName (GV);
 
     //
+    // Store the object size information into the medadata.
+    //
+    Type *Int32Type = Type::getInt32Ty(GV->getContext());
+    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+    Value *Two = ConstantInt::getSigned(Int32Type, 2);
+    Value *idx[3] = {Zero, Two, Zero};
+    Value *V = GetElementPtrInst::Create(GV_new,idx, Twine(""));
+    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
+
+    //
     // Create a GEP expression that will represent the global value and replace
     // all uses of the global value with the new constant GEP.
     //
-    Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx, 2);
+    Value *idx1[2] = {Zero, Zero};
+    Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx1, 2);
     GV->replaceAllUsesWith(init);
     GV->eraseFromParent();
   }
@@ -293,13 +292,8 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
                                                  GlobalValue::InternalLinkage,
                                                  	0,
                                                  "baggy.metadata");
-
-    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *idx1[2] = {Zero, Zero};
-    Value *V = GetElementPtrInst::Create(metaData,idx1, Twine(""));
-    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
-
     StructType *newType = StructType::get(AI->getType()->getElementType(), newType1, metaData, NULL);
+    
     //
     // Create the new alloca instruction and set its alignment.
     //
@@ -311,12 +305,21 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     AI_new->setAlignment(1u<<size);
 
     //
+    // Store the object size information into the medadata.
+    //
+    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+    Value *Two = ConstantInt::getSigned(Int32Type, 2);
+    Value *idx[3] = {Zero, Two, Zero};
+    Value *V = GetElementPtrInst::Create(AI_new, idx, Twine(""));
+    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
+
+    //
     // Create a GEP that accesses the first element of this new structure.
     //
     //Value * Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *idx[3] = {Zero, Zero, NULL};
+    Value *idx1[3] = {Zero, Zero, NULL};
     Instruction *init = GetElementPtrInst::Create(AI_new,
-                                                  idx,
+                                                  idx1,
                                                   Twine(""),
                                                   AI);
     AI->replaceAllUsesWith(init);
