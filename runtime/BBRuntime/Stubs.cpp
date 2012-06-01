@@ -126,7 +126,6 @@ pool_reregister_debug (DebugPoolTy *Pool,
 }
 
 extern "C" void poolcheck_freeui_debug() {}
-extern "C" void fastlscheck_debug() {} // DebugRuntime/ExactCheck.cpp:104
 extern "C" void* __sc_fsparameter(void *pool, void *ptr, void *dest, unsigned char complete) {
   return dest;
 }
