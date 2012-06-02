@@ -13,6 +13,9 @@ char array[1024];
 
 int
 main (int argc, char ** argv) {
-  return array[1024];
+  int value = array[1024];
+  printf("the value is %d\n", value);
+  
+  return 0;
 }
 
