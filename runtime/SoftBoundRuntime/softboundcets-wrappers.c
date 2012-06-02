@@ -321,6 +321,8 @@ softboundcets_setrlimit(int resource, const struct rlimit* rlim){
   return setrlimit(resource, rlim);
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE size_t
 softboundcets_fread_unlocked(void *ptr, size_t size, 
                              size_t n, FILE *stream){
@@ -333,6 +335,7 @@ softboundcets_fputs_unlocked(const char *s, FILE *stream){
   return fputs_unlocked(s, stream);
 }
 
+#endif
 
 __WEAK_INLINE size_t 
 softboundcets_fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
@@ -587,6 +590,8 @@ __WEAK_INLINE int softboundcets_fstat(int filedes, struct stat* buff){
   return fstat(filedes, buff);
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE int softboundcets___lxstat (int __ver, const char *__filename,     
                                           struct stat *__stat_buf) {
 
@@ -613,6 +618,7 @@ __WEAK_INLINE int softboundcets___fxstatat(int ver, int file_des, const char* fi
   return __fxstatat(ver, file_des, filename, stat_struct, flag);
 }
 
+#endif
 
 __WEAK_INLINE int softboundcets_fflush(FILE* stream){
 
@@ -628,6 +634,8 @@ __WEAK_INLINE int softboundcets_fsync(int fd){
   return fsync(fd);
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE DIR* softboundcets_fdopendir(int fd){
   
   void* ret_ptr = (void*) fdopendir(fd);
@@ -637,6 +645,8 @@ __WEAK_INLINE DIR* softboundcets_fdopendir(int fd){
   return (DIR*)ret_ptr;
   
 }
+
+#endif
 
 __WEAK_INLINE int softboundcets_fseeko(FILE *stream, off_t offset, int whence){
   
@@ -654,6 +664,8 @@ __WEAK_INLINE int softboundcets_raise(int sig){
   return raise(sig);
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE int softboundcets_linkat(int olddirfd, const char *oldpath,
                                        int newdirfd, const char *newpath, 
                                        int flags){
@@ -661,12 +673,15 @@ __WEAK_INLINE int softboundcets_linkat(int olddirfd, const char *oldpath,
   return  linkat(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
+#endif
+
 __WEAK_INLINE int softboundcets_utimes(const char *filename, 
                                        const struct timeval times[2]){
   
   return utimes(filename, times);
 }
 
+#if defined (__linux__)
 __WEAK_INLINE int softboundcets_futimesat(int dirfd, const char *pathname,
                                           const struct timeval times[2]){
   
@@ -684,11 +699,15 @@ softboundcets_utimensat(int dirfd, const char *pathname,
 
   return utimensat(dirfd, pathname, times, flags);
 }
+#endif
 
+#if defined (__linux__)
 __WEAK_INLINE size_t 
 softboundcets___ctype_get_mb_cur_max(void){
   return __ctype_get_mb_cur_max();  
 }
+
+#endif
 
 __WEAK_INLINE int 
 softboundcets_iswprint(wint_t wc){
@@ -744,10 +763,12 @@ struct group *softboundcets_getgrnam(const char *name){
   return ret_ptr;  
 }
 
+#if defined (__linux__)
 __WEAK_INLINE
 int softboundcets_rpmatch(const char *response){
   return rpmatch(response);
 }
+#endif
 
 __WEAK_INLINE
 int softboundcets_regcomp(regex_t *preg, const char *regex, int cflags){
@@ -770,6 +791,8 @@ int softboundcets_regexec(const regex_t *preg, const char *string,
 
 
 #ifdef HAVE_ICONV_H
+
+#if defined (__linux__)
 __WEAK_INLINE
 size_t softboundcets_iconv(iconv_t cd,
                            char **inbuf, size_t *inbytesleft,
@@ -783,6 +806,8 @@ iconv_t softboundcets_iconv_open(const char *tocode, const char *fromcode){
 
   return iconv_open(tocode, fromcode);
 }
+#endif
+
 #endif
 
 
@@ -990,6 +1015,8 @@ __WEAK_INLINE gid_t softboundcets_getgid(void){
 __WEAK_INLINE gid_t softboundcets_getegid(void){
   return getegid();
 }
+
+#if defined (__linux__)
 __WEAK_INLINE
 int softboundcets_readlinkat(int dirfd, const char *pathname,
                              char *buf, size_t bufsiz){
@@ -1020,10 +1047,15 @@ int softboundcets_mkdirat(int dirfd, const char *pathname, mode_t mode){
   return mkdirat(dirfd, pathname, mode);
 }
 
+#endif
+
+
 __WEAK_INLINE
 int softboundcets_fchown(int fd, uid_t owner, gid_t group){
   return fchown(fd, owner, group);
 }
+
+#if defined (__linux__)
 
 __WEAK_INLINE
 int softboundcets_fchownat(int dirfd, const char *pathname,
@@ -1031,6 +1063,7 @@ int softboundcets_fchownat(int dirfd, const char *pathname,
   
   return fchownat(dirfd, pathname, owner, group, flags);
 }
+#endif
 
 __WEAK_INLINE
 int softboundcets_fchmod(int fd, mode_t mode){
@@ -1042,6 +1075,7 @@ int softboundcets_chmod(const char *path, mode_t mode){
   return chmod(path, mode);
 }
 
+#if defined(_linux__)
 __WEAK_INLINE 
 int softboundcets_openat(int dirfd, const char *pathname, int flags){
   return openat(dirfd, pathname, flags);
@@ -1052,6 +1086,8 @@ int softboundcets_fchmodat(int dirfd, const char *pathname,
                            mode_t mode, int flags){
   return fchmodat(dirfd, pathname, mode, flags);
 }
+
+#endif
 
 #if defined (__linux__)
 
@@ -1187,6 +1223,7 @@ __WEAK_INLINE size_t softboundcets_strcspn(const char* s, const char* reject){
 
 #ifdef _GNU_SOURCE
 
+#if defined (__linux__)
 __WEAK_INLINE void* softboundcets_mempcpy(void * dest, const void * src, size_t n){
 
   // IMP: need to copy the metadata 
@@ -1197,6 +1234,8 @@ __WEAK_INLINE void* softboundcets_mempcpy(void * dest, const void * src, size_t 
 
 #endif
 
+#endif
+
 __WEAK_INLINE int 
 softboundcets_memcmp(const void* s1, const void* s2, size_t n){
   return memcmp(s1, s2, n);
@@ -1204,6 +1243,7 @@ softboundcets_memcmp(const void* s1, const void* s2, size_t n){
 
 #ifdef _GNU_SOURCE
 
+#if defined (__linux__)
 __WEAK_INLINE void* softboundcets_memrchr(const void * s, int c, size_t n){  
   void* ret_ptr = memrchr(s, c, n);
   if(ret_ptr != NULL) {
@@ -1214,6 +1254,9 @@ __WEAK_INLINE void* softboundcets_memrchr(const void * s, int c, size_t n){
   }
   return ret_ptr;
 }
+
+#endif
+
 #endif
 
 __WEAK_INLINE void softboundcets_rewinddir(DIR *dirp){
@@ -1240,6 +1283,8 @@ __WEAK_INLINE char* softboundcets_rindex(char* s, int c){
   return ret_ptr;
 }
 
+#if defined (__linux__)
+
 __WEAK_INLINE ssize_t 
 softboundcets___getdelim(char **lineptr, size_t *n, int delim, FILE *stream){
   
@@ -1261,8 +1306,9 @@ softboundcets___getdelim(char **lineptr, size_t *n, int delim, FILE *stream){
   
   return ret_val;
   
-
 }
+
+#endif
 
 __WEAK_INLINE unsigned long int 
 softboundcets_strtoul(const char* nptr, char ** endptr, int base){
@@ -1299,12 +1345,15 @@ softboundcets_strtol(const char* nptr, char **endptr, int base){
 
 #ifdef _GNU_SOURCE
 
+#if defined (__linux__)
+
 __WEAK_INLINE char* softboundcets_strchrnul(const char* s, int c){
 
   char* ret_ptr = strchrnul(s, c);
    __softboundcets_propagate_metadata_shadow_stack_from(1, 0);
    return ret_ptr;
 }
+#endif
 #endif
 
 __WEAK_INLINE char* softboundcets_strchr(const char* s, int c){
@@ -1434,6 +1483,8 @@ __WEAK_INLINE void __softboundcets_strdup_handler(void* ret_ptr){
   } 
 }
 
+
+#if defined (__linux__)
 //strdup, allocates memory from the system using malloc, thus can be freed
 __WEAK_INLINE char* softboundcets_strndup(const char* s, size_t n){
   
@@ -1442,6 +1493,7 @@ __WEAK_INLINE char* softboundcets_strndup(const char* s, size_t n){
   __softboundcets_strdup_handler(ret_ptr);  
   return ret_ptr;
  }
+#endif
 
 
 //strdup, allocates memory from the system using malloc, thus can be freed
