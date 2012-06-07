@@ -100,7 +100,7 @@ The {\tt exactcheck()} function is a fast version of the {\tt
 boundscheck()} function that does not need to do an object bounds
 lookup.
 
-\item{\tt funccheck (void * pool, void f()}: \\
+\item{\tt funccheck (void * ptr, void * targets[])}: \\
 The {\tt funccheck()} function determines if a function pointer
 belongs to the set of valid function pointer targets for an indirect
 function call.  It is used to ensure control-flow integrity.
