@@ -139,7 +139,8 @@ InitAllocas::visitAllocaInst (AllocaInst & AI) {
   args.push_back (castTo (&AI, VoidPtrType, AI.getName().str(), InsertPt));
   args.push_back (ConstantInt::get(Int8Type, 0));
   args.push_back (ConstantInt::get(Int32Type,TD.getTypeAllocSize(AllocType)));
-  args.push_back (ConstantInt::get(Int32Type, 0));
+  args.push_back (ConstantInt::get(Int32Type,
+                                   TD.getABITypeAlignment(AllocType)));
   args.push_back (ConstantInt::get(Int1Type, 0));
   CallInst::Create (Memset, args, "", InsertPt);
 
