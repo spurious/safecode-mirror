@@ -15,6 +15,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace llvm {
 
@@ -29,7 +30,9 @@ PoolSlab::create(BitmapPoolTy *Pool) {
   assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
 #endif
   PoolSlab *PS = (PoolSlab*)AllocatePage();
+
   assert(PS && "Allocating a page failed!");
+  memset(PS, 0, sizeof(PoolSlab));
   PS->NumNodesInSlab = NodesPerSlab;
   PS->isSingleArray = 0;  // Not a single array!
   PS->FirstUnused = 0;    // Nothing allocated.

@@ -166,16 +166,6 @@ void *AllocateNPages(unsigned Num) {
 void FreePage(void *Page) {
   FreePagesListType &FPL = FreePages;
   FPL.push_back(Page);
-  munmap(Page, 1);
-  /*
-  static const unsigned int THRESHOLD = 5;
-  if (FPL.size() >  THRESHOLD) {
-    //    printf( "pool allocator : reached a threshold \n");
-    //    exit(-1); 
-    munmap(Page, PageSize);
-    poolmemusage -= PageSize;
-  }
-  */
 }
 
 }
