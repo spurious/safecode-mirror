@@ -204,7 +204,7 @@ static inline size_t byte_range(const void *a, const void *b) {
 }
 
 // Use this stream for reporting errors.
-static std::ostream &err = std::cout;
+static std::ostream &err = err;
 
 //
 // This function attempts to verify that given string pointer points to
@@ -247,7 +247,7 @@ validStringCheck(const char *string,
 
   // Check if the string is NULL. If it is, report this as an error.
   if (string == NULL) {
-    std::cout << "String pointer is NULL!\n";
+    err << "String pointer is NULL!\n";
     C_LIBRARY_VIOLATION(string, pool, function, SRC_INFO_ARGS);
     return false;
   }
@@ -256,7 +256,7 @@ validStringCheck(const char *string,
   // is not complete, return true. Otherwise report an error and return false.
   if (!pool_find(pool, (void *)string, objStart, objEnd)) {
     if (complete) {
-      std::cout << "String not found in pool!\n";
+      err << "String not found in pool!\n";
       LOAD_STORE_VIOLATION(string, pool, SRC_INFO_ARGS);
       return false;
     }
@@ -266,7 +266,7 @@ validStringCheck(const char *string,
 
   // Do a termination check.
   if (!isTerminated(string, objEnd, len)) {
-    std::cout << "String is not terminated within object bounds!\n";
+    err << "String is not terminated within object bounds!\n";
     C_LIBRARY_VIOLATION(string, pool, function, SRC_INFO_ARGS);
     return false;
   }
