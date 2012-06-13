@@ -204,7 +204,7 @@ static inline size_t byte_range(const void *a, const void *b) {
 }
 
 // Use this stream for reporting errors.
-static std::ostream &err = err;
+static std::ostream &err = std::cerr;
 
 //
 // This function attempts to verify that given string pointer points to
