@@ -22,7 +22,6 @@
 #include <map>
 #include <stdint.h>
 
-#include "../include/strnlen.h"
 #include "PoolAllocator.h"
 
 //

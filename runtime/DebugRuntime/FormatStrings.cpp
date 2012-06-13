@@ -14,6 +14,7 @@
 
 #include "../include/CWE.h"
 #include "../include/FormatStringSupport.h"
+#include "../include/strnlen.h"
 
 #include "FormatStrings.h"
 #include "PoolAllocator.h"
