@@ -133,12 +133,3 @@ extern "C" void* __sc_fsparameter(void *pool, void *ptr, void *dest, unsigned ch
 extern "C" void poolargvregister(int argc, char ** argv) {
   __sc_bb_poolargvregister(argc, argv);
 }
-
-extern "C" void exactcheck2_debug(const char *base,
-                                  const char* result,
-                                  unsigned size,
-                                  unsigned tag,
-                                  const char* SourceFile,
-                                  unsigned lineno) {
-  bb_exactcheck2_debug(base, result, size, tag, SourceFile, lineno);
-}

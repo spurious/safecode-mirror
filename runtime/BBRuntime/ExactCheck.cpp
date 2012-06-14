@@ -77,8 +77,8 @@ bb_exactcheck2 (const char *base, const char *result, unsigned size) {
  *  This forces the call to exactcheck() to be considered live (previous
  *  optimizations dead-code eliminated it).
  */
-void *
-bb_exactcheck2_debug (const char *base,
+extern "C" void *
+exactcheck2_debug (const char *base,
                    const char *result,
                    unsigned size,
                    unsigned tag,
@@ -144,4 +144,3 @@ exactcheck_check (const void * ObjStart,
 
   return const_cast<void*>(Dest);
 }
-
