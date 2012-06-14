@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+//
+// Buffer overflow caused by realpath().
+//
+
 int main()
 {
   char * buffer = malloc (4);
