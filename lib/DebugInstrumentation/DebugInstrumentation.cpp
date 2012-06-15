@@ -437,11 +437,7 @@ DebugInstrument::runOnModule (Module &M) {
   LocationSourceInfo LInfo (dbgKind);
   VariableSourceInfo VInfo (dbgKind);
 
-  // Allocation, check, and registration functions
-  transformFunction (M.getFunction ("poolalloc"), LInfo);
-  transformFunction (M.getFunction ("poolcalloc"), LInfo);
-  transformFunction (M.getFunction ("poolrealloc"), LInfo);
-  transformFunction (M.getFunction ("poolstrdup"), LInfo);
+  // Check and registration functions
   transformFunction (M.getFunction ("poolfree"), LInfo);
   transformFunction (M.getFunction ("poolcheck"), LInfo);
   transformFunction (M.getFunction ("poolcheckui"), LInfo);
