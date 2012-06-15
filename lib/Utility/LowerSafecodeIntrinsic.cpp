@@ -15,7 +15,6 @@
 #include "llvm/Module.h"
 
 #include "safecode/LowerSafecodeIntrinsic.h"
-#include "SCUtils.h"
 
 using namespace llvm;
 
@@ -41,15 +40,6 @@ namespace llvm {
       Function * origF = M.getFunction(it->intrinsicName);
 
       //
-      // If the intrinsic should not be renamed, then we need to remove the
-      // dummy function body created by the intrinsic insertion pass.
-      //
-      if (it->intrinsicName == it->functionName) {
-        destroyFunction (origF);
-        continue;
-      }
-
-      //
       // If the new function has a name different from the old function, create
       // a function prototype of the new function and replace uses of the old
       // function with it.
@@ -58,6 +48,7 @@ namespace llvm {
         Constant * newF = M.getOrInsertFunction (it->functionName,
                                                  origF->getFunctionType());
         origF->replaceAllUsesWith(newF);
+        origF->eraseFromParent();
       }
     }   
     return true;

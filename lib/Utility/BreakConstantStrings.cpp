@@ -29,7 +29,7 @@
 #include <map>
 #include <utility>
 
-NAMESPACE_SC_BEGIN
+namespace llvm {
 
 // Identifier variable for the pass
 char BreakConstantStrings::ID = 0;
@@ -88,5 +88,5 @@ BreakConstantStrings::runOnModule (Module & M) {
   return modified;
 }
 
-NAMESPACE_SC_END
+}
 

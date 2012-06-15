@@ -21,33 +21,31 @@
 
 #include "safecode/SAFECode.h"
 
-using namespace llvm;
+namespace llvm { 
 
-NAMESPACE_SC_BEGIN
+  //
+  // Pass: BreakConstantStrings
+  //
+  // Description:
+  //  This pass modifies an LLVM Module so that strings are not constant.
+  //
+  struct BreakConstantStrings : public ModulePass {
+    private:
+      // Private methods
 
-//
-// Pass: BreakConstantStrings
-//
-// Description:
-//  This pass modifies an LLVM Module so that strings are not constant.
-//
-struct BreakConstantStrings : public ModulePass {
-  private:
-    // Private methods
+      // Private variables
 
-    // Private variables
+    public:
+      static char ID;
+      BreakConstantStrings() : ModulePass(ID) {}
+      const char *getPassName() const {return "Make Global Strings Non-constant";}
+      virtual bool runOnModule (Module & M);
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // This pass does not modify the control-flow graph of the function
+        AU.setPreservesCFG();
+      }
+  };
 
-  public:
-    static char ID;
-    BreakConstantStrings() : ModulePass((intptr_t)(&ID)) {}
-    const char *getPassName() const {return "Make Global Strings Non-constant";}
-    virtual bool runOnModule (Module & M);
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // This pass does not modify the control-flow graph of the function
-      AU.setPreservesCFG();
-    }
-};
-
-NAMESPACE_SC_END
+}
 
 #endif
