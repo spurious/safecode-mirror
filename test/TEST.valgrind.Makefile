@@ -18,8 +18,9 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
-#VALGRIND = $(HOME)/local/bin/valgrind -q --log-file=vglog
-VALGRIND = $(HOME)/local/bin/valgrind -q --log-file=vglog --tool=exp-sgcheck
+VALGRINDPROG := valgrind
+VALGRIND = $(VALGRINDPROG) -q --log-file=vglog
+#VALGRIND = $(VALGRINDPROG) -q --log-file=vglog --tool=exp-sgcheck
 
 CLANGBIN := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
 CLANGCPPBIN := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/clang
