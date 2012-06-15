@@ -162,6 +162,11 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
   if (!F) return;
 
   //
+  // Get the type expected for string arguments.
+  //
+  Type * Int8PtrTy = Type::getInt8PtrTy(M.getContext());
+
+  //
   // Don't instrument calls to the function if it is defined in this program.
   //
   if (!(F->isDeclaration()))
@@ -189,6 +194,14 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
   Function * strCheck = cast<Function>(M.getFunction ("poolcheckstrui"));
   for (unsigned index = 0; index < callsToInstrument.size(); ++index) {
     CallSite CS = callsToInstrument[index];
+
+    //
+    // Ignore this call site when the specified argument doesn't appear to
+    // exist or is of the wrong type.
+    //
+    if (CS.arg_size() <= argNo + 1||
+        CS.getArgument(argNo)->getType() != Int8PtrTy)
+      continue;
 
     //
     // Setup the arguments for the run-time check.  The first is the NULL
