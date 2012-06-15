@@ -286,13 +286,7 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
     Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
     
-    GlobalVariable *metaData = new GlobalVariable(*(AI->getParent()->getParent()->getParent()),
-                                                 metadataType,
-                                                 false,
-                                                 GlobalValue::InternalLinkage,
-                                                 	0,
-                                                 "baggy.metadata");
-    StructType *newType = StructType::get(AI->getType()->getElementType(), newType1, metaData, NULL);
+    StructType *newType = StructType::get(AI->getType()->getElementType(), newType1, metadataType, NULL);
     
     //
     // Create the new alloca instruction and set its alignment.
@@ -317,7 +311,7 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     // Create a GEP that accesses the first element of this new structure.
     //
     //Value * Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *idx1[3] = {Zero, Zero, NULL};
+    Value *idx1[2] = {Zero, Zero};
     Instruction *init = GetElementPtrInst::Create(AI_new,
                                                   idx1,
                                                   Twine(""),
