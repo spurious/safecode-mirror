@@ -199,7 +199,7 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
     // Ignore this call site when the specified argument doesn't appear to
     // exist or is of the wrong type.
     //
-    if (CS.arg_size() <= argNo + 1||
+    if (CS.arg_size() <= argNo + 1 ||
         CS.getArgument(argNo)->getType() != Int8PtrTy)
       continue;
 
