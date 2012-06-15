@@ -349,7 +349,7 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
   //
   for (Value::use_iterator FU = F->use_begin(); FU != F->use_end(); ++FU) {
     if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
-      Value * Ptr = CI->getArgOperand(2)->stripPointerCasts();
+      Value * Ptr = CI->getArgOperand(1)->stripPointerCasts();
       if (AllocaInst * AI = dyn_cast<AllocaInst>(Ptr)){
         adjustAlloca (AI);
       } 
