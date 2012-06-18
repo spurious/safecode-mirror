@@ -176,9 +176,8 @@ build_call_info(call_info *&result, va_list ap, TAG, SRC_INFO) {
     const vector<void *> &pointerList = argLists[index].pointerList;
     const size_t wl_size = pointerList.size();
     // Allocate enough space so that the structure can hold the whitelist.
-    result = (call_info *) malloc(
-      offsetof(call_info, whitelist[1]) + wl_size * sizeof(void *)
-    );
+    result =
+      (call_info *) malloc(sizeof(call_info) + wl_size * sizeof(void *));
     if (result != 0) {
       // Don't limit the number of arguments to access.
       result->vargc = 0xffffffffu;
