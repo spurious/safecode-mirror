@@ -69,7 +69,7 @@ static inline void clearVaList(va_list ap) {
 uint32_t __sc_targetcheck(void *func) {
   uint32_t id = (expectedTarget == func) ? argLists.size() - 1 : 0xffffffffu;
   // Always reset the expected target to NULL.
-  // This is neede for correctness, eg. in the case of recursive calls of the
+  // This is needed for correctness, eg. in the case of recursive calls of the
   // same function from external code.
   expectedTarget = 0;
   return id;
@@ -170,7 +170,7 @@ build_call_info(call_info *&result, va_list ap, TAG, SRC_INFO) {
     return false;
   }
   // Otherwise, allocate and populate a call_info structure with the pointer
-  // whitelist as specifed in the corresponding index.
+  // whitelist as specified in the corresponding index.
   else {
     const unsigned index = idx->second;
     const vector<void *> &pointerList = argLists[index].pointerList;
