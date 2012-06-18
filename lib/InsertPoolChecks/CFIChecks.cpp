@@ -7,8 +7,8 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// This pass instruments loads and stores with run-time checks to ensure memory
-// safety.
+// This pass instruments indirect function calls to ensure that control-flow
+// integrity is preserved at run-time.
 //
 //===----------------------------------------------------------------------===//
 
