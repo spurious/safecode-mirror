@@ -259,10 +259,14 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "creat", 0);
   addStringCheck (M, "dlopen", 0);
   addStringCheck (M, "fattach", 1);
+  addStringCheck (M, "fchmodat", 1);
   addStringCheck (M, "fdopen", 1);
   addStringCheck (M, "fopen", 0);
   addStringCheck (M, "\01_fopen", 0);
   addStringCheck (M, "freopen", 0);
+  addStringCheck (M, "fstatat", 1);
+  addStringCheck (M, "ftok", 0);
+  addStringCheck (M, "ftw", 0);
   addStringCheck (M, "getaddrinfo", 0);
   addStringCheck (M, "getenv", 0);
   addStringCheck (M, "gethostbyname", 0);
@@ -276,19 +280,28 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "mkdir", 0);
   addStringCheck (M, "mkdirat", 1);
   addStringCheck (M, "mkfifo", 0);
+  addStringCheck (M, "mkfifoat", 1);
   addStringCheck (M, "mknod", 0);
+  addStringCheck (M, "mknodat", 1);
   addStringCheck (M, "mount", 0);
   addStringCheck (M, "mount", 1);
   addStringCheck (M, "mount", 2);
   addStringCheck (M, "open", 0);
   addStringCheck (M, "openat", 1);
+  addStringCheck (M, "openlog", 0);
+  addStringCheck (M, "popen", 0);
   addStringCheck (M, "putenv", 0);
   addStringCheck (M, "remove", 0);
   addStringCheck (M, "rename", 0);
   addStringCheck (M, "rename", 1);
+  addStringCheck (M, "renameat", 1);
+  addStringCheck (M, "renameat", 3);
   addStringCheck (M, "rmdir", 0);
   addStringCheck (M, "setenv", 0);
+  addStringCheck (M, "shm_open", 0);
+  addStringCheck (M, "shm_unlink", 0);
   addStringCheck (M, "stat", 0);
+  addStringCheck (M, "statvfs", 0);
   addStringCheck (M, "symlink", 0);
   addStringCheck (M, "symlink", 1);
   addStringCheck (M, "system", 0);
@@ -297,6 +310,9 @@ StringTransform::runOnModule (Module & M) {
   addStringCheck (M, "truncate", 0);
   addStringCheck (M, "unlink", 0);
   addStringCheck (M, "unsetenv", 0);
+  addStringCheck (M, "utime", 0);
+  addStringCheck (M, "utimensat", 1);
+  addStringCheck (M, "utimes", 0);
 
   //
   // Handle 64-bit versions of these functions that may exist on hybrid 32/64
