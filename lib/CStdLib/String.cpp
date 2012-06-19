@@ -215,7 +215,15 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
     //
     // Create a call instruction to the string run-time check.
     //
-    CallInst::Create (strCheck, Params, "", CS.getInstruction());
+    CallInst *CallToStringCheck
+      = CallInst::Create (strCheck, Params, "", CS.getInstruction());
+
+    //
+    // If the original call site has debug metadata, associate the metadata
+    // with the newly created call.
+    //
+    if (MDNode *DebugNode = CS.getInstruction()->getMetadata("dbg"))
+      CallToStringCheck->setMetadata("dbg", DebugNode);
   }
 
   return;
