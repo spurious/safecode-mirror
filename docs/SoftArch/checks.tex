@@ -24,7 +24,7 @@ library code (also known as \emph{external code}).
 Incomplete checks are SAFECode's way of permitting a mixture of
 SAFECode-compiled code and native external code; if a pointer could be
 manipulated by external code, SAFECode relaxes its run-time checks so
-that failure to find the referant memory object does not cause a
+that failure to find the referent memory object does not cause a
 run-time check to fail.
 
 By default, SAFECode makes all of its checks incomplete checks (this
@@ -71,7 +71,7 @@ When a type-safe pointer is loaded via a type-inconsistent pointer,
 {\tt poolcheck\_align()} verifies that the loaded pointer points
 within the specified pool at the correctly aligned offset for objects
 of its type.  This ensures that no further checks are needed when the
-type-safe poiner is used for loads and stores.
+type-safe pointer is used for loads and stores.
 
 \item{\tt free\_check (void * pool, void * ptr)}: \\
 The {\tt free\_check()} function checks that the pointer points to
