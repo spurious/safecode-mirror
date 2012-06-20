@@ -43,7 +43,7 @@ SC_STATS = $(SC) -stats -time-passes -info-output-file=$(CURDIR)/$@.info
 #OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 OPTZN_PASSES := -strip-debug -std-compile-opts
 
-LDFLAGS += -L$(PROJECT_DIR)/$(CONFIGURATION)/lib
+LDFLAGS += -use-gold-plugin -L$(PROJECT_DIR)/$(CONFIGURATION)/lib
 
 #
 # This rule compiles a single object file with SAFECode Clang
@@ -59,11 +59,11 @@ Output/%.sc.o: %.cpp $(CLANGXX)
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
-	-$(CLANG) -O2 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -use-gold-plugin -flto -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(Source)
-	-$(CLANG) -O2 -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -use-gold-plugin -flto -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
 endif
 
 ##############################################################################
