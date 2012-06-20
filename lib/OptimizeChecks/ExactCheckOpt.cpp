@@ -71,6 +71,13 @@ ExactCheckOpt::runOnModule(Module & M) {
                                                       NULL));
 
   //
+  // Add the readnone attribute to the fast checks; they don't use global state
+  // to determine if a pointer passes the check.
+  //
+  ExactCheck2->addFnAttr (Attribute::ReadNone);
+  FastLSCheck->addFnAttr (Attribute::ReadNone);
+
+  //
   // Scan through all the intrinsics and process those that perform run-time
   // checks.
   //

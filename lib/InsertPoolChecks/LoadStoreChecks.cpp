@@ -15,6 +15,7 @@
 #define DEBUG_TYPE "safecode"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Attributes.h"
 #include "llvm/Constants.h"
 #include "safecode/LoadStoreChecks.h"
 #include "safecode/Utility.h"
@@ -318,12 +319,18 @@ InsertLSChecks::doInitialization (Module & M) {
   Type * VoidTy  = Type::getVoidTy (M.getContext());
   Type * VoidPtrTy = getVoidPtrType (M.getContext());
   Type * IntTy = IntegerType::getInt32Ty(M.getContext());
-  M.getOrInsertFunction ("poolcheckui",
-                         VoidTy,
-                         VoidPtrTy,
-                         VoidPtrTy,
-                         IntTy,
-                         NULL);
+  Constant * F = M.getOrInsertFunction ("poolcheckui",
+                                        VoidTy,
+                                        VoidPtrTy,
+                                        VoidPtrTy,
+                                        IntTy,
+                                        NULL);
+
+  //
+  // Mark the function as readonly; that will enable it to be hoisted out of
+  // loops by the standard loop optimization passes.
+  //
+  (cast<Function>(F))->addFnAttr (Attribute::ReadOnly);
   return true;
 }
 

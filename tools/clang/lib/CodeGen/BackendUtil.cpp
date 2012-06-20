@@ -254,8 +254,6 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new InsertGEPChecks());
     MPM->add (new ExactCheckOpt());
     MPM->add (new OptimizeChecks());
-    MPM->add (new DebugInstrument());
-    MPM->add (new RewriteOOB());
     if (CodeGenOpts.MemSafeTerminate) {
       MPM->add (llvm::createSCTerminatePass ());
     }
@@ -269,6 +267,13 @@ void EmitAssemblyHelper::CreatePasses() {
   // Rerun the LLVM optimizations again.
   //
   PMBuilder.populateModulePassManager(*MPM);
+
+  // For SAFECode, do the debug instrumentation and OOB rewriting after
+  // all optimization is done.
+  if (CodeGenOpts.MemSafety) {
+    MPM->add (new DebugInstrument());
+    MPM->add (new RewriteOOB());
+  }
 }
 
 bool EmitAssemblyHelper::AddEmitPasses(BackendAction Action,

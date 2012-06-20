@@ -126,12 +126,18 @@ InsertGEPChecks::doInitialization (Module & M) {
   // pointer arithmetic (GEP) checks.
   //
   Type * VoidPtrTy = getVoidPtrType (M.getContext());
-  M.getOrInsertFunction ("boundscheckui",
-                         VoidPtrTy,
-                         VoidPtrTy,
-                         VoidPtrTy,
-                         VoidPtrTy,
-                         NULL);
+  Constant * F = M.getOrInsertFunction ("boundscheckui",
+                                        VoidPtrTy,
+                                        VoidPtrTy,
+                                        VoidPtrTy,
+                                        VoidPtrTy,
+                                        NULL);
+
+  //
+  // Mark the function as readonly; that will enable it to be hoisted out of
+  // loops by the standard loop optimization passes.
+  //
+  (cast<Function>(F))->addFnAttr (Attribute::ReadOnly);
   return true;
 }
 
