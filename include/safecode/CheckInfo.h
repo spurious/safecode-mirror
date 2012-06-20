@@ -75,10 +75,10 @@ struct CheckInfo {
 static const unsigned numChecks = 24;
 static const struct CheckInfo RuntimeChecks[numChecks] = {
   // Regular checking functions
-  {"poolcheck",        "lscheck",      1, memcheck,  2, true},
-  {"poolcheckui",      "lscheck",      1, memcheck,  2, false},
-  {"poolcheckalign",   "lscheckalign", 1, memcheck,  0, true},
-  {"poolcheckalignui", "lscheckalign", 1, memcheck,  0, false},
+  {"poolcheck",        "poolcheck",      1, memcheck,  2, true},
+  {"poolcheckui",      "poolcheck",      1, memcheck,  2, false},
+  {"poolcheckalign",   "poolcheckalign", 1, memcheck,  0, true},
+  {"poolcheckalignui", "poolcheckalign", 1, memcheck,  0, false},
   {"poolcheckstr",     "poolcheckstr", 1, strcheck,  0, true},
   {"poolcheckstrui",   "poolcheckstr", 1, strcheck,  0, false},
   {"boundscheck",      "boundscheck",  2, gepcheck, 0, true},
