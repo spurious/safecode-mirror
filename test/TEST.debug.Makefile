@@ -99,7 +99,7 @@ Output/%.sc.o: %.c $(CLANG)
 	-$(CLANG) -g -fmemsafety -Xclang -print-stats -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.sc.o): \
-Output/%.sc.o: %.cpp $(CLANG)
+Output/%.sc.o: %.cpp $(CLANGXX)
 	-$(CLANGXX) -g -fmemsafety -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
