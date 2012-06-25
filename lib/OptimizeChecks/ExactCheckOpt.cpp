@@ -253,8 +253,12 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
   // So, if this is a memory check, make sure that the object cannot be freed
   // before the check.  Global variables and stack allocations cannot be freed.
   //
+
+  Argument * AI;
   if ((!(Info.isMemCheck())) ||
-      ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr))) {
+      ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr)) ||
+      ((AI = dyn_cast<Argument>(BasePtr)) && (AI->hasByValAttr()))){
+
     //
     // Attempt to get the size of the pointer.  If a size is returned, we know
     // that the base pointer points to the beginning of an object, and we can

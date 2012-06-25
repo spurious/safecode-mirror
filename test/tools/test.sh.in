@@ -5,12 +5,15 @@
 #
 
 expect_error=1
+test_llvm_code=0
 
 usage()
 {
   echo 'usage: test.sh [args] file.c/file.ll'
   echo 'arguments:'
   echo '   -t dir    directory to use for testing'
+  echo '   -s string generated llvm code must contain string for 
+  echo '             the test to pass. 
   echo '   -p        expect no SAFEcode errors from the test case'
   echo '   -e        expect a SAFEcode error from the test case'
   echo '   -l file   link in file when linking the executable'
@@ -18,9 +21,11 @@ usage()
 
 # Process the arguments.
 link_files=''
-while getopts hepl:t:cf option
+while getopts hepl:t:cfs: option
   do
     case $option in
+      s) test_llvm_code=1
+         llvm_test_string=$OPTARG;;
       e) expect_error=1;;
       l) link_files=$link_files' '$OPTARG;;
       p) expect_error=0;;
@@ -64,6 +69,8 @@ scfile=$testdir/${prefix}.sc
 sclog=$testdir/${prefix}.sc.log
 # Executable output
 scout=$testdir/${prefix}.sc.output
+# grep pattern file
+patternfile=$testdir/${prefix}.sc.pattern
 
 # Prepare the testing directory.
 setupdir()
@@ -81,6 +88,25 @@ compile()
   $sc -o $scfile $llfile $link_files $sc_lib/libsc_dbg_rt.a $sc_lib/libpoolalloc_bitmap.a $sc_lib/libgdtoa.a -lstdc++
 }
 
+# If requested, verify that the llvm code contains the 
+# expected string.
+codecheck()
+{
+  code_ok=1
+  if [ $test_llvm_code -eq 1 ]
+  then
+    # don't exit if grep fails
+    set +e
+    echo $llvm_test_string > $patternfile
+    grep -q -f $patternfile $llfile
+    if [ $? -ne 0 ]
+    then
+        code_ok=0
+    fi
+    set -e
+  fi
+}
+
 # Run test and check results.
 runtest()
 {
@@ -89,6 +115,11 @@ runtest()
   $scfile >& $scout
   retval=$?
   error_count=$(grep -c SAFECode $scout)
+  # increment the error count if code check failed
+  if [ $code_ok -eq 0 ]
+  then
+    error_count=$((1 + $error_count ))
+  fi
   set -e
   if [ $error_count -gt 0 ]
   then
@@ -111,4 +142,5 @@ runtest()
 
 setupdir
 compile
+codecheck
 runtest
