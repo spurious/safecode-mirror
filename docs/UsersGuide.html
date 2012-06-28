@@ -208,7 +208,7 @@ The first thing to note is the error type.  SAFECode is reporting a load/store
 error, meaning that some memory access is trying to access a memory location
 that it should not.  The second thing to note is the faulting pointer field
 (<tt>0x100100679</tt>) which tells us the pointer value that was invalid.
-SAFECode reports that the error occured on line 7 of test.c; this is what we
+SAFECode reports that the error occurred on line 7 of test.c; this is what we
 expect because that is the line in <tt>foo()</tt> that accesses out-of-bounds
 memory.
 </p>
