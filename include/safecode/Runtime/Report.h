@@ -24,6 +24,7 @@ NAMESPACE_SC_BEGIN
 
 struct ViolationInfo {
   enum {
+    WARN_LOAD_STORE,
     FAULT_DANGLING_PTR,
     FAULT_DOUBLE_FREE,
     FAULT_INVALID_FREE,
@@ -33,7 +34,8 @@ struct ViolationInfo {
     FAULT_ALIGN,
     FAULT_WRITE_OUT_OF_BOUNDS,
     FAULT_UNINIT,
-    FAULT_CSTDLIB
+    FAULT_CSTDLIB,
+    FAULT_CALL
   };
 
   /// Type of violation
@@ -44,6 +46,9 @@ struct ViolationInfo {
 
   /// The pointer generating the violations
   const void * faultPtr;
+
+  /// The CWE ID of the violation
+  unsigned CWE;
 
   virtual void print(std::ostream & OS) const;
   virtual ~ViolationInfo();
