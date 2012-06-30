@@ -125,7 +125,6 @@ pool_reregister_debug (DebugPoolTy *Pool,
   return;
 }
 
-extern "C" void poolcheck_freeui_debug() {}
 extern "C" void* __sc_fsparameter(void *pool, void *ptr, void *dest, unsigned char complete) {
   return dest;
 }

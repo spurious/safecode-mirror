@@ -22,6 +22,7 @@
 
 #include "safecode/Runtime/BBRuntime.h"
 #include "safecode/Runtime/BBMetaData.h"
+#include "../include/CWE.h"
 
 #include <map>
 #include <cstdarg>
@@ -461,3 +462,102 @@ fastlscheck_debug(const char *base, const char *result, unsigned size,
   
   return;
 }
+
+//
+// Function: poolcheck_freeui_debug()
+//
+// Description:
+//  Check that freeing the pointer is correct.  Permit incomplete and unknown
+//  pointers.
+//
+void
+bb_poolcheck_freeui_debug (DebugPoolTy *Pool,
+                      void * ptr,
+                      unsigned tag,
+                      const char * SourceFilep,
+                      unsigned lineno) {
+  //
+  // Ignore frees of NULL pointers.  These are okay.
+  //
+  if (ptr == NULL)
+    return;
+
+  //
+  // Retrieve the bounds information for the object.  Use the pool that tracks
+  // debug information since we're in debug mode.
+  //
+  unsigned char e;
+  e = __baggybounds_size_table_begin[(uintptr_t)ptr >> SLOT_SIZE];
+
+  uintptr_t ObjStart = (uintptr_t)ptr & ~((1<<e)-1);
+  BBMetaData *data = (BBMetaData*)(ObjStart + (1<<e) - sizeof(BBMetaData));
+  uintptr_t ObjLen = data->size;
+
+  //
+  // Determine if we're freeing a pointer that doesn't point to the beginning
+  // of an object.  If so, report an error.
+  //
+  if ((uintptr_t)ptr != ObjStart) {
+    OutOfBoundsViolation v;
+    v.type = ViolationInfo::FAULT_INVALID_FREE,
+      v.faultPC = __builtin_return_address(0),
+      v.faultPtr = ptr,
+      v.CWE = CWEFreeNotStart,
+      v.SourceFile = SourceFilep,
+      v.lineNo = lineno,
+      v.objStart = (void *)ObjStart;
+      v.objLen = ObjLen;
+    ReportMemoryViolation(&v);
+  }
+
+  return;
+}
+
+extern "C" void *
+poolcheck_freeui_debug (DebugPoolTy *Pool,
+                      void * ptr,
+                      unsigned tag,
+                      const char * SourceFilep,
+                      unsigned lineno) {
+  bb_poolcheck_freeui_debug(Pool, ptr, tag, SourceFilep, lineno);
+}
+
+
+//
+//
+// Function: poolcheck_free_debug()
+//
+// Description:
+//  Check that freeing the pointer is correct.
+//
+void
+bb_poolcheck_free_debug (DebugPoolTy *Pool,
+                      void * ptr,
+                      unsigned tag,
+                      const char * SourceFilep,
+                      unsigned lineno) {
+  bb_poolcheck_freeui_debug(Pool, ptr, tag, SourceFilep, lineno);
+}
+
+//
+// Function: poolcheck_free()
+//
+// Description:
+//  Check that freeing the pointer is correct.
+//
+void
+bb_poolcheck_free (DebugPoolTy *Pool, void * ptr) {
+  bb_poolcheck_free_debug(Pool, ptr, 0, NULL, 0);
+}
+
+//
+// Function: poolcheck_freeui()
+//
+// Description:
+//  The incomplete version of poolcheck_free().
+//
+void
+poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
+  bb_poolcheck_freeui_debug(Pool, ptr, 0, NULL, 0);
+}
+
