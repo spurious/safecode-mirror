@@ -507,12 +507,6 @@ lit-regression: $(TESTSCRIPT)
 		PATH=$(PROJ_OBJ_ROOT)/$(BuildMode)/bin:$(LLVMToolDir):$(PATH) \
 		$(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(REGRSN) ULIMIT=$(ULIMIT)
 
-# Run the BOdiagsuite
-lit-bodiagsuite: $(TESTSCRIPT) $(BODIAG_ANNOTATED)
-	@cp $(BODIAGSRC)/TestInputFile1 $(BODIAGOBJ)
-	$(Verb) $(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit \
-		TESTSUITE=$(BODIAGSRC)/.. LIT_ARGS=-j2 ULIMIT=$(ULIMIT)
-
 # All names of the files in the BOdiagsuite
 BODIAG_FILE_NAMES := $(notdir $(wildcard $(BODIAGSRC)/*.c))
 
@@ -542,6 +536,13 @@ $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in
 	@sed -e 's#@SC@#$(SC_BIN)#g' \
        -e 's#@SC_LIB@#$(SC_LIB)#g' < $< > $@
 	chmod +x $@
+
+# Run the BOdiagsuite
+lit-bodiagsuite: $(TESTSCRIPT) $(BODIAG_ANNOTATED)
+	@cp $(BODIAGSRC)/TestInputFile1 $(BODIAGOBJ)
+	$(Verb) $(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit \
+		TESTSUITE=$(BODIAGSRC)/.. LIT_ARGS=-j2 ULIMIT=$(ULIMIT)
+
 
 clean:: litclean
 
