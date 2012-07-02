@@ -18,6 +18,9 @@
 #include <iostream>
 #include <cstdlib>
 
+// Stream to which to send SAFECode error reports
+std::ostream * ErrorLog;
+
 NAMESPACE_SC_BEGIN
 
 ViolationInfo::~ViolationInfo() {}
@@ -96,7 +99,25 @@ ViolationInfo::print(std::ostream & OS) const {
 
 void
 ReportMemoryViolation(const ViolationInfo *v) {
-	v->print(std::cerr);
+  // Flag for whether to terminate when an error is detected.
+  extern unsigned StopOnError;
+
+  //
+  // Print the error to the error log.
+  //
+  v->print(*ErrorLog);
+  *ErrorLog << std::flush;
+
+  //
+  // If we need to terminate now, do that.
+  //
+  if (StopOnError)
+    abort();
+
+  //
+  // Otherwise, report a certain number of errors before terminating the
+  // program.
+  //
   static unsigned count = 20;
   --count;
   if (!count) abort();

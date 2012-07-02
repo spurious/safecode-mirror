@@ -28,6 +28,8 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdarg>
+#include <iostream>
+#include <fstream>
 
 // This must be defined for Snow Leopard to get the ucontext definitions
 #if defined(__APPLE__)
@@ -54,15 +56,15 @@ NAMESPACE_SC_BEGIN
 
 struct ConfigData ConfigData;
 
+// Configuration for C code; flags that we should stop on the first error
+unsigned StopOnError = 0;
+
 NAMESPACE_SC_END
 
 using namespace NAMESPACE_SC;
 
 /// UNUSED in production version
 FILE * ReportLog;
-
-// Configuration for C code; flags that we should stop on the first error
-unsigned StopOnError;
 
 // signal handler
 static void bus_error_handler(int, siginfo_t *, void *);
@@ -127,7 +129,9 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // The libc stdio functions may have not been initialized by this point, so
   // we cannot rely upon them working.
   //
+  extern std::ostream * ErrorLog;
   ReportLog = stderr;
+  ErrorLog = &(std::cerr);
 
   //
   // TODO:Install hooks for catching allocations outside the scope of SAFECode.
