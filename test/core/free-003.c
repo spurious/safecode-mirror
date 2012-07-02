@@ -1,6 +1,6 @@
 // RUN: test.sh -e -t %t %s
 //
-// TEST: free-001
+// TEST: free-003
 // XFAIL: darwin,linux
 //
 // Description:

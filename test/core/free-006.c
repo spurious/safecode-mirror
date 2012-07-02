@@ -1,6 +1,6 @@
 // RUN: test.sh -e -t %t %s
 //
-// TEST: free-005
+// TEST: free-006
 //
 // Description:
 //  Test invalid memory deallocations
