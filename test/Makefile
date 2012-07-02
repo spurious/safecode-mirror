@@ -453,7 +453,8 @@ cputrack::
 # Lit tests
 ##===----------------------------------------------------------------------===##
 
-.PHONY: lit litclean lit-core lit-cstdlib lit-formatstrings clean
+.PHONY: lit litclean lit-core lit-cstdlib lit-formatstrings clean \
+				lit-bodiagsuite
 
 # Path to SAFECode libraries
 SC_LIB := $(PROJ_OBJ_ROOT)/$(BuildMode)/lib
@@ -468,17 +469,21 @@ CORESRC=$(PROJ_SRC_ROOT)/test/core
 CSTDLIB=$(PROJ_SRC_ROOT)/test/cstdlib
 FMTSTR=$(PROJ_SRC_ROOT)/test/formatstrings
 REGRSN=$(PROJ_SRC_ROOT)/test/regression
+BODIAGSRC=$(PROJ_SRC_ROOT)/test/BOdiagsuite-20050808/testcases
+
 COREOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
 CSTDLIBOBJ=$(PROJ_OBJ_ROOT)/test/cstdlib
 FMTSTROBJ=$(PROJ_OBJ_ROOT)/test/formatstrings
 REGRSNOBJ=$(PROJ_OBJ_ROOT)/test/regression
+BODIAGOBJ=$(PROJ_OBJ_ROOT)/test/bodiagsuite
+
 TESTSCRIPT=$(PROJ_OBJ_ROOT)/test/tools/test.sh
 
 # ulimit settings
 ULIMIT="ulimit -t 30 ; ulimit -d 512000 ; ulimit -m 512000 ; ulimit -v 1500000 ;"
 
 # Run all lit tests
-lit: lit-core lit-formatstrings lit-cstdlib lit-regression
+lit: lit-core lit-formatstrings lit-cstdlib lit-regression lit-bodiagsuite
 
 # Run the lit tests for core SAFECode
 lit-core: $(TESTSCRIPT)
@@ -502,6 +507,34 @@ lit-regression: $(TESTSCRIPT)
 		PATH=$(PROJ_OBJ_ROOT)/$(BuildMode)/bin:$(LLVMToolDir):$(PATH) \
 		$(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(REGRSN) ULIMIT=$(ULIMIT)
 
+# Run the BOdiagsuite
+lit-bodiagsuite: $(TESTSCRIPT) $(BODIAG_ANNOTATED)
+	@cp $(BODIAGSRC)/TestInputFile1 $(BODIAGOBJ)
+	$(Verb) $(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit \
+		TESTSUITE=$(BODIAGSRC)/.. LIT_ARGS=-j2 ULIMIT=$(ULIMIT)
+
+# All names of the files in the BOdiagsuite
+BODIAG_FILE_NAMES := $(notdir $(wildcard $(BODIAGSRC)/*.c))
+
+# The names of the files without errors in them
+BODIAG_CORRECT_NAMES := $(notdir $(wildcard $(BODIAGSRC)/*ok.c))
+
+# The names of the files with errors in them
+BODIAG_BAD_NAMES := $(filter-out $(BODIAG_CORRECT_NAMES),$(BODIAG_FILE_NAMES))
+
+# The paths to the test files annotated with lit run lines.
+BODIAG_ANNOTATED := $(addprefix $(BODIAGOBJ)/,$(BODIAG_FILE_NAMES))
+
+$(BODIAG_CORRECT_NAMES:%=$(BODIAGOBJ)/%): $(BODIAGOBJ)/%: $(BODIAGSRC)/%
+	@mkdir -p $(BODIAGOBJ)
+	@printf '/*\n * RUN: test.sh -p -t %%t %%s\n */\n' > $@
+	@cat $< >> $@
+
+$(BODIAG_BAD_NAMES:%=$(BODIAGOBJ)/%): $(BODIAGOBJ)/%: $(BODIAGSRC)/%
+	@mkdir -p $(BODIAGOBJ)
+	@printf '/*\n * RUN: test.sh -e -t %%t %%s\n */\n' > $@
+	@cat $< >> $@
+
 # Build the script to run the lit tests
 $(TESTSCRIPT): $(PROJ_SRC_ROOT)/test/tools/test.sh.in
 	@echo Creating test script...
@@ -519,3 +552,4 @@ litclean:
 	-rm -rf $(PROJ_OBJ_ROOT)/test/cstdlib/Output
 	-rm -rf $(PROJ_OBJ_ROOT)/test/formatstrings/Output
 	-rm -rf $(PROJ_OBJ_ROOT)/test/regression/Output
+	-rm -rf $(BODIAGOBJ)/Output
