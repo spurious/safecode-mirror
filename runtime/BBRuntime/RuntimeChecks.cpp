@@ -182,6 +182,7 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
+    v.CWE = CWEBufferOverflow,
     v.SourceFile = SourceFilep,
     v.lineNo = lineno;
 
@@ -205,6 +206,7 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
+    v.CWE = CWEBufferOverflow,
     v.SourceFile = SourceFilep,
     v.lineNo = lineno;
 
@@ -253,6 +255,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
     v.faultPtr = Node,
+    v.CWE = CWEBufferOverflow,
     v.SourceFile = SourceFile,
     v.lineNo = lineno;
 
@@ -454,6 +457,7 @@ fastlscheck_debug(const char *base, const char *result, unsigned size,
   v.type = ViolationInfo::FAULT_LOAD_STORE,
   v.faultPC = __builtin_return_address(0),
   v.faultPtr = result,
+  v.CWE = CWEBufferOverflow,
   v.dbgMetaData = NULL,
   v.SourceFile = SourceFile,
   v.lineNo = lineno;

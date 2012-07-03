@@ -23,6 +23,7 @@
 #include "ConfigData.h"
 #include "DebugReport.h"
 #include "safecode/Runtime/BBRuntime.h"
+#include "../include/CWE.h"
 
 #include <cstring>
 #include <cassert>
@@ -633,6 +634,7 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
   v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = (const void*)program_counter,
     v.faultPtr = faultAddr,
+    v.CWE = CWEBufferOverflow,
     v.SourceFile = NULL,
     v.lineNo = 0;
 
