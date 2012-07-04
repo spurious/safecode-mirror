@@ -229,15 +229,46 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
 //
 void *
 __sc_bb_poolargvregister(int argc, char **argv) {
-  char ** argv_temp =
-    (char **)__sc_bb_src_poolalloc(NULL,(sizeof(char*)*(argc+1)),0,"main\n", 0);
+  //
+  // Padding the argv strings with the matadata information.
+  //
+  unsigned int size = 0;
+  unsigned int argv_size = sizeof(char *) * (argc+1);
+  unsigned int argv_adjustedsize = argv_size + sizeof(BBMetaData);
+  
+  while((unsigned)(1<<size) < argv_adjustedsize) {
+      size++;
+  }
+  if (size < SLOT_SIZE)
+    size = SLOT_SIZE;
+  unsigned int alignedSize = 1 << size;
+  
+  char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
+  
+  BBMetaData *data = (BBMetaData*)((uintptr_t)argv_temp + alignedSize - sizeof(BBMetaData));
+  data->size = argv_size;
+  data->pool = NULL;
+
 
   for (int index=0; index < argc; ++index) {
-    char *argv_index_temp =
-      (char *)__sc_bb_src_poolalloc(NULL,(strlen(argv[index])+ 1)*sizeof(char),0,"main\n", 0);
+    size = 0;
+    unsigned int argv_index_size = (strlen(argv[index])+ 1)*sizeof(char);
+    unsigned int adjustedSize = argv_index_size + sizeof(BBMetaData);
+    while((unsigned)(1<<size) < adjustedSize) {
+      size++;
+    }
+    if (size < SLOT_SIZE)
+      size = SLOT_SIZE;
+    alignedSize = 1 << size;
+    
+    char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
 
-    __internal_register(argv_index_temp,(strlen (argv[index]) + 1)*sizeof(char));
+    data = (BBMetaData*)((uintptr_t)argv_index_temp + alignedSize - sizeof(BBMetaData));
+    data->size = argv_index_size;
+    data->pool = NULL;
+
+    __internal_register(argv_index_temp, adjustedSize);
     argv_temp[index] = argv_index_temp;
   }
   argv_temp[argc] = NULL;
@@ -249,7 +280,7 @@ __sc_bb_poolargvregister(int argc, char **argv) {
   //
   // Note that the argv array is supposed to end with a NULL pointer element.
   //
-  __internal_register(argv_temp, sizeof(char*)*(argc+1) );
+  __internal_register(argv_temp, argv_adjustedsize);
 
   return (void*)argv_temp;
 }
