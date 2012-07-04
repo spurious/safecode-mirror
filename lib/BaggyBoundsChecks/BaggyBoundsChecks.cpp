@@ -367,7 +367,7 @@ bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
   // Get prerequisite analysis resuilts.
   TD = &getAnalysis<TargetData>();
-#if 0
+#if 1
   Type *Int8Type = Type::getInt8Ty(M.getContext());
   Type *Int32Type = Type::getInt32Ty(M.getContext());
 #endif
@@ -395,15 +395,15 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   adjustAllocasFor (M.getFunction ("pool_register_stack"));
   adjustAllocasFor (M.getFunction ("pool_register_stack_debug"));
 
-#if 0
+#if 1
   // changes for register argv
-  Function *ArgvReg = M.getFunction ("sc.pool_argvregister");
+  Function *ArgvReg = M.getFunction ("poolargvregister");
   assert (ArgvReg && "FIXME: Should not assume that argvregister is used!");
   if (!ArgvReg->use_empty()) {
     assert (isa<PointerType>(ArgvReg->getReturnType()));
     assert (ArgvReg->getNumUses() == 1);
-    CallInst *CI = cast<CallInst>(*(ArgvReg->use_begin())); 
-    Value *Argv = CI-getArgOperand(2);
+    CallInst *CI = cast<CallInst>(*(ArgvReg->use_begin()));
+    Value *Argv = CI->getArgOperand(1);
     BasicBlock::iterator I = CI;
     I++;
     BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
@@ -465,12 +465,12 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           } 
         } else {
           Type *newType1 = ArrayType::get(Int8Type, (alignment)-AllocSize);
-          StructType *newSType = StructType::get(M.getContext(), ET, newType1, NULL);
+          StructType *newSType = StructType::get(ET, newType1, NULL);
 
           FunctionType *FTy = F.getFunctionType();
           // Construct the new Function Type
           // Appends the struct Type at the beginning
-          std::vector<const Type*>TP;
+          std::vector<Type*>TP;
           TP.push_back(newSType->getPointerTo());
           for(unsigned c = 0; c < FTy->getNumParams();c++) {
             TP.push_back(FTy->getParamType(c));
@@ -487,7 +487,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           NII->setName("Baggy");
           ++NII;
 
-          DenseMap<const Value*, Value*> ValueMap;
+          ValueToValueMapTy ValueMap;
 
           for (Function::arg_iterator II = F.arg_begin(); NII != NewF->arg_end(); ++II, ++NII) {
             ValueMap[II] = NII;
@@ -495,7 +495,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           }
           // Perform the cloning.
           SmallVector<ReturnInst*,100> Returns;
-          CloneFunctionInto(NewF, &F, ValueMap, Returns);
+          CloneFunctionInto(NewF, &F, ValueMap, false, Returns);
           std::vector<Value*> fargs;
           for(Function::arg_iterator ai = NewF->arg_begin(),
               ae= NewF->arg_end(); ai != ae; ++ai) {
@@ -509,9 +509,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           Instruction *InsertPoint;
           for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
 
-          GetElementPtrInst *GEPI = GetElementPtrInst::Create(cast<Value>(NII) , Idx, Idx + 2 , "", InsertPoint);
+          GetElementPtrInst *GEPI = GetElementPtrInst::Create(cast<Value>(NII), Idx, Twine(""), InsertPoint);
 
-          fargs.at(i)->uncheckedReplaceAllUsesWith(GEPI);
+          fargs.at(i)->replaceAllUsesWith(GEPI);
           Function::const_arg_iterator I = F.arg_begin(),E = F.arg_end();
           for (Function::const_arg_iterator I = F.arg_begin(), 
                E = F.arg_end(); I != E; ++I) {
@@ -537,14 +537,14 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                 for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
                 AllocaInst *AINew = new AllocaInst(newSType, "", InsertPoint);
                 LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
-                GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,Idx ,Idx+2,  "", CI);
+                GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), CI);
                 new StoreInst(LINew, GEPNew, CI);
                 SmallVector<Value*, 8> Args;
                 Args.push_back(AINew);
                 for(unsigned j =1;j<CI->getNumOperands();j++) {
                   Args.push_back(CI->getOperand(j));
                 }
-                CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+                CallInst *CallI = CallInst::Create(NewF, Args,"", CI);
                 CallI->addAttribute(1, llvm::Attribute::constructAlignmentFromInt(1u<<size));
                 CallI->setCallingConv(CI->getCallingConv());
                 CI->replaceAllUsesWith(CallI);
