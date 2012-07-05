@@ -14,7 +14,7 @@
 
 #define DEBUG_TYPE "safecode"
 
-#include "dsa/CStdLib.h"
+#include "poolalloc/RuntimeChecks.h"
 #include "safecode/CheckInfo.h"
 #include "safecode/CompleteChecks.h"
 #include "safecode/Utility.h"
@@ -629,17 +629,24 @@ CompleteChecks::runOnModule (Module & M) {
   // For each function call, do a completeness check on the given number of
   // pointer arguments and mark the completeness bit vector accordingly.
   //
-  for (const CStdLibPoolArgCountEntry *entry = &CStdLibPoolArgCounts[0];
-       entry->function != 0; ++entry) {
-    std::string funcname = entry->function;
-    // Process the regular version
-    if (Function * f = M.getFunction(funcname)) {
-      makeCStdLibCallsComplete(f, entry->pool_argc, false);
-    }
+  const unsigned NumRuntimeChecks =
+    sizeof(RuntimeCheckEntries) / sizeof(RuntimeCheckEntries[0]);
 
-    // Process the debug version
-    if (Function * f = M.getFunction(funcname + "_debug")) {
-      makeCStdLibCallsComplete(f, entry->pool_argc, true);
+  for (unsigned EntryIndex = 0; EntryIndex < NumRuntimeChecks; ++EntryIndex) {
+    // Look for CStdLib function entries in the runtime check table.
+    if (RuntimeCheckEntries[EntryIndex].CheckKind == CStdLibCheck) {
+      unsigned PoolArgc = RuntimeCheckEntries[EntryIndex].PoolArgc;
+      std::string FuncName = RuntimeCheckEntries[EntryIndex].Function;
+
+      // Process the regular version of the function
+      if (Function * F = M.getFunction(FuncName)) {
+        makeCStdLibCallsComplete(F, PoolArgc, false);
+      }
+
+      // Process the debug version of the function
+      if (Function * F = M.getFunction(FuncName + "_debug")) {
+        makeCStdLibCallsComplete(F, PoolArgc, true);
+      }
     }
   }
 

@@ -171,7 +171,11 @@ RegisterRuntimeInitializer::insertInitializerIntoGlobalCtorList(Module & M) {
   //
   Type * Int32Type = IntegerType::getInt32Ty(M.getContext());
   std::vector<Constant *> CtorInits;
-  CtorInits.push_back (ConstantInt::get (Int32Type, 0));
+
+  //
+  // Make the priority 1 so we can allow the poolalloc constructor to go first.
+  //
+  CtorInits.push_back (ConstantInt::get (Int32Type, 1));
   CtorInits.push_back (RuntimeCtor);
   StructType * ST = ConstantStruct::getTypeForElements (CtorInits, false);
   Constant * RuntimeCtorInit = ConstantStruct::get (ST, CtorInits);
