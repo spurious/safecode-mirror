@@ -23,7 +23,8 @@ SHARED_LIBRARY = 1
 LINK_COMPONENTS = $(TARGETS_TO_BUILD) ipo scalaropts linker bitreader \
 	bitwriter mcdisassembler
 
-USEDLIBS := addchecks.a optchecks.a sc-support.a LLVMDataStructure.a poolalloc.a
+USEDLIBS := addchecks.a optchecks.a sc-support.a scutility.a \
+  LLVMDataStructure.a poolalloc.a
 
 include $(LEVEL)/Makefile.common
 
