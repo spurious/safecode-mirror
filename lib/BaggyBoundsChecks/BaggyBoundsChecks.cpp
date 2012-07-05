@@ -369,7 +369,6 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   TD = &getAnalysis<TargetData>();
 #if 1
   Type *Int8Type = Type::getInt8Ty(M.getContext());
-  Type *Int32Type = Type::getInt32Ty(M.getContext());
 #endif
 
   //
