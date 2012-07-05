@@ -517,7 +517,7 @@ bb_poolcheck_freeui_debug (DebugPoolTy *Pool,
   return;
 }
 
-extern "C" void *
+extern "C" void
 poolcheck_freeui_debug (DebugPoolTy *Pool,
                       void * ptr,
                       unsigned tag,
