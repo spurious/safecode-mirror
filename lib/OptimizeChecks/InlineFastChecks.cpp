@@ -55,6 +55,7 @@ namespace llvm {
      bool inlineCheck (Function * F);
      bool createBodyFor (Function * F);
      bool createDebugBodyFor (Function * F);
+     Value * castToInt (Value * Pointer, BasicBlock * BB);
      Value * addComparisons (BasicBlock *, Value *, Value *, Value *);
   };
 }
@@ -211,6 +212,35 @@ createDebugFaultBlock (Function & F) {
 }
 
 //
+// Method: castToInt()
+//
+// Description:
+//  Cast the given pointer value into an integer.
+//
+Value *
+llvm::InlineFastChecks::castToInt (Value * Pointer, BasicBlock * BB) {
+  //
+  // Assert that the caller is giving us a pointer value.
+  //
+  assert (isa<PointerType>(Pointer->getType()));
+  
+  //
+  // Get information on the size of pointers.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+
+  //
+  // Get a reference to the context from the basic block.
+  //
+  LLVMContext & Context = BB->getContext();
+
+  //
+  // Create the actual cast instrution.
+  //
+  return new PtrToIntInst (Pointer, TD.getIntPtrType(Context), "tmp", BB);
+}
+
+//
 // Method: addComparisons()
 //
 // Description:
@@ -244,16 +274,12 @@ llvm::InlineFastChecks::addComparisons (BasicBlock * BB,
   // Calculate the address of the first byte beyond the memory object
   //
   TargetData & TD = getAnalysis<TargetData>();
-  Value * BaseInt = new PtrToIntInst (Base,
-                                      TD.getIntPtrType(Context),
-                                      "tmp",
-                                      BB);
   Value * SizeInt = Size;
   if (SizeInt->getType() != TD.getIntPtrType(Context)) {
     SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", BB);
   }
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
-                                             BaseInt,
+                                             Base,
                                              SizeInt,
                                              "lastbyte",
                                              BB);
@@ -261,13 +287,9 @@ llvm::InlineFastChecks::addComparisons (BasicBlock * BB,
   //
   // Compare the pointer to the first byte beyond the end of the memory object
   //
-  Value * PtrInt = new PtrToIntInst (Result,
-                                    TD.getIntPtrType(Context),
-                                    "tmp",
-                                    BB);
   Value * Compare2 = new ICmpInst (*BB,
                                    CmpInst::ICMP_ULT,
-                                   PtrInt,
+                                   Result,
                                    LastByte,
                                    "cmp2");
 
@@ -321,14 +343,47 @@ llvm::InlineFastChecks::createBodyFor (Function * F) {
   BasicBlock * faultBB = createFaultBlock (*F);
 
   //
-  // Add instructions to the entry block to perform the pointer comparisons
-  // and to branch to the good or fault blocks, respectively.
+  // Add instructions to the entry block to compare the first dereferenced
+  // address.
   // 
   Function::arg_iterator arg = F->arg_begin();
-  Value * Base = arg++;
-  Value * Result = arg++;
+  Value * Base = castToInt (arg++, entryBB);
+  Value * Result = castToInt (arg++, entryBB);
   Value * Size = arg++;
-  Value * Sum = addComparisons (entryBB, Base, Result, Size);
+  Value * MemSize = arg++;
+  Value * Sum1 = addComparisons (entryBB, Base, Result, Size);
+
+  //
+  // Now add instructions to compare the last byte dereferenced with the
+  // memory object's bounds.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  Value * SizeInt = MemSize;
+  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
+    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);
+  }
+  Value * LastByte = BinaryOperator::Create (Instruction::Add,
+                                             Result,
+                                             SizeInt,
+                                             "lastbyte",
+                                             entryBB);
+  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(Context), -1);
+  LastByte = BinaryOperator::Create (Instruction::Add,
+                                     LastByte,
+                                     MinusOne,
+                                     "lastbyte",
+                                     entryBB);
+  Value * Sum2 = addComparisons (entryBB, Base, LastByte, Size);
+
+  //
+  // The check only passes if both the first and last byte accessed are within
+  // bounds.
+  //
+  Value * Sum = BinaryOperator::Create (Instruction::And,
+                                        Sum1,
+                                        Sum2,
+                                        "and",
+                                        entryBB);
 
 
   //
@@ -383,14 +438,47 @@ llvm::InlineFastChecks::createDebugBodyFor (Function * F) {
   BasicBlock * faultBB = createDebugFaultBlock (*F);
 
   //
-  // Add instructions to the entry block to perform the pointer comparisons
-  // and to branch to the good or fault blocks, respectively.
+  // Add instructions to the entry block to compare the first dereferenced
+  // address.
   // 
   Function::arg_iterator arg = F->arg_begin();
-  Value * Base = arg++;
-  Value * Result = arg++;
+  Value * Base = castToInt (arg++, entryBB);
+  Value * Result = castToInt (arg++, entryBB);
   Value * Size = arg++;
-  Value * Sum = addComparisons (entryBB, Base, Result, Size);
+  Value * MemSize = arg++;
+  Value * Sum1 = addComparisons (entryBB, Base, Result, Size);
+
+  //
+  // Now add instructions to compare the last byte dereferenced with the
+  // memory object's bounds.
+  //
+  TargetData & TD = getAnalysis<TargetData>();
+  Value * SizeInt = MemSize;
+  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
+    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);
+  }
+  Value * LastByte = BinaryOperator::Create (Instruction::Add,
+                                             Result,
+                                             SizeInt,
+                                             "lastbyte",
+                                             entryBB);
+  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(Context), -1);
+  LastByte = BinaryOperator::Create (Instruction::Add,
+                                     LastByte,
+                                     MinusOne,
+                                     "lastbyte",
+                                     entryBB);
+  Value * Sum2 = addComparisons (entryBB, Base, LastByte, Size);
+
+  //
+  // The check only passes if both the first and last byte accessed are within
+  // bounds.
+  //
+  Value * Sum = BinaryOperator::Create (Instruction::And,
+                                        Sum1,
+                                        Sum2,
+                                        "and",
+                                        entryBB);
 
   //
   // Create the branch instruction.  Both comparisons must return true for the
