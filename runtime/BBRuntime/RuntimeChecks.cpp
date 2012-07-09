@@ -171,9 +171,11 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 void
 bb_poolcheck_debug (DebugPoolTy *Pool,
                  void *Node,
+                 unsigned length,
                  TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
+  
   //
   // Check if is an OOB pointer
   //
@@ -189,12 +191,40 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
     ReportMemoryViolation(&v);
     return;
   }
+
+  // 
+  // Check to see if the pointer points to an object within the pool.  If it
+  // does, check to see if the last byte read/written will be within the same
+  // object.  If so, then the check succeeds, so just return to the caller.
+  //
+  unsigned char e;
+  e = __baggybounds_size_table_begin[(uintptr_t)Node >> SLOT_SIZE];
+
+  uintptr_t ObjStart = (uintptr_t)Node & ~((1<<e)-1);
+  BBMetaData *data = (BBMetaData*)(ObjStart + (1<<e) - sizeof(BBMetaData));
+  uintptr_t ObjEnd = ObjStart + data->size - 1;
+
+  uintptr_t NodeEnd = (uintptr_t)Node + length -1;
+  if (!(ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd)) {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = (void *)NodeEnd,
+    v.CWE = CWEBufferOverflow,
+    v.SourceFile = SourceFilep,
+    v.lineNo = lineno,
+
+    ReportMemoryViolation(&v);
+    return;
+  }
+  
   return;
 }
 
 void
 bb_poolcheckui_debug (DebugPoolTy *Pool,
                  void *Node,
+                 unsigned length,
                  TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
@@ -213,6 +243,33 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
     ReportMemoryViolation(&v);
     return;
   }
+
+  // 
+  // Check to see if the pointer points to an object within the pool.  If it
+  // does, check to see if the last byte read/written will be within the same
+  // object.  If so, then the check succeeds, so just return to the caller.
+  //
+  unsigned char e;
+  e = __baggybounds_size_table_begin[(uintptr_t)Node >> SLOT_SIZE];
+
+  uintptr_t ObjStart = (uintptr_t)Node & ~((1<<e)-1);
+  BBMetaData *data = (BBMetaData*)(ObjStart + (1<<e) - sizeof(BBMetaData));
+  uintptr_t ObjEnd = ObjStart + data->size - 1;
+
+  uintptr_t NodeEnd = (uintptr_t)Node + length -1;
+  if (!(ObjStart <= NodeEnd) && (NodeEnd <= ObjEnd)) {
+    DebugViolationInfo v;
+    v.type = ViolationInfo::FAULT_LOAD_STORE,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = (void *)NodeEnd,
+    v.CWE = CWEBufferOverflow,
+    v.SourceFile = SourceFilep,
+    v.lineNo = lineno,
+
+    ReportMemoryViolation(&v);
+    return;
+  }
+  
   return;
 }
 
@@ -222,7 +279,7 @@ poolcheckui_debug (DebugPoolTy *Pool,
                  unsigned length, TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
-  bb_poolcheckui_debug(Pool, Node, tag, SourceFilep, lineno);
+  bb_poolcheckui_debug(Pool, Node, length, tag, SourceFilep, lineno);
 }
 
 //
@@ -266,7 +323,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
 
 void
 bb_poolcheckui (DebugPoolTy *Pool, void *Node) {
-  return bb_poolcheckui_debug(Pool, Node, 0, NULL, 0);
+  return bb_poolcheckui_debug(Pool, Node, 1, 0, NULL, 0);
 }
 
 
@@ -329,7 +386,7 @@ boundscheckui_debug (DebugPoolTy * Pool,
 
 void
 bb_poolcheck (DebugPoolTy *Pool, void *Node) {
-  bb_poolcheck_debug(Pool, Node, 0, NULL, 0);
+  bb_poolcheck_debug(Pool, Node, 1, 0, NULL, 0);
 }
 
 //
