@@ -49,6 +49,7 @@ struct InsertBaggyBoundsChecks : public ModulePass {
     void adjustGlobalValue (GlobalValue * GV);
     void adjustAlloca (AllocaInst * AI);
     void adjustAllocasFor (Function * F);
+    void adjustArgv(Function *F);
 };
 
 }

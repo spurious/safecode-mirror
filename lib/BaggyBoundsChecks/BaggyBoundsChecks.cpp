@@ -354,6 +354,42 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
 }
 
 //
+// Method: adjustArgv()
+//
+// Description:
+//  This function adjusts the argv strings for baggy bounds checking.
+//
+void
+InsertBaggyBoundsChecks::adjustArgv (Function * F) {
+  assert (F && "FIXME: Should not assume that argvregister is used!");
+  if (!F->use_empty()) {
+    assert (isa<PointerType>(F->getReturnType()));
+    assert (F->getNumUses() == 1);
+    CallInst *CI = cast<CallInst>(*(F->use_begin()));
+    Value *Argv = CI->getArgOperand(1);
+    BasicBlock::iterator I = CI;
+    I++;
+    BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
+    std::vector<User *> Uses;
+    Value::use_iterator UI = Argv->use_begin();
+    for (; UI != Argv->use_end(); ++UI) {
+      if (Instruction * Use = dyn_cast<Instruction>(*UI))
+        if (CI != Use) {
+          Uses.push_back (*UI);
+        }
+    }
+
+    while (Uses.size()) {
+      User *Use = Uses.back();
+      Uses.pop_back();
+      Use->replaceUsesOfWith (Argv, BI);
+    }
+  }
+
+  return;
+}
+
+//
 // Method: runOnModule()
 //
 // Description:
@@ -396,31 +432,8 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
 #if 1
   // changes for register argv
-  Function *ArgvReg = M.getFunction ("poolargvregister");
-  assert (ArgvReg && "FIXME: Should not assume that argvregister is used!");
-  if (!ArgvReg->use_empty()) {
-    assert (isa<PointerType>(ArgvReg->getReturnType()));
-    assert (ArgvReg->getNumUses() == 1);
-    CallInst *CI = cast<CallInst>(*(ArgvReg->use_begin()));
-    Value *Argv = CI->getArgOperand(1);
-    BasicBlock::iterator I = CI;
-    I++;
-    BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
-    std::vector<User *> Uses;
-    Value::use_iterator UI = Argv->use_begin();
-    for (; UI != Argv->use_end(); ++UI) {
-      if (Instruction * Use = dyn_cast<Instruction>(*UI))
-        if (CI != Use) {
-          Uses.push_back (*UI);
-        }
-    }
-
-    while (Uses.size()) {
-      User *Use = Uses.back();
-      Uses.pop_back();
-      Use->replaceUsesOfWith (Argv, BI);
-    }
-  }
+  adjustArgv(M.getFunction ("poolargvregister"));
+  
 
   //
   // align byval arguments
