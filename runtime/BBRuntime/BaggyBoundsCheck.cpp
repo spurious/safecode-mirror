@@ -230,12 +230,15 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
 void *
 __sc_bb_poolargvregister(int argc, char **argv) {
   //
-  // Padding the argv strings with the matadata information.
+  // Adjust the size of argv variable to include its metadata.
   //
   unsigned int size = 0;
   unsigned int argv_size = sizeof(char *) * (argc+1);
   unsigned int argv_adjustedsize = argv_size + sizeof(BBMetaData);
   
+  //
+  // Align the size of argv variable to be a power of 2.
+  //
   while((unsigned)(1<<size) < argv_adjustedsize) {
       size++;
   }
@@ -243,17 +246,32 @@ __sc_bb_poolargvregister(int argc, char **argv) {
     size = SLOT_SIZE;
   unsigned int alignedSize = 1 << size;
   
+  //
+  // Reallocate argv variable to be the aligned size.
+  //
   char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
   
+  //
+  // Initialize the metadata of argv variable.
+  //
   BBMetaData *data = (BBMetaData*)((uintptr_t)argv_temp + alignedSize - sizeof(BBMetaData));
   data->size = argv_size;
   data->pool = NULL;
 
-
+  //
+  // Padding and align each argv string.
+  //
   for (int index=0; index < argc; ++index) {
+    //
+    //Adjust the size of each argv string to include its metadata.
+    //
     size = 0;
     unsigned int argv_index_size = (strlen(argv[index])+ 1)*sizeof(char);
     unsigned int adjustedSize = argv_index_size + sizeof(BBMetaData);
+   
+    //
+    // Align the size of each argv string to be a power of 2.
+    //
     while((unsigned)(1<<size) < adjustedSize) {
       size++;
     }
@@ -261,13 +279,22 @@ __sc_bb_poolargvregister(int argc, char **argv) {
       size = SLOT_SIZE;
     alignedSize = 1 << size;
     
+    //
+    // Reallocate each argv string to be the aligned size.
+    //
     char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
     argv_index_temp = strcpy(argv_index_temp,  argv[index]);
 
+    //
+    // Initialize the metadata of each argv string.
+    //
     data = (BBMetaData*)((uintptr_t)argv_index_temp + alignedSize - sizeof(BBMetaData));
     data->size = argv_index_size;
     data->pool = NULL;
 
+    //
+    // Register each argv string.
+    //
     __internal_register(argv_index_temp, adjustedSize);
     argv_temp[index] = argv_index_temp;
   }
