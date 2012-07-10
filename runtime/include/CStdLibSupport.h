@@ -214,6 +214,11 @@ extern "C"
   char * pool_tmpnam (PPOOL, char *, COMPLETE);
   char * pool_tmpnam_debug (PPOOL, char *, COMPLETE, DEBUG_INFO);
 
+  // Functions from <unistd.h>
+
+  char * pool_getcwd (PPOOL, char *, size_t, COMPLETE);
+  char * pool_getcwd_debug (PPOOL, char *, size_t, COMPLETE, DEBUG_INFO);
+
   // Functions from <dirent.h>
 
   int pool_readdir_r (PPOOL, PPOOL, void *, void *, void *, COMPLETE);

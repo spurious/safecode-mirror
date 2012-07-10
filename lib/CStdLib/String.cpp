@@ -115,6 +115,7 @@ ADD_STATISTIC_FOR(sendto);
 ADD_STATISTIC_FOR(readdir_r);
 ADD_STATISTIC_FOR(readlink);
 ADD_STATISTIC_FOR(realpath);
+ADD_STATISTIC_FOR(getcwd);
 
 #ifdef HAVE_MEMPCPY
 ADD_STATISTIC_FOR(mempcpy);
@@ -506,6 +507,9 @@ StringTransform::runOnModule (Module & M) {
   SourceFunction RdDirR = { "readdir_r", Int32Ty, 3 };
   DestFunction PoolRdDirR = { "pool_readdir_r", 3, 2 };
   chgd |= vtransform(M, RdDirR, PoolRdDirR, st_xform_readdir_r, 2u, 3u, 1u);
+
+  // Functions from <unistd.h>
+  chgd |= transform(M, "getcwd", 2, 1, VoidPtrTy, st_xform_getcwd);
 
   return chgd;
 }
