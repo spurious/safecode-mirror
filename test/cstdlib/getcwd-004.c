@@ -9,9 +9,9 @@
 //
 
 int main() {
-  char buf[4], *cwd;
+  char buf[1], *cwd;
 
-  chdir("/tmp");
+  chdir("/");
 
   cwd = getcwd(buf, sizeof(buf));
 

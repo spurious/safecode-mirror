@@ -9,14 +9,14 @@
 //
 
 int main() {
-  char buf[5], *cwd;
+  char buf[2], *cwd;
 
-  chdir("/tmp");
+  chdir("/");
 
   cwd = getcwd(buf, sizeof(buf));
 
   assert(cwd != NULL);
-  assert(strcmp(buf, "/tmp") == 0);
+  assert(strcmp(buf, "/") == 0);
 
   return 0;
 }
