@@ -1,4 +1,4 @@
-//===------- dirent.cpp - CStdLib Runtime functions for <dirent.h> -------===//
+//===------- unistd.cpp - CStdLib Runtime functions for <unistd.h> -------===//
 // 
 //                          The SAFECode Compiler
 //
