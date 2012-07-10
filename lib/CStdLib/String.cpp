@@ -34,7 +34,7 @@
 //
 //   - Add an entry for the pool_* version of the function containing the
 //     number of initial pool arguments to the structure in
-//     include/dsa/CStdLib.h.
+//     include/poolalloc/RuntimeChecks.h.
 //
 //   - Add an entry to lib/DSA/StdLibPass.cpp for the pool_* version of the
 //     function to allow DSA to recognize it.
