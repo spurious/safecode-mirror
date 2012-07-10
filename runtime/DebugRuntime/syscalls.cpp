@@ -339,29 +339,34 @@ pool_realpath_debug (DebugPoolTy * PathPool,
   // Next, get the path, but permit realpath to allocate the buffer.  This
   // should ensure that the buffer is sufficiently large.
   //
-  char resolved[PATH_MAX + 1];
   char *result;
-  result = realpath (path, resolved);
+  result = realpath (path, NULL);
 
-  //
-  // Using pool_strcpy() to copy the data into the caller's buffer.
-  //
   if (buf && result) {
-    size_t realLength = strlen (resolved);
+    //
+    // If buf is non-NULL and realpath() succeeded, copy the data into the
+    // caller's buffer and return the buffer.
+    //
+    size_t realLength = strlen (result);
     minSizeCheck (BufPool,
                   buf,
                   ARG2_COMPLETE(Complete),
-                  realLength,
+                  realLength + 1,
                   SRC_INFO_ARGS);
-    strcpy (buf, resolved);
+    strcpy (buf, result);
+    free (result);
     return buf;
+  } else if (buf == NULL && result) {
+    //
+    // If buf is NULL, return the allocated result.
+    //
+    return result;
+  } else {
+    //
+    // Otherwise, result must be NULL and so an error occurred.
+    //
+    return NULL;
   }
-
-  //
-  // realpath() returns the original buffer pointer on success, or NULL on
-  // error.
-  //
-  return (result ? buf : 0);
 }
 
 char *
