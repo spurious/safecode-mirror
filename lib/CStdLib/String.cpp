@@ -503,6 +503,14 @@ StringTransform::runOnModule (Module & M) {
     M, SendTo, PoolSendTo, st_xform_sendto, 2u, 1u, 3u, 4u, 5u, 6u
   );
 
+  // realpath() on Darwin
+  SourceFunction DarwinRealpath = 
+    { "\01_realpath$DARWIN_EXTSN", VoidPtrTy, 2 };
+  DestFunction PoolRealpath = { "pool_realpath", 2, 2 };
+  chgd |= vtransform(
+    M, DarwinRealpath, PoolRealpath, st_xform_realpath, 1u, 2u
+  );
+
   // Functions from <dirent.h>
   SourceFunction RdDirR = { "readdir_r", Int32Ty, 3 };
   DestFunction PoolRdDirR = { "pool_readdir_r", 3, 2 };
