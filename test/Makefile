@@ -510,14 +510,26 @@ lit-regression: $(TESTSCRIPT)
 # All names of the files in the BOdiagsuite
 BODIAG_FILE_NAMES := $(notdir $(wildcard $(BODIAGSRC)/*.c))
 
+# List of XFAIL'd tests; handled separately
+BODIAG_XFAILS := $(shell awk '!/^\#/ { print $$1 }' $(BODIAGSRC)/../xfails)
+
 # The names of the files without errors in them
-BODIAG_CORRECT_NAMES := $(notdir $(wildcard $(BODIAGSRC)/*ok.c))
+BODIAG_CORRECT_NAMES := \
+	$(filter-out $(BODIAG_XFAILS),$(notdir $(wildcard $(BODIAGSRC)/*ok.c)))
 
 # The names of the files with errors in them
-BODIAG_BAD_NAMES := $(filter-out $(BODIAG_CORRECT_NAMES),$(BODIAG_FILE_NAMES))
+BODIAG_BAD_NAMES := \
+	$(filter-out $(BODIAG_XFAILS) $(BODIAG_CORRECT_NAMES),$(BODIAG_FILE_NAMES))
 
 # The paths to the test files annotated with lit run lines.
 BODIAG_ANNOTATED := $(addprefix $(BODIAGOBJ)/,$(BODIAG_FILE_NAMES))
+
+$(BODIAG_XFAILS:%=$(BODIAGOBJ)/%): $(BODIAGOBJ)/%: $(BODIAGSRC)/%
+	@mkdir -p $(BODIAGOBJ)
+	@printf > $@ '/*\n * RUN: test.sh -%s -t %%t %%s\n * XFAIL: %s\n */\n' \
+		`if [[ $@ == *ok.c ]]; then printf p; else printf e; fi`  \
+		"`awk '!/^#/' $(BODIAGSRC)/../xfails | grep -F "$(notdir $<)" | cut -f2- -d' '`"
+	@cat $< >> $@
 
 $(BODIAG_CORRECT_NAMES:%=$(BODIAGOBJ)/%): $(BODIAGOBJ)/%: $(BODIAGSRC)/%
 	@mkdir -p $(BODIAGOBJ)
@@ -542,7 +554,6 @@ lit-bodiagsuite: $(TESTSCRIPT) $(BODIAG_ANNOTATED)
 	@cp $(BODIAGSRC)/TestInputFile1 $(BODIAGOBJ)
 	$(Verb) $(SETENV) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit \
 		TESTSUITE=$(BODIAGSRC)/.. LIT_ARGS=-j2 ULIMIT=$(ULIMIT)
-
 
 clean:: litclean
 
