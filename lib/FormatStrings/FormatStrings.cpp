@@ -77,24 +77,19 @@ FunctionType *
 FormatStringTransform::xfrmFType(FunctionType *F, LLVMContext &ctx) const
 {
   Type *int8ptr = Type::getInt8PtrTy(ctx);
-  FunctionType::param_iterator i   = F->param_begin();
-  FunctionType::param_iterator end = F->param_end();
   vector<Type *> NewParamTypes;
   //
   // The initial argument is a pointer to the call_info structure.
   //
   NewParamTypes.push_back(int8ptr);
+
   //
   // Append all other arguments.
   //
-  while (i != end)
-  {
-    if (isa<PointerType>((Type *) *i))
-      NewParamTypes.push_back(int8ptr);
-    else
-      NewParamTypes.push_back(*i);
-    ++i;
-  }
+  FunctionType::param_iterator i = F->param_begin(), end = F->param_end();
+  for (; i != end; ++i)
+    NewParamTypes.push_back(isa<PointerType>(*i) ? int8ptr : *i);
+
   return FunctionType::get(F->getReturnType(), NewParamTypes, true);
 }
 
@@ -289,9 +284,8 @@ FormatStringTransform::transform(Module &M,
   // Iterate over the found call sites and replace them with transformed
   // calls.
   //
-  vector<CallSite>::iterator i = Calls.begin();
-  vector<CallSite>::iterator end = Calls.end();
-  while (i != end)
+  vector<CallSite>::iterator i = Calls.begin(), end = Calls.end();
+  for (; i != end; ++i)
   {
     Instruction *OldCall = i->getInstruction();
     CallInst *NewCall = buildSecuredCall(replacementFunc, *i);
@@ -312,7 +306,6 @@ FormatStringTransform::transform(Module &M,
     else
       OldCall->eraseFromParent();
     ++stat;
-    ++i;
   }
 
   return true;
@@ -404,7 +397,7 @@ FormatStringTransform::wrapPointerArgument(PointerArgument arg)
   // Determine if the value has already been registered for this instruction.
   // If so, return the registered value.
   //
-  if (FSParameterCalls.find(arg) != FSParameterCalls.end())
+  if (FSParameterCalls.count(arg))
     return FSParameterCalls[arg];
 
   Instruction *i = arg.first;
@@ -420,7 +413,7 @@ FormatStringTransform::wrapPointerArgument(PointerArgument arg)
   // First determine if the array of PointerInfo structures has already
   // been allocated on the function's stack. If not, do so.
   //
-  if (PointerInfoAllocSizes.find(f) == PointerInfoAllocSizes.end())
+  if (!PointerInfoAllocSizes.count(f))
   {
     Value *zero = ConstantInt::get(Type::getInt32Ty(ctx), 0);
     AllocaInst *allocation = builder.CreateAlloca(PointerInfoType, zero);
@@ -433,9 +426,6 @@ FormatStringTransform::wrapPointerArgument(PointerArgument arg)
     PointerInfoStructures[f] = allocation;
     PointerInfoAllocSizes[f] = 0;
   }
-
-  if (PointerInfoArrayUsage.find(i) == PointerInfoArrayUsage.end())
-    PointerInfoArrayUsage[i] = 0;
 
   //
   // This is the index of the array that will be used.
@@ -517,7 +507,7 @@ FormatStringTransform::addCallInfo(Instruction *i,
   // Allocate the CallInfo structure at the entry point of the function if
   // necessary. The allocated structure will be a placeholder.
   //
-  if (CallInfoStructures.find(f) == CallInfoStructures.end())
+  if (!CallInfoStructures.count(f))
   {
     Value *zero = ConstantInt::get(Type::getInt32Ty(ctx), 0);
     Type *CInfoType = makeCallInfoType(ctx, 0);
@@ -562,13 +552,7 @@ FormatStringTransform::addCallInfo(Instruction *i,
   Params.push_back(
     ConstantInt::get(Type::getInt32Ty(ctx), vargc)
   );
-  set<Value *>::const_iterator start = PVArguments.begin();
-  set<Value *>::const_iterator end   = PVArguments.end();
-  while (start != end)
-  {
-    Params.push_back(*start);
-    ++start;
-  }
+  Params.insert(Params.end(), PVArguments.begin(), PVArguments.end());
   //
   // Append NULL to terminate the variable argument list and finally build the
   // completed call instruction.
@@ -576,6 +560,7 @@ FormatStringTransform::addCallInfo(Instruction *i,
   Params.push_back(null);
   CallInst *c = builder.CreateCall(FSCallInfo, Params);
   c->insertBefore(i);
+
   //
   // Add to the new call instruction any debugging metadata that the old call
   // had. This will be passed over to the call to the transformed function.
