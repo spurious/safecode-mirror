@@ -22,7 +22,7 @@ void byval_test(struct bvt t)
    return;
 }
 
-int main()
+int main(int argc, char ** argv)
 {
    struct bvt t = {0, 1, "hello"};
 
