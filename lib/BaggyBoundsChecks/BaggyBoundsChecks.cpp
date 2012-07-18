@@ -430,7 +430,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   adjustAllocasFor (M.getFunction ("pool_register_stack"));
   adjustAllocasFor (M.getFunction ("pool_register_stack_debug"));
 
-#if 1
+#if 0
   // changes for register argv
   adjustArgv(M.getFunction ("poolargvregister"));
   
@@ -548,6 +548,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
                 Instruction *InsertPoint;
                 for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
                 AllocaInst *AINew = new AllocaInst(newSType, "", InsertPoint);
+
                 LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
                 GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), CI);
                 new StoreInst(LINew, GEPNew, CI);
@@ -569,6 +570,109 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
       }
     }
   }
+#endif
+#if 1
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
+    if (I->isDeclaration()) continue;
+
+    if (I->hasName()) {
+      std::string Name = I->getName();
+      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
+          || (Name.find("baggy.") == 0) || (Name.find(".TEST") != Name.npos))
+        continue;
+    }
+    
+    // If a function has no byval arguments, needClone will be 0 and there
+    // is no need to clone the function.
+    bool needClone = 0;
+
+    // Get function type
+    Function &F = cast<Function>(*I);
+    FunctionType *FTy = F.getFunctionType();
+
+    // Vector to store all arguments' types.
+    std::vector<Type*>TP;
+
+    unsigned int i = 0;
+
+    //
+    // Loop over all the arguments of the function. If one argument has the byval
+    //  attribute, it will be padded and push into the vector; If it does not have
+    // the byval attribute, it will be pushed into the vector without any change.
+    // Then all the types in vector will be used to create the clone function.  
+    for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
+     
+       // Deal with the argument that has byval attribute
+      if (It->hasByValAttr()) {
+        if(It->use_empty()) {
+         TP.push_back(FTy->getParamType(i));
+         continue;
+         }
+
+        // set the bool to be one indicating that this function need a clone
+        needClone = 1;
+        
+        //
+        // Find the greatest power-of-two size that is larger than the argument's
+        // current size with metadata's size.
+        //
+        assert (isa<PointerType>(It->getType()));
+        Type * ET = cast<PointerType>(It->getType())->getElementType();
+        unsigned long AllocSize = TD->getTypeAllocSize(ET);
+        unsigned long adjustedSize = AllocSize + sizeof(BBMetaData);
+        unsigned int size = findP2Size (adjustedSize);
+
+        unsigned int alignment = 1u << size;
+        if(adjustedSize == alignment) {
+        // To do
+        } else {
+          //
+          // Create a structure type to pad the argument. The first element will 
+          // be the argument's type; the second will be an array of bytes that 
+          // will pad the size out; the third will be the metadata type.
+          //
+          Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
+          Type *metadataType = TypeBuilder<BBMetaData, false>::get(It->getContext());
+          StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
+
+          // push the padded type into the vector
+          TP.push_back(newType->getPointerTo());
+
+         }
+       
+      } else {
+
+        // Deal with the argument that has no byval attribute.
+        TP.push_back(FTy->getParamType(i));
+
+       }
+    }   //end for arguments handling
+    
+    if (needClone == 1) {
+
+      // Create the new function. Return type is same as that of original instruction
+      FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
+      Function *NewF = Function::Create(NewFTy,
+                                      GlobalValue::InternalLinkage,
+                                      F.getNameStr() + ".TEST",
+                                      &M);
+     //
+     // create the arguments mapping between the original and the clonal function to 
+     // prepare for cloning the whole function.
+     //
+     ValueToValueMapTy VMap;
+     Function::arg_iterator DestII = NewF->arg_begin();
+     for (Function::arg_iterator II = F.arg_begin(); II != F.arg_end(); ++II) {
+         DestII->setName(II->getName());
+         VMap[II] = DestII++;
+     }
+
+     // Perform the cloning.
+     SmallVector<ReturnInst*, 8> Returns;
+     CloneFunctionInto(NewF, &F, VMap, false, Returns); 
+
+     } // end for a function handling
+   } //end for the Module
 #endif
   return true;
 }
