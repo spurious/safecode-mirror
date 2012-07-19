@@ -705,13 +705,59 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), BB);
           new StoreInst(LINew, GEPNew, BB);
           args.push_back(AINew);
-        }
+        } else {
           args.push_back(It);
+        }
       }
 
       //
-      // Use the arguments in the vector to call the clone function.
+      // Use the arguments in the vector to call the cloned function.
       CallInst::Create (NewF, args, "", BB);
+
+      //
+      //Change uses so that the direct calls to the original function become direct
+      // calls to the cloned function.
+      for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
+        if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
+          if (CI->getCalledFunction() == &F) {
+             Function *Caller = CI->getParent()->getParent();
+             Instruction *InsertPoint;
+             for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+               
+             //
+             // Create an STL container with the arguments to call the cloned function.
+             std::vector<Value *> args;
+
+             //
+             // Iterator to get the new types stores in the vector.
+             std::vector<Type*>::iterator iter = NTP.begin();
+             i = 0;
+
+             // Look over all arguments. If the argument has byval attribute,
+             // alloca its padded new type, store the argument's value into it.
+             // and push the allocated type into the vector. If the argument
+             // has no such attribute, just push it into the vector.
+             for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
+               if (It->hasByValAttr()) {
+                 Type* newType = *iter++;
+                 AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
+                 LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
+                 GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), CI);
+                 new StoreInst(LINew, GEPNew, CI);
+                 args.push_back(AINew);
+                } else {
+                 args.push_back(It);
+                }
+              }
+
+            // replace the original function with the cloned one.
+            CallInst *CallI = CallInst::Create(NewF, args,"", CI);
+            CallI->setCallingConv(CI->getCallingConv());
+            CI->replaceAllUsesWith(CallI);
+            CI->eraseFromParent();
+           }
+         }
+      } // end for use changes
 
      } // end for a function handling
    } //end for the Module
