@@ -592,6 +592,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
     // Vector to store all arguments' types.
     std::vector<Type*>TP;
+   
+    // Vector to store new types for byval arguments
+    std::vector<Type*>NTP;
 
     unsigned int i = 0;
 
@@ -635,9 +638,9 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
           Type *metadataType = TypeBuilder<BBMetaData, false>::get(It->getContext());
           StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
 
-          // push the padded type into the vector
+          // push the padded type into the vectors
           TP.push_back(newType->getPointerTo());
-
+          NTP.push_back(newType);
          }
        
       } else {
@@ -650,7 +653,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     
     if (needClone == 1) {
 
-      // Create the new function. Return type is same as that of original instruction
+      // Create the new function. Return type is same as that of original instruction.
       FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
       Function *NewF = Function::Create(NewFTy,
                                       GlobalValue::InternalLinkage,
@@ -669,7 +672,46 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
      // Perform the cloning.
      SmallVector<ReturnInst*, 8> Returns;
-     CloneFunctionInto(NewF, &F, VMap, false, Returns); 
+     CloneFunctionInto(NewF, &F, VMap, false, Returns);
+
+     //
+     // Since externel code and indirect call use the original function
+     // So we make the original function to call the clone function.
+     // First delete the body of the function and creat a block in it.
+     F.dropAllReferences();
+     BasicBlock * BB = BasicBlock::Create(F.getContext(), "clone", &F, 0);
+
+     //
+     // Create an STL container with the arguments to call the clone function.
+     std::vector<Value *> args;
+
+     //
+     // Iterator to get the new types stores in the vector.
+     std::vector<Type*>::iterator iter = NTP.begin();
+
+     Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
+     Value *Idx[] = { zero, zero };
+
+     //
+     // Look over all arguments. If the argument has byval attribute,
+     // alloca its padded new type, store the argument's value into it.
+     // and push the allocated type into the vector. If the argument
+     // has no such attribute, just push it into the vector.
+     for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It) {
+       if (It->hasByValAttr()) {
+          Type* newType = *iter++;
+          AllocaInst *AINew = new AllocaInst(newType, "", BB);
+          LoadInst *LINew = new LoadInst(It, "", BB);
+          GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), BB);
+          new StoreInst(LINew, GEPNew, BB);
+          args.push_back(AINew);
+        }
+          args.push_back(It);
+      }
+
+      //
+      // Use the arguments in the vector to call the clone function.
+      CallInst::Create (NewF, args, "", BB);
 
      } // end for a function handling
    } //end for the Module
