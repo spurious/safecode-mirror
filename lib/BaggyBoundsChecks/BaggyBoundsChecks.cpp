@@ -591,10 +591,13 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     FunctionType *FTy = F.getFunctionType();
 
     // Vector to store all arguments' types.
-    std::vector<Type*>TP;
+    std::vector<Type*> TP;
    
     // Vector to store new types for byval arguments
-    std::vector<Type*>NTP;
+    std::vector<Type*> NTP;
+
+    // Vector to store the alignment size of new padded types.
+    std::vector<unsigned int> LEN; 
 
     unsigned int i = 0;
 
@@ -625,7 +628,10 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
         unsigned long adjustedSize = AllocSize + sizeof(BBMetaData);
         unsigned int size = findP2Size (adjustedSize);
 
+        // Get the alignment size and push it into the vector.
         unsigned int alignment = 1u << size;
+        LEN.push_back(alignment);
+
         if(adjustedSize == alignment) {
         // To do
         } else {
@@ -674,6 +680,14 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
      SmallVector<ReturnInst*, 8> Returns;
      CloneFunctionInto(NewF, &F, VMap, false, Returns);
 
+     // Add alignment attribute for the cloned function's arguments
+     std::vector<unsigned int>::iterator iiter = LEN.begin();
+     i = 0;
+     for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
+       if (It->hasByValAttr()) {
+         NewF->addAttribute(i + 1, llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
+       }
+     }
      //
      // Since externel code and indirect call use the original function
      // So we make the original function to call the clone function.
@@ -752,6 +766,15 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
 
             // replace the original function with the cloned one.
             CallInst *CallI = CallInst::Create(NewF, args,"", CI);
+
+            // Add alignment attribute when calling the cloned function.
+            std::vector<unsigned int>::iterator iiter = LEN.begin();
+            i = 0;
+            for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
+              if (It->hasByValAttr()) {
+                CallI->addAttribute(i + 1, llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
+               }
+             }
             CallI->setCallingConv(CI->getCallingConv());
             CI->replaceAllUsesWith(CallI);
             CI->eraseFromParent();
