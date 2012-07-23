@@ -389,6 +389,318 @@ InsertBaggyBoundsChecks::adjustArgv (Function * F) {
   return;
 }
 
+
+//
+// Function: mustCloneFunction()
+//
+// Description:
+//  This function determines whether a function must be cloned when
+//  dealing with byval argments for baggy bounds checking.
+//
+// Return value:
+//  0 - The function does not need to be cloned for baggy bounds checking.
+//  1 - The function need to be cloned for baggy bounds checking.
+//
+bool 
+mustCloneFunction (Function * F) {
+  if (F->isDeclaration()) return 0;
+
+  if (F->hasName()) {
+    std::string Name = F->getName();
+    if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
+        || (Name.find("baggy.") == 0) || (Name.find(".TEST") != Name.npos))
+      return 0;
+  }
+
+  //
+  // Loop over all the arguments of the function. If one argument has the byval
+  // attribute and has use, then this function need to be cloned.
+  //  
+  Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+  for (; I != E; ++I) {
+    if (I->hasByValAttr()) {
+      if(I->use_empty()) {
+         continue;
+      }
+      return 1;
+    }
+  }
+  return 0;
+}
+
+//
+// Function: cloneFunction()
+//
+// Description:
+//  It clones a function when dealing with byval argments for baggy bounds 
+//  checking. The cloned function pads and aligns the byvalue arguments in
+//  the original function. After cloned, the original function calls this
+//  cloned function, so that externel code and indirect calls use the original 
+//  to call the cloned function.
+//
+void
+InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
+
+  Type *Int8Type = Type::getInt8Ty(F->getContext());
+  
+  // Get the function type.
+  FunctionType *FTy = F->getFunctionType();
+
+  // Vector to store all arguments' types.
+  std::vector<Type*> TP;
+
+  // Vector to store new types for byval arguments
+  std::vector<Type*> NTP;
+
+  // Vector to store the alignment size of new padded types.
+  std::vector<unsigned int> LEN; 
+
+  unsigned int i = 0;
+  
+  //
+  // Loop over all the arguments of the function. If one argument has the byval
+  // attribute, it will be padded and push into the vector; If it does not have
+  // the byval attribute, it will be pushed into the vector without any change.
+  // Then all the types in vector will be used to create the clone function.  
+  //
+  Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+  for (; I != E; ++I, ++i) {
+
+    // Deal with the argument that without byval attribute
+    if (!I->hasByValAttr()) {
+      TP.push_back(FTy->getParamType(i));
+      continue; 
+    }
+
+    // Deal with the argument that with byval attribute, but without use.
+    if(I->use_empty()) {
+      TP.push_back(FTy->getParamType(i));
+      continue;
+    }
+
+    //
+    // Find the greatest power-of-two size that is larger than the argument's
+    // current size with metadata's size.
+    //
+    assert (isa<PointerType>(I->getType()));
+    Type * ET = cast<PointerType>(I->getType())->getElementType();
+    unsigned long AllocSize = TD->getTypeAllocSize(ET);
+    unsigned long adjustedSize = AllocSize + sizeof(BBMetaData);
+    unsigned int size = findP2Size (adjustedSize);
+
+    // Get the alignment size and push it into the vector.
+    unsigned int alignment = 1u << size;
+    LEN.push_back(alignment);
+
+    if(adjustedSize == alignment) {
+    // To do
+    } else {
+      //
+      // Create a structure type to pad the argument. The first element will 
+      // be the argument's type; the second will be an array of bytes that 
+      // will pad the size out; the third will be the metadata type.
+      //
+      Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
+      Type *metadataType = TypeBuilder<BBMetaData, false>::get(I->getContext());
+      StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
+
+      // push the padded type into the vectors
+      TP.push_back(newType->getPointerTo());
+      NTP.push_back(newType);
+    }
+  }//end for arguments handling
+    
+  //
+  // Create the new function. Return type is same as that of original
+  // instruction.
+  FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
+  NewF = Function::Create(NewFTy,
+                          GlobalValue::InternalLinkage,
+                          F->getNameStr() + ".TEST",
+                          F->getParent());
+  //
+  // Create the arguments mapping between the original and the clonal function
+  // to prepare for cloning the whole function.
+  //
+  ValueToValueMapTy VMap;
+  Function::arg_iterator DestI = NewF->arg_begin();
+  I = F->arg_begin();
+  for (; I != E; ++I) {
+    DestI->setName(I->getName());
+    VMap[I] = DestI++;
+  }
+
+  // Perform the cloning.
+  SmallVector<ReturnInst*, 8> Returns;
+  CloneFunctionInto(NewF, F, VMap, false, Returns);
+
+  // Add alignment attribute for the cloned function's arguments
+  std::vector<unsigned int>::iterator it = LEN.begin();
+  i = 0;
+  I = F->arg_begin();
+  for (; I != E; ++I, ++i) {
+    if (I->hasByValAttr()) {
+      NewF->addAttribute(i + 1,
+                         llvm::Attribute::constructAlignmentFromInt(*it++)); 
+    }
+  }
+  //
+  // Since externel code and indirect call use the original function
+  // So we make the original function to call the clone function.
+  // First delete the body of the function and creat a block in it.
+  //
+  F->dropAllReferences();
+  BasicBlock * BB = BasicBlock::Create(F->getContext(), "clone", F, 0);
+
+  //
+  // Create an STL container with the arguments to call the clone function.
+  std::vector<Value *> args;
+
+  //
+  // Iterator to get the new types stores in the vector.
+  std::vector<Type*>::iterator iter = NTP.begin();
+
+  Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()), 0);
+  Value *Idx[] = { zero, zero };
+
+  //
+  // Look over all arguments. If the argument has byval attribute,
+  // alloca its padded new type, store the argument's value into it.
+  // and push the allocated type into the vector. If the argument
+  // has no such attribute, just push it into the vector.
+  I = F->arg_begin();
+  for (; I != E; ++I) {
+    if (I->hasByValAttr()) {
+      Type* newType = *iter++;
+      AllocaInst *AINew = new AllocaInst(newType, "", BB);
+      LoadInst *LINew = new LoadInst(I, "", BB);
+      GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
+                                                            Idx,
+                                                            Twine(""),
+                                                            BB);
+      new StoreInst(LINew, GEPNew, BB);
+      args.push_back(AINew);
+      } else {
+        args.push_back(I);
+      }
+    }
+
+  //
+  // Use the arguments in the vector to call the cloned function.
+  //
+  CallInst::Create (NewF, args, "", BB);
+  return;
+}
+
+//
+// Function: callClonedFunction()
+//
+// Description:
+//  It changes all the uses for the original function with byval arguments
+//  A direct call to the orignal function is replaced with a call to the 
+//  cloned function.
+//
+void
+InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
+
+  Type *Int8Type = Type::getInt8Ty(F->getContext());
+
+  // Vector to store the alignment size of new padded types.
+  std::vector<unsigned int> LEN; 
+
+  //
+  //Change uses so that the direct calls to the original function become direct
+  // calls to the cloned function.
+  //
+  Value::use_iterator FU = F->use_begin(), FE = F->use_end();
+  for (; FU != FE; ++FU) {
+    if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
+      if (CI->getCalledFunction() == F) {
+        Function *Caller = CI->getParent()->getParent();
+        Instruction *InsertPoint;
+        BasicBlock::iterator insrt = Caller->front().begin();
+        for (; isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+               
+        //
+        // Create an STL container with the arguments to call the cloned
+        // function.
+        //
+        std::vector<Value *> args;
+        unsigned int i = 0;
+
+        // Look over all arguments. If the argument has byval attribute,
+        // alloca its padded new type, store the argument's value into it.
+        // and push the allocated type into the vector. If the argument
+        // has no such attribute, just push it into the vector.
+        //
+        Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+        for (; I != E; ++I, ++i) {
+          if (!I->hasByValAttr()) {
+            args.push_back(I);
+            continue;
+          }
+          assert (isa<PointerType>(I->getType()));
+          Type * ET = cast<PointerType>(I->getType())->getElementType();
+          unsigned long AllocSize = TD->getTypeAllocSize(ET);
+          unsigned long adjustedSize = AllocSize + sizeof(BBMetaData);
+          unsigned int size = findP2Size (adjustedSize);
+
+          // Get the alignment size and push it into the vector.
+          unsigned int alignment = 1u << size;
+          LEN.push_back(alignment);
+
+          if(adjustedSize == alignment) {
+            // To do
+          } else {
+            //
+            // Create a structure type to pad the argument. The first element
+            // will be the argument's type; the second will be an array of 
+            // bytes that will pad the size out; the third will be the metadata 
+            // type.
+            //
+            Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
+            Type *meteTP = TypeBuilder<BBMetaData, false>::get(I->getContext());
+            StructType *newType = StructType::get(ET,
+                                                  newType1,
+                                                  meteTP,
+                                                  NULL);
+
+              
+            Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()),0);
+            Value *Idx[] = { zero, zero }; 
+            AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
+            LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
+            GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
+                                                                  Idx,
+                                                                  Twine(""),
+                                                                  CI);
+            new StoreInst(LINew, GEPNew, CI);
+            args.push_back(AINew);
+          } 
+        }
+
+        // replace the original function with the cloned one.
+        CallInst *CallI = CallInst::Create(NewF, args,"", CI);
+
+        // Add alignment attribute when calling the cloned function.
+        std::vector<unsigned int>::iterator iiter = LEN.begin();
+        i = 0;
+        I = F->arg_begin();
+        for (; I != E; ++I, ++i) {
+          if (I->hasByValAttr()) {
+            CallI->addAttribute(i + 1,
+                         llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
+          }
+        }
+        CallI->setCallingConv(CI->getCallingConv());
+        CI->replaceAllUsesWith(CallI);
+        CI->eraseFromParent();
+      }
+    }
+  } // end for use changes
+  return;
+}
+
 //
 // Method: runOnModule()
 //
@@ -571,220 +883,18 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     }
   }
 #endif
-#if 1
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
-    if (I->isDeclaration()) continue;
-
-    if (I->hasName()) {
-      std::string Name = I->getName();
-      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
-          || (Name.find("baggy.") == 0) || (Name.find(".TEST") != Name.npos))
-        continue;
-    }
-    
-    // If a function has no byval arguments, needClone will be 0 and there
-    // is no need to clone the function.
-    bool needClone = 0;
+    Function &F = cast<Function>(*I);
+    if (!mustCloneFunction(&F)) continue;
 
     // Get function type
-    Function &F = cast<Function>(*I);
-    FunctionType *FTy = F.getFunctionType();
-
-    // Vector to store all arguments' types.
-    std::vector<Type*> TP;
    
-    // Vector to store new types for byval arguments
-    std::vector<Type*> NTP;
-
-    // Vector to store the alignment size of new padded types.
-    std::vector<unsigned int> LEN; 
-
-    unsigned int i = 0;
-
-    //
-    // Loop over all the arguments of the function. If one argument has the byval
-    //  attribute, it will be padded and push into the vector; If it does not have
-    // the byval attribute, it will be pushed into the vector without any change.
-    // Then all the types in vector will be used to create the clone function.  
-    for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
-     
-       // Deal with the argument that has byval attribute
-      if (It->hasByValAttr()) {
-        if(It->use_empty()) {
-         TP.push_back(FTy->getParamType(i));
-         continue;
-         }
-
-        // set the bool to be one indicating that this function need a clone
-        needClone = 1;
-        
-        //
-        // Find the greatest power-of-two size that is larger than the argument's
-        // current size with metadata's size.
-        //
-        assert (isa<PointerType>(It->getType()));
-        Type * ET = cast<PointerType>(It->getType())->getElementType();
-        unsigned long AllocSize = TD->getTypeAllocSize(ET);
-        unsigned long adjustedSize = AllocSize + sizeof(BBMetaData);
-        unsigned int size = findP2Size (adjustedSize);
-
-        // Get the alignment size and push it into the vector.
-        unsigned int alignment = 1u << size;
-        LEN.push_back(alignment);
-
-        if(adjustedSize == alignment) {
-        // To do
-        } else {
-          //
-          // Create a structure type to pad the argument. The first element will 
-          // be the argument's type; the second will be an array of bytes that 
-          // will pad the size out; the third will be the metadata type.
-          //
-          Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
-          Type *metadataType = TypeBuilder<BBMetaData, false>::get(It->getContext());
-          StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
-
-          // push the padded type into the vectors
-          TP.push_back(newType->getPointerTo());
-          NTP.push_back(newType);
-         }
-       
-      } else {
-
-        // Deal with the argument that has no byval attribute.
-        TP.push_back(FTy->getParamType(i));
-
-       }
-    }   //end for arguments handling
-    
-    if (needClone == 1) {
-
-      // Create the new function. Return type is same as that of original instruction.
-      FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
-      Function *NewF = Function::Create(NewFTy,
-                                      GlobalValue::InternalLinkage,
-                                      F.getNameStr() + ".TEST",
-                                      &M);
-     //
-     // create the arguments mapping between the original and the clonal function to 
-     // prepare for cloning the whole function.
-     //
-     ValueToValueMapTy VMap;
-     Function::arg_iterator DestII = NewF->arg_begin();
-     for (Function::arg_iterator II = F.arg_begin(); II != F.arg_end(); ++II) {
-         DestII->setName(II->getName());
-         VMap[II] = DestII++;
-     }
-
-     // Perform the cloning.
-     SmallVector<ReturnInst*, 8> Returns;
-     CloneFunctionInto(NewF, &F, VMap, false, Returns);
-
-     // Add alignment attribute for the cloned function's arguments
-     std::vector<unsigned int>::iterator iiter = LEN.begin();
-     i = 0;
-     for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
-       if (It->hasByValAttr()) {
-         NewF->addAttribute(i + 1, llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
-       }
-     }
-     //
-     // Since externel code and indirect call use the original function
-     // So we make the original function to call the clone function.
-     // First delete the body of the function and creat a block in it.
-     F.dropAllReferences();
-     BasicBlock * BB = BasicBlock::Create(F.getContext(), "clone", &F, 0);
-
-     //
-     // Create an STL container with the arguments to call the clone function.
-     std::vector<Value *> args;
-
-     //
-     // Iterator to get the new types stores in the vector.
-     std::vector<Type*>::iterator iter = NTP.begin();
-
-     Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
-     Value *Idx[] = { zero, zero };
-
-     //
-     // Look over all arguments. If the argument has byval attribute,
-     // alloca its padded new type, store the argument's value into it.
-     // and push the allocated type into the vector. If the argument
-     // has no such attribute, just push it into the vector.
-     for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It) {
-       if (It->hasByValAttr()) {
-          Type* newType = *iter++;
-          AllocaInst *AINew = new AllocaInst(newType, "", BB);
-          LoadInst *LINew = new LoadInst(It, "", BB);
-          GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), BB);
-          new StoreInst(LINew, GEPNew, BB);
-          args.push_back(AINew);
-        } else {
-          args.push_back(It);
-        }
-      }
-
+    Function *NewF;
+    cloneFunction(&F, NewF);
+    callClonedFunction(&F, NewF);
       //
-      // Use the arguments in the vector to call the cloned function.
-      CallInst::Create (NewF, args, "", BB);
-
-      //
-      //Change uses so that the direct calls to the original function become direct
-      // calls to the cloned function.
-      for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
-        if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
-          if (CI->getCalledFunction() == &F) {
-             Function *Caller = CI->getParent()->getParent();
-             Instruction *InsertPoint;
-             for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-               
-             //
-             // Create an STL container with the arguments to call the cloned function.
-             std::vector<Value *> args;
-
-             //
-             // Iterator to get the new types stores in the vector.
-             std::vector<Type*>::iterator iter = NTP.begin();
-             i = 0;
-
-             // Look over all arguments. If the argument has byval attribute,
-             // alloca its padded new type, store the argument's value into it.
-             // and push the allocated type into the vector. If the argument
-             // has no such attribute, just push it into the vector.
-             for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
-               if (It->hasByValAttr()) {
-                 Type* newType = *iter++;
-                 AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
-                 LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
-                 GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), CI);
-                 new StoreInst(LINew, GEPNew, CI);
-                 args.push_back(AINew);
-                } else {
-                 args.push_back(It);
-                }
-              }
-
-            // replace the original function with the cloned one.
-            CallInst *CallI = CallInst::Create(NewF, args,"", CI);
-
-            // Add alignment attribute when calling the cloned function.
-            std::vector<unsigned int>::iterator iiter = LEN.begin();
-            i = 0;
-            for (Function::arg_iterator It = F.arg_begin(); It != F.arg_end(); ++It, ++i) {
-              if (It->hasByValAttr()) {
-                CallI->addAttribute(i + 1, llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
-               }
-             }
-            CallI->setCallingConv(CI->getCallingConv());
-            CI->replaceAllUsesWith(CallI);
-            CI->eraseFromParent();
-           }
-         }
-      } // end for use changes
-
-     } // end for a function handling
+   
    } //end for the Module
-#endif
   return true;
 }
 
