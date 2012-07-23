@@ -713,12 +713,6 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
 //
 bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
-  // Get prerequisite analysis resuilts.
-  TD = &getAnalysis<TargetData>();
-#if 1
-  Type *Int8Type = Type::getInt8Ty(M.getContext());
-#endif
-
   //
   // Align and pad global variables.
   //
@@ -742,159 +736,19 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   adjustAllocasFor (M.getFunction ("pool_register_stack"));
   adjustAllocasFor (M.getFunction ("pool_register_stack_debug"));
 
-#if 0
+
   // changes for register argv
   adjustArgv(M.getFunction ("poolargvregister"));
   
-
-  //
-  // align byval arguments
-  //
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
-    if (I->isDeclaration()) continue;
-
-    if (I->hasName()) {
-      std::string Name = I->getName();
-      if ((Name.find ("__poolalloc") == 0) || (Name.find ("sc.") == 0)
-          || Name.find("baggy.") == 0)
-        continue;
-    }
-    Function &F = cast<Function>(*I);
-    unsigned int i = 1;
-    for (Function::arg_iterator It = F.arg_begin(), E = F.arg_end(); It != E; ++It, ++i) {
-      if (It->hasByValAttr()) {
-        if(It->use_empty())
-          continue;
-        assert (isa<PointerType>(It->getType()));
-        PointerType * PT = cast<PointerType>(It->getType());
-        Type * ET = PT->getElementType();
-        unsigned  AllocSize = TD->getTypeAllocSize(ET);
-        unsigned char size= 0;
-        while((unsigned)(1u<<size) < AllocSize) {
-          size++;
-        }
-        if(size < SLOT_SIZE) {
-          size = SLOT_SIZE;
-        }
-
-        unsigned int alignment = 1u << size;
-        if(AllocSize == alignment) {
-          F.addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-          for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ++FU) {
-            if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
-              if (CI->getCalledFunction() == &F) {
-                CI->addAttribute(i, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-              }
-            }
-          } 
-        } else {
-          Type *newType1 = ArrayType::get(Int8Type, (alignment)-AllocSize);
-          StructType *newSType = StructType::get(ET, newType1, NULL);
-
-          FunctionType *FTy = F.getFunctionType();
-          // Construct the new Function Type
-          // Appends the struct Type at the beginning
-          std::vector<Type*>TP;
-          TP.push_back(newSType->getPointerTo());
-          for(unsigned c = 0; c < FTy->getNumParams();c++) {
-            TP.push_back(FTy->getParamType(c));
-          }
-          //return type is same as that of original instruction
-          FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
-          Function *NewF = Function::Create(NewFTy,
-                                            GlobalValue::InternalLinkage,
-                                            F.getNameStr() + ".TEST",
-                                            &M);
-
-
-          Function::arg_iterator NII = NewF->arg_begin();
-          NII->setName("Baggy");
-          ++NII;
-
-          ValueToValueMapTy ValueMap;
-
-          for (Function::arg_iterator II = F.arg_begin(); NII != NewF->arg_end(); ++II, ++NII) {
-            ValueMap[II] = NII;
-            NII->setName(II->getName());
-          }
-          // Perform the cloning.
-          SmallVector<ReturnInst*,100> Returns;
-          CloneFunctionInto(NewF, &F, ValueMap, false, Returns);
-          std::vector<Value*> fargs;
-          for(Function::arg_iterator ai = NewF->arg_begin(),
-              ae= NewF->arg_end(); ai != ae; ++ai) {
-            fargs.push_back(ai);
-          }
-          
-          NII = NewF->arg_begin();
-
-          Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
-          Value *Idx[] = { zero, zero };
-          Instruction *InsertPoint;
-          for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-
-          GetElementPtrInst *GEPI = GetElementPtrInst::Create(cast<Value>(NII), Idx, Twine(""), InsertPoint);
-
-          fargs.at(i)->replaceAllUsesWith(GEPI);
-          Function::const_arg_iterator I = F.arg_begin(),E = F.arg_end();
-          for (Function::const_arg_iterator I = F.arg_begin(), 
-               E = F.arg_end(); I != E; ++I) {
-            NewF->getAttributes().addAttr(I->getArgNo() + 1,  F.getAttributes().getParamAttributes(I->getArgNo() + 1));
-          }
-
-          NewF->setAttributes(NewF->getAttributes()
-                              .addAttr(0, F.getAttributes()
-                                       .getRetAttributes()));
-          NewF->setAttributes(NewF->getAttributes()
-                              .addAttr(~0, F.getAttributes()
-                                       .getFnAttributes()));
-
-          NewF->addAttribute(1, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-          NewF->addAttribute(1, F.getAttributes().getParamAttributes(i));
-
-          // Change uses.
-          for (Value::use_iterator FU = F.use_begin(); FU != F.use_end(); ) {
-            if (CallInst * CI = dyn_cast<CallInst>(*FU++)) {
-              if (CI->getCalledFunction() == &F) {
-                Function *Caller = CI->getParent()->getParent();
-                Instruction *InsertPoint;
-                for (BasicBlock::iterator insrt = Caller->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-                AllocaInst *AINew = new AllocaInst(newSType, "", InsertPoint);
-
-                LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
-                GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew, Idx, Twine(""), CI);
-                new StoreInst(LINew, GEPNew, CI);
-                SmallVector<Value*, 8> Args;
-                Args.push_back(AINew);
-                for(unsigned j =1;j<CI->getNumOperands();j++) {
-                  Args.push_back(CI->getOperand(j));
-                }
-                CallInst *CallI = CallInst::Create(NewF, Args,"", CI);
-                CallI->addAttribute(1, llvm::Attribute::constructAlignmentFromInt(1u<<size));
-                CallI->setCallingConv(CI->getCallingConv());
-                CI->replaceAllUsesWith(CallI);
-                CI->eraseFromParent();
-              }
-            }
-          } 
-        }
-
-      }
-    }
-  }
-#endif
+  // Deal with byval argument.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
     Function &F = cast<Function>(*I);
     if (!mustCloneFunction(&F)) continue;
-
-    // Get function type
-   
+    
     Function *NewF;
     cloneFunction(&F, NewF);
     callClonedFunction(&F, NewF);
-      //
-   
-   } //end for the Module
+  }
   return true;
 }
 
