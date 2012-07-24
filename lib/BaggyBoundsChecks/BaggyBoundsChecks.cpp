@@ -34,8 +34,8 @@
 #include <string>
 #include <functional>
 
-static const unsigned SLOT_SIZE=4;
-static const unsigned SLOT=16;
+static const unsigned SLOT_SIZE = 4;
+static const unsigned SLOT = 16;
 
 using namespace llvm;
 
@@ -76,9 +76,9 @@ findP2Size (unsigned long objectSize) {
 
 //
 // Description:
-//  Define BBMetaData struct type using TypeBuilder template. So for global and stack
-//  variables, we can use this type to record their metadata when padding and aligning 
-//  them.
+//  Define BBMetaData struct type using TypeBuilder template. So for global and 
+//  stack variables, we can use this type to record their metadata when padding 
+//  and aligning them.
 //
 template<bool xcompile> class TypeBuilder<BBMetaData, xcompile> {
 public:
@@ -196,11 +196,14 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
     Type *Int8Type = Type::getInt8Ty(GV->getContext());
     Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - adjustedSize);
     Type *metadataType = TypeBuilder<BBMetaData, false>::get(GV->getContext());
-    StructType *newType = StructType::get(GlobalType, newType1, metadataType, NULL);
+    StructType *newType = StructType::get(GlobalType,
+                                          newType1,
+                                          metadataType,
+                                          NULL);
 
     //
     // Create a global initializer.  The first element has the initializer of
-    // the original memory object, the second initializes the padding array, and 
+    // the original memory object, the second initializes the padding array,
     // the third initializes the object's metadata.
     //
     Constant *c = 0;
@@ -286,7 +289,10 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
     Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
     
-    StructType *newType = StructType::get(AI->getType()->getElementType(), newType1, metadataType, NULL);
+    StructType *newType = StructType::get(AI->getType()->getElementType(),
+                                          newType1,
+                                          metadataType,
+                                          NULL);
     
     //
     // Create the new alloca instruction and set its alignment.
@@ -310,7 +316,6 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
     //
     // Create a GEP that accesses the first element of this new structure.
     //
-    //Value * Zero = ConstantInt::getSigned(Int32Type, 0);
     Value *idx1[2] = {Zero, Zero};
     Instruction *init = GetElementPtrInst::Create(AI_new,
                                                   idx1,
@@ -362,14 +367,17 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
 void
 InsertBaggyBoundsChecks::adjustArgv (Function * F) {
   assert (F && "FIXME: Should not assume that argvregister is used!");
-  if (!F->use_empty()) {
+  if (!(F->use_empty())) {
     assert (isa<PointerType>(F->getReturnType()));
     assert (F->getNumUses() == 1);
     CallInst *CI = cast<CallInst>(*(F->use_begin()));
     Value *Argv = CI->getArgOperand(1);
     BasicBlock::iterator I = CI;
     I++;
-    BitCastInst *BI = new BitCastInst(CI, Argv->getType(), "argv_temp",cast<Instruction>(I));
+    BitCastInst *BI = new BitCastInst(CI,
+                                      Argv->getType(),
+                                      "argv_temp",
+                                      cast<Instruction>(I));
     std::vector<User *> Uses;
     Value::use_iterator UI = Argv->use_begin();
     for (; UI != Argv->use_end(); ++UI) {
@@ -419,9 +427,9 @@ mustCloneFunction (Function * F) {
   Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
   for (; I != E; ++I) {
     if (I->hasByValAttr()) {
-      if(I->use_empty()) {
-         continue;
-      }
+      //if(I->use_empty()) {
+         //continue;
+      //}
       return 1;
     }
   }
@@ -473,10 +481,10 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
     }
 
     // Deal with the argument that with byval attribute, but without use.
-    if(I->use_empty()) {
-      TP.push_back(FTy->getParamType(i));
-      continue;
-    }
+    //if(I->use_empty()) {
+      //TP.push_back(FTy->getParamType(i));
+      //continue;
+    //}
 
     //
     // Find the greatest power-of-two size that is larger than the argument's
@@ -713,6 +721,8 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
 //
 bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
+  // Get prerequisite analysis results
+  TD = &getAnalysis<TargetData>();
   //
   // Align and pad global variables.
   //
