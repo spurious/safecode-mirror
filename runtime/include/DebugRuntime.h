@@ -165,9 +165,9 @@ extern "C" {
   void * boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
   // Exact checks
-  void * exactcheck2 (char *base, char *result, unsigned size);
-  void * exactcheck2_debug (char *base, char *result, unsigned size,
-                            TAG, SRC_INFO);
+  void * exactcheck2 (char *source, char *base, char *result, unsigned size);
+  void * exactcheck2_debug (char *source, char *base, char *result, 
+                            unsigned size, TAG, SRC_INFO);
   void fastlscheck (const char *base, const char *result, unsigned size,
                     unsigned lsLen);
   void fastlscheck_debug (const char *base, const char *result, unsigned size,

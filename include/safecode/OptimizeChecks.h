@@ -54,6 +54,7 @@ struct ExactCheckOpt : public ModulePass {
     Function *FastLSCheck;
     bool visitCheckingIntrinsic(CallInst * CI, const struct CheckInfo & Info);
     void rewriteToExactCheck(bool isMemCheck, CallInst * CI,
+                             Value * SourcePointer,
                              Value * BasePointer, 
                              Value * ResultPointer,
                              Value * ResultLength,

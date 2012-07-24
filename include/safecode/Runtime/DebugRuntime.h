@@ -260,8 +260,10 @@ extern "C" {
   int   pool___snprintf_chk(void *info, void *dest, size_t n, int flag, size_t slen, void *fmt, ...);
  
   // Exact checks
-  void * exactcheck2 (const char *base, const char *result, unsigned size);
-  void * exactcheck2_debug (const char *base, const char *result, unsigned size,
+  void * exactcheck2 (const char *source, const char *base, 
+                      const char *result, unsigned size);
+  void * exactcheck2_debug (const char * source, const char *base, 
+                            const char *result, unsigned size,
                             TAG, SRC_INFO);
 
   void __sc_dbg_funccheck (unsigned num, void *f, void *g, ...);

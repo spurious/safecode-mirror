@@ -59,6 +59,7 @@ ExactCheckOpt::runOnModule(Module & M) {
                                                       VoidPtrTy,
                                                       VoidPtrTy,
                                                       VoidPtrTy,
+                                                      VoidPtrTy,
                                                       Int32Type,
                                                       NULL));
 
@@ -87,6 +88,20 @@ ExactCheckOpt::runOnModule(Module & M) {
     //
     if ((RuntimeChecks[index].checkType == funccheck) ||
         (RuntimeChecks[index].checkType == strcheck)) {
+      continue;
+    }
+
+    //
+    // Also skip gepchecks and memchecks that that we have inserted
+    // in this pass.  At present this means that we skip calls to
+    // exactcheck2() and fastlscheck().
+    //
+    if (((RuntimeChecks[index].checkType == gepcheck) &&
+         (strncmp("exactcheck2", RuntimeChecks[index].name,
+                  strlen("exactcheck2")) == 0)) ||
+        ((RuntimeChecks[index].checkType == memcheck) &&
+         (strncmp("fastlscheck", RuntimeChecks[index].name,
+                  strlen("fastlscheck")) == 0))) {
       continue;
     }
 
@@ -234,6 +249,26 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
   if (!BasePtr) return false;
 
   //
+  // If the run time check is a gepcheck, get the source pointer and
+  // store it in SrcPtr.  Note that this value may be NULL.  This will
+  // typically be the resulf of a program trying to do a GEP off of 
+  // a NULL pointer to calculate an offset or because it hasn't checked 
+  // a malloc() call for a NULL return value.  I am given to understand
+  // that we allow GEPs to index within the first 4096 bytes of memory 
+  // because it's unmapped; if it indexes beyond that, it generates a 
+  // rewrite pointer.
+  //
+  // Otherwise, set SrcPtr to NULL.
+  //
+  // Note that we make no attempt to strip casts or otherwise
+  // lookup the source of this pointer -- unlike with the BasePtr.
+  //
+  Value * SrcPtr = NULL;
+  if ( Info.isGEPCheck() ) {
+    SrcPtr = Info.getSourcePointer(CI);
+  }
+
+  //
   // Do not use exactchecks on global variables that are defined in other
   // compilation units.
   //
@@ -253,7 +288,6 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
   // So, if this is a memory check, make sure that the object cannot be freed
   // before the check.  Global variables and stack allocations cannot be freed.
   //
-
   Argument * AI;
   if ((!(Info.isMemCheck())) ||
       ((isa<AllocaInst>(BasePtr)) || isa<GlobalVariable>(BasePtr)) ||
@@ -266,7 +300,7 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
     //
     AllocatorInfoPass & AIP = getAnalysis<AllocatorInfoPass>();
     if (Value * Size = AIP.getObjectSize(BasePtr)) {
-      rewriteToExactCheck(Info.isMemCheck(), CI, BasePtr, CheckPtr, CheckLen, Size);
+      rewriteToExactCheck(Info.isMemCheck(), CI, SrcPtr, BasePtr, CheckPtr, CheckLen, Size);
       return true;
     }
   }
@@ -285,6 +319,10 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
 //
 // Inputs:
 //  isMemCheck    - Flags if we are replacing a load/store check.
+//  SourcePointer - If target call is a gepcheck, this is the source pointer
+//                  of the indexing operation (the GEP).  This value is
+//                  obtained from the parameter list of the target gepcheck.
+//                  NULL otherwise.
 //  BasePointer   - An LLVM Value representing the base of the object to check.
 //  ResultPointer - An LLVM Value representing the pointer to check.
 //  ResultLength  - An LLVM Value representing the length of the memory access.
@@ -293,10 +331,12 @@ ExactCheckOpt::visitCheckingIntrinsic (CallInst * CI,
 //
 void
 ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
+                                   Value * SourcePointer, 
                                    Value * BasePointer, 
                                    Value * ResultPointer,
                                    Value * ResultLength,
                                    Value * Bounds) {
+
   // The LLVM type for a void *
   Type *VoidPtrType = getVoidPtrType(CI->getContext()); 
   Type * Int32Type = IntegerType::getInt32Ty(CI->getContext());
@@ -305,12 +345,20 @@ ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
   // For readability, make sure that both the base pointer and the result
   // pointer have names.
   //
+  if ((SourcePointer != NULL) &&
+      (!(SourcePointer->hasName()))) SourcePointer->setName("source");
   if (!(BasePointer->hasName())) BasePointer->setName("base");
   if (!(ResultPointer->hasName())) ResultPointer->setName("result");
 
   //
   // Cast the operands to the correct type.
   //
+  if (SourcePointer != NULL) {
+    SourcePointer = castTo (SourcePointer, VoidPtrType,
+                            SourcePointer->getName()+".ec.casted",
+                            CI);
+  }
+
   BasePointer = castTo (BasePointer, VoidPtrType,
                         BasePointer->getName()+".ec.casted",
                         CI);
@@ -330,9 +378,14 @@ ExactCheckOpt::rewriteToExactCheck(bool isMemCheck, CallInst * CI,
   }
 
   //
-  // Create the call to exactcheck2().
+  // Create the call to exactcheck2() or to fastlscheck().
   //
-  std::vector<Value *> args(1, BasePointer);
+  std::vector<Value *> args;
+
+  if (!isMemCheck) { // push first argument for exactcheck2()
+    args.push_back(SourcePointer);
+  }
+  args.push_back(BasePointer);
   args.push_back(ResultPointer);
   args.push_back(CastBounds);
   if (ResultLength) args.push_back(ResultLength);
