@@ -367,7 +367,7 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
 void
 InsertBaggyBoundsChecks::adjustArgv (Function * F) {
   assert (F && "FIXME: Should not assume that argvregister is used!");
-  if (!(F->use_empty())) {
+  if (!F->use_empty()) {
     assert (isa<PointerType>(F->getReturnType()));
     assert (F->getNumUses() == 1);
     CallInst *CI = cast<CallInst>(*(F->use_begin()));
@@ -427,9 +427,9 @@ mustCloneFunction (Function * F) {
   Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
   for (; I != E; ++I) {
     if (I->hasByValAttr()) {
-      //if(I->use_empty()) {
-         //continue;
-      //}
+      if(I->use_empty()) {
+        continue;
+      }
       return 1;
     }
   }
@@ -446,8 +446,8 @@ mustCloneFunction (Function * F) {
 //  cloned function, so that externel code and indirect calls use the original 
 //  to call the cloned function.
 //
-void
-InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
+Function *
+InsertBaggyBoundsChecks::cloneFunction (Function * F) {
 
   Type *Int8Type = Type::getInt8Ty(F->getContext());
   
@@ -481,10 +481,10 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
     }
 
     // Deal with the argument that with byval attribute, but without use.
-    //if(I->use_empty()) {
-      //TP.push_back(FTy->getParamType(i));
-      //continue;
-    //}
+    if(I->use_empty()) {
+      TP.push_back(FTy->getParamType(i));
+      continue;
+    }
 
     //
     // Find the greatest power-of-two size that is larger than the argument's
@@ -522,7 +522,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
   // Create the new function. Return type is same as that of original
   // instruction.
   FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
-  NewF = Function::Create(NewFTy,
+  Function *NewF = Function::Create(NewFTy,
                           GlobalValue::InternalLinkage,
                           F->getNameStr() + ".TEST",
                           F->getParent());
@@ -597,7 +597,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F, Function * NewF) {
   // Use the arguments in the vector to call the cloned function.
   //
   CallInst::Create (NewF, args, "", BB);
-  return;
+  return NewF;
 }
 
 //
@@ -644,6 +644,10 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
         Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
         for (; I != E; ++I, ++i) {
           if (!I->hasByValAttr()) {
+            args.push_back(I);
+            continue;
+          }
+          if(I->use_empty()) {
             args.push_back(I);
             continue;
           }
@@ -755,8 +759,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     Function &F = cast<Function>(*I);
     if (!mustCloneFunction(&F)) continue;
     
-    Function *NewF;
-    cloneFunction(&F, NewF);
+    Function *NewF = cloneFunction(&F);
     callClonedFunction(&F, NewF);
   }
   return true;

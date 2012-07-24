@@ -50,7 +50,7 @@ struct InsertBaggyBoundsChecks : public ModulePass {
     void adjustAlloca (AllocaInst * AI);
     void adjustAllocasFor (Function * F);
     void adjustArgv(Function *F);
-    void cloneFunction(Function * F, Function * NewF);
+    Function * cloneFunction(Function * F);
     void callClonedFunction(Function * F, Function * NewF);
 };
 
