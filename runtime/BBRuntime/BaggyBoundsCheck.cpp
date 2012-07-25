@@ -348,7 +348,7 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
                                 unsigned NumBytes, TAG,
                                 const char* SourceFilep,
                                 unsigned lineno) {
-  __internal_register(allocaptr, NumBytes);
+  __internal_register(allocaptr, NumBytes + sizeof(BBMetaData));
   return;
 }
 
@@ -396,7 +396,7 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
                                        unsigned NumBytes,TAG,
                                        const char *SourceFilep,
                                        unsigned lineno) {
-  __internal_register(allocaptr, NumBytes);
+  __internal_register(allocaptr, NumBytes + sizeof(BBMetaData));
 }
 
 //
