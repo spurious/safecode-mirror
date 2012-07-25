@@ -424,8 +424,8 @@ mustCloneFunction (Function * F) {
   // Loop over all the arguments of the function. If one argument has the byval
   // attribute and has use, then this function need to be cloned.
   //  
-  Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
-  for (; I != E; ++I) {
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I) {
     if (I->hasByValAttr()) {
       if(I->use_empty()) {
         continue;
@@ -450,6 +450,8 @@ Function *
 InsertBaggyBoundsChecks::cloneFunction (Function * F) {
 
   Type *Int8Type = Type::getInt8Ty(F->getContext());
+  Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()), 0);
+  Value *Idx[] = { zero, zero };
   
   // Get the function type.
   FunctionType *FTy = F->getFunctionType();
@@ -471,8 +473,8 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   // the byval attribute, it will be pushed into the vector without any change.
   // Then all the types in vector will be used to create the clone function.  
   //
-  Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
-  for (; I != E; ++I, ++i) {
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I, ++i) {
 
     // Deal with the argument that without byval attribute
     if (!I->hasByValAttr()) {
@@ -532,8 +534,9 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   //
   ValueToValueMapTy VMap;
   Function::arg_iterator DestI = NewF->arg_begin();
-  I = F->arg_begin();
-  for (; I != E; ++I) {
+
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I) {
     DestI->setName(I->getName());
     VMap[I] = DestI++;
   }
@@ -545,12 +548,28 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   // Add alignment attribute for the cloned function's arguments
   std::vector<unsigned int>::iterator it = LEN.begin();
   i = 0;
-  I = F->arg_begin();
-  for (; I != E; ++I, ++i) {
-    if (I->hasByValAttr()) {
-      NewF->addAttribute(i + 1,
-                         llvm::Attribute::constructAlignmentFromInt(*it++)); 
-    }
+
+  for (Function::arg_iterator I = NewF->arg_begin(), E = NewF->arg_end();
+       I != E; ++I, ++i) {
+
+    //Argument without byval attribute or has no use.
+    if (!I->hasByValAttr() || I->use_empty()) continue;
+
+    // Add alignment attribute for this argument.
+    NewF->addAttribute(i + 1,
+                       llvm::Attribute::constructAlignmentFromInt(*it++));
+
+    Instruction *InsertPoint;
+    for (BasicBlock::iterator insrt = NewF->front().begin();
+         isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+
+    GetElementPtrInst *GEPI = GetElementPtrInst::Create(I,
+                                                        Idx,
+                                                        Twine(""),
+                                                        InsertPoint);
+
+    I->replaceAllUsesWith(GEPI);
+    
   }
   //
   // Since externel code and indirect call use the original function
@@ -568,29 +587,28 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   // Iterator to get the new types stores in the vector.
   std::vector<Type*>::iterator iter = NTP.begin();
 
-  Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()), 0);
-  Value *Idx[] = { zero, zero };
-
   //
-  // Look over all arguments. If the argument has byval attribute,
-  // alloca its padded new type, store the argument's value into it.
-  // and push the allocated type into the vector. If the argument
-  // has no such attribute, just push it into the vector.
-  I = F->arg_begin();
-  for (; I != E; ++I) {
-    if (I->hasByValAttr()) {
-      Type* newType = *iter++;
-      AllocaInst *AINew = new AllocaInst(newType, "", BB);
-      LoadInst *LINew = new LoadInst(I, "", BB);
-      GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
-                                                            Idx,
-                                                            Twine(""),
-                                                            BB);
-      new StoreInst(LINew, GEPNew, BB);
-      args.push_back(AINew);
-      } else {
-        args.push_back(I);
-      }
+  // Look over all arguments. If the argument has byval attribute and
+  // has use, alloca its padded new type, store the argument's value 
+  // into it, and push the allocated type into the vector. If the 
+  // argument has no such attribute, just push it into the vector.
+  //
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I) {
+    if (!I->hasByValAttr() || I->use_empty()) {
+      args.push_back(I);
+       continue;
+     }
+      
+    Type* newType = *iter++;
+    AllocaInst *AINew = new AllocaInst(newType, "", BB);
+    LoadInst *LINew = new LoadInst(I, "", BB);
+    GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
+                                                          Idx,
+                                                          Twine(""),
+                                                          BB);
+    new StoreInst(LINew, GEPNew, BB);
+    args.push_back(AINew);
     }
 
   //
@@ -620,8 +638,8 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
   //Change uses so that the direct calls to the original function become direct
   // calls to the cloned function.
   //
-  Value::use_iterator FU = F->use_begin(), FE = F->use_end();
-  for (; FU != FE; ++FU) {
+  for (Value::use_iterator FU = F->use_begin(), FE = F->use_end();
+       FU != FE; ++FU) {
     if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
       if (CI->getCalledFunction() == F) {
         Function *Caller = CI->getParent()->getParent();
@@ -641,13 +659,9 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
         // and push the allocated type into the vector. If the argument
         // has no such attribute, just push it into the vector.
         //
-        Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
-        for (; I != E; ++I, ++i) {
-          if (!I->hasByValAttr()) {
-            args.push_back(I);
-            continue;
-          }
-          if(I->use_empty()) {
+        for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+             I != E; ++I, ++i) {
+          if (!I->hasByValAttr() || I->use_empty()) {
             args.push_back(I);
             continue;
           }
@@ -697,8 +711,9 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
         // Add alignment attribute when calling the cloned function.
         std::vector<unsigned int>::iterator iiter = LEN.begin();
         i = 0;
-        I = F->arg_begin();
-        for (; I != E; ++I, ++i) {
+
+        for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+             I != E; ++I, ++i) {
           if (I->hasByValAttr()) {
             CallI->addAttribute(i + 1,
                          llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
