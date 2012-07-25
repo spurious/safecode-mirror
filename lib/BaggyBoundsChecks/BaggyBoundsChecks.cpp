@@ -366,7 +366,8 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
 //
 void
 InsertBaggyBoundsChecks::adjustArgv (Function * F) {
-  assert (F && "FIXME: Should not assume that argvregister is used!");
+  //assert (F && "FIXME: Should not assume that argvregister is used!");
+  if (!F) return;
   if (!F->use_empty()) {
     assert (isa<PointerType>(F->getReturnType()));
     assert (F->getNumUses() == 1);
@@ -549,6 +550,17 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   std::vector<unsigned int>::iterator it = LEN.begin();
   i = 0;
 
+  //
+  // Put all the arguments of the original function into a vector and later
+  // we can get a byval argument from this vector and replace its use with a
+  // GEP instruction for its new padded argument.
+  //
+  std::vector<Value*> fargs;
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I) {
+    fargs.push_back(I);
+  }
+
   for (Function::arg_iterator I = NewF->arg_begin(), E = NewF->arg_end();
        I != E; ++I, ++i) {
 
@@ -568,9 +580,10 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
                                                         Twine(""),
                                                         InsertPoint);
 
-    I->replaceAllUsesWith(GEPI);
-    
+    // Replace the argument's use in the function body with a GEP instruction.
+    fargs.at(i)->replaceAllUsesWith(GEPI);
   }
+
   //
   // Since externel code and indirect call use the original function
   // So we make the original function to call the clone function.
@@ -771,11 +784,11 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
   
   // Deal with byval argument.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++ I) {
-    Function &F = cast<Function>(*I);
-    if (!mustCloneFunction(&F)) continue;
+    Function *F = I;
+    if (!mustCloneFunction(F)) continue;
     
-    Function *NewF = cloneFunction(&F);
-    callClonedFunction(&F, NewF);
+    Function *NewF = cloneFunction(F);
+    callClonedFunction(F, NewF);
   }
   return true;
 }
