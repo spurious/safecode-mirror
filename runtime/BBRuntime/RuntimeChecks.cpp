@@ -27,6 +27,7 @@
 #include <map>
 #include <cstdarg>
 #include <stdint.h>
+#include <string.h>
 
 #define TAG unsigned tag
 
@@ -622,3 +623,16 @@ poolcheck_freeui (DebugPoolTy *Pool, void * ptr) {
   bb_poolcheck_freeui_debug(Pool, ptr, 0, NULL, 0);
 }
 
+//
+// Function: nullstrlen()
+//
+// Description:
+//  This version of strlen() will return zero for NULL pointers.
+//
+extern "C" size_t nullstrlen (const char * s);
+size_t
+nullstrlen (const char * s) {
+  if (s)
+    return strlen (s);
+  return 0;
+}
