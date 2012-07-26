@@ -162,18 +162,18 @@ int mysprintf(char *dst, const char *fmt, ...)
 }
 
 /* These functions return floating point NaN and infinity. */
-double infinity()
+double infinity(void)
 {
   return strtod("infinity", NULL);
 }
 
-double nan()
+double nan(void)
 {
   return strtod("nan", NULL);
 }
  
 /* Check for support of the %%ls directive. */
-int russian_test()
+int russian_test(void)
 {
   const char *cat = "\\xd0\\x9a\\xd0\\x9e\\xd0\\xa8\\xd0\\x9a\\xd0\\x90";
   char buf[100];
@@ -196,7 +196,7 @@ int russian_test()
   return fail;
 }
 
-int main()
+int main(void)
 {
   int n1, n2;
   int fail;
