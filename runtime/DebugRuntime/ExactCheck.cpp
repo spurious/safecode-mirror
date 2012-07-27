@@ -218,7 +218,7 @@ exactcheck_check (void * Source,
                   const char * SourceFile,
                   unsigned int lineno) {
 
-  void * RealDest = (void *)Dest;
+  void * RealDest = const_cast<void*>(Dest);
   void * RealObjStart = ObjStart;
   void * RealObjEnd = ObjEnd;
 
