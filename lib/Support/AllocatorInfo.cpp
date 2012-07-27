@@ -109,16 +109,17 @@ StringAllocatorInfo::getOrCreateAllocSize (Value * AllocSite) const {
   assert (Strlen && "No nullstrlen function in the module");
   BasicBlock::iterator InsertPt = CI;
   ++InsertPt;
-  Value * Length = CallInst::Create (Strlen, CS.getInstruction(), "", InsertPt);
+  Instruction * Length =
+    CallInst::Create (Strlen, CS.getInstruction(), "", InsertPt);
 
   //
   // The size of the allocation is the string length plus one.
   //
-  Type * LengthType = dyn_cast<IntegerType>(Length->getType());
-  assert (LengthType && "strlen doesn't return an integer?");
+  IntegerType * LengthType = dyn_cast<IntegerType>(Length->getType());
+  assert (LengthType && "nullstrlen doesn't return an integer?");
   Value * One = ConstantInt::get (LengthType, 1);
   Instruction * Size = BinaryOperator::Create (Instruction::Add, Length, One);
-  Size->insertAfter (cast<Instruction>(Length));
+  Size->insertAfter (Length);
   return Size;
 }
 
