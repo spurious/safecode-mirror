@@ -551,15 +551,8 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   i = 0;
 
   //
-  // Put all the arguments of the original function into a vector and later
-  // we can get a byval argument from this vector and replace its use with a
-  // GEP instruction for its new padded argument.
-  //
-  std::vector<Value*> fargs;
-  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
-       I != E; ++I) {
-    fargs.push_back(I);
-  }
+  // Iterator to get the new types stores in the vector.
+  std::vector<Type*>::iterator iter = NTP.begin();
 
   for (Function::arg_iterator I = NewF->arg_begin(), E = NewF->arg_end();
        I != E; ++I, ++i) {
@@ -571,17 +564,20 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     NewF->addAttribute(i + 1,
                        llvm::Attribute::constructAlignmentFromInt(*it++));
 
-    Instruction *InsertPoint;
-    for (BasicBlock::iterator insrt = NewF->front().begin();
-         isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+   // Replace the argument's use in the function body with a GEP instruction.
+   Instruction *InsertPoint;
+   for (BasicBlock::iterator insrt = NewF->front().begin();
+       isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
 
-    GetElementPtrInst *GEPI = GetElementPtrInst::Create(I,
+    Type* newType = *iter++;
+    AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
+    GetElementPtrInst *GEPI = GetElementPtrInst::Create(AINew,
                                                         Idx,
                                                         Twine(""),
                                                         InsertPoint);
-
-    // Replace the argument's use in the function body with a GEP instruction.
-    fargs.at(i)->replaceAllUsesWith(GEPI);
+    I->replaceAllUsesWith(GEPI);
+    LoadInst *LINew = new LoadInst(I, "", InsertPoint);
+    new StoreInst(LINew, AINew, InsertPoint);
   }
 
   //
@@ -596,19 +592,17 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   // Create an STL container with the arguments to call the clone function.
   std::vector<Value *> args;
 
-  //
-  // Iterator to get the new types stores in the vector.
-  std::vector<Type*>::iterator iter = NTP.begin();
 
   //
-  // Look over all arguments. If the argument has byval attribute and
-  // has use, alloca its padded new type, store the argument's value 
-  // into it, and push the allocated type into the vector. If the 
+  // Look over all arguments. If the argument has byval attribute,
+  // alloca its padded new type, store the argument's value into
+  // it, and push the allocated type into the vector. If the 
   // argument has no such attribute, just push it into the vector.
   //
+  iter = NTP.begin();
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
        I != E; ++I) {
-    if (!I->hasByValAttr() || I->use_empty()) {
+    if (!I->hasByValAttr()) {
       args.push_back(I);
        continue;
      }

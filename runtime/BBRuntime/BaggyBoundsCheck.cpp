@@ -77,7 +77,7 @@ unsigned char * __baggybounds_size_table_begin;
 #if defined(_LP64)
 const size_t table_size = 1L<<43;
 #else
-const size_t table_size = 1L<<30;
+const size_t table_size = 1L<<28;
 #endif
 
 
