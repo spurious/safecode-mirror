@@ -16,24 +16,25 @@ SOURCES = dmisc.c dtoa.c gdtoa.c gmisc.c hdtoa.c ldtoa.c misc.c
 #
 include $(LEVEL)/Makefile.common
 
-SRCPATH=$(PROJ_SRC_ROOT)/runtime/FloatConversion
-OBJPATH=$(PROJ_OBJ_ROOT)/runtime/FloatConversion
+CFLAGS   += -I$(PROJ_OBJ_DIR)
+CPPFLAGS += -I$(PROJ_OBJ_DIR)
+CXXFLAGS += -I$(PROJ_OBJ_DIR)
 
-CFLAGS   += -I$(OBJPATH)
-CPPFLAGS += -I$(OBJPATH)
-CXXFLAGS += -I$(OBJPATH)
-
-# Handle generated header files.
 clean::
-	rm -f $(OBJPATH)/arith.h
-	rm -f $(OBJPATH)/gd_qnan.h
+	$(Verb) rm -f arithchk gd_qnan arith.h gd_qnan.h
 
-arith.h: $(SRCPATH)/arithchk.c
-	$(CC) $(SRCPATH)/arithchk.c -o $(OBJPATH)/arithchk
-	$(OBJPATH)/arithchk >$(OBJPATH)/arith.h
-	rm -f $(OBJPATH)/arithchk
+arithchk: $(PROJ_SRC_DIR)/arithchk.c
+	$(Echo) "Compiling arithchk"
+	$(Verb) $(CC) $(CFLAGS) $< -o $@
 
-gd_qnan.h: arith.h $(SRCPATH)/qnan.c
-	$(CC) $(SRCPATH)/qnan.c -I$(OBJPATH) -o $(OBJPATH)/gd_qnan
-	$(OBJPATH)/gd_qnan >$(OBJPATH)/gd_qnan.h
-	rm -f $(OBJPATH)/gd_qnan
+arith.h: arithchk
+	$(Echo) "Generating arith.h with arithchk"
+	$(Verb) ./arithchk > $@
+
+gd_qnan: arith.h $(PROJ_SRC_DIR)/qnan.c
+	$(Echo) "Compiling gd_qnan"
+	$(Verb) $(CC) $(CFLAGS) -I$(PROJ_OBJ_DIR) $(PROJ_SRC_DIR)/qnan.c -o $@
+
+gd_qnan.h: gd_qnan
+	$(Echo) "Generating gd_qnan.h with gd_qnan"
+	$(Verb) ./gd_qnan > $@
