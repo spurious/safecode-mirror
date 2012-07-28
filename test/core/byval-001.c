@@ -1,6 +1,10 @@
 // RUN: test.sh -s "call void @fastlscheck_debug" -p -t %t %s
-
-/* byval test */
+//
+// TEST: byval-001
+//
+// Description:
+//  Test that a function with a byval argument works well.
+//
 
 // #include "stdio.h"
 
