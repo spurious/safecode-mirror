@@ -560,7 +560,10 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     //Argument without byval attribute or has no use.
     if (!I->hasByValAttr() || I->use_empty()) continue;
 
-    // Add alignment attribute for this argument.
+    // Remove the orginal alignment attribute and then
+    // add the padded alignment attribute for this argument.
+    NewF->removeAttribute(i + 1, NewF->getAttributes()
+                         .getParamAttributes(i+1) & Attribute::Alignment);
     NewF->addAttribute(i + 1,
                        llvm::Attribute::constructAlignmentFromInt(*it++));
 
@@ -621,7 +624,8 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   //
   // Use the arguments in the vector to call the cloned function.
   //
-  CallInst::Create (NewF, args, "", BB);
+  CallInst *CINew = CallInst::Create(NewF, args, "", BB);
+  ReturnInst::Create(CINew->getContext(), CINew, BB);
   return NewF;
 }
 
@@ -701,7 +705,7 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
               
             Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()),0);
             Value *Idx[] = { zero, zero }; 
-            AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
+            AllocaInst *AINew = new AllocaInst(newType, 0, alignment, "", InsertPoint);
             LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
             GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
                                                                   Idx,
