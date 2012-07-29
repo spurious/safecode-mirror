@@ -448,33 +448,39 @@ pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
 }
 
 //
-// Function: funccheck()
+// Function: __sc_bb_funccheck()
 //
 // Description:
 //  Determine whether the specified function pointer is one of the functions
 //  in the given list.
 //
 // Inputs:
-//  num - The number of function targets in the DSNode.
-//  f   - The function pointer that we are testing.
-//  g   - The first function given in the DSNode.
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
 //
 void
-__sc_bb_funccheck (unsigned num, void *f, void *g, ...) {
-  va_list ap;
-  unsigned i = 0;
-
-  // Test against the first function in the list
-  if (f == g) return;
-  i++;
-  va_start(ap, g);
-  for ( ; i != num; ++i) {
-    void *h = va_arg(ap, void *);
-    if (f == h) {
+__sc_bb_funccheck (void *f,
+                 void * targets[],
+                 TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+  unsigned index = 0;
+  while (targets[index]) {
+    if (f == targets[index])
       return;
-    }
+    ++index;
   }
-  abort();
+
+  DebugViolationInfo v;
+  v.type = ViolationInfo::FAULT_CALL,
+    v.faultPC = __builtin_return_address(0),
+    v.faultPtr = f,
+    v.CWE = CWEBufferOverflow,
+    v.SourceFile = SourceFilep,
+    v.lineNo = lineno;
+
+  ReportMemoryViolation(&v);
+  return;
 }
 
 //
@@ -635,4 +641,85 @@ nullstrlen (const char * s) {
   if (s)
     return strlen (s);
   return 0;
+}
+
+//
+// Function: funccheck()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.
+//
+// Inputs:
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
+//
+extern "C" void
+funccheck (void *f, void * targets[]) {
+  __sc_bb_funccheck(f, targets, 0, NULL, 0);
+  return;
+}
+//
+// Function: funccheck_debug()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.
+//
+// Inputs:
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
+//
+extern "C" void
+funccheck_debug (void *f,
+                 void * targets[],
+                 TAG,
+                 const char * SourceFilep,
+                 unsigned lineno) {
+  __sc_bb_funccheck(f, targets, 0, SourceFilep, lineno);
+  return;
+}
+
+//
+// Function: funccheckui()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.  However, the list may be incomplete.
+//
+// Inputs:
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
+//
+extern "C" void
+funccheckui (void *f, void * targets[]) {
+  //
+  // For now, do nothing.  If the list could be incomplete, we don't know when
+  // a target is valid.
+  //
+  return;
+}
+
+//
+// Function: funccheckui_debug()
+//
+// Description:
+//  Determine whether the specified function pointer is one of the functions
+//  in the given list.  However, the list may be incomplete.
+//
+// Inputs:
+//  f         - The function pointer that we are testing.
+//  targets   - Pointer to a list of potential targets.
+//
+extern "C" void
+funccheckui_debug (void *f,
+                   void * targets[],
+                   TAG,
+                   const char * SourceFilep,
+                   unsigned lineno) {
+  //
+  // For now, do nothing.  If the list could be incomplete, we don't know when
+  // a target is valid.
+  //
+  return;
 }

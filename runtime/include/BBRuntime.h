@@ -137,6 +137,8 @@ extern "C" {
   void * __sc_bb_poolstrdup_debug (PPOOL, const char * Node, TAG, SRC_INFO);
   void * __sc_bb_poolmemalign(PPOOL, unsigned Alignment, unsigned NumBytes);
 
+  void __sc_bb_funccheck (void *f, void * targets[], TAG, SRC_INFO);
+
   void bb_poolcheck(PPOOL, void *Node);
   void bb_poolcheckui(PPOOL, void *Node);
   void bb_poolcheck_debug (PPOOL, void * Node, unsigned length, TAG, SRC_INFO);
@@ -167,8 +169,7 @@ extern "C" {
   void * bb_exactcheck2 (const char *base, const char *result, unsigned size);
   void * bb_exactcheck2_debug (const char *base, const char *result, unsigned size,
                             TAG, SRC_INFO);
-
-  void __sc_bb_funccheck (unsigned num, void *f, void *g, ...);
+  
   void * pchk_getActualValue (PPOOL, void * src);
 
   // Change memory protections to detect dangling pointers
