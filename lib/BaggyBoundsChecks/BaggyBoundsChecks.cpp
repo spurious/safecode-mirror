@@ -565,7 +565,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     NewF->removeAttribute(i + 1, NewF->getAttributes()
                          .getParamAttributes(i+1) & Attribute::Alignment);
     NewF->addAttribute(i + 1,
-                       llvm::Attribute::constructAlignmentFromInt(*it++));
+                       llvm::Attribute::constructAlignmentFromInt(*it));
 
    // Replace the argument's use in the function body with a GEP instruction.
    Instruction *InsertPoint;
@@ -573,7 +573,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
        isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
 
     Type* newType = *iter++;
-    AllocaInst *AINew = new AllocaInst(newType, "", InsertPoint);
+    AllocaInst *AINew = new AllocaInst(newType, 0, *it++, "", InsertPoint);
     GetElementPtrInst *GEPI = GetElementPtrInst::Create(AINew,
                                                         Idx,
                                                         Twine(""),
