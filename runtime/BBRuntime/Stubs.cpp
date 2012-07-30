@@ -36,6 +36,15 @@ pool_register_global (DebugPoolTy *Pool,
 }
 
 extern "C" void
+pool_register_global_debug (DebugPoolTy *Pool,
+                      void *allocaptr,
+                      unsigned NumBytes, TAG,
+                      const char* SourceFilep,
+                      unsigned lineno) {
+  __sc_bb_src_poolregister_global_debug(Pool, allocaptr, NumBytes, tag, SourceFilep, lineno);
+}
+
+extern "C" void
 pool_unregister (DebugPoolTy *Pool, void * allocaptr) {
   __sc_bb_poolunregister(Pool, allocaptr);
 }
