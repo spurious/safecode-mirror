@@ -77,7 +77,7 @@ unsigned char * __baggybounds_size_table_begin;
 #if defined(_LP64)
 const size_t table_size = 1L<<43;
 #else
-const size_t table_size = 1L<<28;
+const size_t table_size = 1L<<26;
 #endif
 
 
@@ -160,9 +160,12 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   // Initialize the baggy bounds table
   __baggybounds_size_table_begin = NULL;
   __baggybounds_size_table_begin =
-    (unsigned char*) mmap(0, table_size,
-                          PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON|MAP_NORESERVE,
-                          -1, 0);
+    (unsigned char*) mmap(0,
+                          table_size,
+                          PROT_READ|PROT_WRITE,
+                          MAP_PRIVATE|MAP_ANON|MAP_NORESERVE,
+                          -1,
+                          0);
 
   if (__baggybounds_size_table_begin == MAP_FAILED) {
     fprintf (stderr, "Baggy Bounds Table initialization failed!\n");
@@ -182,13 +185,13 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
 //   size. This function stores the binary logarithm of the aligned size
 //   in the baggy bounds table.
 //
-// Inputs:
-//  allocaptr  - The pointer that pointers the allocated object
-//  NumBytes   - The aligned size, including metadata size, of the alloacated
-//               object in bytes
-//
 void
-__internal_register(void *allocaptr, unsigned NumBytes) {
+__internal_register(DebugPoolTy *Pool,
+                    void * allocaptr,
+                    unsigned NumBytes,
+                    TAG,
+                    const char* SourceFilep,
+                    unsigned lineno) {
   uintptr_t Source = (uintptr_t)allocaptr;
   unsigned char size= 0;
   //
@@ -207,7 +210,9 @@ __internal_register(void *allocaptr, unsigned NumBytes) {
   //
   uintptr_t Source1 = Source & ~((1<<size)-1);
   if(Source1 != Source) {
-    printf("%p, %p, %u Not aligned\n", (void*)Source, (void*)Source1, NumBytes);
+    printf("Memory object %p, %p, %u not aligned\n", (void*)Source,
+          (void*)Source1, NumBytes);
+    printf("It is in the file: %s, line number:%d\n", SourceFilep, lineno);
     assert(0 && "Memory objects not aligned");
   }
   Source = Source & ~((1<<size)-1);
@@ -249,12 +254,17 @@ __sc_bb_poolargvregister(int argc, char **argv) {
   //
   // Reallocate argv variable to be the aligned size.
   //
-  char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
+  char ** argv_temp = (char **)__sc_bb_src_poolalloc(NULL,
+                                                     alignedSize,
+                                                     0,
+                                                     "main\n",
+                                                     0);
   
   //
   // Initialize the metadata of argv variable.
   //
-  BBMetaData *data = (BBMetaData*)((uintptr_t)argv_temp + alignedSize - sizeof(BBMetaData));
+  BBMetaData *data = (BBMetaData*)((uintptr_t)argv_temp + alignedSize - sizeof
+                                   (BBMetaData));
   data->size = argv_size;
   data->pool = NULL;
 
@@ -282,20 +292,25 @@ __sc_bb_poolargvregister(int argc, char **argv) {
     //
     // Reallocate each argv string to be the aligned size.
     //
-    char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL, alignedSize, 0, "main\n", 0);
-    argv_index_temp = strcpy(argv_index_temp,  argv[index]);
+    char *argv_index_temp = (char *)__sc_bb_src_poolalloc(NULL,
+                                                          alignedSize,
+                                                          0,
+                                                          "main\n",
+                                                          0);
+    argv_index_temp = strcpy(argv_index_temp, argv[index]);
 
     //
     // Initialize the metadata of each argv string.
     //
-    data = (BBMetaData*)((uintptr_t)argv_index_temp + alignedSize - sizeof(BBMetaData));
+    data = (BBMetaData*)((uintptr_t)argv_index_temp + alignedSize - sizeof
+                        (BBMetaData));
     data->size = argv_index_size;
     data->pool = NULL;
 
     //
     // Register each argv string.
     //
-    __internal_register(argv_index_temp, adjustedSize);
+    __internal_register(NULL, argv_index_temp, adjustedSize, 0, "<unknown>", 0);
     argv_temp[index] = argv_index_temp;
   }
   argv_temp[argc] = NULL;
@@ -307,7 +322,7 @@ __sc_bb_poolargvregister(int argc, char **argv) {
   //
   // Note that the argv array is supposed to end with a NULL pointer element.
   //
-  __internal_register(argv_temp, argv_adjustedsize);
+  __internal_register(NULL, argv_temp, argv_adjustedsize, 0, "<unknown>", 0);
 
   return (void*)argv_temp;
 }
@@ -331,7 +346,12 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
   // the allocation+metadata isn't threaded through the calls.
   // Also, only heap allocations currently have this metadata, so it needs
   // to be here instead of inside __internal_register.
-  __internal_register(allocaptr, NumBytes+sizeof(BBMetaData));
+  __internal_register(Pool,
+                      allocaptr,
+                      NumBytes + sizeof(BBMetaData),
+                      tag,
+                      SourceFilep,
+                      lineno);
   return;
 }
 
@@ -348,7 +368,12 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
                                 unsigned NumBytes, TAG,
                                 const char* SourceFilep,
                                 unsigned lineno) {
-  __internal_register(allocaptr, NumBytes + sizeof(BBMetaData));
+  __internal_register(Pool,
+                      allocaptr,
+                      NumBytes + sizeof(BBMetaData),
+                      tag,
+                      SourceFilep,
+                      lineno);
   return;
 }
 
@@ -396,7 +421,12 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
                                        unsigned NumBytes,TAG,
                                        const char *SourceFilep,
                                        unsigned lineno) {
-  __internal_register(allocaptr, NumBytes + sizeof(BBMetaData));
+  __internal_register(Pool,
+                      allocaptr,
+                      NumBytes + sizeof(BBMetaData),
+                      tag,
+                      SourceFilep,
+                      lineno);
 }
 
 //
