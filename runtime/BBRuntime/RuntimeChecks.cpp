@@ -31,6 +31,7 @@
 
 #define TAG unsigned tag
 
+#include <errno.h>
 #include <stdio.h>
 
 extern FILE * ReportLog;
@@ -176,7 +177,10 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
                  TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
-  
+  // If the address being checked is errno, then the check can pass.
+  unsigned char * errnoPtr = (unsigned char *) &errno;
+  if ((unsigned char *)Node == errnoPtr) return;
+
   //
   // Check if is an OOB pointer
   //
@@ -229,6 +233,9 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
                  TAG,
                  const char * SourceFilep,
                  unsigned lineno) {
+  // If the address being checked is errno, then the check can pass.
+  unsigned char * errnoPtr = (unsigned char *) &errno;
+  if ((unsigned char *)Node == errnoPtr) return;
   //
   // Check if is an OOB pointer
   //
@@ -503,6 +510,10 @@ fastlscheck_debug(const char *base, const char *result, unsigned size,
                    unsigned tag,
                    const char * SourceFile,
                    unsigned lineno) {
+  // If the address being checked is errno, then the check can pass.
+  char * errnoPtr = (char *) &errno;
+  if (result == errnoPtr) return;
+
   //
   // If the pointer is within the object, the check passes.  Return the checked
   // pointer.
