@@ -246,7 +246,7 @@ static const size_t __SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES = ((size_t) 4 *
 #if __WORDSIZE == 32
 #define __METADATA_INLINE 
 #else
-#define __METADATA_INLINE __attribute__((__weak__, __always_inline__))
+#define __METADATA_INLINE
 #endif
 
 #define __NO_INLINE __attribute__((__noinline__))
