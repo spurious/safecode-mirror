@@ -77,7 +77,7 @@ unsigned char * __baggybounds_size_table_begin;
 #if defined(_LP64)
 const size_t table_size = 1L<<43;
 #else
-const size_t table_size = 1L<<26;
+const size_t table_size = 1L<<28;
 #endif
 
 
@@ -173,7 +173,7 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
     assert(0 && "Table Init Failed");
     abort();
   }
-
+  //printf("__baggybounds_size_table_begin is %p\n", __baggybounds_size_table_begin);
   return;
 }
 
@@ -595,7 +595,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
   }
 
   uintptr_t Source = (uintptr_t)Node;
-  if (Source & SET_MASK) {
+  if (Source >= SET_MASK) {
     return 0;
   }
 

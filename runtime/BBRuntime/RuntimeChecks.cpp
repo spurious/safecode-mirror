@@ -53,7 +53,7 @@ using namespace NAMESPACE_SC;
 //  0xc0000000. Current we only handle 64-bit OS and 32-bit Linux OS.
 //
 static inline int isOOB(uintptr_t p) {
-  return (p & SET_MASK);
+  return (p >= SET_MASK);
 }
 
 //
@@ -82,9 +82,9 @@ static inline int isInUpperHalf(uintptr_t p) {
 // Description:
 //  This function returns the actual value of a marked OOB pointer.
 //
-static inline uintptr_t getActualValue(uintptr_t p) {
-  return (p & UNSET_MASK);
-}
+//static inline uintptr_t getActualValue(uintptr_t p) {
+//  return (p & UNSET_MASK);
+//}
 
 //
 // Function: rewritePtr()
@@ -139,9 +139,9 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
       //
       // This means that Source is an OOB pointer
       //
-      Source = getActualValue(Source);
-      Source += ((isInUpperHalf(Source)) ? SLOTSIZE : -SLOTSIZE);
-      Dest = getActualValue(Dest);
+      //Source = getActualValue(Source);
+      //Source += ((isInUpperHalf(Source)) ? SLOTSIZE : -SLOTSIZE);
+      //Dest = getActualValue(Dest);
    } 
   //
   // Look for the bounds in the table
@@ -184,7 +184,7 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if ((uintptr_t)Node & SET_MASK) {
+  if (isOOB((uintptr_t)Node)) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -239,7 +239,7 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if ((uintptr_t)Node & SET_MASK) {
+  if (isOOB((uintptr_t)Node)) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -311,7 +311,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if ((uintptr_t)Node & SET_MASK) {
+  if (isOOB((uintptr_t)Node)) {
 
     //
     // The object has not been found.  Provide an error.
@@ -448,7 +448,7 @@ void *
 pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   uintptr_t Source = (uintptr_t)ptr;
   if (isOOB(Source)) {
-    Source = getActualValue(Source);
+    //Source = getActualValue(Source);
   }
   
   return (void*)Source;
