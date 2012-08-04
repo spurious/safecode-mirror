@@ -52,8 +52,7 @@ using std::string;
 
 using namespace llvm;
 
-namespace llvm
-{
+namespace llvm {
 
 // Identifier variable for the pass
 char StringTransform::ID = 0;
@@ -130,6 +129,8 @@ ADD_STATISTIC_FOR(stpcpy);
 ADD_STATISTIC_FOR(strnlen);
 #endif
 
+STATISTIC(NumStringChecks, "Number of calls to poolcheckstr() added");
+
 //
 // Functions that aren't handled (yet...):
 //  - stpncpy and __stpncpy_chk
@@ -153,14 +154,14 @@ ST("string_transform", "Secure C standard string library calls");
 //  name - The name of the function which uses a string input.
 //  argNo - The argument of the function which is a string.
 //
-static void
+static bool
 addStringCheck (Module & M, const std::string & name, unsigned argNo) {
   //
   // Get the function that uses a string.  If it is not used within the
   // program, do nothing.
   //
   Function * F = M.getFunction (name);
-  if (!F) return;
+  if (!F) return false;
 
   //
   // Get the type expected for string arguments.
@@ -171,7 +172,7 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
   // Don't instrument calls to the function if it is defined in this program.
   //
   if (!(F->isDeclaration()))
-    return;
+    return false;
 
   //
   // Scan through the module for uses of the function to instrument.
@@ -188,6 +189,11 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
       continue;
     callsToInstrument.push_back(CS.getInstruction());
   }
+
+  //
+  // Keep track of changes to the module.
+  //
+  bool changed = false;
 
   //
   // Go through all of the calls and instrument them.
@@ -225,9 +231,16 @@ addStringCheck (Module & M, const std::string & name, unsigned argNo) {
     //
     if (MDNode *DebugNode = CS.getInstruction()->getMetadata("dbg"))
       CallToStringCheck->setMetadata("dbg", DebugNode);
+
+    //
+    // mark that we modified something in the module and also update the 
+    // string check statistic.
+    //
+    changed = true;
+    ++NumStringChecks;
   }
 
-  return;
+  return changed;
 }
 
 //
@@ -261,106 +274,106 @@ StringTransform::runOnModule (Module & M) {
   //
   // Add basic checks on strings which are read by their C library functions.
   //
-  addStringCheck (M, "access", 0);
-  addStringCheck (M, "chdir", 0);
-  addStringCheck (M, "chmod", 0);
-  addStringCheck (M, "chown", 0);
-  addStringCheck (M, "creat", 0);
-  addStringCheck (M, "dlopen", 0);
-  addStringCheck (M, "fattach", 1);
-  addStringCheck (M, "fchmodat", 1);
-  addStringCheck (M, "fdopen", 1);
-  addStringCheck (M, "fopen", 0);
-  addStringCheck (M, "\01_fopen", 0);
-  addStringCheck (M, "freopen", 0);
-  addStringCheck (M, "fstatat", 1);
-  addStringCheck (M, "ftok", 0);
-  addStringCheck (M, "ftw", 0);
-  addStringCheck (M, "getaddrinfo", 0);
-  addStringCheck (M, "getenv", 0);
-  addStringCheck (M, "gethostbyname", 0);
-  addStringCheck (M, "lchmod", 0);
-  addStringCheck (M, "lchown", 0);
-  addStringCheck (M, "link", 0);
-  addStringCheck (M, "link", 1);
-  addStringCheck (M, "linkat", 1);
-  addStringCheck (M, "linkat", 3);
-  addStringCheck (M, "lstat", 0);
-  addStringCheck (M, "mkdir", 0);
-  addStringCheck (M, "mkdirat", 1);
-  addStringCheck (M, "mkfifo", 0);
-  addStringCheck (M, "mkfifoat", 1);
-  addStringCheck (M, "mknod", 0);
-  addStringCheck (M, "mknodat", 1);
-  addStringCheck (M, "mount", 0);
-  addStringCheck (M, "mount", 1);
-  addStringCheck (M, "mount", 2);
-  addStringCheck (M, "open", 0);
-  addStringCheck (M, "openat", 1);
-  addStringCheck (M, "openlog", 0);
-  addStringCheck (M, "popen", 0);
-  addStringCheck (M, "putenv", 0);
-  addStringCheck (M, "remove", 0);
-  addStringCheck (M, "rename", 0);
-  addStringCheck (M, "rename", 1);
-  addStringCheck (M, "renameat", 1);
-  addStringCheck (M, "renameat", 3);
-  addStringCheck (M, "rmdir", 0);
-  addStringCheck (M, "setenv", 0);
-  addStringCheck (M, "shm_open", 0);
-  addStringCheck (M, "shm_unlink", 0);
-  addStringCheck (M, "stat", 0);
-  addStringCheck (M, "statvfs", 0);
-  addStringCheck (M, "symlink", 0);
-  addStringCheck (M, "symlink", 1);
-  addStringCheck (M, "system", 0);
-  addStringCheck (M, "tempnam", 0);
-  addStringCheck (M, "tempnam", 1);
-  addStringCheck (M, "truncate", 0);
-  addStringCheck (M, "unlink", 0);
-  addStringCheck (M, "unsetenv", 0);
-  addStringCheck (M, "utime", 0);
-  addStringCheck (M, "utimensat", 1);
-  addStringCheck (M, "utimes", 0);
+  chgd |= addStringCheck (M, "access", 0);
+  chgd |= addStringCheck (M, "chdir", 0);
+  chgd |= addStringCheck (M, "chmod", 0);
+  chgd |= addStringCheck (M, "chown", 0);
+  chgd |= addStringCheck (M, "creat", 0);
+  chgd |= addStringCheck (M, "dlopen", 0);
+  chgd |= addStringCheck (M, "fattach", 1);
+  chgd |= addStringCheck (M, "fchmodat", 1);
+  chgd |= addStringCheck (M, "fdopen", 1);
+  chgd |= addStringCheck (M, "fopen", 0);
+  chgd |= addStringCheck (M, "\01_fopen", 0);
+  chgd |= addStringCheck (M, "freopen", 0);
+  chgd |= addStringCheck (M, "fstatat", 1);
+  chgd |= addStringCheck (M, "ftok", 0);
+  chgd |= addStringCheck (M, "ftw", 0);
+  chgd |= addStringCheck (M, "getaddrinfo", 0);
+  chgd |= addStringCheck (M, "getenv", 0);
+  chgd |= addStringCheck (M, "gethostbyname", 0);
+  chgd |= addStringCheck (M, "lchmod", 0);
+  chgd |= addStringCheck (M, "lchown", 0);
+  chgd |= addStringCheck (M, "link", 0);
+  chgd |= addStringCheck (M, "link", 1);
+  chgd |= addStringCheck (M, "linkat", 1);
+  chgd |= addStringCheck (M, "linkat", 3);
+  chgd |= addStringCheck (M, "lstat", 0);
+  chgd |= addStringCheck (M, "mkdir", 0);
+  chgd |= addStringCheck (M, "mkdirat", 1);
+  chgd |= addStringCheck (M, "mkfifo", 0);
+  chgd |= addStringCheck (M, "mkfifoat", 1);
+  chgd |= addStringCheck (M, "mknod", 0);
+  chgd |= addStringCheck (M, "mknodat", 1);
+  chgd |= addStringCheck (M, "mount", 0);
+  chgd |= addStringCheck (M, "mount", 1);
+  chgd |= addStringCheck (M, "mount", 2);
+  chgd |= addStringCheck (M, "open", 0);
+  chgd |= addStringCheck (M, "openat", 1);
+  chgd |= addStringCheck (M, "openlog", 0);
+  chgd |= addStringCheck (M, "popen", 0);
+  chgd |= addStringCheck (M, "putenv", 0);
+  chgd |= addStringCheck (M, "remove", 0);
+  chgd |= addStringCheck (M, "rename", 0);
+  chgd |= addStringCheck (M, "rename", 1);
+  chgd |= addStringCheck (M, "renameat", 1);
+  chgd |= addStringCheck (M, "renameat", 3);
+  chgd |= addStringCheck (M, "rmdir", 0);
+  chgd |= addStringCheck (M, "setenv", 0);
+  chgd |= addStringCheck (M, "shm_open", 0);
+  chgd |= addStringCheck (M, "shm_unlink", 0);
+  chgd |= addStringCheck (M, "stat", 0);
+  chgd |= addStringCheck (M, "statvfs", 0);
+  chgd |= addStringCheck (M, "symlink", 0);
+  chgd |= addStringCheck (M, "symlink", 1);
+  chgd |= addStringCheck (M, "system", 0);
+  chgd |= addStringCheck (M, "tempnam", 0);
+  chgd |= addStringCheck (M, "tempnam", 1);
+  chgd |= addStringCheck (M, "truncate", 0);
+  chgd |= addStringCheck (M, "unlink", 0);
+  chgd |= addStringCheck (M, "unsetenv", 0);
+  chgd |= addStringCheck (M, "utime", 0);
+  chgd |= addStringCheck (M, "utimensat", 1);
+  chgd |= addStringCheck (M, "utimes", 0);
 
   //
   // Handle 64-bit versions of these functions that may exist on hybrid 32/64
   // bit systems.
   //
-  addStringCheck (M, "access64", 0);
-  addStringCheck (M, "chdir64", 0);
-  addStringCheck (M, "chmod64", 0);
-  addStringCheck (M, "chown64", 0);
-  addStringCheck (M, "creat64", 0);
-  addStringCheck (M, "fopen64", 0);
-  addStringCheck (M, "lchmod64", 0);
-  addStringCheck (M, "lchown64", 0);
-  addStringCheck (M, "link64", 0);
-  addStringCheck (M, "link64", 1);
-  addStringCheck (M, "lstat64", 0);
-  addStringCheck (M, "mkdir64", 0);
-  addStringCheck (M, "mkfifo64", 0);
-  addStringCheck (M, "mknod64", 0);
-  addStringCheck (M, "open64", 0);
-  addStringCheck (M, "openat64", 1);
-  addStringCheck (M, "remove64", 0);
-  addStringCheck (M, "rename64", 0);
-  addStringCheck (M, "rename64", 1);
-  addStringCheck (M, "rmdir64", 0);
-  addStringCheck (M, "stat64", 0);
-  addStringCheck (M, "symlink64", 0);
-  addStringCheck (M, "symlink64", 1);
-  addStringCheck (M, "unlink64", 0);
+  chgd |= addStringCheck (M, "access64", 0);
+  chgd |= addStringCheck (M, "chdir64", 0);
+  chgd |= addStringCheck (M, "chmod64", 0);
+  chgd |= addStringCheck (M, "chown64", 0);
+  chgd |= addStringCheck (M, "creat64", 0);
+  chgd |= addStringCheck (M, "fopen64", 0);
+  chgd |= addStringCheck (M, "lchmod64", 0);
+  chgd |= addStringCheck (M, "lchown64", 0);
+  chgd |= addStringCheck (M, "link64", 0);
+  chgd |= addStringCheck (M, "link64", 1);
+  chgd |= addStringCheck (M, "lstat64", 0);
+  chgd |= addStringCheck (M, "mkdir64", 0);
+  chgd |= addStringCheck (M, "mkfifo64", 0);
+  chgd |= addStringCheck (M, "mknod64", 0);
+  chgd |= addStringCheck (M, "open64", 0);
+  chgd |= addStringCheck (M, "openat64", 1);
+  chgd |= addStringCheck (M, "remove64", 0);
+  chgd |= addStringCheck (M, "rename64", 0);
+  chgd |= addStringCheck (M, "rename64", 1);
+  chgd |= addStringCheck (M, "rmdir64", 0);
+  chgd |= addStringCheck (M, "stat64", 0);
+  chgd |= addStringCheck (M, "symlink64", 0);
+  chgd |= addStringCheck (M, "symlink64", 1);
+  chgd |= addStringCheck (M, "unlink64", 0);
 
   //
   // exec() family (note only partial support; we only check the first
   // argument).
   //
-  addStringCheck (M, "execl", 0);
-  addStringCheck (M, "execlp", 0);
-  addStringCheck (M, "execle", 0);
-  addStringCheck (M, "execv", 0);
-  addStringCheck (M, "execvp", 0);
+  chgd |= addStringCheck (M, "execl", 0);
+  chgd |= addStringCheck (M, "execlp", 0);
+  chgd |= addStringCheck (M, "execle", 0);
+  chgd |= addStringCheck (M, "execv", 0);
+  chgd |= addStringCheck (M, "execvp", 0);
 
   // Functions from <stdio.h>, <syslog.h>
   chgd |= transform(M, "vprintf",  2, 1, Int32Ty, st_xform_vprintf);
