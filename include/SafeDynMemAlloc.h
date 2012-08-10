@@ -48,7 +48,6 @@
 #include "llvm/Constants.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/Support/Debug.h"
 
 #include "poolalloc/PoolAllocate.h"

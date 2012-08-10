@@ -215,7 +215,7 @@ ConvertUnsafeAllocas::InsertFreesAtEnd(Instruction *MI) {
   std::vector<Instruction*> FreePoints;
   for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
     if (isa<ReturnInst>(BB->getTerminator()) ||
-        isa<UnwindInst>(BB->getTerminator()))
+        isa<ResumeInst>(BB->getTerminator()))
       FreePoints.push_back(BB->getTerminator());
 
   //
@@ -633,7 +633,7 @@ PAConvertUnsafeAllocas::InsertFreesAtEndNew (Value * PH, Instruction * MI) {
   std::vector<Instruction*> FreePoints;
   for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
     if (isa<ReturnInst>(BB->getTerminator()) ||
-        isa<UnwindInst>(BB->getTerminator()))
+        isa<ResumeInst>(BB->getTerminator()))
       FreePoints.push_back(BB->getTerminator());
 
   // We have the Free points; now we construct the free instructions at each

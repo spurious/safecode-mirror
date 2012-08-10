@@ -19,7 +19,7 @@
 #define DEBUG_TYPE "debug-instrumentation"
 
 
-#include "llvm/Analysis/DebugInfo.h"
+#include "llvm/DebugInfo.h"
 #include "llvm/Constants.h"
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Instructions.h"
@@ -28,7 +28,6 @@
 #include "llvm/Metadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
@@ -112,7 +111,7 @@ copyToDefaultSection (Value * V) {
                                                      GV->getInitializer(),
                                                      GV->getName(),
                                                      0,
-                                                     GV->isThreadLocal(),
+                                                     GV->getThreadLocalMode(),
                                                      0);
         SrcGV->copyAttributesFrom (GV);
         SrcGV->setSection ("");
@@ -182,7 +181,8 @@ LocationSourceInfo::operator() (CallInst * CI) {
   if (SourceFileMap.find (filename) != SourceFileMap.end()) {
     SourceFile = SourceFileMap[filename];
   } else {
-    Constant * FInit = ConstantArray::get (CI->getContext(), filename);
+    Constant * FInit = ConstantDataArray::getString (CI->getContext(),
+                                                     filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),
@@ -261,7 +261,8 @@ VariableSourceInfo::operator() (CallInst * CI) {
   if (SourceFileMap.find (filename) != SourceFileMap.end()) {
     SourceFile = SourceFileMap[filename];
   } else {
-    Constant * FInit = ConstantArray::get (CI->getContext(), filename);
+    Constant * FInit = ConstantDataArray::getString (CI->getContext(),
+                                                     filename);
     Module * M = CI->getParent()->getParent()->getParent();
     SourceFile = new GlobalVariable (*M,
                                      FInit->getType(),

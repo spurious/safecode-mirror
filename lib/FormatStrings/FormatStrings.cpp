@@ -17,7 +17,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/LLVMContext.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/Support/IRBuilder.h"
+#include "llvm/IRBuilder.h"
 
 #include "safecode/FormatStrings.h"
 #include "safecode/Utility.h"

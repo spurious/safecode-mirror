@@ -79,7 +79,8 @@ RegisterRuntimeInitializer::setLogFileName (llvm::Module & M) {
   //
   // Create a global variable containing the log filename.
   //
-  Constant * LogNameInit = ConstantArray::get (M.getContext(), logfilename);
+  Constant * LogNameInit = ConstantDataArray::getString (M.getContext(),
+                                                         logfilename);
   Value * LogName = new GlobalVariable (M,
                                         LogNameInit->getType(),
                                         true,

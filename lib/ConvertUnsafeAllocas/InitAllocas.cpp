@@ -25,7 +25,6 @@
 #include "safecode/Utility.h"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/Pass.h"
 #include "llvm/BasicBlock.h"
 #include "llvm/Type.h"

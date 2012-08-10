@@ -615,8 +615,7 @@ void SoftBoundCETSPass::transformMain(Module& module) {
 
   // set the new function attributes 
   new_func->copyAttributesFrom(main_func);
-  new_func->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), 
-                                           param_attrs_vec.end()));
+  new_func->setAttributes(AttrListPtr::get(param_attrs_vec));
     
   main_func->getParent()->getFunctionList().insert(main_func, new_func);
   main_func->replaceAllUsesWith(new_func);
@@ -1585,8 +1584,7 @@ int SoftBoundCETSPass:: getNumPointerArgsAndReturn(CallInst* call_inst){
 
   int total_pointer_count = 0;
   SmallVector<AttributeWithIndex, 8> param_attrs_vec;
-  call_inst->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), 
-                                            param_attrs_vec.end()));  
+  call_inst->setAttributes(AttrListPtr::get(param_attrs_vec));  
     
   CallSite cs(call_inst);
   for(unsigned i = 0; i < cs.arg_size(); i++){
@@ -3274,7 +3272,7 @@ void SoftBoundCETSPass:: renameFunctionName(Function* func,
   FunctionType* nfty = FunctionType::get(ret_type, params, fty->isVarArg());
   Function* new_func = Function::Create(nfty, func->getLinkage(), transformFunctionName(func->getName()));
   new_func->copyAttributesFrom(func);
-  new_func->setAttributes(AttrListPtr::get(param_attrs_vec.begin(), param_attrs_vec.end()));    
+  new_func->setAttributes(AttrListPtr::get(param_attrs_vec));    
   func->getParent()->getFunctionList().insert(func, new_func);
     
   if(!external) {

@@ -14,7 +14,6 @@
 
 #define DEBUG_TYPE "stackreg"
 
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instruction.h"
 #include "llvm/Module.h"
@@ -254,7 +253,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
     // is needed.
     //
     Instruction * Terminator = BI->getTerminator();
-    if ((isa<ReturnInst>(Terminator)) || (isa<UnwindInst>(Terminator))) {
+    if ((isa<ReturnInst>(Terminator)) || (isa<ResumeInst>(Terminator))) {
       ExitPoints.push_back (Terminator);
     }
   }

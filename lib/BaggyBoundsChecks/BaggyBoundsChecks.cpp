@@ -24,7 +24,7 @@
 #include "llvm/Module.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Support/TypeBuilder.h"
+#include "llvm/TypeBuilder.h"
 
 #include "safecode/BaggyBoundsChecks.h"
 #include "safecode/Runtime/BBMetaData.h"
@@ -527,7 +527,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
   FunctionType *NewFTy = FunctionType::get(FTy->getReturnType(), TP, false);
   Function *NewF = Function::Create(NewFTy,
                           GlobalValue::InternalLinkage,
-                          F->getNameStr() + ".TEST",
+                          F->getName() + ".TEST",
                           F->getParent());
   //
   // Create the arguments mapping between the original and the clonal function

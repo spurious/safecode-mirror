@@ -616,7 +616,7 @@ namespace llvm {
 	Function * origFunc = L->getHeader()->getParent();
 		for (Function::iterator it = origFunc->begin(), end = origFunc->end(); it != end; ++it) {
 			Instruction * TI = it->getTerminator();
-			if (isa<ReturnInst>(TI) || isa<UnwindInst>(TI)) {
+			if (isa<ReturnInst>(TI) || isa<ResumeInst>(TI)) {
 				CallInst::Create(sFuncWaitForSyncToken, "", TI);
 			}
 		}

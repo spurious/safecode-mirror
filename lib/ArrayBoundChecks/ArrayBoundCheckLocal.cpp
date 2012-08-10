@@ -23,13 +23,13 @@
 #include <set>
 #include <queue>
 
+using namespace llvm;
+
 namespace {
   STATISTIC (allGEPs ,    "Total Number of GEPs Queried");
   STATISTIC (safeGEPs ,   "Number of GEPs Proven Safe Statically");
   STATISTIC (unsafeGEPs , "Number of GEPs Proven Unsafe Statically");
 }
-
-namespace llvm {
 
 RegisterPass<ArrayBoundsCheckLocal>
 X ("abc-local", "Local Array Bounds Check pass");
@@ -201,4 +201,4 @@ bool
 ArrayBoundsCheckLocal::isGEPSafe (GetElementPtrInst * GEP) {
   return ((SafeGEPs.count(GEP)) > 0);
 }
-}
+

@@ -695,7 +695,7 @@ RegisterFunctionByvalArguments::runOnFunction (Function & F) {
   //
   SmallSet<BasicBlock *, 4> exitBlocks;
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-    if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+    if (isa<ReturnInst>(*I) || isa<ResumeInst>(*I)) {
       exitBlocks.insert(I->getParent());
     }
   }

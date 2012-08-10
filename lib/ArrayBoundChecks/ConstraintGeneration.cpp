@@ -22,7 +22,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Constants.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "ConstraintGeneration.h"
