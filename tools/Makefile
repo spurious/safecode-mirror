@@ -1,7 +1,7 @@
 LEVEL = ..
 PARALLEL_DIRS = \
   WatchDog \
-  LTO \
+  #LTO \
   #clang \
   #Sc \
   #InjectF \
