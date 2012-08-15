@@ -163,6 +163,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   GlobalVariable * GV = mustAdjustGlobalValue(V);
   if (!GV) return;
+  if (!GV->hasInitializer()) return;
 
   //
   // Find the greatest power-of-two size that is larger than the object's
@@ -170,6 +171,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   Type * GlobalType = GV->getType()->getElementType();
   unsigned long objectSize = TD->getTypeAllocSize(GlobalType);
+  if (!objectSize) return;
   unsigned long adjustedSize = objectSize + sizeof(BBMetaData);
   unsigned int size = findP2Size (adjustedSize);
 
@@ -181,72 +183,66 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   if (GV->getAlignment() > alignment) alignment = GV->getAlignment();
 
   //
-  // Adjust the size and alignment of the memory object.  If the object size
-  // is already a power-of-two, then just set the alignment.  Otherwise, add
-  // fields to the memory object to make it sufficiently large.
+  // Create a structure type.  The first element will be the global memory
+  // object; the second will be an array of bytes that will pad the size out;
+  // the third will be the metadata for this object.
   //
-  if (adjustedSize == (unsigned)(1u<<size)) {
-    GV->setAlignment(1u<<size); 
-  } else {
-    //
-    // Create a structure type.  The first element will be the global memory
-    // object; the second will be an array of bytes that will pad the size out;
-    // the third will be the metadata for this object.
-    //
-    Type *Int8Type = Type::getInt8Ty(GV->getContext());
-    Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - adjustedSize);
-    Type *metadataType = TypeBuilder<BBMetaData, false>::get(GV->getContext());
-    StructType *newType = StructType::get(GlobalType,
-                                          newType1,
-                                          metadataType,
-                                          NULL);
+  Type *Int8Type = Type::getInt8Ty(GV->getContext());
+  Type *newType1 = ArrayType::get (Int8Type, (1u<<size) - adjustedSize);
+  Type *metadataType = TypeBuilder<BBMetaData, false>::get(GV->getContext());
+  StructType *newType = StructType::get(GlobalType,
+                                        newType1,
+                                        metadataType,
+                                        NULL);
 
-    //
-    // Create a global initializer.  The first element has the initializer of
-    // the original memory object, the second initializes the padding array,
-    // the third initializes the object's metadata.
-    //
-    Constant *c = 0;
-    if (GV->hasInitializer()) {
-      std::vector<Constant *> vals(3);
-      vals[0] = GV->getInitializer();
-      vals[1] = Constant::getNullValue(newType1);
-      vals[2] = Constant::getNullValue(metadataType);
-      c = ConstantStruct::get(newType, vals);
-    }
+  //
+  // Store the object's size into a metadata variable.
+  //
+  Type *Int32Type = Type::getInt32Ty (GV->getContext());
+  std::vector<Constant *> metaVals(2);
+  metaVals[0] = ConstantInt::get(Int32Type, objectSize);
+  metaVals[1] = Constant::getNullValue(Int32Type);
+  Constant *c = ConstantStruct::get((StructType *)metadataType, metaVals);
+  GlobalVariable *metaData = new GlobalVariable (*(GV->getParent()),
+                                                 metadataType,
+                                                 GV->isConstant(),
+                                                 GV->getLinkage(),
+                                                 c,
+                                                 "meta." + GV->getName());
 
-    //
-    // Create the new global memory object with the correct alignment.
-    //
-    GlobalVariable *GV_new = new GlobalVariable (*(GV->getParent()),
+  //
+  // Create a global initializer.  The first element has the initializer of
+  // the original memory object, the second initializes the padding array,
+  // the third initializes the object's metadata using the metadata variable.
+  //
+  std::vector<Constant *> vals(3);
+  vals[0] = GV->getInitializer();
+  vals[1] = Constant::getNullValue(newType1);
+  vals[2] = metaData->getInitializer();
+  c = ConstantStruct::get(newType, vals);
+
+  //
+  // Create the new global memory object with the correct alignment.
+  //
+  GlobalVariable *GV_new = new GlobalVariable (*(GV->getParent()),
                                                  newType,
                                                  GV->isConstant(),
                                                  GV->getLinkage(),
                                                  c,
                                                  "baggy." + GV->getName());
-    GV_new->copyAttributesFrom (GV);
-    GV_new->setAlignment(1u<<size);
-    GV_new->takeName (GV);
-
-    //
-    // Store the object size information into the medadata.
-    //
-    Type *Int32Type = Type::getInt32Ty(GV->getContext());
-    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *Two = ConstantInt::getSigned(Int32Type, 2);
-    Value *idx[3] = {Zero, Two, Zero};
-    Value *V = GetElementPtrInst::Create(GV_new,idx, Twine(""));
-    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
-
-    //
-    // Create a GEP expression that will represent the global value and replace
-    // all uses of the global value with the new constant GEP.
-    //
-    Value *idx1[2] = {Zero, Zero};
-    Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx1, 2);
-    GV->replaceAllUsesWith(init);
-    GV->eraseFromParent();
-  }
+  GV_new->copyAttributesFrom (GV);
+  GV_new->setAlignment(1u<<size);
+  GV_new->takeName (GV);
+    
+  //
+  // Create a GEP expression that will represent the global value and replace
+  // all uses of the global value with the new constant GEP.
+  //
+  Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+  Value *idx1[2] = {Zero, Zero};
+  Constant *init = ConstantExpr::getGetElementPtr(GV_new, idx1, 2);
+  GV->replaceAllUsesWith(init);
+  GV->eraseFromParent();
 
   return;
 }
@@ -268,63 +264,54 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
   unsigned char size = findP2Size (adjustedSize);
 
   //
-  // Adjust the size and alignment of the memory object.  If the object size
-  // is already a power-of-two, then just set the alignment.  Otherwise, add
-  // fields to the memory object to make it sufficiently large.
+  // Create necessary types.
   //
-  if (adjustedSize == (unsigned)(1u<<size)) {
-    AI->setAlignment(1u<<size);
-  } else {
-    //
-    // Create necessary types.
-    //
-    Type *Int8Type = Type::getInt8Ty (AI->getContext());
-    Type *Int32Type = Type::getInt32Ty (AI->getContext());
+  Type *Int8Type = Type::getInt8Ty (AI->getContext());
+  Type *Int32Type = Type::getInt32Ty (AI->getContext());
 
-    //
-    // Create a structure type.  The first element will be the global memory
-    // object; the second will be an array of bytes that will pad the size out;
-    // the third will be the metadata for this object.
-    //
-    Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
-    Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
+  //
+  // Create a structure type.  The first element will be the global memory
+  // object; the second will be an array of bytes that will pad the size out;
+  // the third will be the metadata for this object.
+  //
+  Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
+  Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
     
-    StructType *newType = StructType::get(AI->getType()->getElementType(),
-                                          newType1,
-                                          metadataType,
-                                          NULL);
+  StructType *newType = StructType::get(AI->getType()->getElementType(),
+                                        newType1,
+                                        metadataType,
+                                        NULL);
     
-    //
-    // Create the new alloca instruction and set its alignment.
-    //
-    AllocaInst * AI_new = new AllocaInst (newType,
-                                               0,
-                                          (1<<size),
-                                          "baggy." + AI->getName(),
-                                          AI);
-    AI_new->setAlignment(1u<<size);
+  //
+  // Create the new alloca instruction and set its alignment.
+  //
+  AllocaInst * AI_new = new AllocaInst (newType,
+                                             0,
+                                        (1<<size),
+                                        "baggy." + AI->getName(),
+                                        AI);
+  AI_new->setAlignment(1u<<size);
 
-    //
-    // Store the object size information into the medadata.
-    //
-    Value *Zero = ConstantInt::getSigned(Int32Type, 0);
-    Value *Two = ConstantInt::getSigned(Int32Type, 2);
-    Value *idx[3] = {Zero, Two, Zero};
-    Value *V = GetElementPtrInst::Create(AI_new, idx, Twine(""));
-    new StoreInst(ConstantInt::getSigned(Int32Type, objectSize), V);
+  //
+  // Store the object size information into the medadata.
+  //
+  Value *Zero = ConstantInt::getSigned(Int32Type, 0);
+  Value *Two = ConstantInt::getSigned(Int32Type, 2);
+  Value *idx[3] = {Zero, Two, Zero};
+  Value *V = GetElementPtrInst::Create(AI_new, idx, Twine(""), AI);
+  new StoreInst(ConstantInt::get(Int32Type, objectSize), V, AI);
 
-    //
-    // Create a GEP that accesses the first element of this new structure.
-    //
-    Value *idx1[2] = {Zero, Zero};
-    Instruction *init = GetElementPtrInst::Create(AI_new,
-                                                  idx1,
-                                                  Twine(""),
-                                                  AI);
-    AI->replaceAllUsesWith(init);
-    AI->removeFromParent(); 
-    AI_new->setName(AI->getName());
-  }
+  //
+  // Create a GEP that accesses the first element of this new structure.
+  //
+  Value *idx1[2] = {Zero, Zero};
+  Instruction *init = GetElementPtrInst::Create(AI_new,
+                                                idx1,
+                                                Twine(""),
+                                                AI);
+  AI->replaceAllUsesWith(init);
+  AI->removeFromParent(); 
+  AI_new->setName(AI->getName());
 
   return;
 }
@@ -503,22 +490,18 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     unsigned int alignment = 1u << size;
     LEN.push_back(alignment);
 
-    if(adjustedSize == alignment) {
-    // To do
-    } else {
-      //
-      // Create a structure type to pad the argument. The first element will 
-      // be the argument's type; the second will be an array of bytes that 
-      // will pad the size out; the third will be the metadata type.
-      //
-      Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
-      Type *metadataType = TypeBuilder<BBMetaData, false>::get(I->getContext());
-      StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
+    //
+    // Create a structure type to pad the argument. The first element will 
+    // be the argument's type; the second will be an array of bytes that 
+    // will pad the size out; the third will be the metadata type.
+    //
+    Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
+    Type *metadataType = TypeBuilder<BBMetaData, false>::get(I->getContext());
+    StructType *newType = StructType::get(ET, newType1, metadataType, NULL);
 
-      // push the padded type into the vectors
-      TP.push_back(newType->getPointerTo());
-      NTP.push_back(newType);
-    }
+    // push the padded type into the vectors
+    TP.push_back(newType->getPointerTo());
+    NTP.push_back(newType);
   }//end for arguments handling
     
   //
@@ -686,34 +669,30 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
           unsigned int alignment = 1u << size;
           LEN.push_back(alignment);
 
-          if(adjustedSize == alignment) {
-            // To do
-          } else {
-            //
-            // Create a structure type to pad the argument. The first element
-            // will be the argument's type; the second will be an array of 
-            // bytes that will pad the size out; the third will be the metadata 
-            // type.
-            //
-            Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
-            Type *meteTP = TypeBuilder<BBMetaData, false>::get(I->getContext());
-            StructType *newType = StructType::get(ET,
-                                                  newType1,
-                                                  meteTP,
-                                                  NULL);
+          // Create a structure type to pad the argument. The first element
+          // will be the argument's type; the second will be an array of 
+          // bytes that will pad the size out; the third will be the metadata 
+          // type.
+          //
+          Type *newType1 = ArrayType::get(Int8Type, alignment - adjustedSize);
+          Type *meteTP = TypeBuilder<BBMetaData, false>::get(I->getContext());
+          StructType *newType = StructType::get(ET,
+                                                newType1,
+                                                meteTP,
+                                                NULL);
 
               
-            Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()),0);
-            Value *Idx[] = { zero, zero }; 
-            AllocaInst *AINew = new AllocaInst(newType, 0, alignment, "", InsertPoint);
-            LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
-            GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
-                                                                  Idx,
-                                                                  Twine(""),
-                                                                  CI);
-            new StoreInst(LINew, GEPNew, CI);
-            args.push_back(AINew);
-          } 
+          Value *zero = ConstantInt::get(Type::getInt32Ty(F->getContext()),0);
+          Value *Idx[] = { zero, zero }; 
+          AllocaInst *AINew = new AllocaInst(newType, 0, alignment, "", InsertPoint);
+          LoadInst *LINew = new LoadInst(CI->getOperand(i), "", CI);
+          GetElementPtrInst *GEPNew = GetElementPtrInst::Create(AINew,
+                                                                Idx,
+                                                                Twine(""),
+                                                                CI);
+          new StoreInst(LINew, GEPNew, CI);
+          args.push_back(AINew);
+         
         }
 
         // replace the original function with the cloned one.
@@ -725,7 +704,9 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
 
         for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
              I != E; ++I, ++i) {
-          if (I->hasByValAttr()) {
+          if (I->hasByValAttr() && !I->use_empty()) {
+            CallI->removeAttribute(i + 1, CallI->getAttributes()
+                         .getParamAttributes(i+1) & Attribute::Alignment);
             CallI->addAttribute(i + 1,
                          llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
           }
@@ -786,7 +767,7 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     if (!mustCloneFunction(F)) continue;
     
     Function *NewF = cloneFunction(F);
-    callClonedFunction(F, NewF);
+    //callClonedFunction(F, NewF);
   }
   return true;
 }

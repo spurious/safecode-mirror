@@ -15,6 +15,7 @@
 #define _BB_RUNTIME_H_
 
 #include "BitmapAllocator.h"
+#include "safecode/Runtime/SplayTree.h"
 
 #include <iosfwd>
 
@@ -77,6 +78,22 @@ typedef struct DebugMetaData {
 typedef DebugMetaData * PDebugMetaData;
 
 struct DebugPoolTy : public BitmapPoolTy {
+  // Splay tree used for object registration
+  RangeSplaySet<> Objects;
+
+  // Splay tree used for out of bound objects
+  RangeSplayMap<void *> OOB;
+
+  // Splay tree used by dangling pointer runtime
+  RangeSplayMap<PDebugMetaData> DPTree;
+
+  // Cache of recently found memory objects
+  struct {
+    void * lower;
+    void * upper;
+  } objectCache[2];
+
+  unsigned char cacheIndex;
 };
 
 void * rewrite_ptr (DebugPoolTy * Pool, const void * p, const void * ObjStart,
@@ -90,14 +107,6 @@ void installAllocHooks (void);
 #define PPOOL NAMESPACE_SC::DebugPoolTy*
 #define TAG unsigned
 #define SRC_INFO const char *, unsigned int
-
-#if defined(_LP64)
-#define UNSET_MASK 0x7fffffffffff
-#define SET_MASK 0xffff800000000000
-#else
-#define UNSET_MASK 0xbfffffff
-#define SET_MASK 0xc0000000
-#endif
 
 extern "C" {
   void pool_init_runtime(unsigned Dangling,
@@ -166,9 +175,9 @@ extern "C" {
 #endif
 
   // Exact checks
-  void * bb_exactcheck2 (const char *base, const char *result, unsigned size);
-  void * bb_exactcheck2_debug (const char *base, const char *result, unsigned size,
-                            TAG, SRC_INFO);
+  void * bb_exactcheck2 (char *source, char *base, char *result, unsigned size);
+  void * bb_exactcheck2_debug (char *source, char *base, char *result,
+                               unsigned size, TAG, SRC_INFO);
   
   void * pchk_getActualValue (PPOOL, void * src);
 

@@ -22,7 +22,9 @@
 
 #include "ConfigData.h"
 #include "DebugReport.h"
-#include "safecode/Runtime/BBRuntime.h"
+#include "PoolAllocator.h"
+#include "RewritePtr.h"
+
 #include "../include/CWE.h"
 
 #include <cstring>
@@ -56,6 +58,10 @@
 NAMESPACE_SC_BEGIN
 
 struct ConfigData ConfigData;
+
+// Invalid address range
+uintptr_t InvalidUpper = 0xf0000000;
+uintptr_t InvalidLower = 0xc0000000;
 
 // Configuration for C code; flags that we should stop on the first error
 unsigned StopOnError = 0;
@@ -114,6 +120,16 @@ __sc_bb_pooldestroy(DebugPoolTy *Pool) {
 
 void
 pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
+  // Flag for whether we've already initialized the run-time
+  static int initialized = 0;
+
+  //
+  // If the run-time has already been initialized, do nothing.
+  //
+  if (initialized)
+    return;
+  else
+    initialized = 1;
   //
   // Initialize the signal handlers for catching errors.
   //
@@ -124,7 +140,31 @@ pool_init_runtime(unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   //
   // Allocate a range of memory for rewrite pointers.
   //
+  #if defined(_LP64)
+  const unsigned invalidsize = 1 * 1024 * 1024 * 1024;
+  void * Addr = mmap (0, invalidsize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+  if (Addr == MAP_FAILED) {
+     perror ("mmap:");
+     fflush (stdout);
+     fflush (stderr);
+     assert(0 && "valloc failed\n");
+  }
+  //memset (Addr, 0x00, invalidsize);
+  #if !defined(__linux__)
+  madvise (Addr, invalidsize, MADV_FREE);
+  #else
+  madvise (Addr, invalidsize, MADV_DONTNEED);
+  #endif
+  InvalidLower = (uintptr_t) Addr;
+  InvalidUpper = (uintptr_t) Addr + invalidsize;
+  #endif
 
+  if (logregs) {
+    fprintf (stderr, "OOB Area: %p - %p\n", (void *) InvalidLower,
+                                            (void *) InvalidUpper);
+    fflush (stderr);
+  }
+  
   //
   // Leave initialization of the Report logfile to the reporting routines.
   // The libc stdio functions may have not been initialized by this point, so
@@ -346,6 +386,18 @@ __sc_bb_src_poolregister (DebugPoolTy *Pool,
   // the allocation+metadata isn't threaded through the calls.
   // Also, only heap allocations currently have this metadata, so it needs
   // to be here instead of inside __internal_register.
+  
+  //
+  // If the object has zero length, don't do anything.
+  //
+  if (NumBytes == 0) return;
+
+  //
+  // If we're trying to register a NULL pointer, return.
+  //
+  if (!allocaptr)
+    return;
+
   __internal_register(Pool,
                       allocaptr,
                       NumBytes + sizeof(BBMetaData),
@@ -368,6 +420,17 @@ __sc_bb_src_poolregister_stack (DebugPoolTy *Pool,
                                 unsigned NumBytes, TAG,
                                 const char* SourceFilep,
                                 unsigned lineno) {
+  //
+  // If the object has zero length, don't do anything.
+  //
+  if (NumBytes == 0) return;
+
+  //
+  // If we're trying to register a NULL pointer, return.
+  //
+  if (!allocaptr)
+    return;
+  
   __internal_register(Pool,
                       allocaptr,
                       NumBytes + sizeof(BBMetaData),
@@ -421,6 +484,17 @@ __sc_bb_src_poolregister_global_debug (DebugPoolTy *Pool,
                                        unsigned NumBytes,TAG,
                                        const char *SourceFilep,
                                        unsigned lineno) {
+  //
+  // If the object has zero length, don't do anything.
+  //
+  if (NumBytes == 0) return;
+
+  //
+  // If we're trying to register a NULL pointer, return.
+  //
+  if (!allocaptr)
+    return;
+
   __internal_register(Pool,
                       allocaptr,
                       NumBytes + sizeof(BBMetaData),
@@ -604,6 +678,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
     return 0;
   __sc_bb_poolregister(Pool, New, NumBytes);
 
+  uintptr_t Source = (uintptr_t)Node;
   unsigned  char e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   unsigned int size_old = 1 << e;
   uintptr_t Source_new = (uintptr_t)New;

@@ -291,7 +291,7 @@ exactcheck_check (void * Source,
     //
     // Determine if this is a rewrite pointer that is being indexed.
     //
-    if ((logregs) && (((uintptr_t)Dest > (uintptr_t)0xc0000000))) {
+    if ((logregs) && (isRewritePtr ((void *)Dest))) {
       fprintf (stderr, "Was a rewrite: %p\n", Dest);
       fflush (stderr);
     }
@@ -299,12 +299,12 @@ exactcheck_check (void * Source,
     OutOfBoundsViolation v;
     v.type = ViolationInfo::FAULT_OUT_OF_BOUNDS,
       v.faultPC = __builtin_return_address(0),
-      v.faultPtr = Dest,
+      v.faultPtr = RealDest,
       v.CWE = CWEBufferOverflow,
       v.PoolHandle = 0,
       v.dbgMetaData = NULL,
       v.SourceFile = SourceFile,
-      v.objStart = ObjStart,
+      v.objStart = RealObjStart,
       v.objLen = (unsigned)((const char*)ObjEnd - (const char*)ObjStart + 1),
       v.lineNo = lineno;
     

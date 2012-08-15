@@ -12,6 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "DebugReport.h"
+#include "PoolAllocator.h"
+#include "RewritePtr.h"
+
 #include "safecode/Runtime/BBRuntime.h"
 
 #include <algorithm>
@@ -94,7 +97,7 @@ char *bb_pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst
   assert(dst && src && "Null parameters!");
 
   // Check the destination buffer is not OOB.
-  if ((uintptr_t)dst & SET_MASK) {
+  if (isRewritePtr((void *)dst)) {
     std::cout << "Destination buffer is OOB!\n";
 
     DebugViolationInfo v;
@@ -111,7 +114,7 @@ char *bb_pool_strcpy_debug(DebugPoolTy *dstPool, DebugPoolTy *srcPool, char *dst
   }
 
   // Check the source buffer's bounds is not OOB.
-  if ((uintptr_t)src & SET_MASK) {
+  if (isRewritePtr((void*)src)) {
     std::cout << "Source string is OOB!\n";
 
     DebugViolationInfo v;

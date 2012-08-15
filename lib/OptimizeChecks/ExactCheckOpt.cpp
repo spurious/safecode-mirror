@@ -75,6 +75,11 @@ ExactCheckOpt::runOnModule(Module & M) {
   // Add the readnone attribute to the fast checks; they don't use global state
   // to determine if a pointer passes the check.
   //
+  // To clarify, these fuction have Attribute::ReadNone because they are
+  // purely functions of their input parameters -- unlike boundscheck()
+  // (which has Attribute::ReadOnly) whose output can be influenced by 
+  // changes in the heap.
+  //
   ExactCheck2->addFnAttr (Attribute::ReadNone);
   FastLSCheck->addFnAttr (Attribute::ReadNone);
 
@@ -94,7 +99,11 @@ ExactCheckOpt::runOnModule(Module & M) {
     //
     // Also skip gepchecks and memchecks that that we have inserted
     // in this pass.  At present this means that we skip calls to
-    // exactcheck2() and fastlscheck().
+    // exactcheck2() and fastlscheck(), and their debug versions
+    // exactcheck2_debug() and fastlscheck_debug().
+    //
+    // Note the use of strncmp() to match both regular and debug 
+    // versions.
     //
     if (((RuntimeChecks[index].checkType == gepcheck) &&
          (strncmp("exactcheck2", RuntimeChecks[index].name,

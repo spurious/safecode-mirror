@@ -19,9 +19,12 @@
 
 #include "ConfigData.h"
 #include "DebugReport.h"
+#include "PoolAllocator.h"
+#include "RewritePtr.h"
 
-#include "safecode/Runtime/BBRuntime.h"
 #include "safecode/Runtime/BBMetaData.h"
+#include "safecode/Runtime/BBRuntime.h"
+
 #include "../include/CWE.h"
 
 #include <map>
@@ -43,14 +46,7 @@ extern const unsigned int  logregs;
 using namespace NAMESPACE_SC;
 
 //
-// Function: isOOB()
-//  
-// Description:
-//  This function determines whether p is an OOB pointer or not. In our BBC  
-//  implementation, if p is in kernel address space, it is an OOB pointer and 
-//  returns true. On x86_64 machine, kernel address space is greater than
-//  0xffff800000000000 and on x86_32 machine with Linux OS, it is greater than
-//  0xc0000000. Current we only handle 64-bit OS and 32-bit Linux OS.
+// Function: _barebone_pointers_in_bounds()
 //
 static inline int isOOB(uintptr_t p) {
   return (p >= SET_MASK);
@@ -60,24 +56,15 @@ static inline int isOOB(uintptr_t p) {
 // Function: isInUpperHalf()
 //
 // Description:
-//  This function determines whether p that is within SLOTSIZE/2 bytes from the
-//  the original object is pointing to an address before the beginning of the memory 
-//  object or after the end of the memory object. Since in BBC, the allocation bounds 
-//  are aligned to slot boundaries we can find if a OOB pointer is below or above the
-//  allocation by checking whether it lies in the top or the bottom half of a memory 
-//  slot respectively. If p underflowed the buffer,then it will be in the second half
-//  of the slot that precedes the referent. If p overflowed the memory object, then p 
-//  will point in the first half of the slot that comes after the referent. This 
-//  technique only handles OOB pointers within SLOTSIZE/2 bytes from the original object.
-//  More details can see Section 2.4 of BBC paper (Baggy Bounds Checking: An Efficient
-//  and Backwards-Compatiable Defense against Out-of-Bounds Errors)
+//  This is the internal path for a boundscheck() and boundcheckui() calls.
 //
-static inline int isInUpperHalf(uintptr_t p) {
-  return (p & SLOTSIZE/2);
-}
-
+// Inputs:
+//  Source   - The source pointer used in the indexing operation (the GEP).
+//  Dest     - The result pointer of the indexing operation (the GEP).
 //
-// Function: getActualValue()
+// Return:
+//  0:  The Dest is within the valid object in which Source was found.
+//  1:  The Dest is not within the valid object in which Source was found.
 //
 // Description:
 //  This function returns the actual value of a marked OOB pointer.
@@ -99,16 +86,25 @@ static inline uintptr_t rewritePtr(uintptr_t p) {
 
 static inline int
 _barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
+  //
+  // Look for the bounds in the table.
+  //
   unsigned char e;
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
+  // The object is not registed, so it cannot be checked.
+  if (e == 0) return 0; 
 
-  if (e == 0)
-    return Source != Dest;
-
+  //
+  // Get the bounds for the object in which Source was found.
+  //
   uintptr_t begin = Source & ~((1<<e)-1);
   BBMetaData *data = (BBMetaData*)(begin + (1<<e) - sizeof(BBMetaData));
   uintptr_t end = begin + data->size;
 
+  //
+  // If the Dest is within the valid object in which Source was found,
+  // return 0; else return 1.
+  //
   return !(begin <= Source && Source < end && begin <= Dest && Dest < end);
 }
 
@@ -125,14 +121,17 @@ _barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
 //
 static inline void*
 _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
-  //
-  // Check if it is an OOB pointer
-  //
+
   uintptr_t val = 1 ;
   unsigned char e;
+  void * RealSrc = (void *)Source;
+  void * RealDest = (void *)Dest;
 
-  e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
+  //
+  // Check the bounds of the pointers.
+  //
   val = _barebone_pointers_in_bounds(Source, Dest);
+  if(!val) return RealDest;
 
   if (val) {
     if (isOOB(Source)) {
@@ -144,23 +143,32 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
       //Dest = getActualValue(Dest);
    } 
   //
-  // Look for the bounds in the table
+  // Either:
+  //  1) Dest is not within the valid object in which Source was found or
+  //  2) Source is an OOB pointer.
   //
-    e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
-    if (e == 0) {
-      return (void*)Dest;
-    }
-    val = _barebone_pointers_in_bounds(Source, Dest);
-
-  //
-  //Set high bit, for OOB pointer 
-  //
-
-    if (val) {
-        Dest = rewritePtr(Dest);
-    }
+  if (!isRewritePtr((void *)Source)) {
+    // Dest is not within the valid object in which Source was found.
+    RealDest = rewrite_ptr(NULL, RealDest, 0, 0, 0, 0);
+    return RealDest;
   }
-  return (void*)Dest;
+
+  //
+  // This means that Source is an OOB pointer. Compute the original source.
+  //
+  RealSrc = pchk_getActualValue(NULL, (void *)Source);
+  //
+  // Compute the real result pointer.
+  //
+  RealDest = (void *)((intptr_t) RealSrc + Dest - Source);
+  //
+  // Re-check the real result pointer.
+  //
+  val = _barebone_pointers_in_bounds((uintptr_t)RealSrc, (uintptr_t)RealDest);
+  if (!val) return RealDest;
+   
+  RealDest = rewrite_ptr(NULL, RealDest, 0, 0, 0, 0);
+  return RealDest;
 }
 
 //
@@ -204,6 +212,7 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
   //
   unsigned char e;
   e = __baggybounds_size_table_begin[(uintptr_t)Node >> SLOT_SIZE];
+  if (e == 0) return;
 
   uintptr_t ObjStart = (uintptr_t)Node & ~((1<<e)-1);
   BBMetaData *data = (BBMetaData*)(ObjStart + (1<<e) - sizeof(BBMetaData));
@@ -259,6 +268,7 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
   //
   unsigned char e;
   e = __baggybounds_size_table_begin[(uintptr_t)Node >> SLOT_SIZE];
+  if (e == 0) return;
 
   uintptr_t ObjStart = (uintptr_t)Node & ~((1<<e)-1);
   BBMetaData *data = (BBMetaData*)(ObjStart + (1<<e) - sizeof(BBMetaData));
@@ -353,6 +363,7 @@ bb_boundscheck_debug (DebugPoolTy * Pool,
                       void * Dest, TAG, 
                       const char * SourceFile, 
                       unsigned lineno) {
+  if (!isRewritePtr((void *)Source) && (Source == Dest)) return Dest;
   return _barebone_boundscheck((uintptr_t)Source, (uintptr_t)Dest);
 }
 
