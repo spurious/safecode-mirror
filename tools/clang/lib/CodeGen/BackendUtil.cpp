@@ -37,6 +37,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
+#include "CommonMemorySafetyPasses.h"
 #include "safecode/ArrayBoundsCheck.h"
 #include "safecode/BaggyBoundsChecks.h"
 #include "safecode/CFIChecks.h"
@@ -46,13 +47,13 @@
 #include "safecode/InitAllocas.h"
 #include "safecode/InvalidFreeChecks.h"
 #include "safecode/GEPChecks.h"
-#include "safecode/LoadStoreChecks.h"
 #include "safecode/LoggingFunctions.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RegisterBounds.h"
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/RewriteOOB.h"
 #include "safecode/SAFECodePasses.h"
+#include "safecode/SpecializeCMSCalls.h"
 #include "SoftBound/InitializeSoftBound.h"
 #include "SoftBound/SoftBoundCETSPass.h"
 
@@ -250,7 +251,8 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new RegisterStackObjPass ());
     MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
     MPM->add (new DebugInstrument());
-    MPM->add (new InsertLSChecks());
+    MPM->add (createInstrumentMemoryAccessesPass());
+    MPM->add (createSpecializeCMSCallsPass());
     MPM->add (new ScalarEvolution());
     MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());

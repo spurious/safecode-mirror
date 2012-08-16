@@ -37,7 +37,7 @@ USEDLIBS = clangFrontendTool.a clangFrontend.a clangDriver.a \
            clangAnalysis.a clangIndex.a clangARCMigrate.a clangRewrite.a \
            clangAST.a clangLex.a clangBasic.a \
            addchecks.a convert.a debuginstr.a optchecks.a oob.a abc.a softbound.a \
-           sc-support.a cstdlib.a formatstrings.a baggyboundscheck.a
+           sc-support.a cstdlib.a formatstrings.a baggyboundscheck.a cmspasses.a
 
 include $(CLANG_LEVEL)/Makefile
 

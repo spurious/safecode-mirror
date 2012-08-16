@@ -5,7 +5,6 @@ BUILD_ARCHIVE := 1
 LIBRARYNAME=addchecks
 
 SOURCES = GEPChecks.cpp \
-          LoadStoreChecks.cpp \
           CFIChecks.cpp \
           InvalidFreeChecks.cpp \
           RegisterBounds.cpp \

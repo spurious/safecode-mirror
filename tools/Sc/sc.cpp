@@ -52,8 +52,10 @@
 #include "poolalloc/PoolAllocate.h"
 #endif
 
+#include "CommonMemorySafetyPasses.h"
+#include "SpecializeCMSCalls.h"
+
 #include "safecode/GEPChecks.h"
-#include "safecode/LoadStoreChecks.h"
 
 #if 0
 #include "IndirectCallChecks.h"
@@ -344,7 +346,11 @@ int main(int argc, char **argv) {
     Passes.add(new InsertPoolChecks());
 #endif
 
-    if (!DisableLSChecks)  Passes.add(new InsertLSChecks());
+    if (!DisableLSChecks) {
+      Passes.add(createInstrumentMemoryAccessesPass());
+      Passes.add(createSpecializeCMSCallsPass());
+    }
+
     if (!DisableGEPChecks) {
       addStaticGEPCheckingPass(Passes);
       Passes.add(new AllocatorInfoPass());

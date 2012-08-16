@@ -13,6 +13,7 @@ PARALLEL_DIRS = \
                SoftBound \
                BaggyBoundsChecks \
                Utility \
+               CommonMemorySafety \
 #               StackSafety \
 #               SpeculativeChecking \
 #               DanglingPointers \
