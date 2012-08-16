@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-char array[1024];
+static char array[1024];
 
 int
 main (int argc, char ** argv) {

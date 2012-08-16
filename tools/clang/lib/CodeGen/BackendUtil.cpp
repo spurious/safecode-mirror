@@ -52,6 +52,7 @@
 #include "safecode/RegisterBounds.h"
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/RewriteOOB.h"
+#include "safecode/SAFECodeMSCInfo.h"
 #include "safecode/SAFECodePasses.h"
 #include "safecode/SpecializeCMSCalls.h"
 #include "SoftBound/InitializeSoftBound.h"
@@ -256,7 +257,8 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new ScalarEvolution());
     MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());
-    MPM->add (new ExactCheckOpt());
+    MPM->add (createSAFECodeMSCInfoPass());
+    MPM->add (createExactCheckOptPass());
     MPM->add (new OptimizeChecks());
     if (CodeGenOpts.MemSafeTerminate) {
       MPM->add (llvm::createSCTerminatePass ());

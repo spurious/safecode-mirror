@@ -25,44 +25,6 @@
 namespace llvm {
 
 //
-// Pass: ExactCheckOpt
-//
-// Description:
-//  This pass tries to lower bounds checks and load/store checks to exact
-//  checks, that is checks whose bounds information can be determined easily,
-//  say, allocations inside a function or global variables. Therefore SAFECode
-//  does not need to register stuffs in the meta-data.
-//
-struct ExactCheckOpt : public ModulePass {
- public:
-  static char ID;
-  ExactCheckOpt() : ModulePass(ID) {}
-  virtual bool runOnModule (Module & M);
-  const char *getPassName() const {
-    return "Exact check optimization";
-  }
-  
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    // We need to know about SAFECode intrinsics
-    AU.addRequired<AllocatorInfoPass>();
-    AU.setPreservesCFG();
-  }
-
- private:
-    // References to required analysis passes
-    Function *ExactCheck2;
-    Function *FastLSCheck;
-    bool visitCheckingIntrinsic(CallInst * CI, const struct CheckInfo & Info);
-    void rewriteToExactCheck(bool isMemCheck, CallInst * CI,
-                             Value * SourcePointer,
-                             Value * BasePointer, 
-                             Value * ResultPointer,
-                             Value * ResultLength,
-                             Value * Bounds);
-    std::vector<CallInst*> checkingIntrinsicsToBeRemoved;
-};
-
-//
 // Pass: OptimizeChecks
 //
 // Description:

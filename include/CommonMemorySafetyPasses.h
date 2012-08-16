@@ -26,6 +26,17 @@ class PassRegistry;
 FunctionPass *createInstrumentMemoryAccessesPass();
 void initializeInstrumentMemoryAccessesPass(llvm::PassRegistry&);
 
+// Memory safety check info
+void initializeMSCInfoAnalysisGroup(PassRegistry&);
+ImmutablePass *createCommonMSCInfoPass();
+void initializeCommonMSCInfoPass(PassRegistry&);
+ImmutablePass *createNoMSCInfoPass();
+void initializeNoMSCInfoPass(PassRegistry&);
+
+// Convert generic checks to fast checks where possible.
+ModulePass *createExactCheckOptPass();
+void initializeExactCheckOptPass(PassRegistry&);
+
 }
 
 #endif

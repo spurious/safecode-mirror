@@ -51,9 +51,11 @@
 #include "poolalloc/PoolAllocate.h"
 #include "poolalloc/Heuristic.h"
 
+#include "CommonMemorySafetyPasses.h"
 #include "safecode/CompleteChecks.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/OptimizeChecks.h"
+#include "safecode/SAFECodeMSCInfo.h"
 #include "safecode/SafeLoadStoreOpts.h"
 
 #include <cstdlib>
@@ -443,7 +445,8 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
 
     if (UsingSAFECode) {
       passes.add(new TargetData(*_target->getTargetData()));
-      passes.add(new ExactCheckOpt());
+      passes.add(createSAFECodeMSCInfoPass());
+      passes.add(createExactCheckOptPass());
       if (mergedModule->getFunction("main")) {
         passes.add(new CompleteChecks());
       }

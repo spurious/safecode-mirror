@@ -53,7 +53,8 @@
 #endif
 
 #include "CommonMemorySafetyPasses.h"
-#include "SpecializeCMSCalls.h"
+#include "safecode/SpecializeCMSCalls.h"
+#include "safecode/SAFECodeMSCInfo.h"
 
 #include "safecode/GEPChecks.h"
 
@@ -405,7 +406,10 @@ int main(int argc, char **argv) {
     // kernel, or poolalloc() in pool allocation
     Passes.add(new RegisterCustomizedAllocation());      
 
-    if (!DisableExactChecks) Passes.add(new ExactCheckOpt());
+    if (!DisableExactChecks) {
+      Passes.add(createSAFECodeMSCInfoPass());
+      Passes.add(createExactCheckOptPass());
+    }
 
 #if 0
     NOT_FOR_SVA(Passes.add(new RegisterStackObjPass()));

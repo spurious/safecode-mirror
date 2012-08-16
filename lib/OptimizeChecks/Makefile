@@ -10,8 +10,8 @@ ifneq ($(OS),MingW)
 endif
 endif
 
-#SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp MonotonicLoopOpt.cpp
-SOURCES := ExactCheckOpt.cpp OptimizeChecks.cpp GlobalRegisterOpt.cpp \
+#SOURCES := OptimizeChecks.cpp MonotonicLoopOpt.cpp
+SOURCES := OptimizeChecks.cpp GlobalRegisterOpt.cpp \
 					 RemoveSlowChecks.cpp InlineFastChecks.cpp SafeLoadStoreOpts.cpp
 
 include $(LEVEL)/Makefile.common
