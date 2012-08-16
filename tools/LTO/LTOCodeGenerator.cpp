@@ -447,6 +447,7 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
       passes.add(new TargetData(*_target->getTargetData()));
       passes.add(createSAFECodeMSCInfoPass());
       passes.add(createExactCheckOptPass());
+      passes.add(createOptimizeIdenticalLSChecksPass());
       if (mergedModule->getFunction("main")) {
         passes.add(new CompleteChecks());
       }

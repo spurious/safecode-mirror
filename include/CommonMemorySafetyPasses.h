@@ -37,6 +37,10 @@ void initializeNoMSCInfoPass(PassRegistry&);
 ModulePass *createExactCheckOptPass();
 void initializeExactCheckOptPass(PassRegistry&);
 
+// Remove identical load/store checks in basic blocks where possible.
+FunctionPass *createOptimizeIdenticalLSChecksPass();
+void initializeOptimizeIdenticalLSChecksPass(PassRegistry&);
+
 }
 
 #endif
