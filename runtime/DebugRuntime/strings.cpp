@@ -430,8 +430,8 @@ pool_strncasecmp_debug(DebugPoolTy *s1Pool,
   size_t safe   = std::min(n, std::min(s1Safe, s2Safe));
   // Compare the strings safely.
   for (size_t i = 0; i < safe; ++i) {
-    if (std::tolower(str1[i]) != std::tolower(str2[i]))
-      return str1[i] - str2[i];
+    if (int diff = std::tolower(str1[i]) - std::tolower(str2[i]))
+      return diff;
     else if (str1[i] == 0) // End of strings reached.
       return 0;
   }
