@@ -8,6 +8,9 @@
 ##===----------------------------------------------------------------------===##
 CLANG_LEVEL := ../..
 
+LEVEL := $(CLANG_LEVEL)/../..
+
+
 TOOLNAME = c-index-test
 
 # If a separate install prefix was specified for internal tools, use it

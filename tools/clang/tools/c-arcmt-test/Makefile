@@ -8,6 +8,8 @@
 ##===----------------------------------------------------------------------===##
 CLANG_LEVEL := ../..
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 TOOLNAME = c-arcmt-test
 
 # No plugins, optimize startup time.

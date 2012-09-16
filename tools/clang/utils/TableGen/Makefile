@@ -9,7 +9,7 @@
 
 LEVEL = ../../../..
 TOOLNAME = clang-tblgen
-USEDLIBS = LLVMTableGen.a LLVMSupport.a
+LLVMLIBS = LLVMTableGen.a LLVMSupport.a
 REQUIRES_EH := 1
 REQUIRES_RTTI := 1
 

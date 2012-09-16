@@ -24,6 +24,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
 #include "llvm/Target/TargetData.h"
+#include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Transforms/Instrumentation.h"
 
 #include <map>
@@ -41,6 +42,9 @@ namespace {
   class ExactCheckOpt : public ModulePass {
     MSCInfo *MSCI;
     TargetData *TD;
+#if 1 /* JRM */ 
+    TargetLibraryInfo *TLI;
+#endif /* JRM */
     ObjectSizeOffsetEvaluator *ObjSizeEval;
 
     PointerType *VoidPtrTy;
@@ -88,8 +92,15 @@ ModulePass *llvm::createExactCheckOptPass() {
 bool ExactCheckOpt::runOnModule(Module &M) {
   MSCI = &getAnalysis<MSCInfo>();
   TD = &getAnalysis<TargetData>();
+#if 1 /* JRM */
+  TLI = &getAnalysis<TargetLibraryInfo>();
+#endif /* JRM */
 
+#if 0 /* JRM */ /* original code */
   ObjectSizeOffsetEvaluator TheObjSizeEval(TD, M.getContext());
+#else /* JRM */ /* modified code */
+  ObjectSizeOffsetEvaluator TheObjSizeEval(TD, TLI, M.getContext());
+#endif /* JRM */
   ObjSizeEval = &TheObjSizeEval;
 
   Type *VoidTy = Type::getVoidTy(M.getContext());

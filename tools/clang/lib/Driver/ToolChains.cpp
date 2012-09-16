@@ -33,6 +33,17 @@
 
 #include <cstdlib> // ::getenv
 
+// Include llvm/Config/config.h here as it contains the #defines
+// normally set in clang/Config/config.h.  While we have modified
+// the SAFECode configure script to configure clang/Config/config.h,
+// the current configure code does not insert any definitions into 
+// clang/Config/config.h.  While we could modify the SAFECode 
+// configure script further to handle this, there seems to be no 
+// point as long as we can piggy back on llvm/Config/config.h
+//
+//                                         JRM -- 8/26/12
+//
+#include "llvm/Config/config.h"
 #include "clang/Config/config.h" // for GCC_INSTALL_PREFIX
 
 using namespace clang::driver;

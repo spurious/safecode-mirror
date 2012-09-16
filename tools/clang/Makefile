@@ -63,9 +63,14 @@ CXX.Flags += -fno-strict-aliasing
 # Set up Clang's tblgen.
 ifndef CLANG_TBLGEN
   ifeq ($(LLVM_CROSS_COMPILING),1)
+    # this clause should probably be altered for SAFECode as well,
+    # but I'm not sure what to do with it.
+    #
+    # 				-- JRM - 12/08/27
+    #
     CLANG_TBLGEN := $(BuildLLVMToolDir)/clang-tblgen$(BUILD_EXEEXT)
   else
-    CLANG_TBLGEN := $(LLVMToolDir)/clang-tblgen$(EXEEXT)
+    CLANG_TBLGEN := $(ToolDir)/clang-tblgen$(EXEEXT)
   endif
 endif
 ClangTableGen = $(CLANG_TBLGEN) $(TableGen.Flags)

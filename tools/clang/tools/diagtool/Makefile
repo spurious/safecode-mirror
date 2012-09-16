@@ -8,6 +8,8 @@
 ##===----------------------------------------------------------------------===##
 CLANG_LEVEL := ../..
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 TOOLNAME = diagtool 
 
 # No plugins, optimize startup time.

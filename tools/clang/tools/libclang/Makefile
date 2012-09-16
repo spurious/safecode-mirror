@@ -15,6 +15,8 @@ EXPORTED_SYMBOL_FILE = $(PROJ_SRC_DIR)/libclang.exports
 LINK_LIBS_IN_SHARED = 1
 SHARED_LIBRARY = 1
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 include $(CLANG_LEVEL)/../../Makefile.config
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc
 USEDLIBS = clangARCMigrate.a clangRewriteCore.a clangRewriteFrontend.a \

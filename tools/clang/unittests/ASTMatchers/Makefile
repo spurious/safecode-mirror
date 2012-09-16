@@ -9,6 +9,8 @@
 
 CLANG_LEVEL = ../..
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 TESTNAME = ASTMatchers
 include $(CLANG_LEVEL)/../../Makefile.config
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc

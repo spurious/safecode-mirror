@@ -9,6 +9,8 @@
 
 CLANG_LEVEL := ../..
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 TOOLNAME = clang-check
 
 # No plugins, optimize startup time.

@@ -18,6 +18,8 @@ PARALLEL_DIRS = ASTMatchers Basic AST Frontend Lex Tooling
 
 endif  # CLANG_LEVEL
 
+LEVEL := $(CLANG_LEVEL)/../..
+
 include $(CLANG_LEVEL)/Makefile
 
 ifndef IS_UNITTEST_LEVEL

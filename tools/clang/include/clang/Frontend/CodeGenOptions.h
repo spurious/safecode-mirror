@@ -114,6 +114,11 @@ public:
   unsigned UnrollLoops       : 1; ///< Control whether loops are unrolled.
   unsigned UnsafeFPMath      : 1; ///< Allow unsafe floating point optzns.
   unsigned UnwindTables      : 1; ///< Emit unwind tables.
+  unsigned MemSafety         : 1; /// Instrument code with memory safety checks
+  unsigned BaggyBounds       : 1; /// Use Baggy Bounds Checking
+  unsigned MemSafeTerminate  : 1; /// Terminate program on failed memsafe checks
+  unsigned SoftBound         : 1; /// SoftBound+CETS pointer based checking
+
 
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
@@ -189,6 +194,9 @@ public:
   /// The default TLS model to use.
   TLSModel DefaultTLSModel;
 
+  /// The filename to use for logging memory safety violations
+  std::string MemSafetyLogFile;
+
 public:
   CodeGenOptions() {
     AsmVerbose = 0;
@@ -236,6 +244,9 @@ public:
     UnrollLoops = 0;
     UnsafeFPMath = 0;
     UnwindTables = 0;
+    MemSafety = 0;
+    BaggyBounds = 0;
+    SoftBound = 0;
     UseRegisterSizedBitfieldAccess = 0;
     VerifyModule = 1;
     StackRealignment = 0;

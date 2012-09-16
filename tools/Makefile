@@ -1,6 +1,7 @@
 LEVEL = ..
 PARALLEL_DIRS = \
   WatchDog \
+  clang \
   #LTO \
   #clang \
   #Sc \
