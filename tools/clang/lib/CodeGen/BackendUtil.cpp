@@ -310,13 +310,11 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
     MPM->add (new DebugInstrument());
     MPM->add (createInstrumentMemoryAccessesPass());
-    MPM->add (createSpecializeCMSCallsPass());
     MPM->add (new ScalarEvolution());
     MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());
-#if 0 /* JRM */ /* comment out for now */
-    MPM->add (new ExactCheckOpt());
-#endif /* JRM */
+    MPM->add (createSpecializeCMSCallsPass());
+    MPM->add (createExactCheckOptPass());
     MPM->add (new OptimizeChecks());
     if (CodeGenOpts.MemSafeTerminate) {
       MPM->add (llvm::createSCTerminatePass ());

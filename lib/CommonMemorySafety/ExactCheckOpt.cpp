@@ -71,6 +71,7 @@ namespace {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<MSCInfo>();
       AU.addRequired<TargetData>();
+      AU.addRequired<TargetLibraryInfo>();
       AU.setPreservesCFG();
     }
 
