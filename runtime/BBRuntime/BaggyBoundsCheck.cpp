@@ -244,15 +244,13 @@ __internal_register(DebugPoolTy *Pool,
   // If size is smaller than SLOT_SIZE, it is set to be SLOT_SIZE.
   //
   size = (size < SLOT_SIZE) ? SLOT_SIZE : size;
-
   //
   // Get the base of the Source.
   //
   uintptr_t Source1 = Source & ~((1<<size)-1);
   if(Source1 != Source) {
-    printf("Memory object %p, %p, %u not aligned\n", (void*)Source,
+    fprintf(stderr, "Memory object %p, %p, %u not aligned\n", (void*)Source,
           (void*)Source1, NumBytes);
-    printf("It is in the file: %s, line number:%d\n", SourceFilep, lineno);
     assert(0 && "Memory objects not aligned");
   }
   Source = Source & ~((1<<size)-1);

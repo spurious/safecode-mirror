@@ -93,14 +93,18 @@ _barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
   e = __baggybounds_size_table_begin[Source >> SLOT_SIZE];
   // The object is not registed, so it cannot be checked.
   if (e == 0) return 0; 
-
+  //
+  // Currently we does not support alignment that is larger than one page size
+  // in 32bit Linux
+  //
+  if (e > 12) return 0;
   //
   // Get the bounds for the object in which Source was found.
   //
   uintptr_t begin = Source & ~((1<<e)-1);
   BBMetaData *data = (BBMetaData*)(begin + (1<<e) - sizeof(BBMetaData));
+  if (data->size == 0) return 0;
   uintptr_t end = begin + data->size;
-
   //
   // If the Dest is within the valid object in which Source was found,
   // return 0; else return 1.
@@ -123,7 +127,6 @@ static inline void*
 _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
 
   uintptr_t val = 1 ;
-  unsigned char e;
   void * RealSrc = (void *)Source;
   void * RealDest = (void *)Dest;
 

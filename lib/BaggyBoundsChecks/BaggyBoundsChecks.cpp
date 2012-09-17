@@ -121,23 +121,19 @@ mustAdjustGlobalValue (GlobalValue * V) {
   //
   // Don't modify external global variables or variables with no uses.
   // 
-  if (GV->isDeclaration()) {
-    return 0;
-  }
+  //if (GV->isDeclaration()) {
+    //return 0;
+ // }
 
   //
   // Don't bother modifying the size of metadata.
   //
-  if (GV->hasSection()) return 0;
   if (GV->getSection() == "llvm.metadata") return 0;
 
   std::string name = GV->getName();
   if (strncmp(name.c_str(), "llvm.", 5) == 0) return 0;
   if (strncmp(name.c_str(), "baggy.", 6) == 0) return 0;
   if (strncmp(name.c_str(), "__poolalloc", 11) == 0) return 0;
-
-  // Don't modify something created by FreeBSD's ASSYM macro
-  if (name[name.length()-2] == 'w') return 0;
 
   // Don't modify globals in the exitcall section of the Linux kernel
   if (GV->getSection() == ".exitcall.exit") return 0;
@@ -260,6 +256,15 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
   // Get the power-of-two size for the alloca.
   //
   unsigned objectSize = TD->getTypeAllocSize (AI->getAllocatedType());
+  
+  //
+  // If the allocation allocates an array, then the allocated size is a
+  // multiplication.
+  //
+  if (AI->isArrayAllocation()) {
+    unsigned num = cast<ConstantInt>(AI->getOperand(0))->getZExtValue();
+    objectSize = objectSize * num;
+  }
   unsigned adjustedSize = objectSize + sizeof(BBMetaData);
   unsigned char size = findP2Size (adjustedSize);
 
@@ -276,11 +281,16 @@ InsertBaggyBoundsChecks::adjustAlloca (AllocaInst * AI) {
   //
   Type *newType1 = ArrayType::get(Int8Type, (1<<size) - adjustedSize);
   Type *metadataType = TypeBuilder<BBMetaData, false>::get(AI->getContext());
-    
-  StructType *newType = StructType::get(AI->getType()->getElementType(),
-                                        newType1,
-                                        metadataType,
-                                        NULL);
+  
+  Type *ty = AI->getType()->getElementType();
+  if (AI->isArrayAllocation()) {
+    ty = ArrayType::get(Int8Type, objectSize);
+  }
+  
+  StructType *newType = StructType::get(ty,
+                              newType1,
+                              metadataType,
+                              NULL);
     
   //
   // Create the new alloca instruction and set its alignment.
@@ -338,7 +348,7 @@ InsertBaggyBoundsChecks::adjustAllocasFor (Function * F) {
       Value * Ptr = CI->getArgOperand(1)->stripPointerCasts();
       if (AllocaInst * AI = dyn_cast<AllocaInst>(Ptr)){
         adjustAlloca (AI);
-      } 
+      }
     }
   }
 
@@ -766,8 +776,12 @@ InsertBaggyBoundsChecks::runOnModule (Module & M) {
     Function *F = I;
     if (!mustCloneFunction(F)) continue;
     
+#if 0
     Function *NewF = cloneFunction(F);
-    //callClonedFunction(F, NewF);
+    callClonedFunction(F, NewF);
+#else
+    cloneFunction(F);
+#endif
   }
   return true;
 }

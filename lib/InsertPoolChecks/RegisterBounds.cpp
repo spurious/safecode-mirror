@@ -126,6 +126,10 @@ RegisterGlobalVariables::runOnModule(Module & M) {
   for ( ; GI != GE; ++GI) {
     GlobalVariable *GV = dyn_cast<GlobalVariable>(GI);
     if (!GV) continue;
+
+    // Don't register  external global variables
+    //if (GV->isDeclaration()) continue;
+
     std::string name = GV->getName();
 
     // Skip globals in special sections

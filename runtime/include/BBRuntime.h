@@ -161,15 +161,6 @@ extern "C" {
   void * bb_boundscheckui_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
   void * bb_boundscheck_debug (PPOOL, void * S, void * D, TAG, SRC_INFO);
 
-  // CStdLib
-  void * bb_pool_memcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
-  void * bb_pool_memmove(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
-  void * bb_pool_memset(PPOOL sPool, void *s, int c, size_t n);
-  char * bb_pool_strcpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src);
-  char * bb_pool_strcpy_debug(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, TAG, SRC_INFO);
-  size_t bb_pool_strlen(PPOOL stringPool, const char *string);
-  char * pool_strncpy(PPOOL dstPool, PPOOL srcPool, char *dst, const char *src, size_t n);
-
 #ifdef _GNU_SOURCE
   void * bb_pool_mempcpy(PPOOL dstPool, PPOOL srcPool, void *dst, const void *src, size_t n);
 #endif
