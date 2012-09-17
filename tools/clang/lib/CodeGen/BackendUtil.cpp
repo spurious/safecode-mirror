@@ -38,6 +38,7 @@
 
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
+#include "CommonMemorySafetyPasses.h"
 #include "safecode/ArrayBoundsCheck.h"
 #include "safecode/BaggyBoundsChecks.h"
 #include "safecode/CFIChecks.h"
@@ -47,15 +48,14 @@
 #include "safecode/InitAllocas.h"
 #include "safecode/InvalidFreeChecks.h"
 #include "safecode/GEPChecks.h"
-#if 0 /* JRM */ /* comment out for now */
-#include "safecode/LoadStoreChecks.h"
-#endif /* JRM */
 #include "safecode/LoggingFunctions.h"
 #include "safecode/OptimizeChecks.h"
 #include "safecode/RegisterBounds.h"
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/RewriteOOB.h"
+#include "safecode/SAFECodeMSCInfo.h"
 #include "safecode/SAFECodePasses.h"
+#include "safecode/SpecializeCMSCalls.h"
 #include "SoftBound/InitializeSoftBound.h"
 #include "SoftBound/SoftBoundCETSPass.h"
 
@@ -283,6 +283,11 @@ void EmitAssemblyHelper::CreatePasses() {
 
   // Add the memory safety passes
   if (CodeGenOpts.MemSafety) {
+    //
+    // Add passes that record information about run-time checks.
+    //
+    MPM->add (createCommonMSCInfoPass());
+    MPM->add (createSAFECodeMSCInfoPass());
 
     // C standard library / format string function transforms
     if (!CodeGenOpts.BaggyBounds) {
@@ -304,9 +309,8 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new RegisterStackObjPass ());
     MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
     MPM->add (new DebugInstrument());
-#if 0 /* JRM */ /* comment out for now */
-    MPM->add (new InsertLSChecks());
-#endif /* JRM */
+    MPM->add (createInstrumentMemoryAccessesPass());
+    MPM->add (createSpecializeCMSCallsPass());
     MPM->add (new ScalarEvolution());
     MPM->add (new ArrayBoundsCheckLocal());
     MPM->add (new InsertGEPChecks());
