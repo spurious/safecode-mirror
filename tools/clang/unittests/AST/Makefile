@@ -10,7 +10,7 @@
 CLANG_LEVEL = ../..
 LEVEL := $(CLANG_LEVEL)/../..
 TESTNAME = AST
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc
 USEDLIBS = clangTooling.a clangFrontend.a clangSerialization.a clangDriver.a \
            clangRewriteCore.a clangRewriteFrontend.a \

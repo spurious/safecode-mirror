@@ -18,7 +18,7 @@ TOOL_NO_EXPORTS := 1
 # Don't install this.
 NO_INSTALL = 1
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc
 USEDLIBS = clangFrontend.a clangDriver.a clangSerialization.a clangParse.a \
            clangSema.a clangAnalysis.a clangEdit.a clangAST.a clangLex.a \

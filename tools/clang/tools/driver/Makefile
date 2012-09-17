@@ -30,7 +30,7 @@ TOOL_INFO_PLIST := Info.plist
 
 LEVEL := $(CLANG_LEVEL)/../..
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader bitwriter codegen \
                    instrumentation ipo linker Core selectiondag

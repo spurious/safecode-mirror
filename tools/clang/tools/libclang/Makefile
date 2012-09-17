@@ -17,7 +17,7 @@ SHARED_LIBRARY = 1
 
 LEVEL := $(CLANG_LEVEL)/../..
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc
 USEDLIBS = clangARCMigrate.a clangRewriteCore.a clangRewriteFrontend.a \
 	   clangFrontend.a clangDriver.a \

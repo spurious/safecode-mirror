@@ -11,7 +11,7 @@ CLANG_LEVEL := ..
 
 LEVEL := $(CLANG_LEVEL)/../..
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 
 ifndef NO_RUNTIME_LIBS
 

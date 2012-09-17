@@ -10,7 +10,7 @@
 CLANG_LEVEL = ../..
 LEVEL := $(CLANG_LEVEL)/../..
 TESTNAME = Frontend
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../Makefile.common
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser support mc
 USEDLIBS = clangFrontendTool.a clangFrontend.a clangDriver.a \
            clangSerialization.a clangCodeGen.a clangParse.a clangSema.a \
