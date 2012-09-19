@@ -22,13 +22,14 @@ using namespace clang;
 using namespace sema;
 
 CXXRecordDecl *Sema::createLambdaClosureType(SourceRange IntroducerRange,
+                                             TypeSourceInfo *Info,
                                              bool KnownDependent) {
   DeclContext *DC = CurContext;
   while (!(DC->isFunctionOrMethod() || DC->isRecord() || DC->isFileContext()))
     DC = DC->getParent();
   
   // Start constructing the lambda class.
-  CXXRecordDecl *Class = CXXRecordDecl::CreateLambda(Context, DC, 
+  CXXRecordDecl *Class = CXXRecordDecl::CreateLambda(Context, DC, Info,
                                                      IntroducerRange.getBegin(),
                                                      KnownDependent);
   DC->addDecl(Class);
@@ -369,8 +370,6 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     if (!TmplScope->decl_empty())
       KnownDependent = true;
   
-  CXXRecordDecl *Class = createLambdaClosureType(Intro.Range, KnownDependent);
-  
   // Determine the signature of the call operator.
   TypeSourceInfo *MethodTyInfo;
   bool ExplicitParams = true;
@@ -419,7 +418,10 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     if (MethodTyInfo->getType()->containsUnexpandedParameterPack())
       ContainsUnexpandedParameterPack = true;
   }
-  
+
+  CXXRecordDecl *Class = createLambdaClosureType(Intro.Range, MethodTyInfo,
+                                                 KnownDependent);
+
   CXXMethodDecl *Method = startLambdaDefinition(Class, Intro.Range,
                                                 MethodTyInfo, EndLoc, Params);
   
@@ -526,6 +528,10 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
       Diag(C->Loc, diag::err_capture_does_not_name_variable) << C->Id;
       continue;
     }
+
+    // Ignore invalid decls; they'll just confuse the code later.
+    if (Var->isInvalidDecl())
+      continue;
 
     if (!Var->hasLocalStorage()) {
       Diag(C->Loc, diag::err_capture_non_automatic_variable) << C->Id;

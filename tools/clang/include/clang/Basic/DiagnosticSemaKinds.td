@@ -20,17 +20,6 @@ def warn_variables_not_in_loop_body : Warning<
   "used in loop condition not modified in loop body">,
   InGroup<DiagGroup<"loop-analysis">>, DefaultIgnore;
 
-def warn_identical_enum_values : Warning<
-  "all elements of %0 are initialized with literals to value %1">,
-  InGroup<DiagGroup<"unique-enum">>;
-def note_identical_enum_values : Note<
-  "initialize the last element with the previous element to silence "
-  "this warning">;
-def warn_duplicate_enum_values : Warning<
-  "element %0 has been implicitly assigned %1 which another element has "
-  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>, DefaultIgnore;
-def note_duplicate_element : Note<"element %0 also has value %1">;
-
 // Constant expressions
 def err_expr_not_ice : Error<
   "expression is not an %select{integer|integral}0 constant expression">;
@@ -3607,11 +3596,6 @@ def err_typecheck_arc_assign_self_class_method : Error<
 def err_typecheck_arr_assign_enumeration : Error<
   "fast enumeration variables can't be modified in ARC by default; "
   "declare the variable __strong to allow this">;
-def warn_arc_non_pod_class_with_object_member : Warning<
-  "%0 cannot be shared between ARC and non-ARC "
-  "code; add a copy constructor, a copy assignment operator, and a destructor "
-  "to make it ABI-compatible">, InGroup<AutomaticReferenceCountingABI>,
-  DefaultIgnore;
 def warn_arc_retained_assign : Warning<
   "assigning retained object to %select{weak|unsafe_unretained}0 "
   "%select{property|variable}1"
@@ -3621,17 +3605,8 @@ def warn_arc_retained_property_assign : Warning<
   "assigning retained object to unsafe property"
   "; object will be released after assignment">,
   InGroup<ARCUnsafeRetainedAssign>;
-def warn_arc_trivial_member_function_with_object_member : Warning<
-  "%0 cannot be shared between ARC and non-ARC "
-  "code; add a non-trivial %select{copy constructor|copy assignment operator|"
-  "destructor}1 to make it ABI-compatible">, 
-  InGroup<AutomaticReferenceCountingABI>, DefaultIgnore;
 def err_arc_new_array_without_ownership : Error<
   "'new' cannot allocate an array of %0 with no explicit ownership">;
-def warn_err_new_delete_object_array : Warning<
-  "%select{allocating|destroying}0 an array of %1; this array must not "
-  "%select{be deleted in|have been allocated from}0 non-ARC code">,
-  InGroup<AutomaticReferenceCountingABI>, DefaultIgnore;
 def err_arc_autoreleasing_var : Error<
   "%select{__block variables|global variables|fields|ivars}0 cannot have "
   "__autoreleasing ownership">;
@@ -4093,6 +4068,9 @@ def warn_mixed_sign_comparison : Warning<
 def warn_lunsigned_always_true_comparison : Warning<
   "comparison of unsigned%select{| enum}2 expression %0 is always %1">,
   InGroup<TautologicalCompare>;
+def warn_outof_range_compare : Warning<
+  "comparison of literal %0 with expression of type %1 is always "
+  "%select{false|true}2">, InGroup<TautologicalOutofRangeCompare>;
 def warn_runsigned_always_true_comparison : Warning<
   "comparison of %0 unsigned%select{| enum}2 expression is always %1">,
   InGroup<TautologicalCompare>;
@@ -4959,6 +4937,9 @@ def err_atomic_builtin_pointer_size : Error<
   "type (%0 invalid)">;
 def err_atomic_op_needs_atomic : Error<
   "first argument to atomic operation must be a pointer to _Atomic "
+  "type (%0 invalid)">;
+def err_atomic_op_needs_non_const_atomic : Error<
+  "first argument to atomic operation must be a pointer to non-const _Atomic "
   "type (%0 invalid)">;
 def err_atomic_op_needs_trivial_copy : Error<
   "first argument to atomic operation must be a pointer to a trivially-copyable"

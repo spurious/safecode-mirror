@@ -1302,6 +1302,10 @@ void Generic_GCC::GCCInstallationDetector::ScanLibDirForGCCTriple(
     "/gcc/" + CandidateTriple.str(),
     "/" + CandidateTriple.str() + "/gcc/" + CandidateTriple.str(),
 
+    // The Freescale PPC SDK has the gcc libraries in
+    // <sysroot>/usr/lib/<triple>/x.y.z so have a look there as well.
+    "/" + CandidateTriple.str(),
+
     // Ubuntu has a strange mis-matched pair of triples that this happens to
     // match.
     // FIXME: It may be worthwhile to generalize this and look for a second
@@ -1311,6 +1315,7 @@ void Generic_GCC::GCCInstallationDetector::ScanLibDirForGCCTriple(
   const std::string InstallSuffixes[] = {
     "/../../..",
     "/../../../..",
+    "/../..",
     "/../../../.."
   };
   // Only look at the final, weird Ubuntu suffix for i386-linux-gnu.
@@ -2385,6 +2390,9 @@ void Linux::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
     InstallDir.str() + "/include/g++-v4",
     // Android standalone toolchain has C++ headers in yet another place.
     LibDir.str() + "/../" + TripleStr.str() + "/include/c++/" + Version.str(),
+    // Freescale SDK C++ headers are directly in <sysroot>/usr/include/c++,
+    // without a subdirectory corresponding to the gcc version.
+    LibDir.str() + "/../include/c++",
   };
 
   for (unsigned i = 0; i < llvm::array_lengthof(IncludePathCandidates); ++i) {

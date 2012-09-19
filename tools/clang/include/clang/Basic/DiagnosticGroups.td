@@ -196,6 +196,7 @@ def SizeofArrayArgument : DiagGroup<"sizeof-array-argument">;
 def StringPlusInt : DiagGroup<"string-plus-int">;
 def StrncatSize : DiagGroup<"strncat-size">;
 def TautologicalCompare : DiagGroup<"tautological-compare">;
+def TautologicalOutofRangeCompare : DiagGroup<"tautological-constant-out-of-range-compare">;
 def HeaderHygiene : DiagGroup<"header-hygiene">;
 def DuplicateDeclSpecifier : DiagGroup<"duplicate-decl-specifier">;
 
@@ -266,13 +267,11 @@ def ImplicitAtomic : DiagGroup<"implicit-atomic-properties">;
 def CustomAtomic : DiagGroup<"custom-atomic-properties">;
 def AtomicProperties : DiagGroup<"atomic-properties",
                                  [ImplicitAtomic, CustomAtomic]>;
-def AutomaticReferenceCountingABI : DiagGroup<"arc-abi">;
 def ARCUnsafeRetainedAssign : DiagGroup<"arc-unsafe-retained-assign">;
 def ARCRetainCycles : DiagGroup<"arc-retain-cycles">;
 def ARCNonPodMemAccess : DiagGroup<"arc-non-pod-memaccess">;
 def AutomaticReferenceCounting : DiagGroup<"arc",
-                                           [AutomaticReferenceCountingABI,
-                                            ARCUnsafeRetainedAssign,
+                                           [ARCUnsafeRetainedAssign,
                                             ARCRetainCycles,
                                             ARCNonPodMemAccess]>;
 def Selector : DiagGroup<"selector">;
