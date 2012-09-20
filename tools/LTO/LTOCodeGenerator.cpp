@@ -44,6 +44,16 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/system_error.h"
 #include "llvm/ADT/StringExtras.h"
+#include "poolalloc/PoolAllocate.h"
+#include "poolalloc/Heuristic.h"
+
+#include "safecode/CompleteChecks.h"
+#include "safecode/LowerSafecodeIntrinsic.h"
+#include "safecode/OptimizeChecks.h"
+#include "safecode/SafeLoadStoreOpts.h"
+
+#include "CommonMemorySafetyPasses.h"
+
 using namespace llvm;
 
 static cl::opt<bool>
@@ -331,6 +341,10 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   LLVMCompilerUsed->setSection("llvm.metadata");
 
+  // Add prerequisite passes needed by SAFECode
+  PassManagerBuilder().populateLTOPassManager(passes, /*Internalize=*/ false,
+                                              !DisableInline);
+
   passes.add(createInternalizePass(mustPreserveList));
 
   // apply scope restrictions
@@ -338,6 +352,17 @@ void LTOCodeGenerator::applyScopeRestrictions() {
 
   _scopeRestrictionsDone = true;
 }
+
+#ifdef POOLALLOC
+//
+// Names of intrinsics from the debug runtime that need lowering to SAFECode
+// equivalents.
+//
+struct LowerSafecodeIntrinsic::IntrinsicMappingEntry RuntimeDebug[] = {
+  { "poolinit",          "__sc_dbg_poolinit"          },
+  { "pooldestroy",       "__sc_dbg_pooldestroy"       },
+};
+#endif
 
 /// Optimize merged modules using various IPO passes
 bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
@@ -386,8 +411,63 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
     return true;
   }
 
-  // Run our queue of passes all at once now, efficiently.
-  passes.run(*mergedModule);
+    bool UsingSAFECode = false;
+
+    // Add the SAFECode optimization/finalization passes.
+    // Note that we only run these passes (which require DSA) if we detect
+    // that run-time checks have been added to the code.
+    for (unsigned index = 0; index < numChecks; ++index) {
+      if (mergedModule->getFunction(RuntimeChecks[index].name)) {
+        UsingSAFECode = true;
+        break;
+      }
+    }
+ 
+    if (UsingSAFECode) {
+      passes.add(new TargetData(*_target->getTargetData()));
+      passes.add(createExactCheckOptPass());
+      if (mergedModule->getFunction("main")) {
+        passes.add(new CompleteChecks());
+      }
+    
+#ifdef POOLALLOC
+      LowerSafecodeIntrinsic::IntrinsicMappingEntry *MapStart, *MapEnd;
+      MapStart = RuntimeDebug;
+      MapEnd = &RuntimeDebug[sizeof(RuntimeDebug) / sizeof(RuntimeDebug[0])];
+    
+      // Add the automatic pool allocation passes
+      passes.add(new OptimizeSafeLoadStore());
+      passes.add(new PA::AllNodesHeuristic());
+      //passes.add(new PoolAllocate());
+      passes.add(new PoolAllocateSimple());
+      // SAFECode's debug runtime needs to replace some of the poolalloc
+      // intrinsics; LowerSafecodeIntrinsic handles the replacement.
+      passes.add(new LowerSafecodeIntrinsic(MapStart, MapEnd));
+#endif
+
+     // Run our queue of passes all at once now, efficiently.
+     passes.run(*mergedModule);
+
+#ifdef POOLALLOC
+     if (const char *OutFileName = getenv("PA_BITCODE_FILE")) {
+       // Write out the pool allocated bitcode file for debugging purposes.
+       std::cerr << "Writing out poolalloc bitcode file to " << OutFileName;
+       std::cerr << std::endl;
+    
+       std::string error;
+       tool_output_file PAFile(OutFileName, error, raw_fd_ostream::F_Binary);
+   
+       if (!error.empty()) {
+         std::cerr << "Error writing out poolalloc bitcode file: " << error;
+         std::cerr << std::endl;
+       } else {
+         WriteBitcodeToFile(mergedModule, PAFile.os());
+         PAFile.os().close();
+         PAFile.keep();
+       }
+     }
+#endif
+   }
 
   // Run the code generator, and write assembly file
   codeGenPasses->doInitialization();
