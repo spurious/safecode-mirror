@@ -15,6 +15,7 @@
 #define DEBUG_TYPE "baggy-bound-checks"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Attributes.h"
 #include "llvm/GlobalVariable.h"
 #include "llvm/Value.h"
 #include "llvm/Constants.h"
@@ -558,7 +559,7 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     NewF->removeAttribute(i + 1, NewF->getAttributes()
                          .getParamAttributes(i+1) & Attribute::Alignment);
     NewF->addAttribute(i + 1,
-                       llvm::Attribute::constructAlignmentFromInt(*it));
+                       llvm::Attributes::constructAlignmentFromInt(*it));
 
    // Replace the argument's use in the function body with a GEP instruction.
    Instruction *InsertPoint;
@@ -718,7 +719,7 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
             CallI->removeAttribute(i + 1, CallI->getAttributes()
                          .getParamAttributes(i+1) & Attribute::Alignment);
             CallI->addAttribute(i + 1,
-                         llvm::Attribute::constructAlignmentFromInt(*iiter++)); 
+                         llvm::Attributes::constructAlignmentFromInt(*iiter++)); 
           }
         }
         CallI->setCallingConv(CI->getCallingConv());
