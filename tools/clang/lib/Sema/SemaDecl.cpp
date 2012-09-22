@@ -2442,7 +2442,7 @@ void Sema::MergeVarDeclTypes(VarDecl *New, VarDecl *Old) {
   }
   if (MergedT.isNull()) {
     Diag(New->getLocation(), diag::err_redefinition_different_type)
-      << New->getDeclName();
+      << New->getDeclName() << New->getType() << Old->getType();
     Diag(Old->getLocation(), diag::note_previous_definition);
     return New->setInvalidDecl();
   }
@@ -5128,6 +5128,22 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
   }
 }
 
+void Sema::checkVoidParamDecl(ParmVarDecl *Param) {
+  // In C++, the empty parameter-type-list must be spelled "void"; a
+  // typedef of void is not permitted.
+  if (getLangOpts().CPlusPlus &&
+      Param->getType().getUnqualifiedType() != Context.VoidTy) {
+    bool IsTypeAlias = false;
+    if (const TypedefType *TT = Param->getType()->getAs<TypedefType>())
+      IsTypeAlias = isa<TypeAliasDecl>(TT->getDecl());
+    else if (const TemplateSpecializationType *TST =
+               Param->getType()->getAs<TemplateSpecializationType>())
+      IsTypeAlias = TST->isTypeAlias();
+    Diag(Param->getLocation(), diag::err_param_typedef_of_void)
+      << IsTypeAlias;
+  }
+}
+
 NamedDecl*
 Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                               TypeSourceInfo *TInfo, LookupResult &Previous,
@@ -5477,21 +5493,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         FTI.ArgInfo[0].Param &&
         cast<ParmVarDecl>(FTI.ArgInfo[0].Param)->getType()->isVoidType()) {
       // Empty arg list, don't push any params.
-      ParmVarDecl *Param = cast<ParmVarDecl>(FTI.ArgInfo[0].Param);
-
-      // In C++, the empty parameter-type-list must be spelled "void"; a
-      // typedef of void is not permitted.
-      if (getLangOpts().CPlusPlus &&
-          Param->getType().getUnqualifiedType() != Context.VoidTy) {
-        bool IsTypeAlias = false;
-        if (const TypedefType *TT = Param->getType()->getAs<TypedefType>())
-          IsTypeAlias = isa<TypeAliasDecl>(TT->getDecl());
-        else if (const TemplateSpecializationType *TST =
-                   Param->getType()->getAs<TemplateSpecializationType>())
-          IsTypeAlias = TST->isTypeAlias();
-        Diag(Param->getLocation(), diag::err_param_typedef_of_void)
-          << IsTypeAlias;
-      }
+      checkVoidParamDecl(cast<ParmVarDecl>(FTI.ArgInfo[0].Param));
     } else if (FTI.NumArgs > 0 && FTI.ArgInfo[0].Param != 0) {
       for (unsigned i = 0, e = FTI.NumArgs; i != e; ++i) {
         ParmVarDecl *Param = cast<ParmVarDecl>(FTI.ArgInfo[i].Param);
@@ -6326,14 +6328,12 @@ namespace {
     void HandleDeclRefExpr(DeclRefExpr *DRE) {
       Decl* ReferenceDecl = DRE->getDecl(); 
       if (OrigDecl != ReferenceDecl) return;
-      LookupResult Result(S, DRE->getNameInfo(), Sema::LookupOrdinaryName,
-                          Sema::NotForRedeclaration);
       unsigned diag = isReferenceType
           ? diag::warn_uninit_self_reference_in_reference_init
           : diag::warn_uninit_self_reference_in_init;
       S.DiagRuntimeBehavior(DRE->getLocStart(), DRE,
                             S.PDiag(diag)
-                              << Result.getLookupName()
+                              << DRE->getNameInfo().getName()
                               << OrigDecl->getLocation()
                               << DRE->getSourceRange());
     }

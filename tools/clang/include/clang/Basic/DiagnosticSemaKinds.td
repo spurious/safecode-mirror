@@ -403,7 +403,7 @@ def err_statically_allocated_object : Error<
   "interface type cannot be statically allocated">;
 def err_object_cannot_be_passed_returned_by_value : Error<
   "interface type %1 cannot be %select{returned|passed}0 by value"
-  "; did you forget * in %1">;
+  "; did you forget * in %1?">;
 def err_parameters_retval_cannot_have_fp16_type : Error<
   "%select{parameters|function return value}0 cannot have __fp16 type; did you forget * ?">;
 def warn_enum_value_overflow : Warning<"overflow in enumeration value">;
@@ -588,6 +588,8 @@ def warn_accessor_property_type_mismatch : Warning<
   "type of property %0 does not match type of accessor %1">;
 def not_conv_function_declared_at : Note<"type conversion function declared here">;
 def note_method_declared_at : Note<"method %0 declared here">;
+def note_property_attribute : Note<"property %0 is declared "
+  "%select{deprecated|unavailable}1 here">;
 def err_setter_type_void : Error<"type of setter must be void">;
 def err_duplicate_method_decl : Error<"duplicate declaration of method %0">;
 def warn_duplicate_method_decl : 
@@ -800,13 +802,15 @@ def err_tagless_friend_type_template : Error<
 def err_no_matching_local_friend : Error<
   "no matching function found in local scope">;
 def err_no_matching_local_friend_suggest : Error<
-  "no matching function %0 found in local scope; did you mean %2">;
+  "no matching function %0 found in local scope; did you mean %2?">;
 def err_partial_specialization_friend : Error<
   "partial specialization cannot be declared as a friend">;
 def err_qualified_friend_def : Error<
   "friend function definition cannot be qualified with '%0'">;
 def err_friend_def_in_local_class : Error<
   "friend function cannot be defined in a local class">;
+def err_friend_not_first_in_declaration : Error<
+  "'friend' must appear first in a non-function declaration">;
   
 def err_abstract_type_in_decl : Error<
   "%select{return|parameter|variable|field|ivar}0 type %1 is an abstract class">;
@@ -1208,10 +1212,10 @@ def err_init_reference_member_uninitialized : Error<
   "reference member of type %0 uninitialized">;
 def note_uninit_reference_member : Note<
   "uninitialized reference member is here">;
-def warn_field_is_uninit : Warning<"field is uninitialized when used here">,
+def warn_field_is_uninit : Warning<"field %0 is uninitialized when used here">,
   InGroup<Uninitialized>;
 def warn_reference_field_is_uninit : Warning<
-  "reference is not yet bound to a value when used here">,
+  "reference %0 is not yet bound to a value when used here">,
   InGroup<Uninitialized>;
 def warn_uninit_self_reference_in_init : Warning<
   "variable %0 is uninitialized when used within its own initialization">,
@@ -1348,6 +1352,8 @@ def err_function_marked_override_not_overriding : Error<
   "%0 marked 'override' but does not override any member functions">;
 def err_class_marked_final_used_as_base : Error<
   "base %0 is marked 'final'">;
+def warn_abstract_final_class : Warning<
+  "abstract class is marked 'final'">, InGroup<AbstractFinalClass>;
 
 // C++11 attributes
 def err_repeat_attribute : Error<"'%0' attribute cannot be repeated">;
@@ -3183,7 +3189,7 @@ def err_non_thread_thread : Error<
 def err_thread_non_thread : Error<
   "thread-local declaration of %0 follows non-thread-local declaration">;
 def err_redefinition_different_type : Error<
-  "redefinition of %0 with a different type">;
+  "redefinition of %0 with a different type%diff{: $ vs $|}1,2">;
 def err_redefinition_different_kind : Error<
   "redefinition of %0 as different kind of symbol">;
 def warn_forward_class_redefinition : Warning<
@@ -3286,7 +3292,7 @@ def err_typecheck_invalid_restrict_not_pointer_noarg : Error<
 def err_typecheck_invalid_restrict_invalid_pointee : Error<
   "pointer to function type %0 may not be 'restrict' qualified">;
 def ext_typecheck_zero_array_size : Extension<
-  "zero size arrays are an extension">;
+  "zero size arrays are an extension">, InGroup<ZeroLengthArray>;
 def err_typecheck_zero_array_size : Error<
   "zero-length arrays are not permitted in C++">;
 def warn_typecheck_zero_static_array_size : Warning<
@@ -4068,9 +4074,9 @@ def warn_mixed_sign_comparison : Warning<
 def warn_lunsigned_always_true_comparison : Warning<
   "comparison of unsigned%select{| enum}2 expression %0 is always %1">,
   InGroup<TautologicalCompare>;
-def warn_outof_range_compare : Warning<
-  "comparison of literal %0 with expression of type %1 is always "
-  "%select{false|true}2">, InGroup<TautologicalOutofRangeCompare>;
+def warn_out_of_range_compare : Warning<
+  "comparison of constant %0 with expression of type %1 is always "
+  "%select{false|true}2">, InGroup<TautologicalOutOfRangeCompare>;
 def warn_runsigned_always_true_comparison : Warning<
   "comparison of %0 unsigned%select{| enum}2 expression is always %1">,
   InGroup<TautologicalCompare>;
