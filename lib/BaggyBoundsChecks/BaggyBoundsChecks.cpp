@@ -196,9 +196,10 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   // Store the object's size into a metadata variable.
   //
   Type *Int32Type = Type::getInt32Ty (GV->getContext());
+  Type *Int32Ptr = PointerType::get(Int32Type, 0);
   std::vector<Constant *> metaVals(2);
   metaVals[0] = ConstantInt::get(Int32Type, objectSize);
-  metaVals[1] = Constant::getNullValue(Int32Type);
+  metaVals[1] = Constant::getNullValue(Int32Ptr);
   Constant *c = ConstantStruct::get((StructType *)metadataType, metaVals);
   GlobalVariable *metaData = new GlobalVariable (*(GV->getParent()),
                                                  metadataType,
