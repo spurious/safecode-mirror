@@ -13,7 +13,7 @@ LINK_COMPONENTS := all-targets ipo scalaropts linker bitreader bitwriter \
                    mcdisassembler vectorize
 
 USEDLIBS := addchecks.a optchecks.a sc-support.a scutility.a \
-  LLVMDataStructure.a poolalloc.a
+  LLVMDataStructure.a poolalloc.a cmspasses.a
 
 LINK_LIBS_IN_SHARED := 1
 SHARED_LIBRARY := 1
