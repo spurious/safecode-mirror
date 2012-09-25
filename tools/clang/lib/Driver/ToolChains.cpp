@@ -1490,12 +1490,6 @@ Tool &Hexagon_TC::SelectTool(const Compilation &C,
   return *T;
 }
 
-bool Hexagon_TC::IsUnwindTablesDefault() const {
-  // FIXME: Gross; we should probably have some separate target
-  // definition, possibly even reusing the one in clang.
-  return getArchName() == "x86_64";
-}
-
 const char *Hexagon_TC::GetDefaultRelocationModel() const {
   return "static";
 }
@@ -1526,10 +1520,6 @@ TCEToolChain::~TCEToolChain() {
 
 bool TCEToolChain::IsMathErrnoDefault() const {
   return true;
-}
-
-bool TCEToolChain::IsUnwindTablesDefault() const {
-  return false;
 }
 
 const char *TCEToolChain::GetDefaultRelocationModel() const {

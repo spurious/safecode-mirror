@@ -98,6 +98,8 @@ class Preprocessor : public RefCountedBase<Preprocessor> {
   IdentifierInfo *Ident__has_include;              // __has_include
   IdentifierInfo *Ident__has_include_next;         // __has_include_next
   IdentifierInfo *Ident__has_warning;              // __has_warning
+  IdentifierInfo *Ident__building_module;          // __building_module
+  IdentifierInfo *Ident__MODULE__;                 // __MODULE__
 
   SourceLocation DATELoc, TIMELoc;
   unsigned CounterValue;  // Next __COUNTER__ value.
@@ -278,7 +280,8 @@ class Preprocessor : public RefCountedBase<Preprocessor> {
   /// keep a mapping to the history of all macro definitions and #undefs in
   /// the reverse order (the latest one is in the head of the list).
   llvm::DenseMap<IdentifierInfo*, MacroInfo*> Macros;
-
+  friend class ASTReader;
+  
   /// \brief Macros that we want to warn because they are not used at the end
   /// of the translation unit; we store just their SourceLocations instead
   /// something like MacroInfo*. The benefit of this is that when we are
@@ -906,7 +909,7 @@ public:
   /// CreateString - Plop the specified string into a scratch buffer and set the
   /// specified token's location and length to it.  If specified, the source
   /// location provides a location of the expansion point of the token.
-  void CreateString(const char *Buf, unsigned Len, Token &Tok,
+  void CreateString(StringRef Str, Token &Tok,
                     SourceLocation ExpansionLocStart = SourceLocation(),
                     SourceLocation ExpansionLocEnd = SourceLocation());
 
