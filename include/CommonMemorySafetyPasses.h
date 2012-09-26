@@ -41,6 +41,10 @@ void initializeExactCheckOptPass(PassRegistry&);
 FunctionPass *createOptimizeIdenticalLSChecksPass();
 void initializeOptimizeIdenticalLSChecksPass(PassRegistry&);
 
+// Remove implied fast load/store checks where possible.
+FunctionPass *createOptimizeImpliedFastLSChecksPass();
+void initializeOptimizeImpliedFastLSChecksPass(PassRegistry&);
+
 }
 
 #endif

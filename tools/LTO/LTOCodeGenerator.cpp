@@ -21,6 +21,7 @@
 #include "llvm/Module.h"
 #include "llvm/PassManager.h"
 #include "llvm/Analysis/Passes.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/Config/config.h"
@@ -50,6 +51,7 @@
 #include "safecode/CompleteChecks.h"
 #include "safecode/LowerSafecodeIntrinsic.h"
 #include "safecode/OptimizeChecks.h"
+#include "safecode/SAFECodeMSCInfo.h"
 #include "safecode/SafeLoadStoreOpts.h"
 
 #include "CommonMemorySafetyPasses.h"
@@ -425,7 +427,13 @@ bool LTOCodeGenerator::generateObjectFile(raw_ostream &out,
  
     if (UsingSAFECode) {
       passes.add(new TargetData(*_target->getTargetData()));
+      passes.add(createSAFECodeMSCInfoPass());
       passes.add(createExactCheckOptPass());
+
+      passes.add(new DominatorTree());
+      passes.add(new ScalarEvolution());
+      passes.add(createOptimizeImpliedFastLSChecksPass());
+
       if (mergedModule->getFunction("main")) {
         passes.add(new CompleteChecks());
       }

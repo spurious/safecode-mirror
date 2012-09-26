@@ -315,6 +315,11 @@ void EmitAssemblyHelper::CreatePasses() {
     MPM->add (new InsertGEPChecks());
     MPM->add (createSpecializeCMSCallsPass());
     MPM->add (createExactCheckOptPass());
+
+    MPM->add (new DominatorTree());
+    MPM->add (new ScalarEvolution());
+    MPM->add (createOptimizeImpliedFastLSChecksPass());
+
     MPM->add (new OptimizeChecks());
     if (CodeGenOpts.MemSafeTerminate) {
       MPM->add (llvm::createSCTerminatePass ());
