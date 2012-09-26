@@ -204,7 +204,7 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   GlobalVariable *metaData = new GlobalVariable (*(GV->getParent()),
                                                  metadataType,
                                                  GV->isConstant(),
-                                                 GV->getLinkage(),
+                                                 GlobalValue::LinkerPrivateLinkage,
                                                  c,
                                                  "meta." + GV->getName());
 
@@ -222,10 +222,13 @@ InsertBaggyBoundsChecks::adjustGlobalValue (GlobalValue * V) {
   //
   // Create the new global memory object with the correct alignment.
   //
+  GlobalValue::LinkageTypes LinkTy = GV->getLinkage();
+  if (GV->getLinkage() == GlobalValue::CommonLinkage)
+    LinkTy = GlobalValue::ExternalLinkage;
   GlobalVariable *GV_new = new GlobalVariable (*(GV->getParent()),
                                                  newType,
                                                  GV->isConstant(),
-                                                 GV->getLinkage(),
+                                                 LinkTy,
                                                  c,
                                                  "baggy." + GV->getName());
   GV_new->copyAttributesFrom (GV);
