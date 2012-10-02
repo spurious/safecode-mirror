@@ -1312,10 +1312,12 @@ ASTDeclReader::VisitRedeclarableTemplateDecl(RedeclarableTemplateDecl *D) {
         D->setMemberSpecialization();
     }
   }
-     
+
   VisitTemplateDecl(D);
   D->IdentifierNamespace = Record[Idx++];
-  
+
+  mergeRedeclarable(D, Redecl);
+
   return Redecl;
 }
 
@@ -1395,14 +1397,17 @@ void ASTDeclReader::VisitClassTemplateSpecializationDecl(
                                                      TemplArgs.size());
   D->PointOfInstantiation = ReadSourceLocation(Record, Idx);
   D->SpecializationKind = (TemplateSpecializationKind)Record[Idx++];
-  
-  if (D->isCanonicalDecl()) { // It's kept in the folding set.
+
+  bool writtenAsCanonicalDecl = Record[Idx++];
+  if (writtenAsCanonicalDecl) {
     ClassTemplateDecl *CanonPattern = ReadDeclAs<ClassTemplateDecl>(Record,Idx);
-    if (ClassTemplatePartialSpecializationDecl *Partial
-                       = dyn_cast<ClassTemplatePartialSpecializationDecl>(D)) {
-      CanonPattern->getCommonPtr()->PartialSpecializations.InsertNode(Partial);
-    } else {
-      CanonPattern->getCommonPtr()->Specializations.InsertNode(D);
+    if (D->isCanonicalDecl()) { // It's kept in the folding set.
+      if (ClassTemplatePartialSpecializationDecl *Partial
+                        = dyn_cast<ClassTemplatePartialSpecializationDecl>(D)) {
+  CanonPattern->getCommonPtr()->PartialSpecializations.GetOrInsertNode(Partial);
+      } else {
+        CanonPattern->getCommonPtr()->Specializations.GetOrInsertNode(D);
+      }
     }
   }
 }
@@ -1744,7 +1749,7 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
     return (FuncX->getLinkage() == FuncY->getLinkage()) &&
       FuncX->getASTContext().hasSameType(FuncX->getType(), FuncY->getType());
   }
-  
+
   // Variables with the same type and linkage match.
   if (VarDecl *VarX = dyn_cast<VarDecl>(X)) {
     VarDecl *VarY = cast<VarDecl>(Y);
@@ -1757,7 +1762,11 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
     NamespaceDecl *NamespaceY = cast<NamespaceDecl>(Y);
     return NamespaceX->isInline() == NamespaceY->isInline();
   }
-      
+
+  // Identical template names and kinds match.
+  if (isa<TemplateDecl>(X))
+    return true;
+
   // FIXME: Many other cases to implement.
   return false;
 }
@@ -1766,11 +1775,13 @@ ASTDeclReader::FindExistingResult::~FindExistingResult() {
   if (!AddResult || Existing)
     return;
   
-  DeclContext *DC = New->getDeclContext()->getRedeclContext();
+  DeclContext *DC = New->getLexicalDeclContext();
   if (DC->isTranslationUnit() && Reader.SemaObj) {
-    Reader.SemaObj->IdResolver.tryAddTopLevelDecl(New, New->getDeclName());
+    if (Reader.SemaObj->IdResolver.tryAddTopLevelDecl(New, New->getDeclName()))
+      Reader.RedeclsAddedToAST.insert(New);
   } else if (DC->isNamespace()) {
     DC->addDecl(New);
+    Reader.RedeclsAddedToAST.insert(New);
   }
 }
 
@@ -2145,9 +2156,15 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   // AST consumer might need to know about, queue it.
   // We don't pass it to the consumer immediately because we may be in recursive
   // loading, and some declarations may still be initializing.
-  if (isConsumerInterestedIn(D))
+  if (getContext().getLangOpts().Modules) {
+    if (RedeclsAddedToAST.count(D)) {
+      RedeclsAddedToAST.erase(D);
+      if (isConsumerInterestedIn(D))
+        InterestingDecls.push_back(D);
+    }
+  } else if (isConsumerInterestedIn(D))
     InterestingDecls.push_back(D);
-  
+
   return D;
 }
 
@@ -2293,7 +2310,7 @@ void ASTReader::loadPendingDeclChain(serialization::GlobalDeclID ID) {
   }
   MergedDeclsMap::iterator MergedPos = combineStoredMergedDecls(CanonDecl, ID);
   if (MergedPos != MergedDecls.end())
-    SearchDecls.append(MergedPos->second.begin(), MergedPos->second.end());  
+    SearchDecls.append(MergedPos->second.begin(), MergedPos->second.end());
   
   // Build up the list of redeclarations.
   RedeclChainVisitor Visitor(*this, SearchDecls, RedeclsDeserialized, CanonID);
@@ -2494,4 +2511,61 @@ void ASTDeclReader::UpdateDecl(Decl *D, ModuleFile &ModuleFile,
       break;
     }
   }
+}
+
+/// \brief Return a template specialization of ND (should be a TemplateDecl)
+///  that matches FD or TD.
+static NamedDecl* findMatchingSpecialization(FunctionDecl* FD,
+                                             ClassTemplateSpecializationDecl*TD,
+                                             NamedDecl* ND) {
+  TemplateDecl* Templt = dyn_cast<TemplateDecl>(ND);
+  if (!Templt) return 0;
+  if (FD) {
+    FunctionTemplateDecl* FTD = dyn_cast<FunctionTemplateDecl>(Templt);
+    if (!FTD) return 0;
+    const TemplateArgumentList* TmpltArgs = FD->getTemplateSpecializationArgs();
+    assert(TmpltArgs || "Template without arguments");
+    void* InsertionPoint;
+    return FTD->findSpecialization(TmpltArgs->data(), TmpltArgs->size(),
+                                   InsertionPoint);
+  } else {
+    ClassTemplateDecl* CTD = dyn_cast<ClassTemplateDecl>(Templt);
+    if (!CTD) return 0;
+    const TemplateArgumentList& TmpltArgs = TD->getTemplateArgs();
+    void* InsertionPoint;
+    return CTD->findSpecialization(TmpltArgs.data(), TmpltArgs.size(),
+                                   InsertionPoint);
+  }
+  return 0;
+}
+
+/// \brief Find out whether an instantiation (outside the module) already exists
+bool ASTReader::needPendingInstantiation(ValueDecl* D) const {
+  DeclContext *DC = D->getDeclContext()->getRedeclContext();
+  DeclarationName Name = D->getDeclName();
+  assert(Name && "unnamed template");
+
+  FunctionDecl* FD = dyn_cast<FunctionDecl>(D);
+  ClassTemplateSpecializationDecl* CD
+    = FD ? 0 : dyn_cast<ClassTemplateSpecializationDecl>(D);
+
+  NamedDecl* FoundSpecialization = 0;
+  if (DC->isTranslationUnit() && SemaObj) {
+    IdentifierResolver &IdResolver = SemaObj->IdResolver;
+    for (IdentifierResolver::iterator I = IdResolver.begin(Name), 
+           IEnd = IdResolver.end();
+         I != IEnd && !FoundSpecialization; ++I)
+      FoundSpecialization = findMatchingSpecialization(FD, CD, *I);
+  } else {
+    // templates are redeclarables, i.e. they must have been merged into
+    // the primary context. Use localUncachedLookup to not pick up template
+    // decls from modules again.
+    llvm::SmallVector<NamedDecl*, 6> Results;
+    DC->getPrimaryContext()->localUncachedLookup(Name, Results);
+    for (llvm::SmallVector<NamedDecl *, 6>::const_iterator
+           I = Results.begin(), E = Results.end();
+         I != E && FoundSpecialization; ++I)
+      FoundSpecialization = findMatchingSpecialization(FD, CD, *I);
+  }
+  return FoundSpecialization && isSameEntity(FoundSpecialization, D);
 }

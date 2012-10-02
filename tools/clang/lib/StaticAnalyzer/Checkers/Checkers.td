@@ -415,7 +415,11 @@ def ObjCDeallocChecker : Checker<"Dealloc">,
 
 def IvarInvalidationChecker : Checker<"InstanceVariableInvalidation">,
   HelpText<"Check that the invalidatable instance variables are invalidated in the methods annotated with objc_instance_variable_invalidator">,
-  DescFile<"IvarInvalidationCheckerChecker.cpp">;
+  DescFile<"IvarInvalidationChecker.cpp">;
+
+def DirectIvarAssignment : Checker<"DirectIvarAssignment">,
+  HelpText<"Check that the invalidatable instance variables are invalidated in the methods annotated with objc_instance_variable_invalidator">,
+  DescFile<"DirectIvarAssignment.cpp">;
 
 } // end "alpha.osx.cocoa"
 
@@ -481,6 +485,10 @@ def CallGraphViewer : Checker<"ViewCallGraph">,
 
 def CallGraphDumper : Checker<"DumpCallGraph">,
   HelpText<"Display Call Graph">,
+  DescFile<"DebugCheckers.cpp">;
+
+def ConfigDumper : Checker<"ConfigDumper">,
+  HelpText<"Dump config table">,
   DescFile<"DebugCheckers.cpp">;
 
 def TraversalDumper : Checker<"DumpTraversal">,

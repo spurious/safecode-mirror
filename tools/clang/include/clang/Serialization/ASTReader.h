@@ -687,7 +687,13 @@ private:
   /// Objective-C protocols.
   std::deque<Decl *> InterestingDecls;
 
-  /// \brief The set of redeclarable declaraations that have been deserialized
+  /// \brief Redecls that have been added to the AST
+  ///
+  /// Redecls that are deserialized but not in RedeclsAddedToAST must
+  /// not be passed to the ASTConsumers, even if they are InterestignDecls.
+  llvm::SmallPtrSet<Decl *, 16> RedeclsAddedToAST;
+
+  /// \brief The set of redeclarable declarations that have been deserialized
   /// since the last time the declaration chains were linked.
   llvm::SmallPtrSet<Decl *, 16> RedeclsDeserialized;
   
@@ -849,10 +855,19 @@ private:
   std::pair<ModuleFile *, unsigned>
     getModulePreprocessedEntity(unsigned GlobalIndex);
 
+  /// \brief Returns (begin, end) pair for the preprocessed entities of a
+  /// particular module.
+  std::pair<PreprocessingRecord::iterator, PreprocessingRecord::iterator>
+    getModulePreprocessedEntities(ModuleFile &Mod) const;
+
   void PassInterestingDeclsToConsumer();
   void PassInterestingDeclToConsumer(Decl *D);
 
   void finishPendingActions();
+
+  /// \brief Whether D needs to be instantiated, i.e. whether an instantiation
+  /// for D does not exist yet.
+  bool needPendingInstantiation(ValueDecl* D) const;
 
   /// \brief Produce an error diagnostic and return true.
   ///

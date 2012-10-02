@@ -2223,13 +2223,15 @@ ASTReader::ReadASTBlock(ModuleFile &F) {
 
     case PENDING_IMPLICIT_INSTANTIATIONS:
       if (PendingInstantiations.size() % 2 != 0) {
+        Error("Invalid existing PendingInstantiations");
+        return Failure;
+      }
+
+      if (Record.size() % 2 != 0) {
         Error("Invalid PENDING_IMPLICIT_INSTANTIATIONS block");
         return Failure;
       }
-        
-      // Later lists of pending instantiations overwrite earlier ones.
-      // FIXME: This is most certainly wrong for modules.
-      PendingInstantiations.clear();
+
       for (unsigned I = 0, N = Record.size(); I != N; /* in loop */) {
         PendingInstantiations.push_back(getGlobalDeclID(F, Record[I++]));
         PendingInstantiations.push_back(
@@ -3379,6 +3381,16 @@ ASTReader::getModulePreprocessedEntity(unsigned GlobalIndex) {
   return std::make_pair(M, LocalIndex);
 }
 
+std::pair<PreprocessingRecord::iterator, PreprocessingRecord::iterator>
+ASTReader::getModulePreprocessedEntities(ModuleFile &Mod) const {
+  if (PreprocessingRecord *PPRec = PP.getPreprocessingRecord())
+    return PPRec->getIteratorsForLoadedRange(Mod.BasePreprocessedEntityID,
+                                             Mod.NumPreprocessedEntities);
+
+  return std::make_pair(PreprocessingRecord::iterator(),
+                        PreprocessingRecord::iterator());
+}
+
 PreprocessedEntity *ASTReader::ReadPreprocessedEntity(unsigned Index) {
   PreprocessedEntityID PPID = Index+1;
   std::pair<ModuleFile *, unsigned> PPInfo = getModulePreprocessedEntity(Index);
@@ -3469,7 +3481,7 @@ PreprocessedEntity *ASTReader::ReadPreprocessedEntity(unsigned Index) {
     InclusionDirective *ID
       = new (PPRec) InclusionDirective(PPRec, Kind,
                                        StringRef(BlobStart, Record[0]),
-                                       Record[1],
+                                       Record[1], Record[3],
                                        File,
                                        Range);
     return ID;
@@ -4950,8 +4962,10 @@ namespace {
           continue;
 
         if (ND->getDeclName() != This->Name) {
-          assert(!This->Name.getCXXNameType().isNull() && 
-                 "Name mismatch without a type");
+          // A name might be null because the decl's redeclarable part is
+          // currently read before reading its name. The lookup is triggered by
+          // building that decl (likely indirectly), and so it is later in the
+          // sense of "already existing" and can be ignored here.
           continue;
         }
       
@@ -5590,7 +5604,11 @@ void ASTReader::ReadPendingInstantiations(
     ValueDecl *D = cast<ValueDecl>(GetDecl(PendingInstantiations[Idx++]));
     SourceLocation Loc
       = SourceLocation::getFromRawEncoding(PendingInstantiations[Idx++]);
-    Pending.push_back(std::make_pair(D, Loc));
+
+    // For modules, find out whether an instantiation already exists
+    if (!getContext().getLangOpts().Modules
+        || needPendingInstantiation(D))
+      Pending.push_back(std::make_pair(D, Loc));
   }  
   PendingInstantiations.clear();
 }
@@ -6501,4 +6519,5 @@ ASTReader::~ASTReader() {
          J != F; ++J)
       delete J->first;
   }
+  assert(RedeclsAddedToAST.empty() && "RedeclsAddedToAST not empty!");
 }
