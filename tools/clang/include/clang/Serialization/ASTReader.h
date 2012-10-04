@@ -687,12 +687,6 @@ private:
   /// Objective-C protocols.
   std::deque<Decl *> InterestingDecls;
 
-  /// \brief Redecls that have been added to the AST
-  ///
-  /// Redecls that are deserialized but not in RedeclsAddedToAST must
-  /// not be passed to the ASTConsumers, even if they are InterestignDecls.
-  llvm::SmallPtrSet<Decl *, 16> RedeclsAddedToAST;
-
   /// \brief The set of redeclarable declarations that have been deserialized
   /// since the last time the declaration chains were linked.
   llvm::SmallPtrSet<Decl *, 16> RedeclsDeserialized;
@@ -860,14 +854,68 @@ private:
   std::pair<PreprocessingRecord::iterator, PreprocessingRecord::iterator>
     getModulePreprocessedEntities(ModuleFile &Mod) const;
 
+  class ModuleDeclIterator {
+    ASTReader *Reader;
+    ModuleFile *Mod;
+    const serialization::LocalDeclID *Pos;
+
+  public:
+    typedef const Decl *value_type;
+    typedef value_type&         reference;
+    typedef value_type*         pointer;
+
+    ModuleDeclIterator() : Reader(0), Mod(0), Pos(0) { }
+
+    ModuleDeclIterator(ASTReader *Reader, ModuleFile *Mod,
+                       const serialization::LocalDeclID *Pos)
+      : Reader(Reader), Mod(Mod), Pos(Pos) { }
+
+    value_type operator*() const {
+      return Reader->GetDecl(Reader->getGlobalDeclID(*Mod, *Pos));
+    }
+
+    ModuleDeclIterator &operator++() {
+      ++Pos;
+      return *this;
+    }
+
+    ModuleDeclIterator operator++(int) {
+      ModuleDeclIterator Prev(*this);
+      ++Pos;
+      return Prev;
+    }
+
+    ModuleDeclIterator &operator--() {
+      --Pos;
+      return *this;
+    }
+
+    ModuleDeclIterator operator--(int) {
+      ModuleDeclIterator Prev(*this);
+      --Pos;
+      return Prev;
+    }
+
+    friend bool operator==(const ModuleDeclIterator &LHS,
+                           const ModuleDeclIterator &RHS) {
+      assert(LHS.Reader == RHS.Reader && LHS.Mod == RHS.Mod);
+      return LHS.Pos == RHS.Pos;
+    }
+
+    friend bool operator!=(const ModuleDeclIterator &LHS,
+                           const ModuleDeclIterator &RHS) {
+      assert(LHS.Reader == RHS.Reader && LHS.Mod == RHS.Mod);
+      return LHS.Pos != RHS.Pos;
+    }
+  };
+
+  std::pair<ModuleDeclIterator, ModuleDeclIterator>
+    getModuleFileLevelDecls(ModuleFile &Mod);
+
   void PassInterestingDeclsToConsumer();
   void PassInterestingDeclToConsumer(Decl *D);
 
   void finishPendingActions();
-
-  /// \brief Whether D needs to be instantiated, i.e. whether an instantiation
-  /// for D does not exist yet.
-  bool needPendingInstantiation(ValueDecl* D) const;
 
   /// \brief Produce an error diagnostic and return true.
   ///
@@ -1081,7 +1129,8 @@ public:
 
   /// \brief Map from a local declaration ID within a given module to a
   /// global declaration ID.
-  serialization::DeclID getGlobalDeclID(ModuleFile &F, unsigned LocalID) const;
+  serialization::DeclID getGlobalDeclID(ModuleFile &F,
+                                      serialization::LocalDeclID LocalID) const;
 
   /// \brief Returns true if global DeclID \p ID originated from module \p M.
   bool isDeclIDFromModule(serialization::GlobalDeclID ID, ModuleFile &M) const;

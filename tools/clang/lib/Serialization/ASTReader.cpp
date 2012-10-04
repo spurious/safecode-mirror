@@ -2063,6 +2063,7 @@ ASTReader::ReadASTBlock(ModuleFile &F) {
       
     case FILE_SORTED_DECLS:
       F.FileSortedDecls = (const DeclID *)BlobStart;
+      F.NumFileSortedDecls = Record[0];
       break;
 
     case SOURCE_LOCATION_OFFSETS: {
@@ -3176,6 +3177,7 @@ ASTReader::ASTReadResult ASTReader::ReadSubmoduleBlock(ModuleFile &F) {
         return Failure;
       }
       
+      CurrentModule->setASTFile(F.File);
       CurrentModule->IsFromModuleFile = true;
       CurrentModule->IsSystem = IsSystem || CurrentModule->IsSystem;
       CurrentModule->InferSubmodules = InferSubmodules;
@@ -3389,6 +3391,13 @@ ASTReader::getModulePreprocessedEntities(ModuleFile &Mod) const {
 
   return std::make_pair(PreprocessingRecord::iterator(),
                         PreprocessingRecord::iterator());
+}
+
+std::pair<ASTReader::ModuleDeclIterator, ASTReader::ModuleDeclIterator>
+ASTReader::getModuleFileLevelDecls(ModuleFile &Mod) {
+  return std::make_pair(ModuleDeclIterator(this, &Mod, Mod.FileSortedDecls),
+                        ModuleDeclIterator(this, &Mod,
+                                 Mod.FileSortedDecls + Mod.NumFileSortedDecls));
 }
 
 PreprocessedEntity *ASTReader::ReadPreprocessedEntity(unsigned Index) {
@@ -4625,7 +4634,7 @@ CXXBaseSpecifier *ASTReader::GetExternalCXXBaseSpecifiers(uint64_t Offset) {
 }
 
 serialization::DeclID 
-ASTReader::getGlobalDeclID(ModuleFile &F, unsigned LocalID) const {
+ASTReader::getGlobalDeclID(ModuleFile &F, LocalDeclID LocalID) const {
   if (LocalID < NUM_PREDEF_DECL_IDS)
     return LocalID;
 
@@ -5605,10 +5614,7 @@ void ASTReader::ReadPendingInstantiations(
     SourceLocation Loc
       = SourceLocation::getFromRawEncoding(PendingInstantiations[Idx++]);
 
-    // For modules, find out whether an instantiation already exists
-    if (!getContext().getLangOpts().Modules
-        || needPendingInstantiation(D))
-      Pending.push_back(std::make_pair(D, Loc));
+    Pending.push_back(std::make_pair(D, Loc));
   }  
   PendingInstantiations.clear();
 }
@@ -6489,7 +6495,7 @@ ASTReader::ASTReader(Preprocessor &PP, ASTContext &Context,
   : Listener(new PCHValidator(PP, *this)), DeserializationListener(0),
     SourceMgr(PP.getSourceManager()), FileMgr(PP.getFileManager()),
     Diags(PP.getDiagnostics()), SemaObj(0), PP(PP), Context(Context),
-    Consumer(0), ModuleMgr(FileMgr.getFileSystemOptions()),
+    Consumer(0), ModuleMgr(PP.getFileManager()),
     RelocatablePCH(false), isysroot(isysroot),
     DisableValidation(DisableValidation),
     DisableStatCache(DisableStatCache),
@@ -6519,5 +6525,4 @@ ASTReader::~ASTReader() {
          J != F; ++J)
       delete J->first;
   }
-  assert(RedeclsAddedToAST.empty() && "RedeclsAddedToAST not empty!");
 }

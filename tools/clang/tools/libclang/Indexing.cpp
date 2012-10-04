@@ -74,8 +74,7 @@ public:
                                   StringRef RelativePath,
                                   const Module *Imported) {
     if (Imported) {
-      IndexCtx.importedModule(HashLoc, FileName, /*isIncludeDirective=*/true,
-                              Imported);
+      // We handle implicit imports via ImportDecls.
       return;
     }
 
@@ -198,13 +197,20 @@ public:
 
   virtual ASTConsumer *CreateASTConsumer(CompilerInstance &CI,
                                          StringRef InFile) {
+    PreprocessorOptions &PPOpts = CI.getPreprocessorOpts();
+
     // We usually disable the preprocessing record for indexing even if the
     // original preprocessing options had it enabled. Now that the indexing
     // Preprocessor has been created (without a preprocessing record), re-enable
     // the option in case modules are enabled, so that the detailed record
     // option can be propagated when the module file is generated.
     if (CI.getLangOpts().Modules && EnablePPDetailedRecordForModules)
-      CI.getPreprocessorOpts().DetailedRecord = true;
+      PPOpts.DetailedRecord = true;
+
+    if (!PPOpts.ImplicitPCHInclude.empty()) {
+      IndexCtx.importedPCH(
+                        CI.getFileManager().getFile(PPOpts.ImplicitPCHInclude));
+    }
 
     IndexCtx.setASTContext(CI.getASTContext());
     Preprocessor &PP = CI.getPreprocessor();
@@ -472,30 +478,16 @@ static void indexPreprocessingRecord(ASTUnit &Unit, IndexingContext &IdxCtx) {
   }
 }
 
+static bool topLevelDeclVisitor(void *context, const Decl *D) {
+  IndexingContext &IdxCtx = *static_cast<IndexingContext*>(context);
+  IdxCtx.indexTopLevelDecl(D);
+  if (IdxCtx.shouldAbort())
+    return false;
+  return true;
+}
+
 static void indexTranslationUnit(ASTUnit &Unit, IndexingContext &IdxCtx) {
-  // FIXME: Only deserialize stuff from the last chained PCH, not the PCH/Module
-  // that it depends on.
-
-  bool OnlyLocal = !Unit.isMainFileAST() && Unit.getOnlyLocalDecls();
-
-  if (OnlyLocal) {
-    for (ASTUnit::top_level_iterator TL = Unit.top_level_begin(),
-                                  TLEnd = Unit.top_level_end();
-           TL != TLEnd; ++TL) {
-      IdxCtx.indexTopLevelDecl(*TL);
-      if (IdxCtx.shouldAbort())
-        return;
-    }
-
-  } else {
-    TranslationUnitDecl *TUDecl = Unit.getASTContext().getTranslationUnitDecl();
-    for (TranslationUnitDecl::decl_iterator
-           I = TUDecl->decls_begin(), E = TUDecl->decls_end(); I != E; ++I) {
-      IdxCtx.indexTopLevelDecl(*I);
-      if (IdxCtx.shouldAbort())
-        return;
-    }
-  }
+  Unit.visitLocalTopLevelDecls(&IdxCtx, topLevelDeclVisitor);
 }
 
 static void indexDiagnostics(CXTranslationUnit TU, IndexingContext &IdxCtx) {
@@ -550,6 +542,9 @@ static void clang_indexTranslationUnit_Impl(void *UserData) {
     return;
 
   ASTUnit::ConcurrencyCheck Check(*Unit);
+
+  if (const FileEntry *PCHFile = Unit->getPCHFile())
+    IndexCtx->importedPCH(PCHFile);
 
   FileManager &FileMgr = Unit->getFileManager();
 

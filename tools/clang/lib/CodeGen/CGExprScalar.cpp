@@ -1056,19 +1056,18 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return Visit(const_cast<Expr*>(E));
 
   case CK_BaseToDerived: {
-    const CXXRecordDecl *DerivedClassDecl = 
-      DestTy->getCXXRecordDeclForPointerType();
-    
-    return CGF.GetAddressOfDerivedClass(Visit(E), DerivedClassDecl, 
+    const CXXRecordDecl *DerivedClassDecl = DestTy->getPointeeCXXRecordDecl();
+    assert(DerivedClassDecl && "BaseToDerived arg isn't a C++ object pointer!");
+
+    return CGF.GetAddressOfDerivedClass(Visit(E), DerivedClassDecl,
                                         CE->path_begin(), CE->path_end(),
                                         ShouldNullCheckClassCastValue(CE));
   }
   case CK_UncheckedDerivedToBase:
   case CK_DerivedToBase: {
-    const RecordType *DerivedClassTy = 
-      E->getType()->getAs<PointerType>()->getPointeeType()->getAs<RecordType>();
-    CXXRecordDecl *DerivedClassDecl = 
-      cast<CXXRecordDecl>(DerivedClassTy->getDecl());
+    const CXXRecordDecl *DerivedClassDecl =
+      E->getType()->getPointeeCXXRecordDecl();
+    assert(DerivedClassDecl && "DerivedToBase arg isn't a C++ object pointer!");
 
     return CGF.GetAddressOfBaseClass(Visit(E), DerivedClassDecl, 
                                      CE->path_begin(), CE->path_end(),
@@ -1262,6 +1261,7 @@ EmitAddConsiderOverflowBehavior(const UnaryOperator *E,
     BinOp.RHS = NextVal;
     BinOp.Ty = E->getType();
     BinOp.Opcode = BO_Add;
+    BinOp.FPContractable = false;
     BinOp.E = E;
     return EmitOverflowCheckedBinOp(BinOp);
   }
@@ -1447,6 +1447,7 @@ Value *ScalarExprEmitter::VisitUnaryMinus(const UnaryOperator *E) {
     BinOp.LHS = llvm::Constant::getNullValue(BinOp.RHS->getType());
   BinOp.Ty = E->getType();
   BinOp.Opcode = BO_Sub;
+  BinOp.FPContractable = false;
   BinOp.E = E;
   return EmitSub(BinOp);
 }
@@ -1682,6 +1683,7 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   OpInfo.RHS = Visit(E->getRHS());
   OpInfo.Ty = E->getComputationResultType();
   OpInfo.Opcode = E->getOpcode();
+  OpInfo.FPContractable = false;
   OpInfo.E = E;
   // Load/convert the LHS.
   LValue LHSLV = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
@@ -2043,11 +2045,15 @@ static Value* tryEmitFMulAdd(const BinOpInfo &op,
   // We have a potentially fusable op. Look for a mul on one of the operands.
   if (llvm::BinaryOperator* LHSBinOp = dyn_cast<llvm::BinaryOperator>(op.LHS)) {
     if (LHSBinOp->getOpcode() == llvm::Instruction::FMul) {
+      assert(LHSBinOp->getNumUses() == 0 &&
+             "Operations with multiple uses shouldn't be contracted.");
       return buildFMulAdd(LHSBinOp, op.RHS, CGF, Builder, false, isSub);
     }
   } else if (llvm::BinaryOperator* RHSBinOp =
                dyn_cast<llvm::BinaryOperator>(op.RHS)) {
     if (RHSBinOp->getOpcode() == llvm::Instruction::FMul) {
+      assert(RHSBinOp->getNumUses() == 0 &&
+             "Operations with multiple uses shouldn't be contracted.");
       return buildFMulAdd(RHSBinOp, op.LHS, CGF, Builder, isSub, false);
     }
   }
