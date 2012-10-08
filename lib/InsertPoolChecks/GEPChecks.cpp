@@ -146,7 +146,7 @@ InsertGEPChecks::runOnFunction (Function & F) {
   //
   // Get pointers to required analysis passes.
   //
-  TD      = &getAnalysis<TargetData>();
+  TD      = &getAnalysis<DataLayout>();
   abcPass = &getAnalysis<ArrayBoundsCheckLocal>();
 
   //

@@ -23,7 +23,7 @@
 #include "llvm/IRBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Transforms/Instrumentation.h"
 
@@ -41,7 +41,7 @@ namespace {
 
   class ExactCheckOpt : public ModulePass {
     MSCInfo *MSCI;
-    TargetData *TD;
+    DataLayout *TD;
 #if 1 /* JRM */ 
     TargetLibraryInfo *TLI;
 #endif /* JRM */
@@ -70,7 +70,7 @@ namespace {
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<MSCInfo>();
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<TargetLibraryInfo>();
       AU.setPreservesCFG();
     }
@@ -92,7 +92,7 @@ ModulePass *llvm::createExactCheckOptPass() {
 
 bool ExactCheckOpt::runOnModule(Module &M) {
   MSCI = &getAnalysis<MSCInfo>();
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
 #if 1 /* JRM */
   TLI = &getAnalysis<TargetLibraryInfo>();
 #endif /* JRM */

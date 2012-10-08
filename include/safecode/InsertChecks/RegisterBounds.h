@@ -22,7 +22,7 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 NAMESPACE_SC_BEGIN
 
@@ -69,7 +69,7 @@ public:
   virtual bool runOnModule(llvm::Module & M);
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<llvm::TargetData>();
+    AU.addRequired<llvm::DataLayout>();
     AU.addPreserved<ArrayBoundsCheckGroup>();
     AU.setPreservesCFG();
   }
@@ -77,7 +77,7 @@ public:
 
 private:
   // Other passes which we query
-  TargetData * TD;
+  DataLayout * TD;
 
   // Private methods
   void registerGV(GlobalVariable * GV, Instruction * InsertBefore);
@@ -142,12 +142,12 @@ public:
   virtual bool runOnModule(llvm::Module & M);
   virtual bool runOnFunction(llvm::Function & F);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<llvm::TargetData>();
+    AU.addRequired<llvm::DataLayout>();
     // Pretend we do nothing
     AU.setPreservesAll();
   }
 private:
-  TargetData * TD;
+  DataLayout * TD;
   Function * StackFree;
 };
 
@@ -161,7 +161,7 @@ struct RegisterStackObjPass : public FunctionPass {
       return "Register stack variables into pool";
     }
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<LoopInfo>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
@@ -171,7 +171,7 @@ struct RegisterStackObjPass : public FunctionPass {
 
   private:
     // References to other LLVM passes
-    TargetData * TD;
+    DataLayout * TD;
     LoopInfo * LI;
     DominatorTree * DT;
     DominanceFrontier * DF;

@@ -22,7 +22,7 @@
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
 #include "llvm/Analysis/Dominators.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "safecode/Config/config.h"
 #include "safecode/PoolHandles.h"
 
@@ -50,7 +50,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     const char *getPassName() const { return "Convert Unsafe Allocas"; }
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<DominanceFrontier>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<EQTDDataStructures>();
@@ -72,7 +72,7 @@ struct ConvertUnsafeAllocas : public ModulePass {
     std::set<const Instruction *>  ArrayMallocs;
 
   protected:
-    TargetData         * TD;
+    DataLayout         * TD;
     EQTDDataStructures * budsPass;
     ArrayBoundsCheckGroup   * abcPass;
     checkStackSafety   * cssPass;
@@ -131,7 +131,7 @@ struct PAConvertUnsafeAllocas : public ConvertUnsafeAllocas {
       AU.addRequired<ArrayBoundsCheckGroup>();
       AU.addRequired<checkStackSafety>();
 
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<DominatorTree>();
       AU.addRequired<DominanceFrontier>();
 

@@ -26,7 +26,7 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include "safecode/SAFECode.h"
 
@@ -76,7 +76,7 @@ namespace llvm
                     Statistic &stat,
                     const vector<unsigned> &append_order);
 
-    TargetData *tdata;
+    DataLayout *tdata;
 
   public:
     static char ID;
@@ -84,8 +84,8 @@ namespace llvm
     virtual bool runOnModule(Module &M);
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // Require TargetData
-      AU.addRequired<TargetData>();
+      // Require DataLayout
+      AU.addRequired<DataLayout>();
     }
   };
 

@@ -251,7 +251,7 @@ StringTransform::runOnModule (Module & M) {
   // Flags whether we modified the module.
   bool chgd = false;
 
-  tdata = &getAnalysis<TargetData>();
+  tdata = &getAnalysis<DataLayout>();
 
   // Create needed pointer types (char * == i8 * == VoidPtrTy).
   Type *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());

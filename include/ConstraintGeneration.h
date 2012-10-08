@@ -34,7 +34,7 @@ struct ConstraintGeneration : public ModulePass {
     virtual bool runOnModule(Module &M);
     std::vector<Instruction*> UnsafeGetElemPtrs;
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<EQTDDataStructures>();
       AU.addRequired<BottomUpCallGraph>();
       AU.setPreservesAll();

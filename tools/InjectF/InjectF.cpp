@@ -22,7 +22,7 @@
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Analysis/Verifier.h"
@@ -94,7 +94,7 @@ main(int argc, char **argv) {
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
 
-    Passes.add(new TargetData(M.get()));
+    Passes.add(new DataLayout(M.get()));
 
     // Inject faults into the program
     Passes.add(new FaultInjector());

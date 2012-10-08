@@ -20,7 +20,7 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Instruction.h"
 #include "llvm/Function.h"
 #include "llvm/Pass.h"
@@ -61,7 +61,7 @@ public:
   ArrayBoundsCheckLocal() : FunctionPass(ID) {}
   virtual bool isGEPSafe(GetElementPtrInst * GEP);
   virtual void getAnalysisUsage(AnalysisUsage & AU) const {
-    AU.addRequired<TargetData>();
+    AU.addRequired<DataLayout>();
     AU.addRequired<AllocatorInfoPass>();
     AU.addRequired<ScalarEvolution>();
     AU.setPreservesAll();  
@@ -83,7 +83,7 @@ public:
 
 private:
   // Required passes
-  TargetData * TD;
+  DataLayout * TD;
   ScalarEvolution * SE;
 
   // Container holding safe GEPs

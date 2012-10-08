@@ -184,7 +184,7 @@ RegisterStackObjPass::runOnFunction(Function & F) {
   //
   // Get prerequisite analysis information.
   //
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   LI = &getAnalysis<LoopInfo>();
   DT = &getAnalysis<DominatorTree>();
   DF = &getAnalysis<DominanceFrontier>();

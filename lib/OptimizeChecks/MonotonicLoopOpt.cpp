@@ -329,7 +329,7 @@ MonotonicLoopOpt::runOnLoop(Loop *L, LPPassManager &LPM) {
   //
   LI = &getAnalysis<LoopInfo>();
   scevPass = &getAnalysis<ScalarEvolution>();
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
 
   //
   // Scan through all of the loops nested within this loop.  If we have not

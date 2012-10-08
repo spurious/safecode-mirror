@@ -91,7 +91,7 @@ checkStackSafety::markReachableAllocasInt(DSNode *DSN, bool start) {
   // Look at the DSNodes reachable from this DSNode.  If they alias with the
   // stack, put them in the reachable set.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   for (unsigned i = 0, e = DSN->getSize(); i < e; i += TD.getPointerSize())
     if (DSNode *DSNchild = DSN->getLink(i).getNode()) {
       if (reachableAllocaNodes.find(DSNchild) != reachableAllocaNodes.end()) {

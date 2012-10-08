@@ -37,7 +37,7 @@ namespace llvm {
       const char *getPassName() const { return "Stack Safety Check";}
       virtual bool runOnModule(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.addRequired<TargetData>();
+        AU.addRequired<DataLayout>();
         AU.addRequired<EQTDDataStructures>();
         AU.setPreservesAll();
       }

@@ -748,7 +748,7 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
 bool
 InsertBaggyBoundsChecks::runOnModule (Module & M) {
   // Get prerequisite analysis results
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   //
   // Align and pad global variables.
   //

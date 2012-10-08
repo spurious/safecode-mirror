@@ -95,7 +95,7 @@ RegisterGlobalVariables::runOnModule(Module & M) {
   //
   // Get required analysis passes.
   //
-  TD       = &getAnalysis<TargetData>();
+  TD       = &getAnalysis<DataLayout>();
 
   //
   // Create a skeleton function that will register the global variables.
@@ -342,7 +342,7 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   //
   // Ensure that a prototype for strlen() exists.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   M.getOrInsertFunction ("nullstrlen",
                          TD.getIntPtrType(M.getContext()),
                          getVoidPtrType(M.getContext()),
@@ -623,7 +623,7 @@ RegisterFunctionByvalArguments::runOnModule(Module & M) {
   //
   // Fetch prerequisite analysis passes.
   //
-  TD        = &getAnalysis<TargetData>();
+  TD        = &getAnalysis<DataLayout>();
 
   //
   // Insert required intrinsics.

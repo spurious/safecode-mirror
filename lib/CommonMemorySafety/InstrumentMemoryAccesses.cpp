@@ -22,7 +22,7 @@
 #include "llvm/IRBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Instrumentation.h"
 
 using namespace llvm;
@@ -35,7 +35,7 @@ STATISTIC(IntrinsicsInstrumented, "Block memory intrinsics instrumented");
 namespace {
   class InstrumentMemoryAccesses : public FunctionPass,
                                    public InstVisitor<InstrumentMemoryAccesses> {
-    const TargetData *TD;
+    const DataLayout *TD;
     IRBuilder<> *Builder;
 
     PointerType *VoidPtrTy;
@@ -54,7 +54,7 @@ namespace {
     virtual bool runOnFunction(Function &F);
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.setPreservesCFG();
     }
 
@@ -99,7 +99,7 @@ bool InstrumentMemoryAccesses::runOnFunction(Function &F) {
   StoreCheckFunction = F.getParent()->getFunction("__storecheck");
   assert(StoreCheckFunction && "__storecheck function has disappeared!\n");
 
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   IRBuilder<> TheBuilder(F.getContext());
   Builder = &TheBuilder;
 

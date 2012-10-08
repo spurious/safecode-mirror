@@ -202,7 +202,7 @@ AlignmentChecks::runOnFunction (Function & F) {
   //
   // Get pointers to required analysis passes.
   //
-  TD      = &getAnalysis<TargetData>();
+  TD      = &getAnalysis<DataLayout>();
   dsaPass = &getAnalysis<EQTDDataStructures>();
 
   //

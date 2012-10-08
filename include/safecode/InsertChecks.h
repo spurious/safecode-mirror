@@ -49,7 +49,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
 
       // Preserved passes
       AU.addPreserved<InsertSCIntrinsic>();
@@ -63,7 +63,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
 
   protected:
     // Pointers to required passes
-    TargetData * TD;
+    DataLayout * TD;
     ArrayBoundsCheckGroup * abcPass;
 
     // Pointer to GEP run-time check function
@@ -85,7 +85,7 @@ struct AlignmentChecks : public FunctionPass, InstVisitor<AlignmentChecks> {
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<EQTDDataStructures>();
 
       // Preserved passes
@@ -98,7 +98,7 @@ struct AlignmentChecks : public FunctionPass, InstVisitor<AlignmentChecks> {
 
   protected:
     // Pointers to required passes
-    TargetData * TD;
+    DataLayout * TD;
     EQTDDataStructures * dsaPass;
 
     // Pointers to load/store run-time check functions
@@ -118,7 +118,7 @@ struct InsertPoolChecks : public FunctionPass {
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<ArrayBoundsCheckGroup>();
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<InsertSCIntrinsic>();
       AU.addRequired<EQTDDataStructures>();
 
@@ -130,7 +130,7 @@ struct InsertPoolChecks : public FunctionPass {
   private:
     InsertSCIntrinsic * intrinsic;
     ArrayBoundsCheckGroup * abcPass;
-    TargetData * TD;
+    DataLayout * TD;
     EQTDDataStructures * dsaPass;
 
     Function *PoolCheck;

@@ -2420,7 +2420,7 @@ void SoftBoundCETSPass::addMemcopyCheck(CallInst* call_inst) {
 // function is used to pass the size of the access in many checks to
 // perform byte granularity checking.
 //
-// Comments: May we should use TargetData instead of m_is_64_bit
+// Comments: May we should use DataLayout instead of m_is_64_bit
 // according Criswell's comments.
  
 

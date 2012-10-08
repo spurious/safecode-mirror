@@ -18,7 +18,7 @@
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include "safecode/SAFECode.h"
 
@@ -38,12 +38,12 @@ struct InsertBaggyBoundsChecks : public ModulePass {
     virtual bool runOnModule(Module &M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
     };
 
   protected:
     // Pointers to required passes
-    TargetData * TD;
+    DataLayout * TD;
 
     // Protected methods
     void adjustGlobalValue (GlobalValue * GV);

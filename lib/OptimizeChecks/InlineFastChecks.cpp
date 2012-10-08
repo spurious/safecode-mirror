@@ -20,7 +20,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include <vector>
@@ -46,7 +46,7 @@ namespace llvm {
      }
     
      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-       AU.addRequired<TargetData>();
+       AU.addRequired<DataLayout>();
        return;
      }
 
@@ -116,7 +116,7 @@ llvm::InlineFastChecks::inlineCheck (Function * F) {
   //
   // Inline all of the fast calls we found.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   InlineFunctionInfo IFI (0, &TD);
   for (unsigned index = 0; index < CallsToInline.size(); ++index) {
     InlineFunction (CallsToInline[index], IFI);
@@ -227,7 +227,7 @@ llvm::InlineFastChecks::castToInt (Value * Pointer, BasicBlock * BB) {
   //
   // Get information on the size of pointers.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
 
   //
   // Get a reference to the context from the basic block.
@@ -273,7 +273,7 @@ llvm::InlineFastChecks::addComparisons (BasicBlock * BB,
   //
   // Calculate the address of the first byte beyond the memory object
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = Size;
   if (SizeInt->getType() != TD.getIntPtrType(Context)) {
     SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", BB);
@@ -357,7 +357,7 @@ llvm::InlineFastChecks::createBodyFor (Function * F) {
   // Now add instructions to compare the last byte dereferenced with the
   // memory object's bounds.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = MemSize;
   if (SizeInt->getType() != TD.getIntPtrType(Context)) {
     SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);
@@ -452,7 +452,7 @@ llvm::InlineFastChecks::createDebugBodyFor (Function * F) {
   // Now add instructions to compare the last byte dereferenced with the
   // memory object's bounds.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = MemSize;
   if (SizeInt->getType() != TD.getIntPtrType(Context)) {
     SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);

@@ -18,7 +18,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 using namespace llvm;
 
@@ -35,7 +35,7 @@ struct MonotonicLoopOpt : public LoopPass {
     virtual bool doFinalization(); 
     virtual bool runOnLoop(Loop *L, LPPassManager &LPM);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<LoopInfo>();
       AU.addRequired<ScalarEvolution>();
       AU.setPreservesCFG();
@@ -44,7 +44,7 @@ struct MonotonicLoopOpt : public LoopPass {
     // Pointers to required analysis passes
     LoopInfo * LI;
     ScalarEvolution * scevPass;
-    TargetData * TD;
+    DataLayout * TD;
 
     // Set of loops already optimized
     std::set<Loop*> optimizedLoops;

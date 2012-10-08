@@ -10,7 +10,7 @@
 #include "llvm/LLVMContext.h"
 #include "llvm/Instructions.h"
 #include "llvm/Instruction.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 
 using namespace llvm;

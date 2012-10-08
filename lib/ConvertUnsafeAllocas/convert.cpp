@@ -107,7 +107,7 @@ ConvertUnsafeAllocas::runOnModule (Module &M) {
   budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass = &getAnalysis<checkStackSafety>();
   abcPass = &getAnalysis<ArrayBoundsCheckGroup>();
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
 
   //
   // Get needed LLVM types.
@@ -726,7 +726,7 @@ PAConvertUnsafeAllocas::runOnModule (Module &M) {
   //
   // Retrieve all pre-requisite analysis results from other passes.
   //
-  TD       = &getAnalysis<TargetData>();
+  TD       = &getAnalysis<DataLayout>();
   budsPass = &getAnalysis<EQTDDataStructures>();
   cssPass  = &getAnalysis<checkStackSafety>();
   abcPass  = &getAnalysis<ArrayBoundsCheckGroup>();

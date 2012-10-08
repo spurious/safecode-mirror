@@ -157,7 +157,7 @@ ReAllocatorInfo::getAllocedPointer (Value * AllocSite) const {
 Value *
 AllocatorInfoPass::getObjectSize(Value * V) {
   // Get access to the target data information
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
 
   //
   // Finding the size of a global variable is easy.

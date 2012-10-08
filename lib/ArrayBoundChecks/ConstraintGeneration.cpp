@@ -649,7 +649,7 @@ ConstraintGeneration::generateArrayTypeConstraints (string var,
     //This will only work one level of arrays and structs
     //If there are arrays inside a struct then this will
     //not help us prove the safety of the access ....
-    unsigned Size = getAnalysis<TargetData>().getTypeSize(ST);
+    unsigned Size = getAnalysis<DataLayout>().getTypeSize(ST);
     string var2 = var1 + "_i";
     const Type* csiType = Type::getPrimitiveType(Type::Int32TyID);
     const ConstantInt * signedOne = getGlobalContext().getConstantInt(csiType,Size);

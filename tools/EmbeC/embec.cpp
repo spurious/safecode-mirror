@@ -13,7 +13,7 @@
 #include "ArrayBoundsCheck.h"
 #include "StackSafety.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "Support/CommandLine.h"
 #include "Support/Signals.h"
 #include <fstream>
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     
   //
   PassManager Passes;
-  Passes.add(new TargetData("embec", M.get()));
+  Passes.add(new DataLayout("embec", M.get()));
   
   //Add passes
   Passes.add(createCZeroUninitPtrPass());

@@ -118,7 +118,7 @@ InitAllocas::visitAllocaInst (AllocaInst & AI) {
   // Zero the alloca with a memset.  If this is done more efficiently with stores
   // SelectionDAG will lower it appropriately based on target information.
   //
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
 
   //
   // Get various types that we'll need.

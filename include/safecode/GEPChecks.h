@@ -22,7 +22,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include "safecode/ArrayBoundsCheck.h"
 
@@ -43,7 +43,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
     virtual bool runOnFunction(Function &F);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       // Required passes
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<ArrayBoundsCheckLocal>();
 
       // Preserved passes
@@ -55,7 +55,7 @@ struct InsertGEPChecks : public FunctionPass, InstVisitor<InsertGEPChecks> {
 
   protected:
     // Pointers to required passes
-    TargetData * TD;
+    DataLayout * TD;
     ArrayBoundsCheckLocal * abcPass;
 
     // Pointer to GEP run-time check function

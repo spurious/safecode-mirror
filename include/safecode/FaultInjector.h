@@ -31,13 +31,13 @@ namespace llvm {
       const char *getPassName() const { return "Fault Injector Pass"; }
       virtual bool runOnModule(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.addRequired<TargetData>();
+        AU.addRequired<DataLayout>();
         AU.addRequired<TDDataStructures>();
       };
 
     private :
       // Private variables
-      TargetData        * TD;
+      DataLayout        * TD;
       TDDataStructures  * TDPass;
       Function          * Free;
 

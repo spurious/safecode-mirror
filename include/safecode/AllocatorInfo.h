@@ -21,7 +21,7 @@
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Value.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include "safecode/Utility.h"
 
@@ -207,7 +207,7 @@ class AllocatorInfoPass : public ImmutablePass {
       //
       // Ensure that a prototype for strlen() exists.
       //
-      TargetData & TD = getAnalysis<TargetData>();
+      DataLayout & TD = getAnalysis<DataLayout>();
       M.getOrInsertFunction ("strlen",
                              TD.getIntPtrType(M.getContext()),
                              getVoidPtrType(M.getContext()),
@@ -216,7 +216,7 @@ class AllocatorInfoPass : public ImmutablePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.setPreservesAll();
       return;
     }

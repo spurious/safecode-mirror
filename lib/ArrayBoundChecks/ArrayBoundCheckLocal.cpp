@@ -166,7 +166,7 @@ ArrayBoundsCheckLocal::runOnFunction(Function & F) {
   //
   // Get required analysis passes.
   //
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   SE = &getAnalysis<ScalarEvolution>();
 
   //

@@ -22,7 +22,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Value.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include <stdint.h>
 #include <string>
@@ -185,7 +185,7 @@ class AllocatorInfoPass : public ImmutablePass {
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.setPreservesAll();
     }
 

@@ -800,7 +800,7 @@ FaultInjector::runOnModule(Module &M) {
   TDPass = &getAnalysis<TDDataStructures>();
 
   // Get information on the target architecture for this program
-  TD     = &getAnalysis<TargetData>();
+  TD     = &getAnalysis<DataLayout>();
 
   // Initialize the random number generator
   srand (Seed);

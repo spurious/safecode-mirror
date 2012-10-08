@@ -18,7 +18,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 NAMESPACE_SC_BEGIN
 
