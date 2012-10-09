@@ -578,7 +578,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
 
   // (noinline wins over always_inline, and we can't specify both in IR)
   if ((D->hasAttr<AlwaysInlineAttr>() || D->hasAttr<ForceInlineAttr>()) &&
-      !F->getFnAttributes().hasNoInlineAttr())
+      !F->getFnAttributes().hasAttribute(llvm::Attributes::NoInline))
     F->addFnAttr(llvm::Attribute::AlwaysInline);
 
   // FIXME: Communicate hot and cold attributes to LLVM more directly.
@@ -843,7 +843,8 @@ llvm::Constant *CodeGenModule::GetWeakRefReference(const ValueDecl *VD) {
 
   llvm::Constant *Aliasee;
   if (isa<llvm::FunctionType>(DeclTy))
-    Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy, GlobalDecl(),
+    Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy,
+                                      GlobalDecl(cast<FunctionDecl>(VD)),
                                       /*ForVTable=*/false);
   else
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(),
@@ -1929,7 +1930,7 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
   // if a deferred decl.
   llvm::Constant *Aliasee;
   if (isa<llvm::FunctionType>(DeclTy))
-    Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy, GlobalDecl(),
+    Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy, GD,
                                       /*ForVTable=*/false);
   else
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(),

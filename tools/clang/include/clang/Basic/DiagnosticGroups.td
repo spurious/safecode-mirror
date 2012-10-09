@@ -33,6 +33,7 @@ def StringConversion : DiagGroup<"string-conversion">;
 def SignConversion : DiagGroup<"sign-conversion">;
 def BoolConversion : DiagGroup<"bool-conversion">;
 def IntConversion : DiagGroup<"int-conversion">;
+def EnumConversion : DiagGroup<"enum-conversion">;
 def NonLiteralNullConversion : DiagGroup<"non-literal-null-conversion">;
 def NullConversion : DiagGroup<"null-conversion">;
 def ImplicitConversionFloatingPointToBool :
@@ -327,15 +328,16 @@ def Parentheses : DiagGroup<"parentheses",
 //   - bool-to-pointer conversion warnings are on by default
 //   - __null-to-integer conversion warnings are on by default
 def Conversion : DiagGroup<"conversion",
-                           [DiagGroup<"shorten-64-to-32">,
+                           [BoolConversion,
                             ConstantConversion,
+                            EnumConversion,
+                            DiagGroup<"shorten-64-to-32">,
+                            IntConversion,
                             LiteralConversion,
-                            StringConversion,
-                            SignConversion,
-                            BoolConversion,
-                            NullConversion, // NULL->non-pointer
                             NonLiteralNullConversion, // (1-1)->pointer (etc)
-                            IntConversion]>,
+                            NullConversion, // NULL->non-pointer
+                            SignConversion,
+                            StringConversion]>,
                  DiagCategory<"Value Conversion Issue">;
 
 def Unused : DiagGroup<"unused",
