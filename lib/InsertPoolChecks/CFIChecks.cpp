@@ -207,7 +207,7 @@ CFIChecks::runOnModule (Module & M) {
                                                           VoidPtrTy,
                                                           NULL));
   assert (FunctionCheckUI && "Function Check function has disappeared!\n");
-  FunctionCheckUI->addFnAttr (Attribute::ReadNone);
+  FunctionCheckUI->addFnAttr (Attributes::ReadNone);
 
   //
   // Visit all of the instructions in the function.

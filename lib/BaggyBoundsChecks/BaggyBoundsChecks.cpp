@@ -558,12 +558,12 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
     //Argument without byval attribute or has no use.
     if (!I->hasByValAttr() || I->use_empty()) continue;
 
-    // Remove the orginal alignment attribute and then
+    // Remove the original alignment attribute and then
     // add the padded alignment attribute for this argument.
-    NewF->removeAttribute(i + 1, NewF->getAttributes()
-                         .getParamAttributes(i+1) & Attribute::Alignment);
-    NewF->addAttribute(i + 1,
-                       llvm::Attributes::constructAlignmentFromInt(*it));
+    I->removeAttr (Attributes(Attributes::Alignment));
+    Attributes::Builder AB;
+    AB.addAlignmentAttr (*it);
+    I->addAttr (Attributes::get(AB));
 
    // Replace the argument's use in the function body with a GEP instruction.
    Instruction *InsertPoint;
@@ -720,10 +720,13 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
         for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
              I != E; ++I, ++i) {
           if (I->hasByValAttr() && !I->use_empty()) {
-            CallI->removeAttribute(i + 1, CallI->getAttributes()
-                         .getParamAttributes(i+1) & Attribute::Alignment);
-            CallI->addAttribute(i + 1,
-                         llvm::Attributes::constructAlignmentFromInt(*iiter++)); 
+            // Remove the old alignment attribute
+            CallI->removeAttribute(i + 1, Attributes(Attributes::Alignment));
+
+            // Add the new alignment attribute
+            Attributes::Builder AB;
+            AB.addAlignmentAttr (*iiter++);
+            CallI->addAttribute(i + 1, Attributes::get(AB)); 
           }
         }
         CallI->setCallingConv(CI->getCallingConv());

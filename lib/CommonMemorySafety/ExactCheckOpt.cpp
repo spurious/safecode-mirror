@@ -134,8 +134,8 @@ bool ExactCheckOpt::runOnModule(Module &M) {
   // (which has Attribute::ReadOnly) whose output can be influenced by 
   // changes in the heap.
   //
-  M.getFunction("exactcheck2")->addFnAttr (Attribute::ReadNone);
-  M.getFunction("fastlscheck")->addFnAttr (Attribute::ReadNone);
+  M.getFunction("exactcheck2")->addFnAttr (Attributes::ReadNone);
+  M.getFunction("fastlscheck")->addFnAttr (Attributes::ReadNone);
 
   CheckInfoListType CheckInfoList = MSCI->getCheckInfoList();
   for (size_t i = 0, N = CheckInfoList.size(); i < N; ++i) {

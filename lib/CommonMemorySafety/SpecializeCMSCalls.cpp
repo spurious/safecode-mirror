@@ -77,7 +77,7 @@ void SpecializeCMSCalls::specializeLoadStoreChecks(Module &M) {
   M.getOrInsertFunction("poolcheckui", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty,
                         NULL);
   Function *PoolCheckUI = M.getFunction("poolcheckui");
-  PoolCheckUI->addFnAttr(Attribute::ReadOnly);
+  PoolCheckUI->addFnAttr(Attributes::ReadOnly);
 
   const int NewOrder[] = {1, 2};
   specialize(M, "__loadcheck", "poolcheckui", NewOrder, MemoryChecksConverted);
