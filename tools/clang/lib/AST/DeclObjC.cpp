@@ -425,16 +425,15 @@ ObjCMethodDecl *ObjCMethodDecl::Create(ASTContext &C,
                                        DeclContext *contextDecl,
                                        bool isInstance,
                                        bool isVariadic,
-                                       bool isSynthesized,
+                                       bool isPropertyAccessor,
                                        bool isImplicitlyDeclared,
                                        bool isDefined,
                                        ImplementationControl impControl,
                                        bool HasRelatedResultType) {
   return new (C) ObjCMethodDecl(beginLoc, endLoc,
                                 SelInfo, T, ResultTInfo, contextDecl,
-                                isInstance,
-                                isVariadic, isSynthesized, isImplicitlyDeclared,
-                                isDefined,
+                                isInstance, isVariadic, isPropertyAccessor,
+                                isImplicitlyDeclared, isDefined,
                                 impControl,
                                 HasRelatedResultType);
 }
@@ -894,6 +893,48 @@ void ObjCMethodDecl::getOverriddenMethods(
     assert(!Overridden.empty() &&
            "ObjCMethodDecl's overriding bit is not as expected");
   }
+}
+
+const ObjCPropertyDecl *
+ObjCMethodDecl::findPropertyDecl(bool CheckOverrides) const {
+  Selector Sel = getSelector();
+  unsigned NumArgs = Sel.getNumArgs();
+  if (NumArgs > 1)
+    return 0;
+
+  if (getMethodFamily() != OMF_None)
+    return 0;
+  
+  if (isPropertyAccessor()) {
+    const ObjCContainerDecl *Container = cast<ObjCContainerDecl>(getParent());
+    bool IsGetter = (NumArgs == 0);
+
+    for (ObjCContainerDecl::prop_iterator I = Container->prop_begin(),
+                                          E = Container->prop_end();
+         I != E; ++I) {
+      Selector NextSel = IsGetter ? (*I)->getGetterName()
+                                  : (*I)->getSetterName();
+      if (NextSel == Sel)
+        return *I;
+    }
+
+    llvm_unreachable("Marked as a property accessor but no property found!");
+  }
+
+  if (!CheckOverrides)
+    return 0;
+
+  typedef SmallVector<const ObjCMethodDecl *, 8> OverridesTy;
+  OverridesTy Overrides;
+  getOverriddenMethods(Overrides);
+  for (OverridesTy::const_iterator I = Overrides.begin(), E = Overrides.end();
+       I != E; ++I) {
+    if (const ObjCPropertyDecl *Prop = (*I)->findPropertyDecl(false))
+      return Prop;
+  }
+
+  return 0;
+
 }
 
 //===----------------------------------------------------------------------===//
