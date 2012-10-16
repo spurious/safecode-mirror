@@ -593,7 +593,8 @@ void SoftBoundCETSPass::transformMain(Module& module) {
   //
   // Get the attributes of the return value
   //
-  if (Attributes attrs = pal.getRetAttributes()) 
+  Attributes attrs = pal.getRetAttributes();
+  if (attrs.hasAttributes())
     param_attrs_vec.push_back(AttributeWithIndex::get(0, attrs));
 
   // Get the attributes of the arguments 
@@ -602,7 +603,8 @@ void SoftBoundCETSPass::transformMain(Module& module) {
         e = main_func->arg_end();
       i != e; ++i, arg_index++) {
     params.push_back(i->getType());
-    if (Attributes attrs = pal.getParamAttributes(arg_index))
+    Attributes attrs = pal.getParamAttributes(arg_index);
+    if (attrs.hasAttributes())
       param_attrs_vec.push_back(AttributeWithIndex::get(params.size(), attrs));
   }
 
