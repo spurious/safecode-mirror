@@ -968,8 +968,10 @@ void X86_32TargetCodeGenInfo::SetTargetAttributes(const Decl *D,
       llvm::Function *Fn = cast<llvm::Function>(GV);
 
       // Now add the 'alignstack' attribute with a value of 16.
-      Fn->addAttribute(~0U,
-                       llvm::Attributes::constructStackAlignmentFromInt(16));
+      llvm::AttrBuilder B;
+      B.addStackAlignmentAttr(16);
+      Fn->addAttribute(llvm::AttrListPtr::FunctionIndex,
+                       llvm::Attributes::get(CGM.getLLVMContext(), B));
     }
   }
 }
@@ -1115,10 +1117,15 @@ class X86_64ABIInfo : public ABIInfo {
   }
 
   bool HasAVX;
+  // Some ABIs (e.g. X32 ABI and Native Client OS) use 32 bit pointers on
+  // 64-bit hardware.
+  bool Has64BitPointers;
 
 public:
   X86_64ABIInfo(CodeGen::CodeGenTypes &CGT, bool hasavx) :
-      ABIInfo(CGT), HasAVX(hasavx) {}
+      ABIInfo(CGT), HasAVX(hasavx),
+      Has64BitPointers(CGT.getDataLayout().getPointerSize(0) == 8) {
+  }
 
   bool isPassedUsingAVXType(QualType type) const {
     unsigned neededInt, neededSSE;
@@ -1155,7 +1162,7 @@ public:
 class X86_64TargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   X86_64TargetCodeGenInfo(CodeGen::CodeGenTypes &CGT, bool HasAVX)
-    : TargetCodeGenInfo(new X86_64ABIInfo(CGT, HasAVX)) {}
+      : TargetCodeGenInfo(new X86_64ABIInfo(CGT, HasAVX)) {}
 
   const X86_64ABIInfo &getABIInfo() const {
     return static_cast<const X86_64ABIInfo&>(TargetCodeGenInfo::getABIInfo());
@@ -1328,7 +1335,10 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase,
       Hi = Integer;
     } else if (k >= BuiltinType::Bool && k <= BuiltinType::LongLong) {
       Current = Integer;
-    } else if (k == BuiltinType::Float || k == BuiltinType::Double) {
+    } else if ((k == BuiltinType::Float || k == BuiltinType::Double) ||
+               (k == BuiltinType::LongDouble &&
+                getContext().getTargetInfo().getTriple().getOS() ==
+                llvm::Triple::NativeClient)) {
       Current = SSE;
     } else if (k == BuiltinType::LongDouble) {
       Lo = X87;
@@ -1351,7 +1361,7 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase,
   }
 
   if (Ty->isMemberPointerType()) {
-    if (Ty->isMemberFunctionPointerType())
+    if (Ty->isMemberFunctionPointerType() && Has64BitPointers)
       Lo = Hi = Integer;
     else
       Current = Integer;
@@ -1414,7 +1424,10 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase,
         Lo = Hi = Integer;
     } else if (ET == getContext().FloatTy)
       Current = SSE;
-    else if (ET == getContext().DoubleTy)
+    else if (ET == getContext().DoubleTy ||
+             (ET == getContext().LongDoubleTy &&
+              getContext().getTargetInfo().getTriple().getOS() ==
+              llvm::Triple::NativeClient))
       Lo = Hi = SSE;
     else if (ET == getContext().LongDoubleTy)
       Current = ComplexX87;
@@ -1862,7 +1875,8 @@ GetINTEGERTypeAtOffset(llvm::Type *IRType, unsigned IROffset,
   // returning an 8-byte unit starting with it.  See if we can safely use it.
   if (IROffset == 0) {
     // Pointers and int64's always fill the 8-byte unit.
-    if (isa<llvm::PointerType>(IRType) || IRType->isIntegerTy(64))
+    if ((isa<llvm::PointerType>(IRType) && Has64BitPointers) ||
+        IRType->isIntegerTy(64))
       return IRType;
 
     // If we have a 1/2/4-byte integer, we can use it only if the rest of the
@@ -1872,8 +1886,10 @@ GetINTEGERTypeAtOffset(llvm::Type *IRType, unsigned IROffset,
     // have to do this analysis on the source type because we can't depend on
     // unions being lowered a specific way etc.
     if (IRType->isIntegerTy(8) || IRType->isIntegerTy(16) ||
-        IRType->isIntegerTy(32)) {
-      unsigned BitWidth = cast<llvm::IntegerType>(IRType)->getBitWidth();
+        IRType->isIntegerTy(32) ||
+        (isa<llvm::PointerType>(IRType) && !Has64BitPointers)) {
+      unsigned BitWidth = isa<llvm::PointerType>(IRType) ? 32 :
+          cast<llvm::IntegerType>(IRType)->getBitWidth();
 
       if (BitsContainNoUserData(SourceTy, SourceOffset*8+BitWidth,
                                 SourceOffset*8+64, getContext()))
@@ -2588,13 +2604,31 @@ class PPC64_SVR4_ABIInfo : public DefaultABIInfo {
 public:
   PPC64_SVR4_ABIInfo(CodeGen::CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
 
-  // TODO: Could override computeInfo to model the ABI more completely if
-  // it would be helpful.  Example: We might remove the byVal flag from
-  // aggregate arguments that fit in a register to avoid pushing them to
-  // memory on function entry.  Note that this is a performance optimization,
-  // not a compliance issue.  In general we prefer to keep ABI details in
-  // the back end where possible, but modifying an argument flag seems like
-  // a good thing to do before invoking the back end.
+  // TODO: We can add more logic to computeInfo to improve performance.
+  // Example: For aggregate arguments that fit in a register, we could
+  // use getDirectInReg (as is done below for structs containing a single
+  // floating-point value) to avoid pushing them to memory on function
+  // entry.  This would require changing the logic in PPCISelLowering
+  // when lowering the parameters in the caller and args in the callee.
+  virtual void computeInfo(CGFunctionInfo &FI) const {
+    FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+    for (CGFunctionInfo::arg_iterator it = FI.arg_begin(), ie = FI.arg_end();
+         it != ie; ++it) {
+      // We rely on the default argument classification for the most part.
+      // One exception:  An aggregate containing a single floating-point
+      // item must be passed in a register if one is available.
+      const Type *T = isSingleElementStruct(it->type, getContext());
+      if (T) {
+        const BuiltinType *BT = T->getAs<BuiltinType>();
+        if (BT && BT->isFloatingPoint()) {
+          QualType QT(T, 0);
+          it->info = ABIArgInfo::getDirectInReg(CGT.ConvertType(QT));
+          continue;
+        }
+      }
+      it->info = classifyArgumentType(it->type);
+    }
+  }
 
   virtual llvm::Value *EmitVAArg(llvm::Value *VAListAddr, 
                                  QualType Ty,
@@ -3135,26 +3169,58 @@ llvm::Value *ARMABIInfo::EmitVAArg(llvm::Value *VAListAddr, QualType Ty,
   CGBuilderTy &Builder = CGF.Builder;
   llvm::Value *VAListAddrAsBPP = Builder.CreateBitCast(VAListAddr, BPP, "ap");
   llvm::Value *Addr = Builder.CreateLoad(VAListAddrAsBPP, "ap.cur");
-  // Handle address alignment for type alignment > 32 bits
+
+  uint64_t Size = CGF.getContext().getTypeSize(Ty) / 8;
   uint64_t TyAlign = CGF.getContext().getTypeAlign(Ty) / 8;
+
+  // The ABI alignment for 64-bit or 128-bit vectors is 8 for AAPCS and 4 for
+  // APCS. For AAPCS, the ABI alignment is at least 4-byte and at most 8-byte.
+  if (Ty->getAs<VectorType>()) {
+    if (getABIKind() == ARMABIInfo::AAPCS_VFP ||
+        getABIKind() == ARMABIInfo::AAPCS)
+      TyAlign = std::min(std::max(TyAlign, (uint64_t)4), (uint64_t)8);
+    else
+      TyAlign = 4;
+  }
+
+  // Handle address alignment for ABI alignment > 4 bytes.
   if (TyAlign > 4) {
     assert((TyAlign & (TyAlign - 1)) == 0 &&
            "Alignment is not power of 2!");
     llvm::Value *AddrAsInt = Builder.CreatePtrToInt(Addr, CGF.Int32Ty);
     AddrAsInt = Builder.CreateAdd(AddrAsInt, Builder.getInt32(TyAlign - 1));
     AddrAsInt = Builder.CreateAnd(AddrAsInt, Builder.getInt32(~(TyAlign - 1)));
-    Addr = Builder.CreateIntToPtr(AddrAsInt, BP);
+    Addr = Builder.CreateIntToPtr(AddrAsInt, BP, "ap.align");
   }
-  llvm::Type *PTy =
-    llvm::PointerType::getUnqual(CGF.ConvertType(Ty));
-  llvm::Value *AddrTyped = Builder.CreateBitCast(Addr, PTy);
 
   uint64_t Offset =
-    llvm::RoundUpToAlignment(CGF.getContext().getTypeSize(Ty) / 8, 4);
+    llvm::RoundUpToAlignment(Size, 4);
   llvm::Value *NextAddr =
     Builder.CreateGEP(Addr, llvm::ConstantInt::get(CGF.Int32Ty, Offset),
                       "ap.next");
   Builder.CreateStore(NextAddr, VAListAddrAsBPP);
+
+  if (Ty->getAs<VectorType>() &&
+      (TyAlign < CGF.getContext().getTypeAlign(Ty) / 8)) {
+    // We can't directly cast ap.cur to pointer to a vector type, since ap.cur
+    // may not be correctly aligned for the vector type. We create an aligned
+    // temporary space and copy the content over from ap.cur to the temporary
+    // space. This is necessary if the natural alignment of the type is greater
+    // than the ABI alignment.
+    llvm::Type *I8PtrTy = Builder.getInt8PtrTy();
+    CharUnits CharSize = getContext().getTypeSizeInChars(Ty);
+    llvm::Value *AlignedTemp = CGF.CreateTempAlloca(CGF.ConvertType(Ty),
+                                                    "var.align");
+    llvm::Value *Dst = Builder.CreateBitCast(AlignedTemp, I8PtrTy);
+    llvm::Value *Src = Builder.CreateBitCast(Addr, I8PtrTy);
+    Builder.CreateMemCpy(Dst, Src,
+        llvm::ConstantInt::get(CGF.IntPtrTy, CharSize.getQuantity()),
+        TyAlign, false);
+    Addr = AlignedTemp; //The content is in aligned location.
+  }
+  llvm::Type *PTy =
+    llvm::PointerType::getUnqual(CGF.ConvertType(Ty));
+  llvm::Value *AddrTyped = Builder.CreateBitCast(Addr, PTy);
 
   return AddrTyped;
 }
