@@ -35,6 +35,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SourceManagerInternals.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Version.h"
 #include "clang/Basic/VersionTuple.h"
 #include "llvm/ADT/APFloat.h"
@@ -977,35 +978,38 @@ adjustFilenameForRelocatablePCH(const char *Filename, StringRef isysroot) {
   return Filename + Pos;
 }
 
-/// \brief Write the AST metadata (e.g., i686-apple-darwin9).
-void ASTWriter::WriteMetadata(ASTContext &Context, StringRef isysroot,
-                              const std::string &OutputFile) {
+/// \brief Write the control block.
+void ASTWriter::WriteControlBlock(ASTContext &Context, StringRef isysroot,
+                                  const std::string &OutputFile) {
   using namespace llvm;
-
+  Stream.EnterSubblock(CONTROL_BLOCK_ID, 4);
+  
   // Metadata
   const TargetInfo &Target = Context.getTargetInfo();
-  BitCodeAbbrev *MetaAbbrev = new BitCodeAbbrev();
-  MetaAbbrev->Add(BitCodeAbbrevOp(METADATA));
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // AST major
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // AST minor
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang major
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang minor
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Relocatable
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Has errors
-  MetaAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // Target triple
-  unsigned MetaAbbrevCode = Stream.EmitAbbrev(MetaAbbrev);
-
+  const TargetOptions &TargetOpts = Target.getTargetOpts();
   RecordData Record;
-  Record.push_back(METADATA);
   Record.push_back(VERSION_MAJOR);
   Record.push_back(VERSION_MINOR);
   Record.push_back(CLANG_VERSION_MAJOR);
   Record.push_back(CLANG_VERSION_MINOR);
   Record.push_back(!isysroot.empty());
   Record.push_back(ASTHasCompilerErrors);
-  const std::string &Triple = Target.getTriple().getTriple();
-  Stream.EmitRecordWithBlob(MetaAbbrevCode, Record, Triple);
+  AddString(TargetOpts.Triple, Record);
+  AddString(TargetOpts.CPU, Record);
+  AddString(TargetOpts.ABI, Record);
+  AddString(TargetOpts.CXXABI, Record);
+  AddString(TargetOpts.LinkerVersion, Record);
+  Record.push_back(TargetOpts.FeaturesAsWritten.size());
+  for (unsigned I = 0, N = TargetOpts.FeaturesAsWritten.size(); I != N; ++I) {
+    AddString(TargetOpts.FeaturesAsWritten[I], Record);
+  }
+  Record.push_back(TargetOpts.Features.size());
+  for (unsigned I = 0, N = TargetOpts.Features.size(); I != N; ++I) {
+    AddString(TargetOpts.Features[I], Record);
+  }
+  Stream.EmitRecord(METADATA, Record);
 
+  // Imports
   if (Chain) {
     serialization::ModuleManager &Mgr = Chain->getModuleManager();
     llvm::SmallVector<char, 128> ModulePaths;
@@ -1026,6 +1030,22 @@ void ASTWriter::WriteMetadata(ASTContext &Context, StringRef isysroot,
     }
     Stream.EmitRecord(IMPORTS, Record);
   }
+
+  // Language options.
+  Record.clear();
+  const LangOptions &LangOpts = Context.getLangOpts();
+#define LANGOPT(Name, Bits, Default, Description) \
+  Record.push_back(LangOpts.Name);
+#define ENUM_LANGOPT(Name, Type, Bits, Default, Description) \
+  Record.push_back(static_cast<unsigned>(LangOpts.get##Name()));
+#include "clang/Basic/LangOptions.def"  
+
+  Record.push_back((unsigned) LangOpts.ObjCRuntime.getKind());
+  AddVersionTuple(LangOpts.ObjCRuntime.getVersion(), Record);
+  
+  Record.push_back(LangOpts.CurrentModule.size());
+  Record.append(LangOpts.CurrentModule.begin(), LangOpts.CurrentModule.end());
+  Stream.EmitRecord(LANGUAGE_OPTIONS, Record);
 
   // Original file name and file ID
   SourceManager &SM = Context.getSourceManager();
@@ -1077,23 +1097,8 @@ void ASTWriter::WriteMetadata(ASTContext &Context, StringRef isysroot,
   Record.push_back(VERSION_CONTROL_BRANCH_REVISION);
   Stream.EmitRecordWithBlob(RepoAbbrevCode, Record,
                             getClangFullRepositoryVersion());
-}
 
-/// \brief Write the LangOptions structure.
-void ASTWriter::WriteLanguageOptions(const LangOptions &LangOpts) {
-  RecordData Record;
-#define LANGOPT(Name, Bits, Default, Description) \
-  Record.push_back(LangOpts.Name);
-#define ENUM_LANGOPT(Name, Type, Bits, Default, Description) \
-  Record.push_back(static_cast<unsigned>(LangOpts.get##Name()));
-#include "clang/Basic/LangOptions.def"  
-
-  Record.push_back((unsigned) LangOpts.ObjCRuntime.getKind());
-  AddVersionTuple(LangOpts.ObjCRuntime.getVersion(), Record);
-  
-  Record.push_back(LangOpts.CurrentModule.size());
-  Record.append(LangOpts.CurrentModule.begin(), LangOpts.CurrentModule.end());
-  Stream.EmitRecord(LANGUAGE_OPTIONS, Record);
+  Stream.ExitBlock();
 }
 
 //===----------------------------------------------------------------------===//
@@ -3431,12 +3436,13 @@ void ASTWriter::WriteASTCore(Sema &SemaRef, MemorizeStatCalls *StatCalls,
     if (!I->second)
       AddDeclRef(I->first, KnownNamespaces);
   }
-  
+
+  // Write the control block
+  WriteControlBlock(Context, isysroot, OutputFile);
+
   // Write the remaining AST contents.
   RecordData Record;
   Stream.EnterSubblock(AST_BLOCK_ID, 5);
-  WriteLanguageOptions(Context.getLangOpts());
-  WriteMetadata(Context, isysroot, OutputFile);
   if (StatCalls && isysroot.empty())
     WriteStatCache(*StatCalls);
 
