@@ -936,7 +936,7 @@ void StmtPrinter::VisitExtVectorElementExpr(ExtVectorElementExpr *Node) {
   OS << Node->getAccessor().getName();
 }
 void StmtPrinter::VisitCStyleCastExpr(CStyleCastExpr *Node) {
-  OS << "(" << Node->getType().getAsString(Policy) << ")";
+  OS << "(" << Node->getTypeAsWritten().getAsString(Policy) << ")";
   PrintExpr(Node->getSubExpr());
 }
 void StmtPrinter::VisitCompoundLiteralExpr(CompoundLiteralExpr *Node) {
@@ -1415,10 +1415,12 @@ void StmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
     OS << "::";
   OS << "new ";
   unsigned NumPlace = E->getNumPlacementArgs();
-  if (NumPlace > 0) {
+  if (NumPlace > 0 && !isa<CXXDefaultArgExpr>(E->getPlacementArg(0))) {
     OS << "(";
     PrintExpr(E->getPlacementArg(0));
     for (unsigned i = 1; i < NumPlace; ++i) {
+      if (isa<CXXDefaultArgExpr>(E->getPlacementArg(i)))
+        break;
       OS << ", ";
       PrintExpr(E->getPlacementArg(i));
     }

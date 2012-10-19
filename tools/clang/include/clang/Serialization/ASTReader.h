@@ -645,27 +645,8 @@ private:
   SmallVector<serialization::SubmoduleID, 2> ImportedModules;
   //@}
 
-  /// \brief The original file name that was used to build the primary AST file,
-  /// which may have been modified for relocatable-pch support.
-  std::string OriginalFileName;
-
-  /// \brief The actual original file name that was used to build the primary
-  /// AST file.
-  std::string ActualOriginalFileName;
-
-  /// \brief The file ID for the original file that was used to build the
-  /// primary AST file.
-  FileID OriginalFileID;
-
-  /// \brief The directory that the PCH was originally created in. Used to
-  /// allow resolving headers even after headers+PCH was moved to a new path.
-  std::string OriginalDir;
-
   /// \brief The directory that the PCH we are reading is stored in.
   std::string CurrentDir;
-
-  /// \brief Whether this precompiled header is a relocatable PCH file.
-  bool RelocatablePCH;
 
   /// \brief The system include root to be used when loading the
   /// precompiled header.
@@ -883,13 +864,14 @@ private:
   /// into account all the necessary relocations.
   const FileEntry *getFileEntry(StringRef filename);
 
-  void MaybeAddSystemRootToFilename(std::string &Filename);
+  void MaybeAddSystemRootToFilename(ModuleFile &M, std::string &Filename);
 
   ASTReadResult ReadASTCore(StringRef FileName, ModuleKind Type,
                             ModuleFile *ImportedBy,
                             llvm::SmallVectorImpl<ModuleFile *> &Loaded);
   ASTReadResult ReadControlBlock(ModuleFile &F,
                                  llvm::SmallVectorImpl<ModuleFile *> &Loaded);
+  ASTReadResult ReadInputFilesBlock(ModuleFile &F);
   ASTReadResult ReadASTBlock(ModuleFile &F);
   bool CheckPredefinesBuffers();
   bool ParseLineTable(ModuleFile &F, SmallVectorImpl<uint64_t> &Record);
@@ -1060,10 +1042,6 @@ public:
   /// \brief Load the AST file designated by the given file name.
   ASTReadResult ReadAST(const std::string &FileName, ModuleKind Type);
 
-  /// \brief Checks that no file that is stored in PCH is out-of-sync with
-  /// the actual file in the file system.
-  ASTReadResult validateFileEntries(ModuleFile &M);
-
   /// \brief Make the entities in the given module and any of its (non-explicit)
   /// submodules visible to name lookup.
   ///
@@ -1106,8 +1084,11 @@ public:
   /// \brief Retrieve the preprocessor.
   Preprocessor &getPreprocessor() const { return PP; }
 
-  /// \brief Retrieve the name of the original source file name
-  const std::string &getOriginalSourceFile() { return OriginalFileName; }
+  /// \brief Retrieve the name of the original source file name for the primary
+  /// module file.
+  const std::string &getOriginalSourceFile() { 
+    return ModuleMgr.getPrimaryModule().OriginalSourceFileName; 
+  }
 
   /// \brief Retrieve the name of the original source file name directly from
   /// the AST file, without actually loading the AST file.
