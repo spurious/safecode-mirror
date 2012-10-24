@@ -244,12 +244,12 @@ static const size_t __SOFTBOUNDCETS_TRIE_SECONDARY_TABLE_ENTRIES = ((size_t) 4 *
 #define __WEAK_INLINE __attribute__((__weak__,__always_inline__)) 
 
 #if __WORDSIZE == 32
-#define __METADATA_INLINE 
+#define __METADATA_INLINE __attribute__((__weak__))
 #else
-#define __METADATA_INLINE
+#define __METADATA_INLINE __attribute__((__weak__))
 #endif
 
-#define __NO_INLINE __attribute__((__noinline__))
+#define __NO_INLINE __attribute__((__weak__,__noinline__))
 
 extern __softboundcets_trie_entry_t** __softboundcets_trie_primary_table;
 
