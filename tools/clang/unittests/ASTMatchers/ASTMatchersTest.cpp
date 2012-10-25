@@ -1333,6 +1333,13 @@ TEST(Matcher, ConstructorArgumentCount) {
                  Constructor1Arg));
 }
 
+TEST(Matcher,ThisExpr) {
+  EXPECT_TRUE(
+      matches("struct X { int a; int f () { return a; } };", thisExpr()));
+  EXPECT_TRUE(
+      notMatches("struct X { int f () { int a; return a; } };", thisExpr()));
+}
+
 TEST(Matcher, BindTemporaryExpression) {
   StatementMatcher TempExpression = bindTemporaryExpr();
 
@@ -2132,6 +2139,15 @@ TEST(Member, MatchesInMemberFunctionCall) {
                       memberExpr(member(hasName("first")))));
 }
 
+TEST(Member, MatchesMember) {
+  EXPECT_TRUE(matches(
+      "struct A { int i; }; void f() { A a; a.i = 2; }",
+      memberExpr(hasDeclaration(fieldDecl(hasType(isInteger()))))));
+  EXPECT_TRUE(notMatches(
+      "struct A { float f; }; void f() { A a; a.f = 2.0f; }",
+      memberExpr(hasDeclaration(fieldDecl(hasType(isInteger()))))));
+}
+
 TEST(Member, MatchesMemberAllocationFunction) {
   // Fails in C++11 mode
   EXPECT_TRUE(matchesConditionally(
@@ -2882,6 +2898,18 @@ TEST(HasAncestor, MatchesInImplicitCode) {
       constructorDecl(
           hasAnyConstructorInitializer(withInitializer(expr(
               hasAncestor(recordDecl(hasName("A")))))))));
+}
+
+TEST(HasParent, MatchesOnlyParent) {
+  EXPECT_TRUE(matches(
+      "void f() { if (true) { int x = 42; } }",
+      compoundStmt(hasParent(ifStmt()))));
+  EXPECT_TRUE(notMatches(
+      "void f() { for (;;) { int x = 42; } }",
+      compoundStmt(hasParent(ifStmt()))));
+  EXPECT_TRUE(notMatches(
+      "void f() { if (true) for (;;) { int x = 42; } }",
+      compoundStmt(hasParent(ifStmt()))));
 }
 
 TEST(TypeMatching, MatchesTypes) {

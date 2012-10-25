@@ -10,6 +10,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/TargetInfo.h"
@@ -31,7 +32,7 @@ protected:
   LexerTest()
     : FileMgr(FileMgrOpts),
       DiagID(new DiagnosticIDs()),
-      Diags(DiagID, new IgnoringDiagConsumer()),
+      Diags(DiagID, new DiagnosticOptions, new IgnoringDiagConsumer()),
       SourceMgr(Diags, FileMgr),
       TargetOpts(new TargetOptions) 
   {

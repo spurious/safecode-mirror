@@ -106,8 +106,8 @@ public:
   /// \brief Receives the language options.
   ///
   /// \returns true to indicate the options are invalid or false otherwise.
-  virtual bool ReadLanguageOptions(const serialization::ModuleFile &M,
-                                   const LangOptions &LangOpts) {
+  virtual bool ReadLanguageOptions(const LangOptions &LangOpts,
+                                   bool Complain) {
     return false;
   }
 
@@ -115,8 +115,8 @@ public:
   ///
   /// \returns true to indicate the target options are invalid, or false
   /// otherwise.
-  virtual bool ReadTargetOptions(const serialization::ModuleFile &M,
-                                 const TargetOptions &TargetOpts) {
+  virtual bool ReadTargetOptions(const TargetOptions &TargetOpts,
+                                 bool Complain) {
     return false;
   }
 
@@ -130,11 +130,14 @@ public:
   /// \param SuggestedPredefines If necessary, additional definitions are added
   /// here.
   ///
+  /// \param Complain Whether to complain about non-matching predefines buffers.
+  ///
   /// \returns true to indicate the predefines are invalid or false otherwise.
   virtual bool ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
                                     StringRef OriginalFileName,
                                     std::string &SuggestedPredefines,
-                                    FileManager &FileMgr) {
+                                    FileManager &FileMgr,
+                                    bool Complain) {
     return false;
   }
 
@@ -158,14 +161,15 @@ public:
   PCHValidator(Preprocessor &PP, ASTReader &Reader)
     : PP(PP), Reader(Reader), NumHeaderInfos(0) {}
 
-  virtual bool ReadLanguageOptions(const serialization::ModuleFile &M,
-                                   const LangOptions &LangOpts);
-  virtual bool ReadTargetOptions(const serialization::ModuleFile &M,
-                                 const TargetOptions &TargetOpts);
+  virtual bool ReadLanguageOptions(const LangOptions &LangOpts,
+                                   bool Complain);
+  virtual bool ReadTargetOptions(const TargetOptions &TargetOpts,
+                                 bool Complain);
   virtual bool ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
                                     StringRef OriginalFileName,
                                     std::string &SuggestedPredefines,
-                                    FileManager &FileMgr);
+                                    FileManager &FileMgr,
+                                    bool Complain);
   virtual void ReadHeaderFileInfo(const HeaderFileInfo &HFI, unsigned ID);
   virtual void ReadCounter(const serialization::ModuleFile &M, unsigned Value);
 
@@ -210,7 +214,26 @@ class ASTReader
 public:
   typedef SmallVector<uint64_t, 64> RecordData;
 
-  enum ASTReadResult { Success, Failure, IgnorePCH };
+  /// \brief The result of reading the control block of an AST file, which
+  /// can fail for various reasons.
+  enum ASTReadResult {
+    /// \brief The control block was read successfully. Aside from failures,
+    /// the AST file is safe to read into the current context.
+    Success,
+    /// \brief The AST file itself appears corrupted.
+    Failure,
+    /// \brief The AST file is out-of-date relative to its input files,
+    /// and needs to be regenerated.
+    OutOfDate,
+    /// \brief The AST file was written by a different version of Clang.
+    VersionMismatch,
+    /// \brief The AST file was writtten with a different language/target
+    /// configuration.
+    ConfigurationMismatch,
+    /// \brief The AST file has errors.
+    HadErrors
+  };
+  
   /// \brief Types of AST files.
   friend class PCHValidator;
   friend class ASTDeclReader;
@@ -860,28 +883,37 @@ private:
   /// \brief Reads a statement from the specified cursor.
   Stmt *ReadStmtFromStream(ModuleFile &F);
 
+  typedef llvm::PointerIntPair<const FileEntry *, 1, bool> InputFile;
+
+  /// \brief Retrieve the file entry and 'overridden' bit for an input
+  /// file in the given module file.
+  InputFile getInputFile(ModuleFile &F, unsigned ID, bool Complain = true);
+
   /// \brief Get a FileEntry out of stored-in-PCH filename, making sure we take
   /// into account all the necessary relocations.
   const FileEntry *getFileEntry(StringRef filename);
 
-  void MaybeAddSystemRootToFilename(ModuleFile &M, std::string &Filename);
+  StringRef MaybeAddSystemRootToFilename(ModuleFile &M, std::string &Filename);
 
   ASTReadResult ReadASTCore(StringRef FileName, ModuleKind Type,
                             ModuleFile *ImportedBy,
-                            llvm::SmallVectorImpl<ModuleFile *> &Loaded);
+                            llvm::SmallVectorImpl<ModuleFile *> &Loaded,
+                            unsigned ClientLoadCapabilities);
   ASTReadResult ReadControlBlock(ModuleFile &F,
-                                 llvm::SmallVectorImpl<ModuleFile *> &Loaded);
-  ASTReadResult ReadInputFilesBlock(ModuleFile &F);
-  ASTReadResult ReadASTBlock(ModuleFile &F);
-  bool CheckPredefinesBuffers();
+                                 llvm::SmallVectorImpl<ModuleFile *> &Loaded,
+                                 unsigned ClientLoadCapabilities);
+  bool ReadASTBlock(ModuleFile &F);
+  bool CheckPredefinesBuffers(bool Complain);
   bool ParseLineTable(ModuleFile &F, SmallVectorImpl<uint64_t> &Record);
-  ASTReadResult ReadSourceManagerBlock(ModuleFile &F);
-  ASTReadResult ReadSLocEntryRecord(int ID);
+  bool ReadSourceManagerBlock(ModuleFile &F);
   llvm::BitstreamCursor &SLocCursorForID(int ID);
   SourceLocation getImportLocation(ModuleFile *F);
-  ASTReadResult ReadSubmoduleBlock(ModuleFile &F);
-  bool ParseLanguageOptions(const ModuleFile &M, const RecordData &Record);
-  
+  bool ReadSubmoduleBlock(ModuleFile &F);
+  static bool ParseLanguageOptions(const RecordData &Record, bool Complain,
+                                   ASTReaderListener &Listener);
+  static bool ParseTargetOptions(const RecordData &Record, bool Complain,
+                                 ASTReaderListener &Listener);
+
   struct RecordLocation {
     RecordLocation(ModuleFile *M, uint64_t O)
       : F(M), Offset(O) {}
@@ -1039,8 +1071,38 @@ public:
 
   SourceManager &getSourceManager() const { return SourceMgr; }
 
+  /// \brief Flags that indicate what kind of AST loading failures the client
+  /// of the AST reader can directly handle.
+  ///
+  /// When a client states that it can handle a particular kind of failure,
+  /// the AST reader will not emit errors when producing that kind of failure.
+  enum LoadFailureCapabilities {
+    /// \brief The client can't handle any AST loading failures.
+    ARR_None = 0,
+    /// \brief The client can handle an AST file that cannot load because it
+    /// is out-of-date relative to its input files.
+    ARR_OutOfDate = 0x1,
+    /// \brief The client can handle an AST file that cannot load because it
+    /// was built with a different version of Clang.
+    ARR_VersionMismatch = 0x2,
+    /// \brief The client can handle an AST file that cannot load because it's
+    /// compiled configuration doesn't match that of the context it was
+    /// loaded into.
+    ARR_ConfigurationMismatch = 0x4
+  };
+
   /// \brief Load the AST file designated by the given file name.
-  ASTReadResult ReadAST(const std::string &FileName, ModuleKind Type);
+  ///
+  /// \param FileName The name of the AST file to load.
+  ///
+  /// \param Type The kind of AST being loaded, e.g., PCH, module, main file,
+  /// or preamble.
+  ///
+  /// \param ClientLoadCapabilities The set of client load-failure
+  /// capabilities, represented as a bitset of the enumerators of
+  /// LoadFailureCapabilities.
+  ASTReadResult ReadAST(const std::string &FileName, ModuleKind Type,
+                        unsigned ClientLoadCapabilities);
 
   /// \brief Make the entities in the given module and any of its (non-explicit)
   /// submodules visible to name lookup.
@@ -1095,6 +1157,13 @@ public:
   static std::string getOriginalSourceFile(const std::string &ASTFileName,
                                            FileManager &FileMgr,
                                            DiagnosticsEngine &Diags);
+
+  /// \brief Determine whether the given AST file is acceptable to load into a
+  /// translation unit with the given language and target options.
+  static bool isAcceptableASTFile(StringRef Filename,
+                                  FileManager &FileMgr,
+                                  const LangOptions &LangOpts,
+                                  const TargetOptions &TargetOpts);
 
   /// \brief Returns the suggested contents of the predefines buffer,
   /// which contains a (typically-empty) subset of the predefines
@@ -1559,10 +1628,10 @@ public:
   llvm::APFloat ReadAPFloat(const RecordData &Record, unsigned &Idx);
 
   // \brief Read a string
-  std::string ReadString(const RecordData &Record, unsigned &Idx);
+  static std::string ReadString(const RecordData &Record, unsigned &Idx);
 
   /// \brief Read a version tuple.
-  VersionTuple ReadVersionTuple(const RecordData &Record, unsigned &Idx);
+  static VersionTuple ReadVersionTuple(const RecordData &Record, unsigned &Idx);
 
   CXXTemporary *ReadCXXTemporary(ModuleFile &F, const RecordData &Record,
                                  unsigned &Idx);

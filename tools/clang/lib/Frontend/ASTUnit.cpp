@@ -523,13 +523,11 @@ public:
       Predefines(Predefines), Counter(Counter), NumHeaderInfos(0),
       InitializedLanguage(false) {}
 
-  virtual bool ReadLanguageOptions(const serialization::ModuleFile &M,
-                                   const LangOptions &LangOpts) {
+  virtual bool ReadLanguageOptions(const LangOptions &LangOpts,
+                                   bool Complain) {
     if (InitializedLanguage)
       return false;
     
-    assert(M.Kind == serialization::MK_MainFile);
-
     LangOpt = LangOpts;
     InitializedLanguage = true;
     
@@ -537,14 +535,11 @@ public:
     return false;
   }
 
-  virtual bool ReadTargetOptions(const serialization::ModuleFile &M,
-                                 const TargetOptions &TargetOpts) {
+  virtual bool ReadTargetOptions(const TargetOptions &TargetOpts,
+                                 bool Complain) {
     // If we've already initialized the target, don't do it again.
     if (Target)
       return false;
-    
-    assert(M.Kind == serialization::MK_MainFile);
-
     
     this->TargetOpts = new TargetOptions(TargetOpts);
     Target = TargetInfo::CreateTargetInfo(PP.getDiagnostics(), 
@@ -557,7 +552,8 @@ public:
   virtual bool ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
                                     StringRef OriginalFileName,
                                     std::string &SuggestedPredefines,
-                                    FileManager &FileMgr) {
+                                    FileManager &FileMgr,
+                                    bool Complain) {
     Predefines = Buffers[0].Data;
     for (unsigned I = 1, N = Buffers.size(); I != N; ++I) {
       Predefines += Buffers[I].Data;
@@ -672,11 +668,11 @@ void ASTUnit::ConfigureDiags(IntrusiveRefCntPtr<DiagnosticsEngine> &Diags,
   if (!Diags.getPtr()) {
     // No diagnostics engine was provided, so create our own diagnostics object
     // with the default options.
-    DiagnosticOptions DiagOpts;
     DiagnosticConsumer *Client = 0;
     if (CaptureDiagnostics)
       Client = new StoredDiagnosticConsumer(AST.StoredDiagnostics);
-    Diags = CompilerInstance::createDiagnostics(DiagOpts, ArgEnd-ArgBegin,
+    Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions(),
+                                                ArgEnd-ArgBegin,
                                                 ArgBegin, Client,
                                                 /*ShouldOwnClient=*/true,
                                                 /*ShouldCloneClient=*/false);
@@ -809,12 +805,16 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
                                            AST->TargetOpts, AST->Target, 
                                            Predefines, Counter));
 
-  switch (Reader->ReadAST(Filename, serialization::MK_MainFile)) {
+  switch (Reader->ReadAST(Filename, serialization::MK_MainFile,
+                          ASTReader::ARR_None)) {
   case ASTReader::Success:
     break;
 
   case ASTReader::Failure:
-  case ASTReader::IgnorePCH:
+  case ASTReader::OutOfDate:
+  case ASTReader::VersionMismatch:
+  case ASTReader::ConfigurationMismatch:
+  case ASTReader::HadErrors:
     AST->getDiagnostics().Report(diag::err_fe_unable_to_load_pch);
     return NULL;
   }
@@ -1947,8 +1947,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(const char **ArgBegin,
   if (!Diags.getPtr()) {
     // No diagnostics engine was provided, so create our own diagnostics object
     // with the default options.
-    DiagnosticOptions DiagOpts;
-    Diags = CompilerInstance::createDiagnostics(DiagOpts, ArgEnd - ArgBegin, 
+    Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions(),
+                                                ArgEnd - ArgBegin,
                                                 ArgBegin);
   }
 
