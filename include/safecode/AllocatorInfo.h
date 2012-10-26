@@ -209,7 +209,7 @@ class AllocatorInfoPass : public ImmutablePass {
       //
       DataLayout & TD = getAnalysis<DataLayout>();
       M.getOrInsertFunction ("strlen",
-                             TD.getIntPtrType(M.getContext()),
+                             TD.getIntPtrType(M.getContext(), 0),
                              getVoidPtrType(M.getContext()),
                              NULL);
       return true;

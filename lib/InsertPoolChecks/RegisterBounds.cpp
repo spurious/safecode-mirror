@@ -344,7 +344,7 @@ RegisterCustomizedAllocation::runOnModule(Module & M) {
   //
   DataLayout & TD = getAnalysis<DataLayout>();
   M.getOrInsertFunction ("nullstrlen",
-                         TD.getIntPtrType(M.getContext()),
+                         TD.getIntPtrType(M.getContext(), 0),
                          getVoidPtrType(M.getContext()),
                          NULL);
 

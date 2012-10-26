@@ -120,7 +120,7 @@ ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   //
   const SCEV * GEPBase = SE->getSCEV(PointerOperand);
   const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(&GEP), GEPBase);
-  const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(GEP.getContext())));
+  const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(GEP.getType())));
 
   //
   // Create an SCEV describing the bounds of the object.  On 64-bit platforms,

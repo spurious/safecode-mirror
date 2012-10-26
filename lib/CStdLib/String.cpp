@@ -256,7 +256,7 @@ StringTransform::runOnModule (Module & M) {
   // Create needed pointer types (char * == i8 * == VoidPtrTy).
   Type *VoidPtrTy = IntegerType::getInt8PtrTy(M.getContext());
   // Determine the type of size_t for functions that return this result.
-  Type *SizeTTy = tdata->getIntPtrType(M.getContext());
+  Type *SizeTTy = tdata->getIntPtrType(M.getContext(), 0);
   Type *SSizeTTy = SizeTTy;
   // Create other return types (int, void).
   Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());

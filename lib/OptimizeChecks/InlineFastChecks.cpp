@@ -230,14 +230,9 @@ llvm::InlineFastChecks::castToInt (Value * Pointer, BasicBlock * BB) {
   DataLayout & TD = getAnalysis<DataLayout>();
 
   //
-  // Get a reference to the context from the basic block.
-  //
-  LLVMContext & Context = BB->getContext();
-
-  //
   // Create the actual cast instrution.
   //
-  return new PtrToIntInst (Pointer, TD.getIntPtrType(Context), "tmp", BB);
+  return new PtrToIntInst (Pointer, TD.getIntPtrType(Pointer->getType()), "tmp", BB);
 }
 
 //
@@ -257,11 +252,6 @@ llvm::InlineFastChecks::addComparisons (BasicBlock * BB,
                                         Value * Result,
                                         Value * Size) {
   //
-  // Get a reference to the context from the basic block.
-  //
-  LLVMContext & Context = BB->getContext();
-
-  //
   // Compare the base of the object to the pointer being checked.
   //
   ICmpInst * Compare1 = new ICmpInst (*BB,
@@ -275,8 +265,8 @@ llvm::InlineFastChecks::addComparisons (BasicBlock * BB,
   //
   DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = Size;
-  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
-    SizeInt = new ZExtInst (Size, TD.getIntPtrType(Context), "size", BB);
+  if (SizeInt->getType() != TD.getIntPtrType(BB->getType())) {
+    SizeInt = new ZExtInst (Size, TD.getIntPtrType(BB->getType()), "size", BB);
   }
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
                                              Base,
@@ -359,15 +349,15 @@ llvm::InlineFastChecks::createBodyFor (Function * F) {
   //
   DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = MemSize;
-  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
-    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);
+  if (SizeInt->getType() != TD.getIntPtrType(entryBB->getType())) {
+    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(entryBB->getType()), "size", entryBB);
   }
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
                                              Result,
                                              SizeInt,
                                              "lastbyte",
                                              entryBB);
-  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(Context), -1);
+  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(entryBB->getType()), -1);
   LastByte = BinaryOperator::Create (Instruction::Add,
                                      LastByte,
                                      MinusOne,
@@ -454,15 +444,15 @@ llvm::InlineFastChecks::createDebugBodyFor (Function * F) {
   //
   DataLayout & TD = getAnalysis<DataLayout>();
   Value * SizeInt = MemSize;
-  if (SizeInt->getType() != TD.getIntPtrType(Context)) {
-    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(Context), "size", entryBB);
+  if (SizeInt->getType() != TD.getIntPtrType(entryBB->getType())) {
+    SizeInt = new ZExtInst (MemSize, TD.getIntPtrType(entryBB->getType()), "size", entryBB);
   }
   Value * LastByte = BinaryOperator::Create (Instruction::Add,
                                              Result,
                                              SizeInt,
                                              "lastbyte",
                                              entryBB);
-  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(Context), -1);
+  Constant * MinusOne = ConstantInt::getSigned (TD.getIntPtrType(entryBB->getType()), -1);
   LastByte = BinaryOperator::Create (Instruction::Add,
                                      LastByte,
                                      MinusOne,
