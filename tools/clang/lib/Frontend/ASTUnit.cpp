@@ -27,6 +27,7 @@
 #include "clang/Serialization/ASTWriter.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Diagnostic.h"
@@ -505,7 +506,6 @@ class ASTInfoCollector : public ASTReaderListener {
   HeaderSearch &HSI;
   IntrusiveRefCntPtr<TargetOptions> &TargetOpts;
   IntrusiveRefCntPtr<TargetInfo> &Target;
-  std::string &Predefines;
   unsigned &Counter;
 
   unsigned NumHeaderInfos;
@@ -516,11 +516,10 @@ public:
                    HeaderSearch &HSI, 
                    IntrusiveRefCntPtr<TargetOptions> &TargetOpts,
                    IntrusiveRefCntPtr<TargetInfo> &Target,
-                   std::string &Predefines,
                    unsigned &Counter)
     : PP(PP), Context(Context), LangOpt(LangOpt), HSI(HSI), 
       TargetOpts(TargetOpts), Target(Target),
-      Predefines(Predefines), Counter(Counter), NumHeaderInfos(0),
+      Counter(Counter), NumHeaderInfos(0),
       InitializedLanguage(false) {}
 
   virtual bool ReadLanguageOptions(const LangOptions &LangOpts,
@@ -546,18 +545,6 @@ public:
                                           *this->TargetOpts);
 
     updated();
-    return false;
-  }
-
-  virtual bool ReadPredefinesBuffer(const PCHPredefinesBlocks &Buffers,
-                                    StringRef OriginalFileName,
-                                    std::string &SuggestedPredefines,
-                                    FileManager &FileMgr,
-                                    bool Complain) {
-    Predefines = Buffers[0].Data;
-    for (unsigned I = 1, N = Buffers.size(); I != N; ++I) {
-      Predefines += Buffers[I].Data;
-    }
     return false;
   }
 
@@ -709,7 +696,10 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
   AST->SourceMgr = new SourceManager(AST->getDiagnostics(),
                                      AST->getFileManager(),
                                      UserFilesAreVolatile);
-  AST->HeaderInfo.reset(new HeaderSearch(AST->getFileManager(),
+  AST->HSOpts = new HeaderSearchOptions();
+  
+  AST->HeaderInfo.reset(new HeaderSearch(AST->HSOpts,
+                                         AST->getFileManager(),
                                          AST->getDiagnostics(),
                                          AST->ASTFileLangOpts,
                                          /*Target=*/0));
@@ -764,12 +754,12 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
   // Gather Info for preprocessor construction later on.
 
   HeaderSearch &HeaderInfo = *AST->HeaderInfo.get();
-  std::string Predefines;
   unsigned Counter;
 
   OwningPtr<ASTReader> Reader;
 
-  AST->PP = new Preprocessor(AST->getDiagnostics(), AST->ASTFileLangOpts, 
+  AST->PP = new Preprocessor(new PreprocessorOptions(),
+                             AST->getDiagnostics(), AST->ASTFileLangOpts,
                              /*Target=*/0, AST->getSourceManager(), HeaderInfo, 
                              *AST, 
                              /*IILookup=*/0,
@@ -803,7 +793,7 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
   Reader->setListener(new ASTInfoCollector(*AST->PP, Context,
                                            AST->ASTFileLangOpts, HeaderInfo, 
                                            AST->TargetOpts, AST->Target, 
-                                           Predefines, Counter));
+                                           Counter));
 
   switch (Reader->ReadAST(Filename, serialization::MK_MainFile,
                           ASTReader::ARR_None)) {
@@ -821,7 +811,6 @@ ASTUnit *ASTUnit::LoadFromASTFile(const std::string &Filename,
 
   AST->OriginalSourceFile = Reader->getOriginalSourceFile();
 
-  PP.setPredefines(Reader->getSuggestedPredefines());
   PP.setCounterValue(Counter);
 
   // Attach the AST reader to the AST context as an external AST

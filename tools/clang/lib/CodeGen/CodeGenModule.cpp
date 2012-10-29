@@ -353,9 +353,7 @@ void CodeGenModule::setTypeVisibility(llvm::GlobalValue *GV,
   // to deal with mixed-visibility symbols.
   case TSK_ExplicitSpecialization:
   case TSK_ImplicitInstantiation:
-    if (!CodeGenOpts.HiddenWeakTemplateVTables)
-      return;
-    break;
+    return;
   }
 
   // If there's a key function, there may be translation units
@@ -2584,8 +2582,17 @@ void CodeGenModule::EmitLinkageSpec(const LinkageSpecDecl *LSD) {
   }
 
   for (RecordDecl::decl_iterator I = LSD->decls_begin(), E = LSD->decls_end();
-       I != E; ++I)
+       I != E; ++I) {
+    // Meta-data for ObjC class includes references to implemented methods.
+    // Generate class's method definitions first.
+    if (ObjCImplDecl *OID = dyn_cast<ObjCImplDecl>(*I)) {
+      for (ObjCContainerDecl::method_iterator M = OID->meth_begin(),
+           MEnd = OID->meth_end();
+           M != MEnd; ++M)
+        EmitTopLevelDecl(*M);
+    }
     EmitTopLevelDecl(*I);
+  }
 }
 
 /// EmitTopLevelDecl - Emit code for a single top level declaration.

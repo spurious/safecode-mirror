@@ -2412,6 +2412,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_pthread);
 
+
   // -stack-protector=0 is default.
   unsigned StackProtectorLevel = 0;
   if (Arg *A = Args.getLastArg(options::OPT_fno_stack_protector,
@@ -6077,6 +6078,9 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-lstdc++");
   }
 
+  // Call this before we add the C++ ABI library.
+  addUbsanRTLinux(getToolChain(), Args, CmdArgs);
+
   if (D.CCCIsCXX &&
       !Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_nodefaultlibs)) {
@@ -6129,7 +6133,6 @@ void linuxtools::Link::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   addProfileRT(getToolChain(), Args, CmdArgs, getToolChain().getTriple());
-  addUbsanRTLinux(getToolChain(), Args, CmdArgs);
 
   C.addCommand(new Command(JA, *this, ToolChain.Linker.c_str(), CmdArgs));
 }
