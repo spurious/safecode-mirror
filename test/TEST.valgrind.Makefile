@@ -18,7 +18,7 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 GCCLD    = $(LLVM_OBJ_ROOT)/$(CONFIGURATION)/bin/gccld
 WATCHDOG := $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/watchdog
 SC       := $(RUNTOOLSAFELY) $(WATCHDOG) $(LLVM_OBJ_ROOT)/projects/safecode/$(CONFIGURATION)/bin/sc -rewrite-oob
-VALGRINDPROG := valgrind
+VALGRINDPROG := $(HOME)/local/bin/valgrind
 VALGRIND = $(VALGRINDPROG) -q --log-file=vglog
 #VALGRIND = $(VALGRINDPROG) -q --log-file=vglog --tool=exp-sgcheck
 
@@ -59,11 +59,11 @@ Output/%.sc.o: %.cpp $(CLANGXX)
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
-	-$(CLANG) -O2 -g -use-gold-plugin -flto -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(Source)
-	-$(CLANG) -O2 -g -use-gold-plugin -flto -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
+	-$(CLANG) -O2 -g -fmemsafety $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(Source) $(LDFLAGS) -o $@
 endif
 
 ##############################################################################
@@ -133,15 +133,15 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	@echo ">>> ========= " \'$*\' Program >> $@
 	@-if test -f Output/$*.out-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
-	  grep "^program" Output/$*.out-nat.time >> $@;\
+	  grep "^user" Output/$*.out-nat.time >> $@;\
         fi
 	@-if test -f Output/$*.valgrind.diff-llc; then \
 	  printf "RUN-TIME-VALGRIND: " >> $@;\
-	  grep "^program" Output/$*.valgrind.out-llc.time >> $@;\
+	  grep "^user" Output/$*.valgrind.out-llc.time >> $@;\
 	fi
 	@-if test -f Output/$*.safecode.diff-llc; then \
 	  printf "RUN-TIME-SAFECODE: " >> $@;\
-	  grep "^program" Output/$*.safecode.out-llc.time >> $@;\
+	  grep "^user" Output/$*.safecode.out-llc.time >> $@;\
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
