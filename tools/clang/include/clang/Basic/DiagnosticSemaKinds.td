@@ -95,7 +95,7 @@ def err_variably_modified_new_type : Error<
 
 // C99 Designated Initializers
 def ext_designated_init : Extension<
-  "designated initializers are a C99 feature">;
+  "designated initializers are a C99 feature">, InGroup<C99>;
 def err_array_designator_negative : Error<
   "array designator value '%0' is negative">;
 def err_array_designator_empty_range : Error<
@@ -512,7 +512,8 @@ def warn_conflicting_overriding_ret_types : Warning<
 
 def warn_conflicting_ret_types : Warning<
   "conflicting return type in "
-  "implementation of %0%diff{: $ vs $|}1,2">;
+  "implementation of %0%diff{: $ vs $|}1,2">,
+  InGroup<MismatchedReturnTypes>;
 
 def warn_conflicting_overriding_ret_type_modifiers : Warning<
   "conflicting distributed object modifiers on return type "
@@ -541,7 +542,9 @@ def warn_conflicting_overriding_param_types : Warning<
 
 def warn_conflicting_param_types : Warning<
   "conflicting parameter types in "
-  "implementation of %0%diff{: $ vs $|}1,2">;
+  "implementation of %0%diff{: $ vs $|}1,2">,
+  InGroup<MismatchedParameterTypes>;
+
 def warn_conflicting_param_modifiers : Warning<
   "conflicting distributed object modifiers on parameter type "
   "in implementation of %0">,
@@ -718,7 +721,7 @@ def warn_arc_repeated_use_of_weak : Warning <
 def warn_implicitly_retains_self : Warning <
   "block implicitly retains 'self'; explicitly mention 'self' to indicate "
   "this is intended behavior">,
-  InGroup<DiagGroup<"implicit-retain-self">>;
+  InGroup<DiagGroup<"implicit-retain-self">>, DefaultIgnore;
 def warn_arc_possible_repeated_use_of_weak : Warning <
   "weak %select{variable|property|implicit property|instance variable}0 %1 may "
   "be accessed multiple times in this %select{function|method|block|lambda}2 "
@@ -5047,7 +5050,9 @@ def err_typecheck_cast_to_incomplete : Error<
   "cast to incomplete type %0">;
 def ext_typecheck_cast_nonscalar : Extension<
   "C99 forbids casting nonscalar type %0 to the same type">;
-def ext_typecheck_cast_to_union : Extension<"C99 forbids casts to union type">;
+def ext_typecheck_cast_to_union : Extension<
+  "cast to union type is a GNU extension">,
+  InGroup<GNU>;
 def err_typecheck_cast_to_union_no_type : Error<
   "cast to union type from type %0 not present in union">;
 def err_cast_pointer_from_non_pointer_int : Error<
@@ -5214,7 +5219,7 @@ def err_in_class_initializer_references_def_ctor : Error<
 
 def ext_in_class_initializer_non_constant : Extension<
   "in-class initializer for static data member is not a constant expression; "
-  "folding it to a constant is a GNU extension">;
+  "folding it to a constant is a GNU extension">, InGroup<GNU>;
 
 // C++ anonymous unions and GNU anonymous structs/unions
 def ext_anonymous_union : Extension<
@@ -5270,6 +5275,8 @@ def err_static_data_member_not_allowed_in_local_class : Error<
 def err_base_clause_on_union : Error<"unions cannot have base classes">;
 def err_base_must_be_class : Error<"base specifier must name a class">;
 def err_union_as_base_class : Error<"unions cannot be base classes">;
+def err_circular_inheritance : Error<
+  "circular inheritance between %0 and %1">;
 def err_incomplete_base_class : Error<"base class has incomplete type">;
 def err_duplicate_base_class : Error<
   "base class %0 specified more than once as a direct base class">;
@@ -5497,7 +5504,8 @@ def warn_format_string_is_wide_literal : Warning<
 def warn_printf_format_string_contains_null_char : Warning<
   "format string contains '\\0' within the string body">, InGroup<Format>;
 def warn_printf_asterisk_missing_arg : Warning<
-  "'%select{*|.*}0' specified field %select{width|precision}0 is missing a matching 'int' argument">;
+  "'%select{*|.*}0' specified field %select{width|precision}0 is missing a matching 'int' argument">,
+  InGroup<Format>;
 def warn_printf_asterisk_wrong_type : Warning<
   "field %select{width|precision}0 should have type %1, but argument has type %2">,
   InGroup<Format>;

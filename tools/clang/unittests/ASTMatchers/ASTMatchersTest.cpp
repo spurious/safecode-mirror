@@ -2775,6 +2775,17 @@ TEST(ForEachDescendant, BindsRecursiveCombinations) {
       new VerifyIdIsBoundTo<FieldDecl>("f", 8)));
 }
 
+TEST(ForEachDescendant, BindsCorrectNodes) {
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "class C { void f(); int i; };",
+      recordDecl(hasName("C"), forEachDescendant(decl().bind("decl"))),
+      new VerifyIdIsBoundTo<FieldDecl>("decl", 1)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "class C { void f() {} int i; };",
+      recordDecl(hasName("C"), forEachDescendant(decl().bind("decl"))),
+      new VerifyIdIsBoundTo<FunctionDecl>("decl", 1)));
+}
+
 
 TEST(IsTemplateInstantiation, MatchesImplicitClassTemplateInstantiation) {
   // Make sure that we can both match the class by name (::X) and by the type
@@ -3364,6 +3375,27 @@ TEST(MatchFinder, CanMatchStatementsRecursively) {
   EXPECT_TRUE(matchAndVerifyResultFalse("void f() { if (1) { for (;;) { } } }",
     ifStmt().bind("if"),
     new VerifyRecursiveMatch<clang::Stmt>("if", declStmt())));
+}
+
+class VerifyStartOfTranslationUnit : public MatchFinder::MatchCallback {
+public:
+  VerifyStartOfTranslationUnit() : Called(false) {}
+  virtual void run(const MatchFinder::MatchResult &Result) {
+    EXPECT_TRUE(Called);
+  }
+  virtual void onStartOfTranslationUnit() {
+    Called = true;
+  }
+  bool Called;
+};
+
+TEST(MatchFinder, InterceptsStartOfTranslationUnit) {
+  MatchFinder Finder;
+  VerifyStartOfTranslationUnit VerifyCallback;
+  Finder.addMatcher(decl(), &VerifyCallback);
+  OwningPtr<FrontendActionFactory> Factory(newFrontendActionFactory(&Finder));
+  ASSERT_TRUE(tooling::runToolOnCode(Factory->create(), "int x;"));
+  EXPECT_TRUE(VerifyCallback.Called);
 }
 
 } // end namespace ast_matchers

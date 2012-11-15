@@ -194,7 +194,7 @@ EmitExprForReferenceBinding(CodeGenFunction &CGF, const Expr *E,
   // Objective-C++ ARC:
   //   If we are binding a reference to a temporary that has ownership, we
   //   need to perform retain/release operations on the temporary.
-  if (M && CGF.getContext().getLangOpts().ObjCAutoRefCount &&
+  if (M && CGF.getLangOpts().ObjCAutoRefCount &&
       M->getType()->isObjCLifetimeType() &&
       (M->getType().getObjCLifetime() == Qualifiers::OCL_Strong ||
        M->getType().getObjCLifetime() == Qualifiers::OCL_Weak ||
@@ -389,7 +389,7 @@ CodeGenFunction::EmitReferenceBindingToExpr(const Expr *E,
                                                    ReferenceTemporaryDtor,
                                                    ObjCARCReferenceLifetimeType,
                                                    InitializedDecl);
-  if (CatchUndefined && !E->getType()->isFunctionType()) {
+  if (SanitizePerformTypeCheck && !E->getType()->isFunctionType()) {
     // C++11 [dcl.ref]p5 (as amended by core issue 453):
     //   If a glvalue to which a reference is directly bound designates neither
     //   an existing object or function of an appropriate type nor a region of
@@ -476,47 +476,54 @@ static llvm::Value *emitHash16Bytes(CGBuilderTy &Builder, llvm::Value *Low,
 void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
                                     llvm::Value *Address,
                                     QualType Ty, CharUnits Alignment) {
-  if (!CatchUndefined)
+  if (!SanitizePerformTypeCheck)
+    return;
+
+  // Don't check pointers outside the default address space. The null check
+  // isn't correct, the object-size check isn't supported by LLVM, and we can't
+  // communicate the addresses to the runtime handler for the vptr check.
+  if (Address->getType()->getPointerAddressSpace())
     return;
 
   llvm::Value *Cond = 0;
 
-  if (TCK != TCK_Load && TCK != TCK_Store) {
-    // The glvalue must not be an empty glvalue. Don't bother checking this for
-    // loads and stores, because we will get a segfault anyway (if the operation
-    // isn't optimized out).
+  if (getLangOpts().SanitizeNull) {
+    // The glvalue must not be an empty glvalue.
     Cond = Builder.CreateICmpNE(
         Address, llvm::Constant::getNullValue(Address->getType()));
   }
 
-  uint64_t AlignVal = Alignment.getQuantity();
-
-  if (!Ty->isIncompleteType()) {
+  if (getLangOpts().SanitizeObjectSize && !Ty->isIncompleteType()) {
     uint64_t Size = getContext().getTypeSizeInChars(Ty).getQuantity();
-    if (!AlignVal)
-      AlignVal = getContext().getTypeAlignInChars(Ty).getQuantity();
-
-    // This needs to be to the standard address space.
-    Address = Builder.CreateBitCast(Address, Int8PtrTy);
 
     // The glvalue must refer to a large enough storage region.
-    // FIXME: If -faddress-sanitizer is enabled, insert dynamic instrumentation
+    // FIXME: If Address Sanitizer is enabled, insert dynamic instrumentation
     //        to check this.
     llvm::Value *F = CGM.getIntrinsic(llvm::Intrinsic::objectsize, IntPtrTy);
     llvm::Value *Min = Builder.getFalse();
+    llvm::Value *CastAddr = Builder.CreateBitCast(Address, Int8PtrTy);
     llvm::Value *LargeEnough =
-        Builder.CreateICmpUGE(Builder.CreateCall2(F, Address, Min),
+        Builder.CreateICmpUGE(Builder.CreateCall2(F, CastAddr, Min),
                               llvm::ConstantInt::get(IntPtrTy, Size));
     Cond = Cond ? Builder.CreateAnd(Cond, LargeEnough) : LargeEnough;
   }
 
-  if (AlignVal) {
+  uint64_t AlignVal = 0;
+
+  if (getLangOpts().SanitizeAlignment) {
+    AlignVal = Alignment.getQuantity();
+    if (!Ty->isIncompleteType() && !AlignVal)
+      AlignVal = getContext().getTypeAlignInChars(Ty).getQuantity();
+
     // The glvalue must be suitably aligned.
-    llvm::Value *Align =
-        Builder.CreateAnd(Builder.CreatePtrToInt(Address, IntPtrTy),
-                          llvm::ConstantInt::get(IntPtrTy, AlignVal - 1));
-    Cond = Builder.CreateAnd(Cond,
-        Builder.CreateICmpEQ(Align, llvm::ConstantInt::get(IntPtrTy, 0)));
+    if (AlignVal) {
+      llvm::Value *Align =
+          Builder.CreateAnd(Builder.CreatePtrToInt(Address, IntPtrTy),
+                            llvm::ConstantInt::get(IntPtrTy, AlignVal - 1));
+      llvm::Value *Aligned =
+        Builder.CreateICmpEQ(Align, llvm::ConstantInt::get(IntPtrTy, 0));
+      Cond = Cond ? Builder.CreateAnd(Cond, Aligned) : Aligned;
+    }
   }
 
   if (Cond) {
@@ -529,14 +536,11 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
     EmitCheck(Cond, "type_mismatch", StaticData, Address);
   }
 
+  // If possible, check that the vptr indicates that there is a subobject of
+  // type Ty at offset zero within this object.
   CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
-  if (TCK != TCK_ConstructorCall &&
+  if (getLangOpts().SanitizeVptr && TCK != TCK_ConstructorCall &&
       RD && RD->hasDefinition() && RD->isDynamicClass()) {
-    // Check that the vptr indicates that there is a subobject of type Ty at
-    // offset zero within this object.
-    // FIXME: Produce a diagnostic if the user tries to combine this check with
-    //        -fno-rtti.
-
     // Compute a hash of the mangled name of the type.
     //
     // FIXME: This is not guaranteed to be deterministic! Move to a
@@ -1771,8 +1775,8 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
     // But, we continue to generate __strong write barrier on indirect write
     // into a pointer to object.
-    if (getContext().getLangOpts().ObjC1 &&
-        getContext().getLangOpts().getGC() != LangOptions::NonGC &&
+    if (getLangOpts().ObjC1 &&
+        getLangOpts().getGC() != LangOptions::NonGC &&
         LV.isObjCWeak())
       LV.setNonGC(!E->isOBJCGCCandidate(getContext()));
     return LV;
@@ -2017,29 +2021,6 @@ void CodeGenFunction::EmitCheck(llvm::Value *Checked, StringRef CheckName,
                                 bool Recoverable) {
   llvm::BasicBlock *Cont = createBasicBlock("cont");
 
-  // If -fcatch-undefined-behavior is not enabled, just emit a trap. This
-  // happens when using -ftrapv.
-  // FIXME: Should -ftrapv require the ubsan runtime library?
-  if (!CatchUndefined) {
-    // If we're optimizing, collapse all calls to trap down to just one per
-    // function to save on code size.
-    if (!CGM.getCodeGenOpts().OptimizationLevel || !TrapBB) {
-      TrapBB = createBasicBlock("trap");
-      Builder.CreateCondBr(Checked, Cont, TrapBB);
-      EmitBlock(TrapBB);
-      llvm::Value *F = CGM.getIntrinsic(llvm::Intrinsic::trap);
-      llvm::CallInst *TrapCall = Builder.CreateCall(F);
-      TrapCall->setDoesNotReturn();
-      TrapCall->setDoesNotThrow();
-      Builder.CreateUnreachable();
-    } else {
-      Builder.CreateCondBr(Checked, Cont, TrapBB);
-    }
-
-    EmitBlock(Cont);
-    return;
-  }
-
   llvm::BasicBlock *Handler = createBasicBlock("handler." + CheckName);
   Builder.CreateCondBr(Checked, Cont, Handler);
   EmitBlock(Handler);
@@ -2084,6 +2065,27 @@ void CodeGenFunction::EmitCheck(llvm::Value *Checked, StringRef CheckName,
     HandlerCall->setDoesNotReturn();
     HandlerCall->setDoesNotThrow();
     Builder.CreateUnreachable();
+  }
+
+  EmitBlock(Cont);
+}
+
+void CodeGenFunction::EmitTrapvCheck(llvm::Value *Checked) {
+  llvm::BasicBlock *Cont = createBasicBlock("cont");
+
+  // If we're optimizing, collapse all calls to trap down to just one per
+  // function to save on code size.
+  if (!CGM.getCodeGenOpts().OptimizationLevel || !TrapBB) {
+    TrapBB = createBasicBlock("trap");
+    Builder.CreateCondBr(Checked, Cont, TrapBB);
+    EmitBlock(TrapBB);
+    llvm::Value *F = CGM.getIntrinsic(llvm::Intrinsic::trap);
+    llvm::CallInst *TrapCall = Builder.CreateCall(F);
+    TrapCall->setDoesNotReturn();
+    TrapCall->setDoesNotThrow();
+    Builder.CreateUnreachable();
+  } else {
+    Builder.CreateCondBr(Checked, Cont, TrapBB);
   }
 
   EmitBlock(Cont);
@@ -2179,14 +2181,14 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E) {
     // Propagate the alignment from the array itself to the result.
     ArrayAlignment = ArrayLV.getAlignment();
 
-    if (getContext().getLangOpts().isSignedOverflowDefined())
+    if (getLangOpts().isSignedOverflowDefined())
       Address = Builder.CreateGEP(ArrayPtr, Args, "arrayidx");
     else
       Address = Builder.CreateInBoundsGEP(ArrayPtr, Args, "arrayidx");
   } else {
     // The base must be a pointer, which is not an aggregate.  Emit it.
     llvm::Value *Base = EmitScalarExpr(E->getBase());
-    if (getContext().getLangOpts().isSignedOverflowDefined())
+    if (getLangOpts().isSignedOverflowDefined())
       Address = Builder.CreateGEP(Base, Idx, "arrayidx");
     else
       Address = Builder.CreateInBoundsGEP(Base, Idx, "arrayidx");
@@ -2209,8 +2211,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E) {
 
   LV.getQuals().setAddressSpace(E->getBase()->getType().getAddressSpace());
 
-  if (getContext().getLangOpts().ObjC1 &&
-      getContext().getLangOpts().getGC() != LangOptions::NonGC) {
+  if (getLangOpts().ObjC1 &&
+      getLangOpts().getGC() != LangOptions::NonGC) {
     LV.setNonGC(!E->isOBJCGCCandidate(getContext()));
     setObjCGCLValueClass(getContext(), E, LV);
   }
@@ -2723,7 +2725,7 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
   if (const CXXPseudoDestructorExpr *PseudoDtor 
           = dyn_cast<CXXPseudoDestructorExpr>(E->getCallee()->IgnoreParens())) {
     QualType DestroyedType = PseudoDtor->getDestroyedType();
-    if (getContext().getLangOpts().ObjCAutoRefCount &&
+    if (getLangOpts().ObjCAutoRefCount &&
         DestroyedType->isObjCLifetimeType() &&
         (DestroyedType.getObjCLifetime() == Qualifiers::OCL_Strong ||
          DestroyedType.getObjCLifetime() == Qualifiers::OCL_Weak)) {
