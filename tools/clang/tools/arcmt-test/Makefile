@@ -16,7 +16,7 @@ TOOL_NO_EXPORTS = 1
 # Don't install this. It is used for tests.
 NO_INSTALL = 1
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../../../Makefile.config
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 USEDLIBS = clangARCMigrate.a clangRewriteCore.a \
 		 clangFrontend.a clangDriver.a clangSerialization.a clangParse.a \

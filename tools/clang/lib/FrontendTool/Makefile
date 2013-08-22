@@ -11,7 +11,7 @@ CLANG_LEVEL := ../..
 LIBRARYNAME := clangFrontendTool
 
 include $(CLANG_LEVEL)/Makefile
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../../../Makefile.config
 
 ifeq ($(ENABLE_CLANG_ARCMT),1)
   CXX.Flags += -DCLANG_ENABLE_ARCMT

@@ -12,7 +12,7 @@
 ##===----------------------------------------------------------------------===##
 
 CLANG_LEVEL := ../..
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../../../Makefile.config
 
 LIBRARYNAME := clangLex
 

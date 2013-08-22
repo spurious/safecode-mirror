@@ -15,7 +15,7 @@ EXPORTED_SYMBOL_FILE = $(PROJ_SRC_DIR)/libclang.exports
 LINK_LIBS_IN_SHARED = 1
 SHARED_LIBRARY = 1
 
-include $(CLANG_LEVEL)/../../Makefile.config
+include $(CLANG_LEVEL)/../../../../Makefile.config
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 USEDLIBS = clangFrontend.a clangDriver.a \
 	   clangTooling.a \
