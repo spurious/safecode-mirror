@@ -36,6 +36,31 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
+
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+
+#include "CommonMemorySafetyPasses.h"
+#include "safecode/ArrayBoundsCheck.h"
+#include "safecode/BaggyBoundsChecks.h"
+#include "safecode/CFIChecks.h"
+#include "safecode/CStdLib.h"
+#include "safecode/DebugInstrumentation.h"
+#include "safecode/FormatStrings.h"
+#include "safecode/InitAllocas.h"
+#include "safecode/InvalidFreeChecks.h"
+#include "safecode/GEPChecks.h"
+#include "safecode/LoggingFunctions.h"
+#include "safecode/OptimizeChecks.h"
+#include "safecode/RegisterBounds.h"
+#include "safecode/RegisterRuntimeInitializer.h"
+#include "safecode/RewriteOOB.h"
+#include "safecode/SAFECodeMSCInfo.h"
+#include "safecode/SAFECodePasses.h"
+#include "safecode/SpecializeCMSCalls.h"
+#include "SoftBound/InitializeSoftBound.h"
+#include "SoftBound/SoftBoundCETSPass.h"
+
+
 using namespace clang;
 using namespace llvm;
 
@@ -319,7 +344,85 @@ void EmitAssemblyHelper::CreatePasses(TargetMachine *TM) {
       MPM->add(createStripSymbolsPass(true));
   }
 
+  // Add the memory safety passes for control-flow integrity
+  if (CodeGenOpts.MemSafety) {
+    // Make sure everything that can be in an LLVM register is.
+    MPM->add (createPromoteMemoryToRegisterPass());
+    MPM->add (createUnifyFunctionExitNodesPass());
+    MPM->add (new CFIChecks());
+  }
+
   PMBuilder.populateModulePassManager(*MPM);
+
+  if (CodeGenOpts.SoftBound) {
+    // Make sure SoftBound+CETS is run after optimization with atleast mem2reg run 
+    MPM->add(new DominatorTree());
+    MPM->add(new DominanceFrontier());
+    MPM->add(new LoopInfo());
+    MPM->add(new InitializeSoftBound());
+    MPM->add(new SoftBoundCETSPass());
+  }
+
+  // Add the memory safety passes
+  if (CodeGenOpts.MemSafety) {
+    //
+    // Add passes that record information about run-time checks.
+    //
+    MPM->add (createCommonMSCInfoPass());
+    MPM->add (createSAFECodeMSCInfoPass());
+
+    // C standard library / format string function transforms
+    MPM->add (new StringTransform());
+    if (!CodeGenOpts.BaggyBounds) {
+      MPM->add (new FormatStringTransform());
+      MPM->add (new RegisterVarargCallSites());
+      MPM->add (new LoggingFunctions());
+    }
+
+    MPM->add (new InitAllocas());
+    MPM->add (new RegisterGlobalVariables());
+    MPM->add (new RegisterMainArgs());
+    MPM->add (new InsertFreeChecks());
+    MPM->add (new RegisterCustomizedAllocation());
+    MPM->add (new RegisterFunctionByvalArguments ());
+    MPM->add (new LoopInfo ());
+    MPM->add (new DominatorTree ());
+    MPM->add (new DominanceFrontier ());
+    MPM->add (new RegisterStackObjPass ());
+    MPM->add (new RegisterRuntimeInitializer(CodeGenOpts.MemSafetyLogFile.c_str()));
+    MPM->add (new DebugInstrument());
+    MPM->add (createInstrumentMemoryAccessesPass());
+    MPM->add (new ScalarEvolution());
+    MPM->add (new ArrayBoundsCheckLocal());
+    MPM->add (new InsertGEPChecks());
+    MPM->add (createSpecializeCMSCallsPass());
+    MPM->add (createExactCheckOptPass());
+
+    MPM->add (new DominatorTree());
+    MPM->add (new ScalarEvolution());
+    MPM->add (createOptimizeImpliedFastLSChecksPass());
+
+    MPM->add (new OptimizeChecks());
+    if (CodeGenOpts.MemSafeTerminate) {
+      MPM->add (llvm::createSCTerminatePass ());
+    }
+  }
+
+  if (CodeGenOpts.BaggyBounds) {
+    MPM->add (new InsertBaggyBoundsChecks());
+  }
+
+  //
+  // Rerun the LLVM optimizations again.
+  //
+  PMBuilder.populateModulePassManager(*MPM);
+
+  // For SAFECode, do the debug instrumentation and OOB rewriting after
+  // all optimization is done.
+  if (CodeGenOpts.MemSafety) {
+    MPM->add (new DebugInstrument());
+    MPM->add (new RewriteOOB());
+  }
 }
 
 TargetMachine *EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {

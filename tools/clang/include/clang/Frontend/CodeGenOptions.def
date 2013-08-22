@@ -105,6 +105,12 @@ CODEGENOPT(UnrollLoops       , 1, 0) ///< Control whether loops are unrolled.
 CODEGENOPT(UnsafeFPMath      , 1, 0) ///< Allow unsafe floating point optzns.
 CODEGENOPT(UnwindTables      , 1, 0) ///< Emit unwind tables.
 
+CODEGENOPT(MemSafety         , 1, 0) /// Instrument code with memory safety checks
+CODEGENOPT(BaggyBounds       , 1, 0) /// Use Baggy Bounds Checking
+CODEGENOPT(MemSafeTerminate  , 1, 0) /// Terminate program on failed memsafe checks
+CODEGENOPT(SoftBound         , 1, 0) /// SoftBound+CETS pointer based checking
+
+
   /// Attempt to use register sized accesses to bit-fields in structures, when
   /// possible.
 CODEGENOPT(UseRegisterSizedBitfieldAccess , 1, 0)

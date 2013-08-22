@@ -49,6 +49,13 @@ endif
 
 USEDLIBS += clangAnalysis.a clangEdit.a clangAST.a clangBasic.a clangLex.a
 
+#
+# Link in the SAFECode passes
+#
+USEDLIBS += abc.a addchecks.a sc-support.a baggyboundscheck.a debuginstr.a \
+            softbound.a formatstrings.a convert.a cstdlib.a optchecks.a oob.a \
+            cmspasses.a
+
 include $(CLANG_LEVEL)/Makefile
 
 # Set the tool version information values.
