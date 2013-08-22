@@ -3534,6 +3534,12 @@ QualType ASTContext::getPointerDiffType() const {
   return getFromTargetType(Target->getPtrDiffType(0));
 }
 
+/// \brief Return the unique type for "pid_t" defined in
+/// <sys/types.h>. We need this to compute the correct type for vfork().
+QualType ASTContext::getProcessIDType() const {
+  return getFromTargetType(Target->getProcessIDType());
+}
+
 //===----------------------------------------------------------------------===//
 //                              Type Operators
 //===----------------------------------------------------------------------===//
@@ -4481,7 +4487,13 @@ std::string ASTContext::getObjCEncodingForBlock(const BlockExpr *Expr) const {
   QualType BlockTy =
       Expr->getType()->getAs<BlockPointerType>()->getPointeeType();
   // Encode result type.
-  getObjCEncodingForType(BlockTy->getAs<FunctionType>()->getResultType(), S);
+  if (getLangOpts().EncodeExtendedBlockSig)
+    getObjCEncodingForMethodParameter(Decl::OBJC_TQ_None,
+                            BlockTy->getAs<FunctionType>()->getResultType(),
+                            S, true /*Extended*/);
+  else
+    getObjCEncodingForType(BlockTy->getAs<FunctionType>()->getResultType(),
+                           S);
   // Compute size of all parameters.
   // Start with computing size of a pointer in number of bytes.
   // FIXME: There might(should) be a better way of doing this computation!
@@ -4516,7 +4528,11 @@ std::string ASTContext::getObjCEncodingForBlock(const BlockExpr *Expr) const {
         PType = PVDecl->getType();
     } else if (PType->isFunctionType())
       PType = PVDecl->getType();
-    getObjCEncodingForType(PType, S);
+    if (getLangOpts().EncodeExtendedBlockSig)
+      getObjCEncodingForMethodParameter(Decl::OBJC_TQ_None, PType,
+                                      S, true /*Extended*/);
+    else
+      getObjCEncodingForType(PType, S);
     S += charUnitsToString(ParmOffset);
     ParmOffset += getObjCEncodingTypeSize(PType);
   }
@@ -7206,6 +7222,9 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
       Error = ASTContext::GE_Missing_ucontext;
       return QualType();
     }
+    break;
+  case 'p':
+    Type = Context.getProcessIDType();
     break;
   }
 

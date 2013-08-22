@@ -89,6 +89,13 @@ fastlscheck (const char *base, const char *result, unsigned size,
     }
   }
 
+  /*
+   * If the memory access accesses zero bytes, don't report an error.  This can
+   * happen with load/store checks on memcpy()/memset() calls.
+   */
+  if (!lslen)
+    return;
+
   failLSCheck (base, result, size, "unknown", 0);
   return;
 }
@@ -121,6 +128,13 @@ fastlscheck_debug (const char *base, const char *result, unsigned size,
       return;
     }
   }
+
+  /*
+   * If the memory access accesses zero bytes, don't report an error.  This can
+   * happen with load/store checks on memcpy()/memset() calls.
+   */
+  if (!lslen)
+    return;
 
   failLSCheck (base, result, size, SourceFile, lineno);
   return;

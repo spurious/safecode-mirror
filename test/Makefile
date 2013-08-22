@@ -175,6 +175,7 @@ mv $(PROFILING_DAT_DIR)/profiler.*.dat $(PROFILING_RESULT_DIR)/`basename $$dir` 
 progdebug::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
+               USE_LTO=$(USE_LTO) \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=debug \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) \
@@ -183,6 +184,7 @@ progdebug::
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
+               USE_LTO=$(USE_LTO) \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) TEST=debug \
                POOLALLOC_OBJDIR=$(POOLALLOC_OBJDIR) \
                RUNTIMELIMIT=$(RUNTIMELIMIT) $(DEBUG_SAFECODE) \

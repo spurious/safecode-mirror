@@ -9,7 +9,7 @@
 
 LEVEL = ..
 
-#PARALLEL_DIRS  := BitmapPoolAllocator DebugRuntime FloatConversion SoftBoundRuntime BBRuntime
-PARALLEL_DIRS  := BitmapPoolAllocator DebugRuntime FloatConversion SoftBoundRuntime
+PARALLEL_DIRS  := BitmapPoolAllocator DebugRuntime FloatConversion SoftBoundRuntime BBRuntime
+#PARALLEL_DIRS  := BitmapPoolAllocator DebugRuntime FloatConversion SoftBoundRuntime
 
 include $(LEVEL)/Makefile.common

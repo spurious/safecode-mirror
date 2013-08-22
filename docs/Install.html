@@ -13,6 +13,54 @@
 SAFECode Install Guide
 </div>
 
+<!-- 
+
+==============================================================================
+LLVM Release License
+==============================================================================
+University of Illinois/NCSA
+Open Source License
+
+Copyright (c) 2003-2012 University of Illinois at Urbana-Champaign.
+All rights reserved.
+
+Developed by:
+
+    LLVM Team
+
+    University of Illinois at Urbana-Champaign
+
+    http://llvm.org
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal with
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimers.
+
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimers in the
+      documentation and/or other materials provided with the distribution.
+
+    * Neither the names of the LLVM Team, University of Illinois at
+      Urbana-Champaign, nor the names of its contributors may be used to
+      endorse or promote products derived from this Software without specific
+      prior written permission.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
+SOFTWARE.
+
+-->
+
 <!-- ********************************************************************** -->
 <!-- * Table of Contents                                                  * -->
 <!-- ********************************************************************** -->
@@ -37,7 +85,10 @@ SAFECode Install Guide
 <!-- * Authors                                                            * -->
 <!-- ********************************************************************** -->
 <div class="doc_author">
-  <p>Written by the LLVM Research Group</p>
+  <p>Written by the LLVM Research Group.  Includes text from LLVM
+  contributors which is licensed under the
+  <a href="http://llvm.org/releases/3.2/LICENSE.TXT">
+    University of Illinois/NCSA Open Source license.</a></p>
 </div>
 
 <!-- *********************************************************************** -->
@@ -138,18 +189,20 @@ for these projects using a standard Subversion client as described below.
 <p>
 By default, you should put Automatic Pool Allocation and SAFECode into the
 projects subdirectory of the LLVM source distribution.  The following commands
-should download all of the source code into the appropriate places:
+should download all of the source code into the appropriate places (note that,
+in this example, we are grabbing the version of SAFECode from the release_32
+branch which works with LLVM 3.2):
 </p>
 
 <ul>
   <li><tt>cd <i>where-you-want-llvm-to-live</i></tt></li>
-  <li><tt>svn co http://llvm.org/svn/llvm-project/llvm/branches/release_30 llvm</tt></li>
+  <li><tt>svn co http://llvm.org/svn/llvm-project/llvm/branches/release_32 llvm</tt></li>
   <li><tt>cd llvm/projects</tt></li>
   <li><tt>
-  svn co  http://llvm.org/svn/llvm-project/poolalloc/branches/release_30 poolalloc
+  svn co  http://llvm.org/svn/llvm-project/poolalloc/branches/release_32 poolalloc
   </tt></li>
   <li><tt>  
-  svn co  http://llvm.org/svn/llvm-project/safecode/branches/release_30 safecode
+  svn co  http://llvm.org/svn/llvm-project/safecode/branches/release_32 safecode
   </tt></li>
 </ul>
 
@@ -160,7 +213,7 @@ You may optionally want to get the LLVM Test Suite (test-suite) source code:
 <ul>
   <li><tt>cd llvm/projects</tt></li>
   <li><tt>
-  svn co http://llvm.org/svn/llvm-project/test-suite/branches/release_30 test-suite
+  svn co http://llvm.org/svn/llvm-project/test-suite/branches/release_32 test-suite
   </tt></li>
 </ul>
 
@@ -375,7 +428,7 @@ For Mac OS X, you simply need to backup the original LTO plugin
 build (this will, sadly, require root access).  To do that, do the following:
 
 <ul>
-  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
+  <li><tt>cd <i>SAFECode-object-directory</i></tt></li>
   <li><tt>sudo</tt></li>
   <li><tt>cp /usr/lib/libLTO.dylib /usr/lib/orig.libLTO.dylib</tt></li>
   <li><tt>cp Debug/lib/libLTO.dylib /usr/lib</tt></li>
@@ -383,32 +436,93 @@ build (this will, sadly, require root access).  To do that, do the following:
 
 <b>Linux:</b>
 <br>
-For Linux, first follow the directions for installing libLTO in the LLVM
-Gold Plugin document
-(<a href="http://llvm.org/docs/GoldPlugin.html">http://llvm.org/docs/GoldPlugin.html</a>).
-Briefly, you will need to compile
-new versions of the ld, nm, and ar utilities if the versions on your machine do
-not support the Gold plugin, and your LLVM source tree will be configured to
-build the gold plugin (<tt>LLVMGold.so</tt>).
+For Linux, you will need to install new, LTO-compatible versions of the ld, nm,
+and ar utilities.  You will then need to configure, compile, and install LLVM
+and SAFECode.  More specifically, you will need to do the following:
+
+<ol>
+
+  <li>
+  <b>Select a directory into which all the tools will be installed</b>
+  <br>
+  It will be much easier to use libLTO if you install all the software into a
+  directory.  Call this directory $PREFIX.
+  </li>
+
+  <br>
+
+  <li>
+  <b>Build LTO-compatible versions of ld, nm, and ar</b>
+  <br>
+  The directions to build LTO-compatible versions of ld, nm, and ar are found
+  in the LLVM Gold Plugin document at
+  <a href="http://llvm.org/docs/GoldPlugin.html">http://llvm.org/docs/GoldPlugin.html</a>.
+  However, you will want to install all of binutils into $PREFIX; to do that,
+  make sure to add a --prefix=$PREFIX option to the configure command
+  line and use "make install" instead of "make all-gold."  In other words, you
+  will want to do the following:
+
+  <ul>
+    <li><tt>mkdir binutils</tt></li>
+    <li><tt>cd binutils</tt></li>
+    <li><tt>cvs -z 9 -d :pserver:anoncvs@sourceware.org:/cvs/src login</tt></li>
+    <li>{enter "anoncvs" as the password}</li>
+    <li><tt>cvs -z 9 -d :pserver:anoncvs@sourceware.org:/cvs/src co binutils</tt></li>
+    <li><tt>mkdir build</tt></li>
+    <li><tt>cd build</tt></li>
+    <li><tt>../src/configure --prefix=$PREFIX --enable-gold --enable-plugins</tt></li>
+    <li><tt>make</tt></li>
+    <li><tt>make install</tt></li>
+  </ul>
+
+  <br>
+
+  <li>
+  <b>Configure, Build, and Install LLVM and SAFECode</b>
+  <br>
+  You will need to tell LLVM where to find the Binutils header files, and you
+  will need to configure it to install into the same directory as Binutils:
+
+  <ul>
+    <li><tt>cd <i>LLVM-object-directory</i></tt></li>
+    <li><tt><i>LLVM-source-directory</i>/configure --prefix=$PREFIX
+      --with-binutils-include=/path/to/binutils/src/include [additional options]</tt></li>
+    <li><tt>make install</tt></li>
+    <li><tt>cd projects/poolalloc</tt></li>
+    <li><tt>make install</tt></li>
+    <li><tt>cd ../safecode</tt></li>
+    <li><tt>make install</tt></li>
+  </ul>
+  </li>
+
+  <br>
+
+  <li>
+  <b>Switch the Linker to the Gold Linker</b>
+  <br>
+  By default, Binutils will create three files: $PREFIX/bin/ld,
+  $PREFIX/bin/ld.bfd, and $PREFIX/bin/ld.gold.  You need to change
+  $PREFIX/bin/ld so that it is a hard link to $PREFIX/bin/ld.bfd:
+
+  <ul>
+    <li><tt>rm $PREFIX/bin/ld</tt></ld>
+    <li><tt>ln $PREFIX/bin/ld.gold $PREFIX/bin/ld</tt></ld>
+  </ul>
+  </li>
+
+  <br>
+
+  <li>
+  <b>Change your $PATH so that $PREFIX/bin is first</b>
+  <br>
+  Now that everything is installed, change your $PATH environment variable so
+  that $PREFIX/bin is the first directory that is searched.  This will make
+  SAFECode's clang and SAFECode's libLTO the default ones that are used.
+  </li>
+</ol>
 
 <p>
-If you used <tt>make install</tt> in the SAFECode object tree to install Clang,
-then SAFECode's <tt>libLTO.so</tt> and LLVM's <tt>LLVMGold.so</tt> plugins
-should already be installed in Clang's installation directory and should be
-ready to use.  To verify that they have been installed, look for them in
-<tt>PREFIX/lib</tt> where <tt>PREFIX</tt> is the location into which you
-installed SAFECode.
-
-<p>
-If you are using Clang from within the LLVM object tree, you will need to
-copy SAFECode's libLTO.so over the libLTO.so built in the LLVM
-object tree.  Assuming you performed a Debug build, the commands would be:
-
-<ul>
-  <li><tt>cd <i>LLVM-object-directory</i></tt></li>
-  <li><tt>cd projects/safecode</tt></li>
-  <li><tt>cp Debug/lib/libLTO.so ../../Debug/lib</tt></li>
-</ul>
+With all of that done, you should now have a working SAFECode with libLTO
+installation on your system.
 </p>
-
 </div>

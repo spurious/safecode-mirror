@@ -51,15 +51,8 @@ namespace {
 void
 InsertGEPChecks::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   //
-  // Determine if the GEP is safe.  If it is, then don't do anything.
-  //
-  if (abcPass->isGEPSafe(&GEP)) {
-    ++SafeGEP;
-    return;
-  }
-
-  //
-  // If this only indexes into a structure, ignore it.
+  // Don't insert a check if GEP only indexes into a structure and the
+  // user doesn't want to do structure index checking.
   //
   if (DisableStructChecks && indexesStructsOnly (&GEP)) {
     return;

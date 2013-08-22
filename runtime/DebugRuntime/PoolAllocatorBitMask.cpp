@@ -84,7 +84,10 @@ uintptr_t InvalidUpper = 0x00000000;
 uintptr_t InvalidLower = 0x00000003;
 
 // Splay tree for mapping shadow pointers to canonical pointers
-static RangeSplayMap<void *> ShadowMap;
+static RangeSplayMap<void *> & ShadowMap (void) {
+  static RangeSplayMap<void *> realShadowMap;
+  return realShadowMap;
+}
 
 // Configuration for C code; flags that we should stop on the first error
 unsigned StopOnError = 0;
@@ -93,8 +96,8 @@ unsigned StopOnError = 0;
 using namespace llvm;
 
 // Map between call site tags and allocation sequence numbers
-std::map<unsigned,unsigned> allocSeqMap;
-std::map<unsigned,unsigned> freeSeqMap;
+std::map<unsigned,unsigned> * allocSeqMap;
+std::map<unsigned,unsigned> * freeSeqMap;
 
 /// UNUSED in production version
 FILE * ReportLog = 0;
@@ -207,6 +210,12 @@ pool_init_runtime (unsigned Dangling, unsigned RewriteOOB, unsigned Terminate) {
   __sc_dbg_poolinit(&dummyPool, 1, 0);
 
   //
+  // Initialize the sequence numbers used for debugging.
+  //
+  allocSeqMap = new std::map<unsigned,unsigned>;
+  freeSeqMap = new std::map<unsigned,unsigned>;
+
+  //
   // Initialize the signal handlers for catching errors.
   //
   struct sigaction sa;
@@ -311,6 +320,8 @@ __sc_dbg_pooldestroy(DebugPoolTy * Pool) {
   pooldestroy(Pool);
 }
 
+extern char ** environ;
+
 //
 // Function: poolargvregister()
 //
@@ -324,6 +335,7 @@ poolargvregister (int argc, char ** argv) {
              (void *) (((unsigned char *)(&(argv[argc+1]))) - 1));
     fflush (stderr);
   }
+
   for (int index=0; index < argc; ++index) {
     if (logregs) {
       fprintf (stderr, "poolargvregister: %p %u: %s\n", argv[index],
@@ -341,6 +353,21 @@ poolargvregister (int argc, char ** argv) {
   // Note that the argv array is supposed to end with a NULL pointer element.
   //
   ExternalObjects->insert(argv, ((unsigned char *)(&(argv[argc+1]))) - 1);
+
+  //
+  // Register the environment strings and the array that points to them.
+  //
+  unsigned numEnvs;
+  for (unsigned numEnvs = 0; environ[numEnvs]; ++numEnvs) {
+    char * envstr = environ[numEnvs];
+    if (logregs) {
+      fprintf (stderr, "poolargvregister: env: %p %u: %s\n", envstr,
+               (unsigned)strlen(envstr), envstr);
+      fflush (stderr);
+    }
+    ExternalObjects->insert(envstr, envstr + strlen (envstr));
+  }
+  ExternalObjects->insert(environ, ((unsigned char *)(environ + numEnvs)) - 1);
 
   //
   // Register errno for kicks and giggles.
@@ -402,7 +429,6 @@ _internal_poolregister (DebugPoolTy *Pool,
   //
   // If the pool is NULL or the object has zero length, don't do anything.
   //
-  assert (NumBytes && "NumBytes must be more than zero!\n");
   if (NumBytes == 0) return;
 
   //
@@ -436,6 +462,7 @@ _internal_poolregister (DebugPoolTy *Pool,
       // the largest object that contains the object we are registering and the
       // already registered object.
       //
+      case Stack:
       case Global: {
         void * start;
         void * end;
@@ -467,14 +494,6 @@ _internal_poolregister (DebugPoolTy *Pool,
         SPTree->insert(allocaptr, (char*) allocaptr + NumBytes - 1);
         break;
       }
-
-      //
-      // There's just no way that this should ever happen with stack-allocated
-      // memory objects.  Flag an error since this must be a SAFECode bug.
-      //
-      case Stack:
-        assert (0 && "poolregister failed: Object already registered!\n");
-        break;
     }
   }
 
@@ -567,7 +586,7 @@ pool_register_debug (DebugPoolTy *Pool,
   // Generate a generation number for this object registration.  We only do
   // this for heap allocations.
   //
-  unsigned allocID = (allocSeqMap[tag] += 1);
+  unsigned allocID = ((*allocSeqMap)[tag] += 1);
 
   //
   // Create the meta data object containing the debug information for this
@@ -1117,7 +1136,7 @@ updateMDOnFree (DebugPoolTy *Pool,
   //
   // Increment the ID number for this deallocation.
   //
-  unsigned freeID = (freeSeqMap[tag] += 1);
+  unsigned freeID = ((*freeSeqMap)[tag] += 1);
 
   //
   // Ignore frees of NULL pointers.  These are okay.
@@ -1492,8 +1511,8 @@ bus_error_handler (int sig, siginfo_t * info, void * context) {
     void * tag = 0;
     void * end;
     if (OOBPool.OOB.find (faultAddr, start, end, tag)) {
-      const char * Filename = (const char *)(RewriteSourcefile[faultAddr]);
-      unsigned lineno = RewriteLineno[faultAddr];
+      const char * Filename = (const char *)(RewriteSourcefile()[faultAddr]);
+      unsigned lineno = RewriteLineno()[faultAddr];
 
       //
       // Get the bounds of the original object.
@@ -1593,7 +1612,7 @@ getCanonicalPtr (void * ShadowPtr) {
   //
   void * start, * end;
   void * CanonPtr = 0;
-  bool found = ShadowMap.find (ShadowPtr, start, end, CanonPtr);
+  bool found = ShadowMap().find (ShadowPtr, start, end, CanonPtr);
   return (found ? CanonPtr : ShadowPtr);
 }
 
@@ -1633,7 +1652,7 @@ pool_shadow (void * CanonPtr, unsigned NumBytes) {
   //
   // Record the mapping from shadow pointer to canonical pointer.
   //
-  ShadowMap.insert (shadowptr, 
+  ShadowMap().insert (shadowptr, 
                         (char*) shadowptr + NumBytes - 1,
                         CanonPtr);
   if (logregs) {

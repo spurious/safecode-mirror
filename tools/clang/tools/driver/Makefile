@@ -14,7 +14,7 @@ TOOLALIAS = clang++
 # We don't currently expect production Clang builds to be interested in
 # plugins. This is important for startup performance.
 ifdef CLANG_IS_PRODUCTION
-TOOL_NO_EXPORTS := 1
+#TOOL_NO_EXPORTS := 1
 endif
 
 ifdef CLANG_ORDER_FILE

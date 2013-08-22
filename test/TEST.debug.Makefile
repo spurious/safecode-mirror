@@ -103,9 +103,15 @@ Output/%.sc.o: %.cpp $(CLANGXX)
 	-$(CLANGXX) -g -fmemsafety -o $@ $< $(LDFLAGS) 2>&1 > $@.out
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
+ifeq ($(USE_LTO),yes)
+$(PROGRAMS_TO_TEST:%=Output/%.safecode): \
+Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
+	-$(CLANG) -O2 -g -fmemsafety -Xclang -print-stats -use-gold-plugin -flto $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(addprefix $(PROJ_SRC_DIR)/,$(Source))
 	-$(CLANG) -O2 -g -fmemsafety -Xclang -print-stats $(CPPFLAGS) $(CXXFLAGS) $(CFLAGS) $(addprefix $(PROJ_SRC_DIR)/,$(Source)) $(LDFLAGS) -o $@
+endif
 else
 $(PROGRAMS_TO_TEST:%=Output/%.safecode): \
 Output/%.safecode: $(Source)

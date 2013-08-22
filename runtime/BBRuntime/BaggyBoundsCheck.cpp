@@ -666,8 +666,7 @@ __sc_bb_poolrealloc(DebugPoolTy *Pool,
     return 0;
   }
 
-  uintptr_t Source = (uintptr_t)Node;
-  if (Source >= SET_MASK) {
+  if (isRewritePtr(Node)) {
     return 0;
   }
 

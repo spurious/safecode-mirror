@@ -1,7 +1,7 @@
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
-AC_INIT([[[SAFECode]]],[[[1.00]]],[criswell@illinois.edu])
+AC_INIT([SAFECode],[1.00],[criswell@illinois.edu])
 
 dnl Identify where LLVM source tree is
 LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"
@@ -90,6 +90,13 @@ AC_ARG_ENABLE(kernel,
                   AC_DEFINE(LLVA_KERNEL,[[1]]),
                   )
 
+dnl --enable-poolalloc: compile SAFECode with Automatic Pool Allocation support
+AC_ARG_ENABLE(poolalloc,
+  AS_HELP_STRING(--enable-poolalloc,
+                 [Enable libLTO Automatic Pool Allocation (default is NO)]),
+                  AC_DEFINE(HAVE_POOLALLOC,[[1]]),
+                  )
+
 dnl --enable-capsaicin: compile SAFECode with Capsaicin support
 AC_ARG_ENABLE(capsaicin,
   AS_HELP_STRING(--enable-capsaicin,
@@ -151,6 +158,21 @@ poolallocsrcdir=`cd $poolallocsrcdir; pwd`
 poolallocobjdir=`cd $poolallocobjdir; pwd`
 testsrcdir=`cd $testsrcdir; pwd`
 testobjdir=`cd $testobjdir; pwd`
+
+dnl **************************************************************************
+dnl * Set any flags used in the Make
+dnl **************************************************************************
+
+dnl Specify whether we should use libLTO when running the test suite
+
+AC_SUBST(enable_lto_tests)
+AC_ARG_ENABLE(lto-tests,
+  AS_HELP_STRING([--enable-lto-tests],
+    [Enable use of lto in SAFECode test-suite runs (default is no)]),
+  [enable_lto_tests=$enableval], 
+  [enable_lto_tests=no]
+  )
+
 
 dnl **************************************************************************
 dnl * Create the output files

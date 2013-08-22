@@ -39,11 +39,11 @@ extern uintptr_t InvalidUpper;
 extern uintptr_t InvalidLower;
 
 // Map between rewrite pointer and source file information
-extern llvm::DenseMap<void *, const char*>  RewriteSourcefile;
-extern llvm::DenseMap<void *, unsigned>     RewriteLineno;
-extern std::map<const void *, const void *> RewrittenPointers;
+extern llvm::DenseMap<void *, const char*>  & RewriteSourcefile (void);
+extern llvm::DenseMap<void *, unsigned>     & RewriteLineno (void);
+extern std::map<const void *, const void *> & RewrittenPointers (void);
 extern llvm::DenseMap<void *,
-                      std::pair<void *, void * > > RewrittenObjs;
+                      std::pair<void *, void * > > & RewrittenObjs (void);
 
 //
 // Function: isRewritePtr()
@@ -85,14 +85,10 @@ isRewritePtr (void * p) {
 //
 static inline bool
 getOOBObject (void * p, void * & start, void * & end) {
-  // Record from which object an OOB pointer originates
-  extern llvm::DenseMap<void *, std::pair<void *, void * > >
-  RewrittenObjs;
-
   if (isRewritePtr (p)) {
     // FIXME: the casts are hacks to deal with the C++ type system
-    start = const_cast<void*>(RewrittenObjs[p].first);
-    end   = const_cast<void*>(RewrittenObjs[p].second);
+    start = const_cast<void*>(RewrittenObjs()[p].first);
+    end   = const_cast<void*>(RewrittenObjs()[p].second);
     return true;
   }
 

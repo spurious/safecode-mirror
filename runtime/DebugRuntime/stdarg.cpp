@@ -49,25 +49,32 @@ typedef struct {
 static void *expectedTarget = 0;
 // This vector contains information about all registered va_lists in the
 // program.
-static vector<ArgListEntry> argLists;
+static vector<ArgListEntry> & argLists (void) {
+  static vector<ArgListEntry> realargLists;
+  return realargLists;
+}
+
 // A map from a va_list to the index of its registered contents in the argLists
 // vector above.
-static VaListToArgIndexMap vaListRegistrations;
+static VaListToArgIndexMap & vaListRegistrations (void) {
+  static VaListToArgIndexMap realvaListRegistrations;
+  return realvaListRegistrations;
+}
 
 // Remove all references of a va_list from the internal data structures.
 static inline void clearVaList(va_list ap) {
-  if (!vaListRegistrations.count(ap))
+  if (!vaListRegistrations().count(ap))
     return;
-  unsigned idx = vaListRegistrations[ap];
-  vaListRegistrations.erase(ap);
-  argLists[idx].referrers.erase(ap);
+  unsigned idx = vaListRegistrations()[ap];
+  vaListRegistrations().erase(ap);
+  argLists()[idx].referrers.erase(ap);
 }
 
 // Check if the expected callee is the actual callee.
 // Returns a number under 0xffffffff if this is the case, and otherwise returns
 // 0xffffffff.
 uint32_t __sc_targetcheck(void *func) {
-  uint32_t id = (expectedTarget == func) ? argLists.size() - 1 : 0xffffffffu;
+  uint32_t id = (expectedTarget == func) ? argLists().size() - 1 : 0xffffffffu;
   // Always reset the expected target to NULL.
   // This is needed for correctness, eg. in the case of recursive calls of the
   // same function from external code.
@@ -83,26 +90,26 @@ void __sc_varegister(va_list ap, uint32_t id) {
   // Remove all prior references of this list.
   clearVaList(ap);
   // Insert the list into the appropriate place.
-  vaListRegistrations[ap] = id;
-  argLists[id].referrers.insert(ap);
+  vaListRegistrations()[ap] = id;
+  argLists()[id].referrers.insert(ap);
 }
 
 // Associate one va_list with the information from another va_list.
 void __sc_vacopyregister(va_list dest, va_list src) {
   // If the source list is not registered, don't do anything.
-  if (!vaListRegistrations.count(src))
+  if (!vaListRegistrations().count(src))
     return;
   // Remove all references of the destination list.
   clearVaList(dest);
   // Register the destination list with the same information as the source list.
-  unsigned idx = vaListRegistrations[dest] = vaListRegistrations[src];
-  argLists[idx].referrers.insert(dest);
+  unsigned idx = vaListRegistrations()[dest] = vaListRegistrations()[src];
+  argLists()[idx].referrers.insert(dest);
 }
 
 // Add a new entry to the lists of pointer arguments.
 void __sc_vacallregister(void *func, uint32_t argc, ...) {
-  argLists.push_back(ArgListEntry());
-  ArgListEntry &end = argLists.back();
+  argLists().push_back(ArgListEntry());
+  ArgListEntry &end = argLists().back();
   // Find all the pointer arguments that were passed to this function and put
   // them in the list.
   va_list ap;
@@ -117,14 +124,14 @@ void __sc_vacallregister(void *func, uint32_t argc, ...) {
 
 // Unregister the last pointer argument list.
 void __sc_vacallunregister() {
-  ArgListEntry &last = argLists.back();
+  ArgListEntry &last = argLists().back();
   VaListSet::iterator idx = last.referrers.begin();
   VaListSet::iterator end = last.referrers.end();
   // Remove each va_list associated with this list from the hash table.
   for (; idx != end; ++idx)
-    vaListRegistrations.erase(*idx);
+    vaListRegistrations().erase(*idx);
   // Now remove the last entry altogether.
-  argLists.pop_back();
+  argLists().pop_back();
 }
 
 //
@@ -155,8 +162,8 @@ void __sc_vacallunregister() {
 static inline bool
 build_call_info(call_info *&result, va_list ap, TAG, SRC_INFO) {
   // Check if the list is registered.
-  VaListToArgIndexMap::iterator idx = vaListRegistrations.find(ap);
-  if (idx == vaListRegistrations.end()) {
+  VaListToArgIndexMap::iterator idx = vaListRegistrations().find(ap);
+  if (idx == vaListRegistrations().end()) {
     // If not registered, return a call_info structure without the whitelist.
     result = (call_info *) malloc(sizeof(call_info));
     if (result != 0) {
@@ -173,7 +180,7 @@ build_call_info(call_info *&result, va_list ap, TAG, SRC_INFO) {
   // whitelist as specified in the corresponding index.
   else {
     const unsigned index = idx->second;
-    const vector<void *> &pointerList = argLists[index].pointerList;
+    const vector<void *> &pointerList = argLists()[index].pointerList;
     const size_t wl_size = pointerList.size();
     // Allocate enough space so that the structure can hold the whitelist.
     result =

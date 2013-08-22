@@ -13,7 +13,7 @@ LEVEL := $(CLANG_LEVEL)/../..
 TOOLNAME = c-arcmt-test
 
 # No plugins, optimize startup time.
-TOOL_NO_EXPORTS = 1
+#TOOL_NO_EXPORTS = 1
 
 # Don't install this. It is used for tests.
 NO_INSTALL = 1

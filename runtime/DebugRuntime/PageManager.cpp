@@ -57,7 +57,10 @@ struct ShadowInfo {
 };
 
 // Map canonical pages to their shadow pages
-hash_map<void *,std::vector<struct ShadowInfo> > ShadowPages;
+static hash_map<void *,std::vector<struct ShadowInfo> > & ShadowPages (void) {
+  static hash_map<void *,std::vector<struct ShadowInfo> > realShadowPages;
+  return realShadowPages;
+}
 
 // If not compiling on Mac OS X, define types and values to make the same code
 // work on multiple platforms.
@@ -282,13 +285,13 @@ RemapObject (void * va, unsigned length) {
   //
   // First, look to see if a pre-existing shadow page is available.
   //
-  if (ShadowPages.find(page_start) != ShadowPages.end()) {
+  if (ShadowPages().find(page_start) != ShadowPages().end()) {
     uintptr_t numfull = 0;
     for (uintptr_t i = 0; i < NumShadows; ++i) {
-      struct ShadowInfo Shadow = ShadowPages[page_start][i];
+      struct ShadowInfo Shadow = ShadowPages()[page_start][i];
       if ((Shadow.ShadowStart) && ((Shadow.InUse & mask) == 0)) {
         // Set the shadow pages as being used
-        ShadowPages[page_start][i].InUse |= mask;
+        ShadowPages()[page_start][i].InUse |= mask;
 
         // Return the pre-created shadow page
         return ((unsigned char *)(Shadow.ShadowStart) + (phy_page_start - page_start));
@@ -303,7 +306,7 @@ RemapObject (void * va, unsigned length) {
     // ShadowPages.
     //
     if (numfull == NumShadows) {
-      ShadowPages.erase(page_start);
+      ShadowPages().erase(page_start);
     }
   }
 
@@ -344,7 +347,7 @@ void *AllocatePage() {
     // Place the shadow pages into the shadow cache
     for (unsigned i = 0; i != NumToAllocate; ++i) {
       char * PagePtr = Ptr+i*PageSize;
-      std::vector<struct ShadowInfo> & Shadows = ShadowPages[(void*)PagePtr];
+      std::vector<struct ShadowInfo> & Shadows = ShadowPages()[(void*)PagePtr];
       Shadows.reserve(NumShadows);
       for (unsigned j=0; j < NumShadows; ++j) {
         Shadows[j].ShadowStart = NewShadows[j]+(i*PageSize);

@@ -48,13 +48,6 @@ using namespace NAMESPACE_SC;
 //
 // Function: _barebone_pointers_in_bounds()
 //
-static inline int isOOB(uintptr_t p) {
-  return (p >= SET_MASK);
-}
-
-//
-// Function: isInUpperHalf()
-//
 // Description:
 //  This is the internal path for a boundscheck() and boundcheckui() calls.
 //
@@ -66,24 +59,6 @@ static inline int isOOB(uintptr_t p) {
 //  0:  The Dest is within the valid object in which Source was found.
 //  1:  The Dest is not within the valid object in which Source was found.
 //
-// Description:
-//  This function returns the actual value of a marked OOB pointer.
-//
-//static inline uintptr_t getActualValue(uintptr_t p) {
-//  return (p & UNSET_MASK);
-//}
-
-//
-// Function: rewritePtr()
-//
-// Description:
-//  This function mark an OOB pointer to be the value that is in the kernel
-//  address space by seeting some significant bits.
-//
-static inline uintptr_t rewritePtr(uintptr_t p) {
-  return (p | SET_MASK);
-}
-
 static inline int
 _barebone_pointers_in_bounds(uintptr_t Source, uintptr_t Dest) {
   //
@@ -136,15 +111,6 @@ _barebone_boundscheck (uintptr_t Source, uintptr_t Dest) {
   val = _barebone_pointers_in_bounds(Source, Dest);
   if(!val) return RealDest;
 
-  if (val) {
-    if (isOOB(Source)) {
-      //
-      // This means that Source is an OOB pointer
-      //
-      //Source = getActualValue(Source);
-      //Source += ((isInUpperHalf(Source)) ? SLOTSIZE : -SLOTSIZE);
-      //Dest = getActualValue(Dest);
-   } 
   //
   // Either:
   //  1) Dest is not within the valid object in which Source was found or
@@ -195,7 +161,7 @@ bb_poolcheck_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if (isOOB((uintptr_t)Node)) {
+  if (isRewritePtr(Node)) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -251,7 +217,7 @@ bb_poolcheckui_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if (isOOB((uintptr_t)Node)) {
+  if (isRewritePtr(Node)) {
     DebugViolationInfo v;
     v.type = ViolationInfo::FAULT_LOAD_STORE,
     v.faultPC = __builtin_return_address(0),
@@ -324,7 +290,7 @@ bb_poolcheckalign_debug (DebugPoolTy *Pool,
   //
   // Check if is an OOB pointer
   //
-  if (isOOB((uintptr_t)Node)) {
+  if (isRewritePtr(Node)) {
 
     //
     // The object has not been found.  Provide an error.
@@ -458,15 +424,15 @@ bb_poolcheckalign (DebugPoolTy *Pool, void *Node, unsigned Offset) {
   bb_poolcheckalign_debug(Pool, Node, Offset, 0, NULL, 0);
 }
 
-void *
+/*void *
 pchk_getActualValue (DebugPoolTy * Pool, void * ptr) {
   uintptr_t Source = (uintptr_t)ptr;
-  if (isOOB(Source)) {
+  if (isRewritePtr(Source)) {
     //Source = getActualValue(Source);
   }
   
   return (void*)Source;
-}
+}*/
 
 //
 // Function: __sc_bb_funccheck()

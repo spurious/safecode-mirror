@@ -75,6 +75,12 @@ void SAFECodeMSCInfo::initializePass() {
   addCheckInfo(new CheckInfoType("poolcheckui", FastLSCheck,
                                  CheckInfo::MemoryCheck,
                                  1, 2, -1, -1, -1, false, false, ""));
+  addCheckInfo(new CheckInfoType("poolcheck_debug", FastLSCheck,
+                                 CheckInfo::MemoryCheck,
+                                 1, 2, -1, -1, -1, false, false, ""));
+  addCheckInfo(new CheckInfoType("poolcheckui_debug", FastLSCheck,
+                                 CheckInfo::MemoryCheck,
+                                 1, 2, -1, -1, -1, false, false, ""));
 
   // Add gep checks.
   CheckInfoType *ExactCheck2 = new CheckInfoType("exactcheck2", NULL,
@@ -86,6 +92,12 @@ void SAFECodeMSCInfo::initializePass() {
                                  CheckInfo::GEPCheck,
                                  1, -1, -1, -1, 2, false, false, ""));
   addCheckInfo(new CheckInfoType("boundscheckui", ExactCheck2,
+                                 CheckInfo::GEPCheck,
+                                 1, -1, -1, -1, 2, false, false, ""));
+  addCheckInfo(new CheckInfoType("boundscheck_debug", ExactCheck2,
+                                 CheckInfo::GEPCheck,
+                                 1, -1, -1, -1, 2, false, false, ""));
+  addCheckInfo(new CheckInfoType("boundscheckui_debug", ExactCheck2,
                                  CheckInfo::GEPCheck,
                                  1, -1, -1, -1, 2, false, false, ""));
 

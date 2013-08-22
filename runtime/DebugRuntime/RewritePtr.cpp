@@ -30,13 +30,34 @@ namespace llvm {
 
 DebugPoolTy OOBPool;
 
+//
+// Functions for returning global variables used for rewrite pointer book
+// keeping.  We use functions to guarantee that the global variables are
+// initialized before they are used (otherwise, we rely on global constructors
+// which may or may not be run before the first pointer rewrite needs to be
+// done).
+
 // Map between rewrite pointer and source file information
-llvm::DenseMap<void *, const char*>  RewriteSourcefile;
-llvm::DenseMap<void *, unsigned>     RewriteLineno;
-std::map<const void *, const void *> RewrittenPointers;
+llvm::DenseMap<void *, const char*>  & RewriteSourcefile (void) {
+  static llvm::DenseMap<void *, const char*>  internalRewriteSourcefile;
+  return internalRewriteSourcefile;
+}
+
+llvm::DenseMap<void *, unsigned> & RewriteLineno (void) {
+  static llvm::DenseMap<void *, unsigned>     internalRewriteLineno;
+  return internalRewriteLineno;
+}
+
+std::map<const void *, const void *> & RewrittenPointers (void) {
+  static std::map<const void *, const void *> internalRewrittenPointers;
+  return internalRewrittenPointers;
+}
 
 // Record from which object an OOB pointer originates
-llvm::DenseMap<void *, std::pair<void *, void * > > RewrittenObjs;
+llvm::DenseMap<void *, std::pair<void *, void * > > & RewrittenObjs (void) {
+  static llvm::DenseMap<void *, std::pair<void *, void * > > intRewrittenObjs;
+  return intRewrittenObjs;
+}
 
 //
 // Function: rewrite_ptr()
@@ -68,8 +89,8 @@ rewrite_ptr (DebugPoolTy * Pool,
   //
   // If this pointer has already been rewritten, do not rewrite it again.
   //
-  if (RewrittenPointers.find (p) != RewrittenPointers.end()) {
-    return const_cast<void*>(RewrittenPointers[p]);
+  if (RewrittenPointers().find (p) != RewrittenPointers().end()) {
+    return const_cast<void*>(RewrittenPointers()[p]);
   }
 
   //
@@ -114,10 +135,10 @@ rewrite_ptr (DebugPoolTy * Pool,
   }
 
   OOBPool.OOB.insert (invalidptr, ((unsigned char *)(invalidptr)), const_cast<void*>(p));
-  RewriteSourcefile[invalidptr] = SourceFile;
-  RewriteLineno[invalidptr] = lineno;
-  RewrittenPointers[p] = invalidptr;
-  RewrittenObjs[invalidptr] = std::make_pair(ObjStart, ObjEnd);
+  RewriteSourcefile()[invalidptr] = SourceFile;
+  RewriteLineno()[invalidptr] = lineno;
+  RewrittenPointers()[p] = invalidptr;
+  RewrittenObjs()[invalidptr] = std::make_pair(ObjStart, ObjEnd);
   return invalidptr;
 }
 

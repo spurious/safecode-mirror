@@ -137,6 +137,8 @@ static SVal adjustReturnValue(SVal V, QualType ExpectedTy, QualType ActualTy,
     return V;
 
   // If the types already match, don't do any unnecessary work.
+  ExpectedTy = ExpectedTy.getCanonicalType();
+  ActualTy = ActualTy.getCanonicalType();
   if (ExpectedTy == ActualTy)
     return V;
 
@@ -189,6 +191,16 @@ void ExprEngine::removeDeadOnEndOfFunction(NodeBuilderContext& BC,
   currBldrCtx = 0;
 }
 
+static bool wasDifferentDeclUsedForInlining(CallEventRef<> Call,
+    const StackFrameContext *calleeCtx) {
+  const Decl *RuntimeCallee = calleeCtx->getDecl();
+  const Decl *StaticDecl = Call->getDecl();
+  assert(RuntimeCallee);
+  if (!StaticDecl)
+    return true;
+  return RuntimeCallee->getCanonicalDecl() != StaticDecl->getCanonicalDecl();
+}
+
 /// The call exit is simulated with a sequence of nodes, which occur between 
 /// CallExitBegin and CallExitEnd. The following operations occur between the 
 /// two program points:
@@ -228,9 +240,10 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
       const LocationContext *LCtx = CEBNode->getLocationContext();
       SVal V = state->getSVal(RS, LCtx);
 
-      const Decl *Callee = calleeCtx->getDecl();
-      if (Callee != Call->getDecl()) {
-        QualType ReturnedTy = CallEvent::getDeclaredResultType(Callee);
+      // Ensure that the return type matches the type of the returned Expr.
+      if (wasDifferentDeclUsedForInlining(Call, calleeCtx)) {
+        QualType ReturnedTy =
+          CallEvent::getDeclaredResultType(calleeCtx->getDecl());
         if (!ReturnedTy.isNull()) {
           if (const Expr *Ex = dyn_cast<Expr>(CE)) {
             V = adjustReturnValue(V, Ex->getType(), ReturnedTy,

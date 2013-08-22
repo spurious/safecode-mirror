@@ -37,6 +37,8 @@
 #include "../include/CWE.h"
 #include "../include/DebugRuntime.h"
 
+#include <errno.h>
+
 #include <map>
 #include <cstdarg>
 #include <cstdio>
@@ -65,6 +67,43 @@ updateCache (DebugPoolTy * Pool, void * Start, void * End) {
   Pool->objectCache[Pool->cacheIndex].upper = End;
   Pool->cacheIndex = (Pool->cacheIndex) ? 0 : 1;
   return;
+}
+
+//
+// Provide dummy implementations of the common infrastructure run-time checks
+// to appease libLTO linking on Mac OS X.
+//
+extern "C" {
+  void __loadcheck(unsigned char*, size_t);
+  void __storecheck(unsigned char*, size_t);
+  void __fastloadcheck (unsigned char *, size_t, unsigned char *, size_t);
+  void __faststorecheck(unsigned char *, size_t, unsigned char *, size_t);
+  unsigned char * __fastgepcheck(unsigned char*, unsigned char*, unsigned char*, size_t);
+}
+
+void
+__loadcheck(unsigned char* a, size_t b) {
+  return;
+}
+
+void
+__storecheck(unsigned char* a, size_t b) {
+  return;
+}
+
+void
+__fastloadcheck (unsigned char * p, size_t size, unsigned char * q, size_t r) {
+  return;
+}
+
+void
+__faststorecheck (unsigned char * a, size_t b, unsigned char * c, size_t d) {
+  return;
+}
+
+unsigned char *
+__fastgepcheck (unsigned char* a, unsigned char* b, unsigned char* c, size_t d){
+  return 0;
 }
 
 //
@@ -146,6 +185,14 @@ poolcheck_debug (DebugPoolTy *Pool,
                  const char * SourceFilep,
                  unsigned lineno) {
   //
+  // If the memory access is zero bytes in length, don't report an error.
+  // This can happen on memcpy() and memset() calls that are instrumented
+  // with load/store checks.
+  //
+  if (length == 0)
+    return;
+
+  //
   // Check to see if the pointer points to an object within the pool.  If it
   // does, check to see if the last byte read/written will be within the same
   // object.  If so, then the check succeeds, so just return to the caller.
@@ -188,6 +235,16 @@ poolcheck_debug (DebugPoolTy *Pool,
 
     return;
   }
+
+  //
+  // If the pointer is within the errno variable, go ahead and let it be.
+  // For some reason, errno may not be registered in the ExternalObjects splay
+  // tree with the same location as during program startup, so we'll check it
+  // again now.
+  //
+  unsigned char * errnoPtr = (unsigned char *) &errno;
+  if ((errnoPtr == Node) && (length <= sizeof (errno)))
+    return;
 
   //
   // If it's a rewrite pointer, convert it back into its original value so
@@ -328,6 +385,14 @@ poolcheckui_debug (DebugPoolTy *Pool,
                    const char * SourceFilep,
                    unsigned lineno) {
   //
+  // If the memory access is zero bytes in length, don't report an error.
+  // This can happen on memcpy() and memset() calls that are instrumented
+  // with load/store checks.
+  //
+  if (length == 0)
+    return;
+
+  //
   // Check to see if the pointer points to an object within the pool.  If it
   // does, check to see if the last byte read/written will be within the same
   // object.  If so, then the check succeeds, so just return to the caller.
@@ -381,8 +446,8 @@ poolcheckui_debug (DebugPoolTy *Pool,
   ObjStart = 0;
   ObjEnd = 0;
   if (isRewritePtr (Node)) {
-    ObjStart = RewrittenObjs[Node].first;
-    ObjEnd   = RewrittenObjs[Node].second;
+    ObjStart = RewrittenObjs()[Node].first;
+    ObjEnd   = RewrittenObjs()[Node].second;
     Node = pchk_getActualValue (Pool, Node);
   }
 

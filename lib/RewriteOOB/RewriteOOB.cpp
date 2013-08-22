@@ -115,11 +115,6 @@ RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
     //
     if (CallInst * CI = dyn_cast<CallInst>(*FU)) {
       //
-      // We're going to make a change.  Mark that we will have done so.
-      //
-      modified = true;
-
-      //
       // Get the operand that needs to be replaced as well as the operand
       // with all of the casts peeled away.  Increment the operand index by
       // one because a call instruction's first operand is the function to
@@ -127,6 +122,30 @@ RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
       //
       Value * RealOperand = Check.getCheckedPointer (CI);
       Value * PeeledOperand = RealOperand->stripPointerCasts();
+
+      //
+      // Determine if the checked pointer and the run-time check belong to
+      // the same basic block.
+      //
+      bool inSameBlock = false;
+      if (Instruction * I = dyn_cast<Instruction>(PeeledOperand)) {
+        if (CI->getParent() == I->getParent()) {
+          inSameBlock = true;
+        }
+      }
+
+      //
+      // Don't rewrite a check on a constant NULL pointer.  NULL pointers
+      // never belong to a valid memory object, and trying to replace them
+      // in other parts of the code simply creates problems.
+      //
+      if (isa<ConstantPointerNull>(PeeledOperand))
+        continue;
+
+      //
+      // We're going to make a change.  Mark that we will have done so.
+      //
+      modified = true;
 
       //
       // Cast the result of the call instruction to match that of the original
@@ -155,11 +174,21 @@ RewriteOOB::processFunction (Module & M, const CheckInfo & Check) {
       std::vector<User *> Uses;
       Value::use_iterator UI = PeeledOperand->use_begin();
       for (; UI != PeeledOperand->use_end(); ++UI) {
-        if (Instruction * Use = dyn_cast<Instruction>(*UI))
-          if ((CI != Use) && (domTree->dominates (CI, Use))) {
-            Uses.push_back (*UI);
-            ++Changes;
+        if (Instruction * Use = dyn_cast<Instruction>(*UI)) {
+          if (Use->getParent()->getParent() == CurrentFunction) {
+            if (isa<PHINode>(Use)) {
+              if (inSameBlock) {
+                Uses.push_back (*UI);
+                ++Changes;
+              }
+              continue;
+            }
+            if ((CI != Use) && (domTree->dominates (CI, Use))) {
+              Uses.push_back (*UI);
+              ++Changes;
+            }
           }
+        }
       }
 
       while (Uses.size()) {

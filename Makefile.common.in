@@ -27,6 +27,12 @@ POOLALLOC_OBJDIR := @poolallocobjdir@
 TEST_SRCDIR := @testsrcdir@
 TEST_OBJDIR := @testobjdir@
 
+# Set flag indicating whether we should use libLTO when running test 
+# in the test suite.  Note that this flag doesn't control whether we 
+# build with libLTO, only if we use it in tests.
+
+USE_LTO := @enable_lto_tests@
+
 # All of the code should additionally look inside the pool allocation source
 # code for include files
 #SC_FLAGS = -DSAFECODE -I$(POOLALLOC_SRCDIR)/include -I$(POOLALLOC_OBJDIR)/include -Werror -Wall -pedantic

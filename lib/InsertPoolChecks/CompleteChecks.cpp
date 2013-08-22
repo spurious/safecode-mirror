@@ -505,8 +505,15 @@ CompleteChecks::getFunctionTargets (CallSite CS,
       for (CallGraphNode::iterator ei = ExternalNode->begin();
                                    ei != ExternalNode->end(); ++ei) {
         if (Function * Target = ei->second->getFunction()) {
-          if (!(Target->isIntrinsic()))
-            Targets.push_back (Target);
+          //
+          // Do not include intrinsics or functions that do not get emitted
+          // into the executable.
+          //
+          if ((Target->isIntrinsic()) ||
+              (Target->hasAvailableExternallyLinkage())) {
+            continue;
+          }
+          Targets.push_back (Target);
         }
       }
     } else {
@@ -514,8 +521,10 @@ CompleteChecks::getFunctionTargets (CallSite CS,
       // Get the function target out of the node.
       //
       if (Function * Target = CalleeNode->getFunction()) {
-        if (!(Target->isIntrinsic()))
+        if ((!Target->isIntrinsic()) ||
+            (!Target->hasAvailableExternallyLinkage())) {
           Targets.push_back (Target);
+        }
       }
     }
   }

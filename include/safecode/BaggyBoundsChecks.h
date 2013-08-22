@@ -19,6 +19,9 @@
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/DataLayout.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+
 
 #include "safecode/SAFECode.h"
 
@@ -50,6 +53,15 @@ struct InsertBaggyBoundsChecks : public ModulePass {
     void adjustAlloca (AllocaInst * AI);
     void adjustAllocasFor (Function * F);
     void adjustArgv(Function *F);
+    void cloneFunctionInto(Function *NewFunc, 
+                           const Function *OldFunc,
+                           ValueToValueMapTy &VMap,
+                           bool ModuleLevelChanges,
+                           SmallVectorImpl<ReturnInst*> &Returns,
+                           const char *NameSuffix = "",
+                           ClonedCodeInfo *CodeInfo = 0,
+                           ValueMapTypeRemapper *TypeMapper = 0);
+
     Function * cloneFunction(Function * F);
     void callClonedFunction(Function * F, Function * NewF);
 };

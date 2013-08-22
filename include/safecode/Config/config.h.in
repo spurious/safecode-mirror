@@ -536,3 +536,6 @@
 /* Define to 1 if iconv.h is available */
 #undef HAVE_ICONV_H
 
+/* Define to 1 to enable Automatic Pool Allocation support in libLTO */
+#undef HAVE_POOLALLOC
+

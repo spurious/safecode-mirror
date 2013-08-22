@@ -103,8 +103,19 @@ CFIChecks::createTargetTable (CallInst & CI, bool & isComplete) {
       for (CallGraphNode::iterator ei = ExternalNode->begin();
                                    ei != ExternalNode->end(); ++ei) {
         if (Function * Target = ei->second->getFunction()) {
-          if (Target->isIntrinsic())
+          //
+          // Do not include intrinsic functions or functions that do not get
+          // emitted into the executable in the list of targets.
+          //
+          if ((Target->isIntrinsic()) ||
+              (Target->hasAvailableExternallyLinkage())) {
             continue;
+          }
+
+          //
+          // Do not include functions with available externally linkage.  These
+          // functions are never emitted into the final executable.
+          //
           Targets.push_back (ConstantExpr::getZExtOrBitCast (Target,
                                                              VoidPtrType));
         }
@@ -121,6 +132,15 @@ CFIChecks::createTargetTable (CallInst & CI, bool & isComplete) {
       //
       if (!Target) {
         isComplete = false;
+        continue;
+      }
+
+      //
+      // Do not include intrinsic functions or functions that do not get
+      // emitted into the final exeutable as targets.
+      //
+      if ((Target->isIntrinsic()) ||
+          (Target->hasAvailableExternallyLinkage())) {
         continue;
       }
 

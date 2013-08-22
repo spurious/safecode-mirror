@@ -110,7 +110,8 @@ ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
 
   //
   // Calculate the:
-  //  offset: Distance from base pointer to calculated pointer
+  //  offset: Distance from the start of the memory object to the calculated
+  //          pointer
   //  zero  : The zero value
   //  bounds: The size of the object
   //  diff  : The difference between the bounds and the offset
@@ -118,8 +119,8 @@ ArrayBoundsCheckLocal::visitGetElementPtrInst (GetElementPtrInst & GEP) {
   // SCEVs for GEP indexing operations seems to be the size of a pointer.
   // Therefore, use an integer size equal to the pointer size.
   //
-  const SCEV * GEPBase = SE->getSCEV(PointerOperand);
-  const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(&GEP), GEPBase);
+  const SCEV * base   = SE->getSCEV(memObject);
+  const SCEV * offset = SE->getMinusSCEV(SE->getSCEV(&GEP), base);
   const SCEV * zero = SE->getSCEV(Constant::getNullValue(TD->getIntPtrType(GEP.getType())));
 
   //

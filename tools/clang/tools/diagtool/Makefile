@@ -13,7 +13,7 @@ LEVEL := $(CLANG_LEVEL)/../..
 TOOLNAME = diagtool 
 
 # No plugins, optimize startup time.
-TOOL_NO_EXPORTS := 1
+#TOOL_NO_EXPORTS := 1
 
 # Don't install this.
 NO_INSTALL = 1

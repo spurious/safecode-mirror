@@ -160,8 +160,10 @@ RegisterMainArgs::runOnModule(Module & M) {
     return false;
   }
 
-  if (MainFunc->arg_size() != 2) {
-    // No argc / argv, return
+  //
+  // If there are no argc and argv arguments, don't register them.
+  //
+  if (MainFunc->arg_size() < 2) {
     return false;
   }
 
