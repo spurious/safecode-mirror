@@ -16,7 +16,7 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
-#include "llvm/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicInst.h"
 
 #include <set>
 

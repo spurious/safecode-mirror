@@ -16,9 +16,9 @@
 #ifndef _BAGGY_BOUNDS_CHECKS_H_
 #define _BAGGY_BOUNDS_CHECKS_H_
 
-#include "llvm/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/DataLayout.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 

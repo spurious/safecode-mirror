@@ -15,18 +15,18 @@
 #ifndef CSTDLIB_H
 #define CSTDLIB_H
 
-#include "llvm/Constants.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/InstVisitor.h"
-#include "llvm/DataLayout.h"
+#include "llvm/InstVisitor.h"
 
 #include "safecode/SAFECode.h"
 

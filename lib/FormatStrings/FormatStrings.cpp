@@ -15,9 +15,9 @@
 #define DEBUG_TYPE "formatstrings"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/LLVMContext.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/IRBuilder.h"
 
 #include "safecode/FormatStrings.h"
 #include "safecode/Utility.h"

@@ -16,7 +16,7 @@
 #define MEMORY_SAFETY_CHECK_INFO_H_
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 #include <vector>

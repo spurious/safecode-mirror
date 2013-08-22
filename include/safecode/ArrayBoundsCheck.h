@@ -19,10 +19,10 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Support/InstVisitor.h"
-#include "llvm/DataLayout.h"
-#include "llvm/Instruction.h"
-#include "llvm/Function.h"
+#include "llvm/InstVisitor.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
 namespace llvm {

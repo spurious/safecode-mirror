@@ -15,8 +15,8 @@
 #define _REGISTER_RUNTIME_INITIALIZER_H_
 
 #include "llvm/Pass.h"
-#include "llvm/Module.h"
-#include "llvm/DataLayout.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/DataLayout.h"
 
 namespace llvm {
 

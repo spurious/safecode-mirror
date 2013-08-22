@@ -20,12 +20,12 @@
 
 
 #include "llvm/DebugInfo.h"
-#include "llvm/Constants.h"
-#include "llvm/IntrinsicInst.h"
-#include "llvm/Instructions.h"
-#include "llvm/LLVMContext.h"
-#include "llvm/Module.h"
-#include "llvm/Metadata.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/ADT/Statistic.h"
@@ -246,7 +246,7 @@ VariableSourceInfo::operator() (CallInst * CI) {
         if (DIGlobalVariable(NMD->getOperand(i)).getGlobal() == GV) {
           DIGlobalVariable Var(NMD->getOperand(i));
           LineNumber = ConstantInt::get (Int32Type, Var.getLineNumber());
-          filename = Var.getCompileUnit().getDirectory().str() + "/" + Var.getCompileUnit().getFilename().str();
+          filename = (Var.getDirectory() + "/" + Var.getFilename()).str();
         }
       }
     }

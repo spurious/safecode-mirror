@@ -20,12 +20,12 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MSCInfo.h"
-#include "llvm/IRBuilder.h"
-#include "llvm/Pass.h"
-#include "llvm/Module.h"
-#include "llvm/DataLayout.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Pass.h"
 
 #include <map>
 #include <queue>
@@ -134,8 +134,8 @@ bool ExactCheckOpt::runOnModule(Module &M) {
   // (which has Attribute::ReadOnly) whose output can be influenced by 
   // changes in the heap.
   //
-  M.getFunction("exactcheck2")->addFnAttr (Attributes::ReadNone);
-  M.getFunction("fastlscheck")->addFnAttr (Attributes::ReadNone);
+  M.getFunction("exactcheck2")->addFnAttr (Attribute::ReadNone);
+  M.getFunction("fastlscheck")->addFnAttr (Attribute::ReadNone);
 
   CheckInfoListType CheckInfoList = MSCI->getCheckInfoList();
   for (size_t i = 0, N = CheckInfoList.size(); i < N; ++i) {

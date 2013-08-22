@@ -15,19 +15,19 @@
 #define DEBUG_TYPE "baggy-bound-checks"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Attributes.h"
-#include "llvm/GlobalVariable.h"
-#include "llvm/Value.h"
-#include "llvm/Constants.h"
-#include "llvm/InstrTypes.h"
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/TypeBuilder.h"
-#include "llvm/Function.h"
-#include "llvm/IRBuilder.h"
+#include "llvm/IR/TypeBuilder.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 
 #include "safecode/BaggyBoundsChecks.h"
 #include "safecode/Runtime/BBMetaData.h"
@@ -808,12 +808,12 @@ InsertBaggyBoundsChecks::cloneFunction (Function * F) {
 
       {
         AttrBuilder AB0;
-        AB0.addAttribute(Attributes::ByVal);
-        In->addAttr (Attributes::get(NewF->getContext(), AB0));
+        AB0.addAttribute(Attribute::ByVal);
+        In->addAttr(AttributeSet::get(NewF->getContext(), 0, AB0));
 
         AttrBuilder AB1;
         AB1.addAlignmentAttr (*it);
-        In->addAttr (Attributes::get(In->getContext(), AB1));
+        In->addAttr(AttributeSet::get(In->getContext(), 0, AB1));
 
         ++it;
       }
@@ -993,13 +993,16 @@ InsertBaggyBoundsChecks::callClonedFunction (Function * F, Function * NewF) {
 
 #if 0
             // Remove the old alignment attribute
-            CallI->removeAttribute(i + 1, Attributes(Attributes::Alignment));
+            CallI->removeAttribute(i + 1, Attributes(Attribute::Alignment));
 #endif
 
             // Add the new alignment attribute
             AttrBuilder AB;
             AB.addAlignmentAttr (*iiter++);
-            CallI->addAttribute(i + 1, Attributes::get(F->getContext(), AB)); 
+            AttributeSet AS = CallI->getAttributes();
+            AS = AS.addAttributes(F->getContext(), i + 1,
+                                  AttributeSet::get(F->getContext(), 0, AB));
+            CallI->setAttributes(AS);
           }
         }
         CallI->setCallingConv(CI->getCallingConv());

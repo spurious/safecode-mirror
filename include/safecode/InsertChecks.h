@@ -17,12 +17,12 @@
 #define _SAFECODE_INSERT_CHECKS_H_
 
 #include "safecode/SAFECode.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Support/InstVisitor.h"
+#include "llvm/InstVisitor.h"
 #include "safecode/PoolHandles.h"
 #include "ArrayBoundsCheck.h"
 #include "ConvertUnsafeAllocas.h"

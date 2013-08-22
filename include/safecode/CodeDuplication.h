@@ -5,9 +5,9 @@
 #define _CODE_DUPLICATION_H_
 
 #include <map>
-#include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopPass.h"
 

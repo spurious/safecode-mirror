@@ -17,12 +17,12 @@
 
 #include "CommonMemorySafetyPasses.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Constants.h"
-#include "llvm/IntrinsicInst.h"
-#include "llvm/IRBuilder.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/InstVisitor.h"
-#include "llvm/DataLayout.h"
+#include "llvm/InstVisitor.h"
 #include "llvm/Transforms/Instrumentation.h"
 
 using namespace llvm;

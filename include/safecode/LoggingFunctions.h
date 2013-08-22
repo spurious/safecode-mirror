@@ -16,10 +16,10 @@
 #ifndef LOGGING_FUNCTIONS_H
 #define LOGGING_FUNCTIONS_H
 
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
+#include "llvm/InstVisitor.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/Support/InstVisitor.h"
 
 #include "safecode/SAFECode.h"
 

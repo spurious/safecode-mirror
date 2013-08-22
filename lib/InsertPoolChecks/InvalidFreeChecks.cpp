@@ -14,7 +14,7 @@
 #define DEBUG_TYPE "safecode"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Constants.h"
+#include "llvm/IR/Constants.h"
 #include "safecode/InvalidFreeChecks.h"
 #include "safecode/Utility.h"
 

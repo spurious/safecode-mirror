@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AffineExpressions.h"
-#include "llvm/DerivedTypes.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Function.h"
-#include "llvm/BasicBlock.h"
-#include "llvm/InstrTypes.h"
-#include "llvm/BasicBlock.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/BasicBlock.h"
 #include <iostream>
 
 using namespace llvm;

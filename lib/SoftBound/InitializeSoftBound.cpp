@@ -36,8 +36,8 @@
 // WITH THE SOFTWARE.
 //===---------------------------------------------------------------------===//
 
-#include "llvm/Constants.h"
-#include "llvm/LLVMContext.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/LLVMContext.h"
 #include "SoftBound/InitializeSoftBound.h"
 
 

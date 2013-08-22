@@ -18,9 +18,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Constants.h"
-#include "llvm/IRBuilder.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
@@ -77,7 +77,7 @@ void SpecializeCMSCalls::specializeLoadStoreChecks(Module &M) {
   M.getOrInsertFunction("poolcheckui", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty,
                         NULL);
   Function *PoolCheckUI = M.getFunction("poolcheckui");
-  PoolCheckUI->addFnAttr(Attributes::ReadOnly);
+  PoolCheckUI->addFnAttr(Attribute::ReadOnly);
 
   const int NewOrder[] = {1, 2};
   specialize(M, "__loadcheck", "poolcheckui", NewOrder, MemoryChecksConverted);

@@ -15,9 +15,9 @@
 #ifndef _SC_CHECKINFO_H_
 #define _SC_CHECKINFO_H_
 
-#include "llvm/Function.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/Instructions.h"
 
 using namespace llvm;
 

@@ -19,10 +19,10 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/InstVisitor.h"
-#include "llvm/DataLayout.h"
+#include "llvm/InstVisitor.h"
 
 #include "safecode/ArrayBoundsCheck.h"
 

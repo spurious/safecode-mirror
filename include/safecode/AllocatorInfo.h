@@ -18,10 +18,10 @@
 #ifndef SAFECODE_SUPPORT_ALLOCATORINFO_H
 #define SAFECODE_SUPPORT_ALLOCATORINFO_H
 
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Pass.h"
-#include "llvm/Value.h"
-#include "llvm/DataLayout.h"
 
 #include "safecode/Utility.h"
 

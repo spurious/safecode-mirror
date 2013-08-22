@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Constants.h"
-#include "llvm/ValueSymbolTable.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/ValueSymbolTable.h"
 
 #include "safecode/LoggingFunctions.h"
 #include "safecode/VectorListHelper.h"

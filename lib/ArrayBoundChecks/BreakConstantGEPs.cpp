@@ -15,11 +15,11 @@
 #define DEBUG_TYPE "break-constgeps"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Constants.h"
-#include "llvm/InstrTypes.h"
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
-#include "llvm/LLVMContext.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/InstIterator.h"
 
 #include "safecode/BreakConstantGEPs.h"

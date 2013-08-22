@@ -15,10 +15,10 @@
 #ifndef DEBUG_INSTRUMENTATION_H
 #define DEBUG_INSTRUMENTATION_H
 
-#include "llvm/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Type.h"
-#include "llvm/Value.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
 
 #include <map>
 #include <string>

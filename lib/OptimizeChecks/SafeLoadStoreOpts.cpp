@@ -16,7 +16,7 @@
 #include "safecode/SafeLoadStoreOpts.h"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
 
 namespace llvm {
 

@@ -14,9 +14,9 @@
 #define DEBUG_TYPE "opt-safecode"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Constants.h"
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 
 #include "safecode/OptimizeChecks.h"
 #include "safecode/Utility.h"

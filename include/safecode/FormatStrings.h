@@ -15,7 +15,7 @@
 #ifndef FORMAT_STRINGS_H
 #define FORMAT_STRINGS_H
 
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 #include "safecode/SAFECode.h"

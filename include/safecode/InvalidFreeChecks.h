@@ -17,8 +17,8 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/Support/InstVisitor.h"
-#include "llvm/DataLayout.h"
+#include "llvm/InstVisitor.h"
+#include "llvm/IR/DataLayout.h"
 
 namespace llvm {
 

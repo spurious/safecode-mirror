@@ -130,7 +130,7 @@ InsertGEPChecks::doInitialization (Module & M) {
   // Mark the function as readonly; that will enable it to be hoisted out of
   // loops by the standard loop optimization passes.
   //
-  (cast<Function>(F))->addFnAttr (Attributes::ReadOnly);
+  (cast<Function>(F))->addFnAttr (Attribute::ReadOnly);
   return true;
 }
 

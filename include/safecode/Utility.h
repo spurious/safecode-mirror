@@ -14,11 +14,11 @@
 #ifndef _SCUTILS_H_
 #define _SCUTILS_H_
 
-#include "llvm/BasicBlock.h"
-#include "llvm/Constants.h"
-#include "llvm/Instructions.h"
-#include "llvm/Function.h"
-#include "llvm/Module.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 
 #include <vector>
 #include <set>

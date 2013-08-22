@@ -16,7 +16,7 @@
 #define _LOWER_SAFECODE_INTRINSICS_H_
 
 #include "llvm/Pass.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
 
 #include "safecode/Config/config.h"
 

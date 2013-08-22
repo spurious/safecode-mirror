@@ -16,10 +16,10 @@
 
 #include "llvm/Analysis/DominanceFrontier.h"
 #include "llvm/Analysis/LoopPass.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Module.h"
-#include "llvm/DataLayout.h"
 #include "safecode/AllocatorInfo.h"
 
 namespace llvm {

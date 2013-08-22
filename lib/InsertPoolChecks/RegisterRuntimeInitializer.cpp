@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Constants.h"
-#include "llvm/LLVMContext.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/LLVMContext.h"
 #include "safecode/RegisterRuntimeInitializer.h"
 #include "safecode/Utility.h"
 

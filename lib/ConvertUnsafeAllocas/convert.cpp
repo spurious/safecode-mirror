@@ -21,7 +21,7 @@
 #include "SCUtils.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/Dominators.h"
-#include "llvm/Instruction.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/CommandLine.h"

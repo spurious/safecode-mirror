@@ -16,8 +16,8 @@
 #include <algorithm>
 
 #include "llvm/Pass.h"
-#include "llvm/Instructions.h"
-#include "llvm/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Function.h"
 
 #include "safecode/Intrinsic.h"
 #include "safecode/Config/config.h"

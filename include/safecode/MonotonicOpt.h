@@ -14,11 +14,11 @@
 #ifndef _SAFECODE_MONOTONICOPT_H_
 #define _SAFECODE_MONOTONICOPT_H_
 
-#include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/DataLayout.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Instructions.h"
 
 using namespace llvm;
 

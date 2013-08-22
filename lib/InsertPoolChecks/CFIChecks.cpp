@@ -16,7 +16,7 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Constants.h"
+#include "llvm/IR/Constants.h"
 
 #include "safecode/CFIChecks.h"
 #include "safecode/Utility.h"
@@ -227,7 +227,7 @@ CFIChecks::runOnModule (Module & M) {
                                                           VoidPtrTy,
                                                           NULL));
   assert (FunctionCheckUI && "Function Check function has disappeared!\n");
-  FunctionCheckUI->addFnAttr (Attributes::ReadNone);
+  FunctionCheckUI->addFnAttr (Attribute::ReadNone);
 
   //
   // Visit all of the instructions in the function.

@@ -15,8 +15,8 @@
 #define DEBUG_TYPE "stackreg"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Instruction.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 

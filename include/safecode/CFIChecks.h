@@ -17,7 +17,7 @@
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/InstVisitor.h"
+#include "llvm/InstVisitor.h"
 
 namespace llvm {
 

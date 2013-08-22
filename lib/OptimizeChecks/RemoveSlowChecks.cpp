@@ -15,10 +15,10 @@
 #define DEBUG_TYPE "slowchecks"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Constants.h"
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 #include <vector>

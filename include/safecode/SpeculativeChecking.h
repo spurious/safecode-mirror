@@ -7,7 +7,7 @@
 #include "safecode/SAFECode.h"
 
 #include "llvm/Pass.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
 #include "dsa/CallTargets.h"
 #include "dsa/DataStructure.h"
 #include "poolalloc/PoolAllocate.h"

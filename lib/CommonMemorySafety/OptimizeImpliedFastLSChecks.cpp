@@ -27,10 +27,10 @@
 #include "llvm/Analysis/Dominators.h"
 #include "llvm/Analysis/MSCInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Instructions.h"
-#include "llvm/Pass.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Pass.h"
 
 using namespace llvm;
 

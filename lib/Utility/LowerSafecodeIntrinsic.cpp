@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
 
 #include "safecode/LowerSafecodeIntrinsic.h"
 
