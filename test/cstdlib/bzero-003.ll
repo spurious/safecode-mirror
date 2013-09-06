@@ -1,5 +1,5 @@
 ; RUN: test.sh -p -t %t %s
-; XFAIL: darwin
+; XFAIL:
 
 ; Example of the correct usage of bzero().
 ; This is in assembly because clang replaces calls to bzero() with
