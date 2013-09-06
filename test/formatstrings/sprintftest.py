@@ -7,6 +7,9 @@
 # RUN: python %s --function=vsprintf > %t/vsprintftest.c
 # RUN: test.sh -p -t %t %t/vsprintftest.c
 #
+# We xfail because this test is not 32-bit clean.
+# XFAIL:
+#
 
 #
 # Generate a C program to test sprintf() or vsprintf().
