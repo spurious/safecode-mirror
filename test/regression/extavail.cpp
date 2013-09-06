@@ -1,6 +1,8 @@
 //
 // RUN: clang -S -emit-llvm -O2 -fmemsafety %s -o - 2>&1 | grep TargetList 2>&1 | grep internal | grep -v _ZNSaIcEC1Ev | wc -l | grep "      0"
 //
+// XFAIL: linux
+//
 // This is a test case for PR#16672:
 // http://llvm.org/bugs/show_bug.cgi?id=16672
 //
