@@ -8,8 +8,7 @@
 # RUN: test.sh -p -t %t %t/vsprintftest.c
 #
 # We xfail because this test is not 32-bit clean.
-# XFAIL:
-#
+# XFAIL: i386, i686
 
 #
 # Generate a C program to test sprintf() or vsprintf().
@@ -90,7 +89,7 @@ basictesttab = \
   [ '%*.*E',              '14, 2, 9.99E+99',    '      9.99E+99'        ],
   [ '%0*.*F',             '14, 2, 9.9978e+02', '00000000999.78'         ],
   [ '%6c.*F',             '\'\\xfe\'',          '     \\xfe.*F'         ],
-  [ '%lli',               '1ll',                '1'                     ], 
+  [ '%lli',               '1ll',                '1'                     ],
   [ '%10.6llx',           '0xfffffull',         '    0fffff'            ],
   [ '%10.6lli',           '0xfffffll',          '   1048575'            ],
   [ '%.0e',               '1.0',                '1e+00'                 ],
@@ -174,7 +173,7 @@ double nan(void)
 {
   return strtod("nan", NULL);
 }
- 
+
 /* Check for support of the %%ls directive. */
 int russian_test(void)
 {
@@ -210,7 +209,7 @@ int main(void)
   n1 = n2 = 0;
 
   /* Begin tests. */
- 
+
   fail = russian_test();
 '''
 
