@@ -463,6 +463,7 @@ SC_LIB := $(PROJ_OBJ_ROOT)/$(BuildMode)/lib
 SC_BIN := $(PROJ_OBJ_ROOT)/$(BuildMode)/bin/clang
 
 SETENV = TARGET_TRIPLE=$(TARGET_TRIPLE)           \
+         PYTHON=$(PYTHON)                         \
          PATH=$(PROJ_OBJ_ROOT)/test/tools:$(PATH) \
          SC_OBJ_ROOT=$(PROJ_OBJ_ROOT)
 
