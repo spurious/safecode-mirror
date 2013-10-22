@@ -684,7 +684,7 @@ match_string(call_info    *ci,
           // Check if the write will go out of bounds. Only report this the
           // first time that it occurs.
           //
-          if (writecount - maxwrite > 0 &&
+          if (writecount > maxwrite &&
             (writecount - maxwrite) <= sizeof(wchar_t))
           {
             cerr << "Writing out of bounds!" << endl;
@@ -721,7 +721,7 @@ match_string(call_info    *ci,
     else
     {
       writecount += sizeof(wchar_t);
-      if (writecount - maxwrite > 0 &&
+      if (writecount > maxwrite &&
         (writecount - maxwrite) <= sizeof(wchar_t))
       {
         cerr << "Writing out of bounds!" << endl;
