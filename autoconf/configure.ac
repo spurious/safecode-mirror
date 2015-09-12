@@ -1,7 +1,7 @@
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
-AC_INIT([SAFECode],[1.00],[criswell@illinois.edu])
+AC_INIT([SAFECode],[1.00],[jtcriswel@gmail.com])
 
 dnl Identify where LLVM source tree is
 LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"
@@ -30,6 +30,9 @@ AC_CONFIG_MAKEFILE(lib/ConvertUnsafeAllocas/Makefile)
 AC_CONFIG_MAKEFILE(lib/InsertPoolChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/PointerChecks/Makefile)
 AC_CONFIG_MAKEFILE(lib/StackSafety/Makefile)
+AC_CONFIG_MAKEFILE(runtime/Makefile)
+AC_CONFIG_MAKEFILE(tools/Makefile)
+AC_CONFIG_MAKEFILE(tools/clang/Makefile)
 AC_CONFIG_MAKEFILE(test/Makefile)
 AC_CONFIG_MAKEFILE(test/BOdiagsuite-20050808/Makefile)
 
