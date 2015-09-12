@@ -184,7 +184,7 @@ dnl **************************************************************************
 AC_CONFIG_HEADERS(include/safecode/Config/config.h)
 
 dnl **************************************************************************
-dnl * Configure any susidiary projects that are included in SAFECode.
+dnl * Configure any projects that are included in SAFECode.
 dnl * At present, only Clang falls into this catagory.
 dnl **************************************************************************
 
